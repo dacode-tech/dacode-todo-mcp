@@ -84,7 +84,7 @@ Oldest first. One line per delivery, with the commit hash once committed.
   dependencies (Cargo.lock = exactly the four members), documented
   crate roots stating each §2 boundary. All four code gates green for
   the first time; dual-reviewed, first spawn of all three worker roles
-  confirmed the model bindings. Hash backfilled in the next board edit.
+  confirmed the model bindings. Landed as `57b531c`.
 
 ## 4. Follow-ups
 
@@ -181,7 +181,7 @@ signed text and moves only by user decision.
 
 **Handover.** Workspace: exists — four empty documented crates, all
 gates green. Landed: `bdfcd65` (D10 concretization), the M0 scaffold
-commit (hash backfilled next), this board move. Next step: M1 —
+commit (`57b531c`), this board move. Next step: M1 —
 decompose the domain model (five node kinds, D9 statuses, edges and
 invariants per §3/§5) and the store (`Store` trait, JSONL event log,
 per-repo layout, golden files per §4/§8/§10); U4 (golden-file
