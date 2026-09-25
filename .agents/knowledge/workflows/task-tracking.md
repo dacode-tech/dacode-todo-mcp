@@ -154,6 +154,11 @@ step. `/todo-close` runs the exit gate over all of it.
 - **The `tasks.py` tracker is keyed by branch and gitignored.** Switching
   branches switches trackers, and none of it survives a fresh clone.
   Anything that must outlive the branch goes on the board.
+- **An unborn branch keys the tracker as `HEAD`.** Before the first
+  commit, git reports no branch name, so the file is
+  `.agents/cache/tasks/HEAD.yaml`; the first commit re-keys to the branch
+  and orphans it. Move `HEAD.yaml` to `<branch>.yaml` right after the
+  initial commit.
 - **`.agents/cache/` is gitignored on purpose.** It is a rendering of
   committed state, never a source of it. Never commit it, and if it
   disagrees with the docs, the docs win.
