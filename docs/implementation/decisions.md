@@ -406,6 +406,16 @@ Work order executed: §3 node kinds/identity/references, §5.1 edge
 extensions, §6 tool rows, §9 mapping amended (open D/B → decision
 nodes), §11 rewritten, §12 item 10 deleted.
 
+**Concretization approved 2026-09-25.** The user ok'd the concrete
+shapes proposed in the sign-off thread: per-kind id prefixes (task
+`U`, epic `E`, decision `D`, doc `S`); decision transitions enforced
+like task closure (`signed`/`superseded` require `resolution`, else
+the new §6.1 code `missing_resolution`); signing flips the status and
+the decision's `blocks` edges simply stop gating — no edge mutation;
+milestone gating is a `blocks` edge to an epic, not a field;
+`doc_set_path` audited like `repo_set_path`; registered-doc citations
+take an optional `#anchor`. Landed in §3/§6/§6.1 (board U6 struck).
+
 **Gates** M1 · **Resolved** 2026-09-25
 
 **Current.** Nodes carry no external references; specs and decisions

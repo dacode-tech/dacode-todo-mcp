@@ -98,25 +98,34 @@ mirroring what the sibling boards already mean:
   status (`open`/`signed`/`superseded`), options, recommendation,
   resolution, confidence, `references`, timestamps. An open decision
   may `block` tasks and epics (§5.1), so "never write past an unsigned
-  decision" is enforced by the graph, not by habit.
+  decision" is enforced by the graph, not by habit. Transitions mirror
+  task closure: reaching `signed` or `superseded` without a
+  `resolution` is an error (`missing_resolution`, §6.1). Signing flips
+  the status and the decision's `blocks` edges simply stop gating — no
+  edge mutation, the history stays. Gating a milestone is a `blocks`
+  edge to an epic (§9 maps milestones to epics), not a field.
 - **Doc** (D10) — a registered document: id, repo, title, path
   (mutable, like a repo's), version, timestamps. The prose body lives
   in git; the server holds the stable address so citations survive
   file moves and resolve from any repo. The server never becomes the
-  editor of prose bodies.
+  editor of prose bodies. A path update is an audited mutation, like
+  `repo_set_path` (§7).
 
 **Identity (D3, extended to the D10 kinds).** Repos are keyed by an
 immutable slug chosen at registration (`camera`); display name and
 path stay mutable. Epics, tasks, decisions and docs get per-repo
 sequential integers per kind, allocated by the server, never reused,
-never renumbered — gaps are meaningful. Prose cites `camera:U7`-style
-ids. Sequential allocation rides the single-writer lock (§8).
+never renumbered — gaps are meaningful. Prose cites ids with a
+per-kind prefix — task `U` (board heritage), epic `E`, decision `D`,
+doc `S`: `camera:U7`, `camera:D3`. Sequential allocation rides the
+single-writer lock (§8).
 
 **References (D10).** Epics, tasks, decisions and docs carry an
 optional `references` list: `{kind, target, note?}` entries, kind ∈
 `tracker`, `url`, `doc`, `spec`, `file`, `other`, canonically sorted
 by (kind, target, note). A citation of a registered doc uses kind
-`doc` with the doc's id as target — stable across file moves.
+`doc` with the doc's id as target and an optional `#anchor` for a
+section (`camera:S1#5.2`) — stable across file moves.
 
 Task kinds carry the sibling projects' vocabulary: `task` (one unit of
 work), `gate` (a checkpoint that must pass), `finding` (discovered, not
@@ -290,8 +299,8 @@ Sketch (names are the proposal; rmcp's tool macros will shape schemas):
 | `task_link` / `task_unlink` | `blocks` / `relates` edges (task and decision sources); cycle-checked |
 | `next_task` | **the question the system exists for** (§5.2) |
 | `next_items` | ranked actionable batch — repo/epic-scoped, or task-scoped (its dependents) — with blocked-by/blocks annotations, derived weight and the deferred summary (§5.2, D11 amended) |
-| `decision_add` / `decision_list` / `decision_show` / `decision_sign` | decision dossiers (D10); signing resolves what the decision blocked |
-| `doc_register` / `doc_list` / `doc_set_path` | registered-document records for stable citation (D10) |
+| `decision_add` / `decision_list` / `decision_show` / `decision_update` | decision dossiers (D10); `decision_update` to `signed`/`superseded` requires `resolution` — the closure discipline applied to decisions |
+| `doc_register` / `doc_list` / `doc_set_path` / `doc_update` | registered-document records for stable citation (D10); `doc_set_path` is audited like `repo_set_path` |
 | `graph_show` | the complete graph (all repos) or one repo/epic subgraph, as an LLM-consumable handover dump (§6.2, D11 amended) |
 | `import_md` | one-shot importer from the sibling markdown boards (§9; D7: camera dialect first) |
 
@@ -299,9 +308,9 @@ Sketch (names are the proposal; rmcp's tool macros will shape schemas):
 
 Stable codes, versioned like the store format: `unknown_id`,
 `duplicate`, `cycle`, `missing_verify`, `missing_evidence`,
-`missing_note`, `orphan_not_allowed`, `corrupt_store`,
-`version_mismatch`, `locked`. A client may branch on a code; it must
-never parse a message.
+`missing_note`, `missing_resolution`, `orphan_not_allowed`,
+`corrupt_store`, `version_mismatch`, `locked`. A client may branch on
+a code; it must never parse a message.
 
 ### 6.2 The graph dump (D11 amendment)
 

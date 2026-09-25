@@ -71,6 +71,11 @@ Oldest first. One line per delivery, with the commit hash once committed.
   ready filter on task_list (D9); task-scoped next_items and the §6.2
   graph_show complete-graph dump (D11). D10 concretization proposed in
   the sign-off thread, lands on the user's ok (U6).
+- 2026-09-25 — **D10 concretization landed (U6 struck)**: per-kind id
+  prefixes (U/E/D/S), decision transitions enforced
+  (`missing_resolution`), audited `doc_set_path`, `#anchor` doc
+  citations, `decision_update`/`doc_update` tool verbs. The user also
+  confirmed canonical JSON as the `graph_show` wire format (§6.2).
 
 ## 4. Follow-ups
 
@@ -102,7 +107,7 @@ Unowned work. Take the next unused `U` id; never renumber, never reuse.
       event log means, and whether snapshots are the recovery unit.
       Now scoped to the signed D1 engine (JSONL event log) and the D4
       per-repo layout.
-- [ ] **U6 · Land the D10 concretization on the user's ok**: per-kind
+- [x] **U6 · Land the D10 concretization on the user's ok**: per-kind
       id prefixes (task `U`, epic `E`, decision `D`, doc `S` —
       `camera:D3` echoes the board registers); decision status
       transitions enforced like task closure (`signed`/`superseded`
@@ -112,8 +117,8 @@ Unowned work. Take the next unused `U` id; never renumber, never reuse.
       as `blocks` edges to epics, not a field; `doc_set_path` audited
       like `repo_set_path`; references entries `{kind, target, note?}`
       with `#anchor` targets for registered docs. Proposed in the
-      sign-off thread 2026-09-25; on ok, edit §3/§5.1/§6/§6.1 and the
-      D10 banner.
+      sign-off thread 2026-09-25; **approved and landed the same day**
+      in §3/§6/§6.1 + the D10 banner.
 
 ## 5. Debt
 
