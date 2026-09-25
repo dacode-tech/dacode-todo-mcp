@@ -10,9 +10,8 @@ same change — most orders delete the §12 item, so the spec moves too.
 and the meta block below; keep the shapes it parses.
 
 <!-- attention-meta — machine-readable; read by tools/attention.py.
-action: D9=vote
-action: D10=vote
-action: D11=vote
+     No open decisions: D1–D11 all resolved 2026-09-25. A new entry
+     declares its action here (e.g. `action: D12=vote`).
 -->
 
 ## Sign-off summary
@@ -27,9 +26,9 @@ action: D11=vote
 | ~~**D6**~~ | Selection tiebreaker | topology, then epic order, then id | medium | M2 | resolved (a) 2026-09-25 |
 | ~~**D7**~~ | Importer scope | one-shot read-only import, camera dialect first | medium | M4 | resolved (b) 2026-09-25 |
 | ~~**D8**~~ | Cross-repo ergonomics | defer cwd auto-detection to M5; id-keyed access in v1 | high | M4 | resolved (a) 2026-09-25 — plus default-repo slug config |
-| **D9** | Status vocabulary and the deferred state | (a) open/in_work/blocked/deferred/closed + keep wontfix; until-date is metadata | medium | M1 | open |
-| **D10** | References, specs and decisions as server entities | (b) layered: references list; decision nodes that can block; registered docs, prose stays in git | medium | M1 | open |
-| **D11** | Next-items surface and derived weight | (a) next_items batch with blocks annotations + derived weight, display-only | medium | M2 | open |
+| ~~**D9**~~ | Status vocabulary and the deferred state | (a) open/in_work/blocked/deferred/closed + keep wontfix; until-date is metadata | medium | M1 | resolved (a) 2026-09-25 — until-targets ride blocks edges |
+| ~~**D10**~~ | References, specs and decisions as server entities | (b) layered: references list; decision nodes that can block; registered docs, prose stays in git | medium | M1 | resolved (b) 2026-09-25 |
+| ~~**D11**~~ | Next-items surface and derived weight | (a) next_items batch with blocks annotations + derived weight, display-only | medium | M2 | resolved (a) 2026-09-25 — plus agent-set priority field, display-only |
 
 ---
 
@@ -325,7 +324,21 @@ to §6 and a determinism rule for its resolution order.
 
 ### D9 — Status vocabulary and the deferred state
 
-**Gates** M1 · **Action** vote
+**Resolved 2026-09-25 — option (a) with the user's `until`
+refinement.** Statuses: `open`, `in_work`, `blocked`, `deferred`,
+`closed`, `wontfix`. User refinement: a deferred item is "mostly
+blocked by some other tasks", so until-targets are primarily graph
+references — recorded as `blocks` edges from the target to the
+deferred task (cycle-checked at write, visible to every dependency
+query), while the optional `until` date stays pure metadata. No
+auto-reactivation on either: selection reads no calendar (§8) and no
+mutation silently flips a status; when an until-target closes, queries
+surface the item as until-satisfied and reopening is an explicit
+`task_update`. Closure discipline: closed⇒evidence, blocked⇒note,
+deferred⇒note. Work order executed: §3 statuses/closure rewritten,
+§5.2 actionability amended, §12 item 9 deleted, TODO.md M1 rows.
+
+**Gates** M1 · **Resolved** 2026-09-25
 
 **Current.** §3 specifies `pending`, `active`, `blocked`, `done`,
 `wontfix` — the exact `tools/tasks.py` set — with the closure
@@ -371,7 +384,20 @@ non-actionable); delete §12 item 9; the M1 rows of TODO.md §2.
 
 ### D10 — References, specs and design decisions as server entities
 
-**Gates** M1 · **Action** vote
+**Resolved 2026-09-25 — option (b), signed by the user.** References
+lists on epics/tasks/decisions/docs; `decision` nodes carrying full
+dossiers whose open state can `block` tasks and epics; `doc`
+registration for stable addresses with prose bodies staying in git.
+This resolution extends signed D2 (two new node kinds) and rewrites
+§11's "dossiers stay prose" non-goal — both moves are part of this
+sign-off, recorded here rather than folded into D2 silently. The
+full-content store (option (c)) is declined for v1; doc registration
+is the hook to add server-side retrieval later without migration.
+Work order executed: §3 node kinds/identity/references, §5.1 edge
+extensions, §6 tool rows, §9 mapping amended (open D/B → decision
+nodes), §11 rewritten, §12 item 10 deleted.
+
+**Gates** M1 · **Resolved** 2026-09-25
 
 **Current.** Nodes carry no external references; specs and decisions
 are git prose that this harness regex-parses (decisions.md +
@@ -433,7 +459,22 @@ delete §12 item 10; the M1 rows of TODO.md §2.
 
 ### D11 — Next-items surface and derived weight
 
-**Gates** M2 · **Action** vote
+**Resolved 2026-09-25 — option (a) with the user's priority
+amendment.** `next_items(repo, epic?, limit?)` returns the top-N
+actionable nodes in D6's canonical order (default limit 10), each
+annotated with its direct blocked-by/blocks ids and derived weight =
+transitive dependent count; `next_task` remains the limit=1 case.
+Amendment: an optional `priority` field on tasks, set by agents
+through `task_add`/`task_update` only, echoed in item payloads — no
+priority parameter on any query, and priority never enters the
+ordering, so signed D6 stands untouched. This is §11's "priority may
+come later by decision" being decided: as triage metadata, not an
+ordering input. Promotion into the tiebreaker would be a new decision
+amending D6 (flagged to the user at sign-off). Work order executed:
+§5.2 batch selection, §6 `next_items` row, §11 amended, §12 item 11
+deleted, TODO.md M2/M3 rows.
+
+**Gates** M2 · **Resolved** 2026-09-25
 
 **Current.** §5.2/§6 specify `next_task` returning the single first
 actionable node; D6(a) is signed (topology → epic order → id). The

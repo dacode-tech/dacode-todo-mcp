@@ -15,20 +15,16 @@ blocking. Rules, which `tools/attention.py` and the reviewers enforce:
 
 ## 1. Current state
 
-**Phase: M0 — spec signed; the skeleton is the next unit.** D1–D8 were
-signed 2026-09-25 (D4 and D8 with user amendments: per-repo stores; a
-per-instance default repo slug), their §12 items deleted and their
-sections made normative. Three follow-on decisions drafted from the
-sign-off message's new requirements — D9 statuses, D10
-references/specs/decisions as server entities, D11 next-items — gate
-M1/M2. The Cargo workspace skeleton (M0) is unblocked and presumes
-nothing D9–D11 could invalidate.
+**Phase: M0 — the spec is fully signed; the skeleton is the next
+unit.** D9–D11 joined D1–D8 on 2026-09-25 (D9 with the user's
+until-targets refinement, D11 with an agent-set display-only priority
+field); their §12 items are deleted and §12 is closed. The spec is
+normative throughout. Nothing blocks M0, and M1's schema work is
+unblocked too.
 
 | Blocking | What | Action |
 |---|---|---|
-| D9 | status vocabulary and the deferred state — gates M1's domain model | vote |
-| D10 | references, specs and design decisions as server entities — gates M1's node schema | vote |
-| D11 | next-items batch and derived weight — gates M2's selection surface | vote |
+| — | nothing decision-shaped: all eleven D-items signed 2026-09-25 | start M0 |
 
 ## 2. Milestones
 
@@ -39,8 +35,8 @@ exit criteria: spec §14. Priority is derived from the Gated-on column by
 | Milestone | Deliverable | Gated on | State |
 |---|---|---|---|
 | M0 | spec settled: §12 items 1–3 signed (done 2026-09-25); Cargo workspace skeleton with the lint regime; all gates green | — | unblocked — next |
-| M1 | domain model + storage engine: graph, statuses, persistence behind the `Store` trait, golden files | D9, D10 | not started |
-| M2 | queries: repo/epic selection, dependency resolution, deterministic `next_task`; registry with path updates | D11 | not started |
+| M1 | domain model + storage engine: graph, statuses, persistence behind the `Store` trait, golden files | — | not started |
+| M2 | queries: repo/epic selection, dependency resolution, deterministic `next_task`; registry with path updates | — | not started |
 | M3 | MCP server: the full §6 tool list over the wire, protocol-level tests, default-repo slug config (D8), smoke against a real client | — | not started |
 | M4 | adoption: camera-dialect importer first (D7), board fixtures checked in per §10; ikvm-html and dacode follow; the three repos tracked for real | — | not started |
 | M5 | packaging, docs, cwd auto-detection (deferred by D8), polish | — | not started |
@@ -63,6 +59,13 @@ Oldest first. One line per delivery, with the commit hash once committed.
   message's new requirements: status vocabulary + deferred state;
   references and specs/decisions as server entities; next-items batch +
   derived weight.
+- 2026-09-25 — **D9–D11 signed; §12 closed**: statuses
+  open/in_work/blocked/deferred/closed/wontfix, until-targets riding
+  `blocks` edges (no calendar, no auto-reactivation); `references`
+  lists plus `decision` and `doc` node kinds with decision→work
+  `blocks` edges; `next_items` batch with derived weight and an
+  agent-set, display-only `priority`. Spec normative throughout, §9
+  mapping and §11 non-goals amended, §6 tool table extended.
 
 ## 4. Follow-ups
 
@@ -106,6 +109,32 @@ _No debt recorded yet — nothing has been built to take a shortcut in._
 Newest first. One entry per session, written for someone who was not
 here. The final entry of a session is the handover
 (`.agents/skills/todo-next-imp/SKILL.md` defines the shape).
+
+### 2026-09-25 — D9–D11 signed; §12 closed
+
+The user voted all three remaining decisions the same day. **D9**:
+option (a) with a refinement — a deferred item is "mostly blocked by
+some other tasks", so until-targets ride `blocks` edges
+(cycle-checked, queryable) and the optional `until` date stays pure
+metadata; nothing reactivates by calendar or edge completion, queries
+surface until-satisfied items, reopening is an explicit update.
+**D10**: option (b) as drafted — references lists, decision nodes
+whose open state blocks work, registered docs with prose staying in
+git; extends signed D2's node kinds and rewrites §11's decision-culture
+non-goal, both recorded in its banner. **D11**: option (a) plus an
+amendment — an optional `priority` field set by agents on
+task_add/task_update, echoed in payloads, never a query parameter and
+never an ordering input; D6's tiebreaker stands untouched. All three
+work orders executed: §12 items 9–11 deleted and the section closed,
+§3/§5/§6/§9/§11 rewritten normative, board and harness docs updated.
+
+**Handover.** Workspace: none yet — M0 is fully unblocked (§12
+closed) and is the only thing standing between here and M1. Landed:
+this sign-off commit (docs only). Next step: scaffold the M0
+workspace — empty crates, workspace lints, the gate order green — on
+the user's go, which is the only thing blocking. Blocked on you: the
+go for M0; nothing decision-shaped. Unverified: as before — no agent
+spawn-tests, no serena/ast-grep smoke until the workspace exists.
 
 ### 2026-09-25 — D1–D8 signed; D9–D11 drafted
 

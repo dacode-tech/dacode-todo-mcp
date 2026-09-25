@@ -23,12 +23,13 @@ nodes, dependencies are typed edges, everything lives in local
 per-repo non-relational stores (D4), and "what is next in repo X under
 epic Y" is a query, not a prose parse. Rust, rmcp, stdio transport.
 
-D1–D8 are signed (2026-09-25; `docs/implementation/decisions.md`), so
-the Cargo workspace skeleton is authorized and is the next unit — it
-does not exist yet, and every code gate stays `skipped` until it lands.
-D9–D11 (statuses; references and specs/decisions as server entities;
-next-items) are drafted and gate M1/M2 — never write past them. The
-doc gates (`attention.py`, `check-links.py`, `agents-sync.py --check`,
+All eleven §12 decisions are signed (2026-09-25;
+`docs/implementation/decisions.md`) and §12 is closed, so the spec is
+normative throughout and the Cargo workspace skeleton (M0) is the next
+unit — it does not exist yet, and every code gate stays `skipped`
+until it lands. A new decision opens a new D-entry (D12+); signed
+shapes move only by a new user decision, never by edit. The doc gates
+(`attention.py`, `check-links.py`, `agents-sync.py --check`,
 `agents-index.py --check`) carry the weight until the skeleton exists.
 Run `tools/attention.py` for the current picture rather than trusting
 this paragraph.

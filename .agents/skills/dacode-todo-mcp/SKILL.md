@@ -32,8 +32,10 @@ machine-answerable: *what is the next actionable task, in repo X, under
 epic Y, given the dependency graph?*
 
 The spec is `docs/todo-mcp-design.md`. This skill is the short map; the
-spec is the territory, and §12 lists what is **not yet decided** — do not
-write code past an open decision.
+spec is the territory. §12 is **closed** — all eleven decisions were
+signed 2026-09-25, so the spec is normative throughout; a new decision
+opens a new D-entry (D12+), and signed shapes move only by a new user
+decision, never by edit.
 
 ## The model in one paragraph
 
@@ -46,9 +48,17 @@ write time). Ordering is never stored — it is derived topologically, and
 **next-task selection is a pure, documented function of graph state**
 (§5); the tiebreaker (D6): topology → epic registration order → task
 id. Everything that reaches disk or wire is canonically serialized and
-pinned by golden files (§8, §10). Open model amendments: the status
-vocabulary (§12 item 9) and references/decision/doc nodes (§12 item
-10) — do not pre-empt them in code.
+pinned by golden files (§8, §10). Since the 2026-09-25 sign-off the
+model has five node kinds (D10): repo, epic, task, **decision** (a
+structured dossier whose open state can `block` work — "never write
+past an unsigned decision", graph-enforced) and **doc** (a registered
+document; the prose body stays in git). Statuses (D9): `open`,
+`in_work`, `blocked`, `deferred`, `closed`, `wontfix`; deferred items
+record until-targets as `blocks` edges, never auto-reopen. Epics and
+tasks carry `references` lists (tracker keys, URLs, spec cites).
+`next_items` (D11) returns a ranked actionable batch annotated with
+what blocks what plus a derived transitive-dependent weight; the
+agent-set `priority` field is display-only and never reorders.
 
 ## The property that makes this project exist
 
@@ -78,9 +88,8 @@ requirements (§4), whatever happens:
 ## MCP surface — settled and pending
 
 Settled (D5): the §6 tool list is the v1 surface and `todo-cli` ships;
-JSON schemas firm up against rmcp's macros in M3. Pending: D11 may add
-a `next_items` batch tool; D9/D10 shape payload fields (statuses,
-references, decision/doc nodes). Fixed (§6's frame): tools are thin
+the list includes `next_items` (D11) and the decision/doc tools (D10).
+JSON schemas firm up against rmcp's macros in M3. Fixed (§6's frame): tools are thin
 translations over domain operations; every tool takes a repo parameter
 (a per-instance default slug is configuration, never a cwd heuristic —
 D8); epic is a filter parameter wherever tasks are

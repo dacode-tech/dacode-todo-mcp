@@ -10,7 +10,7 @@
 # ─── Template Versioning ───────────────────────────────────────────────
 version:
   template: "0.1"          # Inherited from the dacode agent-rules layout
-  custom: 2                # Local adjustment counter
+  custom: 3                # Local adjustment counter
 
 # ─── Project Identity ──────────────────────────────────────────────────
 project:
@@ -618,7 +618,7 @@ synced_sources: []
 # ─── Discovered Context ────────────────────────────────────────────────
 discovered:
   last_scan_date: "2026-09-25"
-  repo_summary: "Harness bootstrapped (committed e6d4761). D1–D8 signed 2026-09-25: the Cargo workspace skeleton (M0) is authorized and is the next unit; it does not exist yet. D9–D11 (statuses; references/specs/decisions as server entities; next-items) are open and gate M1/M2 — never write past them."
+  repo_summary: "Harness bootstrapped (committed e6d4761). All eleven §12 decisions signed 2026-09-25 — §12 is closed and the spec is normative throughout. The Cargo workspace skeleton (M0) is the next unit; it does not exist yet. New decisions open new D-entries (D12+); signed shapes move only by a new user decision."
   file_counts:
     rs: 0
     md: 0

@@ -1,12 +1,13 @@
 # dacode-todo-mcp — Design
 
-> **Status: core spec signed 2026-09-25 (D1–D8); §12 items 9–11 open.**
-> A section below is either a requirement the user has stated, or a
-> proposal made normative when its §12 decision was signed (record:
-> `docs/implementation/decisions.md`); anything still marked PROPOSED
-> moves only when its decision is signed. This document carries no
-> markdown links by convention (`tools/check-links.py` enforces it) —
-> paths and sections are cited in backticks.
+> **Status: signed — all eleven §12 decisions resolved 2026-09-25.**
+> Every section is normative: a requirement the user stated, or a
+> proposal made normative by its signed decision (record:
+> `docs/implementation/decisions.md`). A new decision opens a new
+> D-entry (D12+); signed shapes move only by a new decision, never by
+> edit. This document carries no markdown links by convention
+> (`tools/check-links.py` enforces it) — paths and sections are cited
+> in backticks.
 
 ## 1. Purpose and Scope
 
@@ -76,38 +77,64 @@ iterate the registry and open per-repo stores. Lock scope: §8.
 
 ## 3. Domain Model
 
-Normative (D2, D3 signed 2026-09-25; the status-vocabulary amendment
-is pending as §12 item 9, references and decision/doc node kinds as
-§12 item 10). Three node kinds, mirroring what the sibling boards
-already mean:
+Normative (D2, D3, D9, D10 signed 2026-09-25). Five node kinds,
+mirroring what the sibling boards already mean:
 
 - **Repo** — a stable slug id (the key, immutable — D3), a display
-  name, a filesystem path
-  (a mutable attribute, §7), and a registration timestamp.
+  name, a filesystem path (a mutable attribute, §7), and a
+  registration timestamp.
 - **Epic** — a repo's top-level grouping: id, repo, title, description,
-  status. The selection unit the user asked for: every list query may
-  name one.
+  status, `references` (D10 — e.g. JIRA/tracker links; an epic may be
+  an external issue). The selection unit the user asked for: every
+  list query may name one.
 - **Task** — id, repo, epic (its `parent`), kind, title, body, status,
   `verify` (the method that will prove it done — required at creation),
-  `evidence` (required to reach `done`), `note` (required to reach
-  `blocked`), timestamps.
+  `evidence` (required to reach `closed`), `note` (required to reach
+  `blocked` and `deferred`), `references` (D10), an optional
+  agent-set `priority` (D11 — triage metadata, never an ordering
+  input), an optional `until` (D9 — a date, pure metadata; graph
+  targets ride `blocks` edges), timestamps.
+- **Decision** (D10) — a structured sign-off dossier: id, repo, title,
+  status (`open`/`signed`/`superseded`), options, recommendation,
+  resolution, confidence, `references`, timestamps. An open decision
+  may `block` tasks and epics (§5.1), so "never write past an unsigned
+  decision" is enforced by the graph, not by habit.
+- **Doc** (D10) — a registered document: id, repo, title, path
+  (mutable, like a repo's), version, timestamps. The prose body lives
+  in git; the server holds the stable address so citations survive
+  file moves and resolve from any repo. The server never becomes the
+  editor of prose bodies.
 
-**Identity (D3).** Repos are keyed by an immutable slug chosen at
-registration (`camera`); display name and path stay mutable. Epics and
-tasks get per-repo sequential integers per kind, allocated by the
-server, never reused, never renumbered — gaps are meaningful. Prose
-cites `camera:U7`-style ids. Sequential allocation rides the
-single-writer lock (§8).
+**Identity (D3, extended to the D10 kinds).** Repos are keyed by an
+immutable slug chosen at registration (`camera`); display name and
+path stay mutable. Epics, tasks, decisions and docs get per-repo
+sequential integers per kind, allocated by the server, never reused,
+never renumbered — gaps are meaningful. Prose cites `camera:U7`-style
+ids. Sequential allocation rides the single-writer lock (§8).
+
+**References (D10).** Epics, tasks, decisions and docs carry an
+optional `references` list: `{kind, target, note?}` entries, kind ∈
+`tracker`, `url`, `doc`, `spec`, `file`, `other`, canonically sorted
+by (kind, target, note). A citation of a registered doc uses kind
+`doc` with the doc's id as target — stable across file moves.
 
 Task kinds carry the sibling projects' vocabulary: `task` (one unit of
 work), `gate` (a checkpoint that must pass), `finding` (discovered, not
-the point of the task), `debt` (a deliberate shortcut). Statuses:
-`pending`, `active`, `blocked`, `done`, `wontfix` — the exact set
-`tools/tasks.py` already enforces, whose closure rules (evidence for
-done, note for blocked, verify decided at creation) this server adopts as
-product behaviour (§6), not just convention. A revised vocabulary
-directed by the user (open / in-work / deferred / closed) is pending as
-§12 item 9; until signed, this set stands.
+the point of the task), `debt` (a deliberate shortcut).
+
+Statuses (D9): `open`, `in_work`, `blocked`, `deferred`, `closed`,
+`wontfix` — renamed from the `tools/tasks.py` set the culture comes
+from (pending→open, active→in_work, done→closed) plus `deferred`. The
+closure discipline is product behaviour (§6), not convention:
+`closed`⇒evidence, `blocked`⇒note, `deferred`⇒note, `verify` decided
+at creation. `deferred` means deliberately postponed, usually until
+other work lands: the until-targets are `blocks` edges from those
+items, and the optional `until` date is metadata. Nothing reactivates
+by calendar or by an edge completing — selection reads neither (§8);
+when an until-target closes, queries surface the item as
+until-satisfied and reopening is an explicit update. `wontfix` remains
+the one terminal that unblocks successors without evidence of
+completed work (§5.1).
 
 Timestamps are RFC 3339 UTC, passed in by the caller layer; nothing below
 the binary reads a wall clock (§8).
@@ -169,15 +196,21 @@ server crates never see past it.
 
 Two structural edge kinds plus one annotation:
 
-- **`parent`** — a tree: repo → epic → task. Every epic has exactly one
-  repo; every task has exactly one epic. Reparenting a task moves it;
-  deleting an epic requires its tasks to move first or be closed — no
-  orphans, ever.
-- **`blocks`** — a DAG over tasks (epic-level `blocks` is a follow-up
-  decision when a real query needs one — D2). `A blocks B`
-  means B is not actionable until A is `done` or `wontfix`. **A write
-  that would create a cycle is rejected before it lands** — cycle
-  detection at write time, not repair at query time.
+- **`parent`** — a tree: repo → epic → task; decisions and docs attach
+  directly to their repo (D10). Every epic has exactly one repo; every
+  task has exactly one epic. Reparenting a task moves it; deleting an
+  epic requires its tasks to move first or be closed — no orphans,
+  ever.
+- **`blocks`** — a DAG over tasks, plus decision→task/epic gating
+  edges (D10): an open decision blocking an epic holds all work under
+  it. Epic-level `blocks` between tasks/epics remains a follow-up
+  decision when a real query needs one (D2). `A blocks B` means B is
+  not actionable until A is `closed` or `wontfix` — for a decision
+  source, until it is `signed` or `superseded`. **A write that would
+  create a cycle is rejected before it lands** — cycle detection at
+  write time, not repair at query time. Deferred items (D9) record
+  their until-targets as incoming `blocks` edges; the edges make the
+  wait queryable, they never auto-reopen the item.
 - **`relates`** — an annotation with no ordering semantics; it never
   affects selection.
 
@@ -188,18 +221,28 @@ topological order of `blocks` restricted to a repo (and optionally one
 epic), with a total-order tiebreaker so the derivation is a function,
 not a coincidence. The tiebreaker (D6, signed): topology first, then
 epic registration order, then task id (creation order) — all derived
-from existing fields, no stored priority, no new state.
+from existing fields. The agent-set `priority` (D11) is payload
+metadata and never enters the tiebreaker.
 
 `next_task(repo, epic?)` returns the first node in canonical order that
-is **actionable**: status `pending` or `active`, not `blocked`, and no
-unfinished `blocks` predecessor. The selection is a pure function of
-graph state: same store bytes in, same answer out, on every run and
-every platform.
+is **actionable**: status `open` or `in_work`, and no unfinished
+`blocks` predecessor (a predecessor is finished at `closed`/`wontfix`,
+a decision predecessor at `signed`/`superseded`). `blocked` and
+`deferred` items are never actionable whatever their edges say. The
+selection is a pure function of graph state: same store bytes in, same
+answer out, on every run and every platform.
+
+Batch selection (D11): `next_items(repo, epic?, limit?)` returns up to
+`limit` (default 10) actionable nodes in canonical order, each
+annotated with its direct blocked-by/blocks ids and a derived weight =
+count of transitive dependents. Annotations never reorder.
+`next_task` is the limit=1 case.
 
 ## 6. MCP Tool Surface
 
-Normative (D5 signed 2026-09-25; JSON schemas firm up against rmcp's
-macros in M3). Principles that are not up for grabs:
+Normative (D5 signed 2026-09-25, extended by D10/D11 the same day;
+JSON schemas firm up against rmcp's macros in M3). Principles that are
+not up for grabs:
 
 - Every tool takes a repository parameter. A server instance may be
   configured with a default repo slug (D8 amendment: a startup flag or
@@ -216,10 +259,11 @@ macros in M3). Principles that are not up for grabs:
 - Writes return the new state of the object written, so a client never
   needs a read-after-write round trip.
 - **The closure discipline is enforced by the server, not by habit**:
-  `task_update` to `done` without `evidence` is an error; to `blocked`
-  without `note` is an error; creating a task without `verify` is an
-  error. This is the "more deterministic than markdown" the project
-  exists for — the board's culture becomes the API's contract.
+  `task_update` to `closed` without `evidence` is an error; to
+  `blocked` or `deferred` without `note` is an error; creating a task
+  without `verify` is an error. This is the "more deterministic than
+  markdown" the project exists for — the board's culture becomes the
+  API's contract.
 
 Sketch (names are the proposal; rmcp's tool macros will shape schemas):
 
@@ -230,8 +274,11 @@ Sketch (names are the proposal; rmcp's tool macros will shape schemas):
 | `epic_add` / `epic_list` / `epic_update` | top-level grouping per repo |
 | `task_add` / `task_show` / `task_list` | task CRUD; `task_list` filters by repo, epic, status, kind |
 | `task_update` | status + fields, with the closure discipline above |
-| `task_link` / `task_unlink` | `blocks` / `relates` edges; cycle-checked |
+| `task_link` / `task_unlink` | `blocks` / `relates` edges (task and decision sources); cycle-checked |
 | `next_task` | **the question the system exists for** (§5.2) |
+| `next_items` | ranked actionable batch with blocked-by/blocks annotations and derived weight (§5.2, D11) |
+| `decision_add` / `decision_list` / `decision_show` / `decision_sign` | decision dossiers (D10); signing resolves what the decision blocked |
+| `doc_register` / `doc_list` / `doc_set_path` | registered-document records for stable citation (D10) |
 | `graph_show` | dump a repo's (or epic's) subgraph for debugging and handovers |
 | `import_md` | one-shot importer from the sibling markdown boards (§9; D7: camera dialect first) |
 
@@ -296,15 +343,16 @@ them once, read-only:
 - milestones and epics-in-prose → **epics**
 - `U` items → **tasks** (kind `task`, or `debt` where the board says
   debt), status from the checkbox and strikethrough state
-- open `D`/`B` decisions → **tasks** of kind `gate` (a gate is exactly
-  what an unsigned decision is)
+- open `D`/`B` decisions → **decision** nodes (D10) with `blocks`
+  edges to the work they gate; the `gate` task kind remains for
+  non-decision checkpoints
 - dependency prose ("gates M2", "blocked on D4") → **`blocks` edges**
   where mechanical, findings where not
 
 Import, then cut over: after an import is verified against its board,
 the server is that repo's state of record and the markdown board keeps
 only the narrative the server does not model (session logs stay files).
-No live two-way sync — §12 item 7.
+No live two-way sync — D7.
 
 Dogfooding rule: **this repo adopts the server for its own tracking only
 after M3** — never dogfood an unsigned design; until then the board and
@@ -337,42 +385,26 @@ workspace lints). Beyond them, the shapes this project is judged by:
 - No web UI, no TUI of its own; clients render.
 - Not a general graph database: the schema is the domain model, fixed.
 - No scheduling, no time estimates, no effort scoring in v1 — ordering
-  is dependency-driven (§5.2); priority fields may come later by
-  decision, not by accretion.
+  is dependency-driven (§5.2). The agent-set `priority` field (D11,
+  introduced by decision, not by accretion) is triage metadata shown
+  in payloads; it never reorders selection.
 - No live sync with markdown files (§9).
-- No replacement of the sibling projects' decision culture: `D`/`B`
-  dossiers stay prose; the server tracks the *gate* they hang on.
-  (Pending amendment — §12 item 10 would move decision dossiers into
-  the server as structured nodes; spec bodies stay in git either way.)
+- Decision culture moves into the server (D10): `D`/`B` dossiers
+  become structured decision nodes whose open state can block work;
+  long-form spec and design prose stays in git, registered as `doc`
+  records so citations are stable. The server never becomes the editor
+  of prose bodies.
 
 ## 12. Open Decisions
 
-Each item is mirrored by a `D`-numbered entry in
-`docs/implementation/decisions.md` with options, a recommendation, a
-confidence and an `On sign-off:` work order. Agents propose; the user
-decides. An item is deleted from this list when its decision is signed.
-
-Items 1–8 were signed 2026-09-25 and deleted; their resolutions live in
-`docs/implementation/decisions.md`, and the sections they settled are
-normative above. Items 9–11 were drafted from the sign-off message's
-new requirements:
-
-9. **Status vocabulary and the deferred state** — the user's sign-off
-   directs open / in-work / blocked / deferred (optional until-date) /
-   closed; reconciliation with the §3 set (keep `wontfix`? does
-   deferred-until touch selection?). Gates M1. See decisions.md D9.
-10. **References, specs and design decisions in the server** —
-    `references` (tracker keys, URLs, files) on epics and tasks; design
-    decisions as structured server nodes whose open state can `block`
-    work; specs/docs registered as stably-addressable entities with
-    their prose bodies staying in git. User directive: specs and
-    decisions must live in the server so they can be reliably
-    referenced. Gates M1. See decisions.md D10.
-11. **Next-items surface and derived weight** — a batch `next_items`
-    with blocked-by/blocks annotations and derived weight (transitive
-    dependents, display-only); whether any hand-set priority may
-    reorder selection (amends D6, repeals §11's exclusion). Gates M2.
-    See decisions.md D11.
+**None — the list is closed.** Items 1–11 were signed by the user on
+2026-09-25 and deleted per their work orders; the resolutions and
+dossiers live in `docs/implementation/decisions.md`, and the sections
+they settled are normative above. Agents propose; the user decides. A
+new decision gets a new number (D12 onward) mirrored by a new item
+here — numbers are never reused, and a future change to a signed shape
+is a new decision, not an edit (the D6/D11 priority boundary is the
+worked example).
 
 ## 13. Packaging and Distribution
 
@@ -391,8 +423,8 @@ Tentative — the milestone table with exit criteria lives in
 `docs/implementation/TODO.md` §2, and priority derives from what an item
 gates (`tools/attention.py`).
 
-- **M0** — spec settled: §12 items 1–3 signed, Cargo workspace skeleton
-  with the lint regime and all gates green.
+- **M0** — spec settled (§12 closed 2026-09-25), Cargo workspace
+  skeleton with the lint regime and all gates green.
 - **M1** — domain model + storage engine: graph, statuses, persistence
   behind the `Store` trait, golden files pinning the format.
 - **M2** — queries: repo/epic selection, dependency resolution,
