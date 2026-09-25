@@ -1,0 +1,21 @@
+# ── Build output ────────────────────────────────────────────────────────
+target/
+tmp/
+
+# ── Agent cache: renderings of committed state, never a source of it ────
+.agents/cache/
+
+# ── Personal override, untracked by design ──────────────────────────────
+MYAGENTS.md
+
+# ── opencode plugin deps ────────────────────────────────────────────────
+.opencode/node_modules/
+.opencode/package-lock.json
+.opencode/bun.lock
+
+# ── The store, once the server exists: user data, never repo content ────
+*.todo-store
+*.todo-log
+
+# ── macOS ───────────────────────────────────────────────────────────────
+.DS_Store

@@ -1,0 +1,120 @@
+# TODO — dacode-todo-mcp
+
+The committed project board: what has landed, what is next, and what is
+blocking. Rules, which `tools/attention.py` and the reviewers enforce:
+
+- **A status change is a one-line edit; resolved items are struck, never
+  deleted** — gaps in the `U` numbering are information.
+- **The id lives inside the leading bold run** (`**U7 · Title**`) because
+  the tooling keys on it; checking an item off must not change what the
+  tools read.
+- **Reasoning never goes on the board.** It goes in
+  `docs/implementation/decisions.md` or the spec. The board is status.
+- **A delivery that does not move this file is a review finding.** Update
+  it in the same change as the work.
+
+## 1. Current state
+
+**Phase: pre-M0 — design.** The harness (agents, tools, docs) is
+bootstrapped; there is no Cargo workspace and no server code, and there
+must not be any until the decisions gating M0/M1 are signed (spec §12,
+mirrored in `decisions.md`). Everything actionable right now is
+decision-shaped: settle D-items, deepen a spec section that presumes
+nothing unsigned, or run a measurement a D-item asks for.
+
+| Blocking | What | Action |
+|---|---|---|
+| D1, D2, D3 | the storage engine, the graph model, the identity scheme — together they gate M0's skeleton and all of M1 | vote |
+| D4, D6 | store layout and selection tiebreaker — gate M2 | vote (D4 after D1) |
+| D5 | the MCP tool surface — gates M3 | vote |
+| D7, D8 | importer scope and cross-repo ergonomics — gate M4 | vote |
+
+## 2. Milestones
+
+Authoritative names: `.agents/config/agent-rules.yaml` → `milestones`;
+exit criteria: spec §14. Priority is derived from the Gated-on column by
+`tools/attention.py`, never hand-written.
+
+| Milestone | Deliverable | Gated on | State |
+|---|---|---|---|
+| M0 | spec settled: §12 items 1–3 signed; Cargo workspace skeleton with the lint regime; all gates green | D1, D2, D3 | not started |
+| M1 | domain model + storage engine: graph, statuses, persistence behind the `Store` trait, golden files | D1, D2, D3 | not started |
+| M2 | queries: repo/epic selection, dependency resolution, deterministic `next_task`; registry with path updates | D4, D6 | not started |
+| M3 | MCP server: the spec §6 surface over the wire, protocol-level tests, smoke against a real client | D5 | not started |
+| M4 | adoption: importers for the camera/ikvm-html/dacode boards; the three repos tracked for real | D7, D8 | not started |
+| M5 | packaging, docs, cross-repo ergonomics if D8 arms them, polish | — | not started |
+
+## 3. Done
+
+Oldest first. One line per delivery, with the commit hash once committed.
+
+- 2026-09-25 — **harness bootstrap**: the agent system (five generated
+  agents, two slash commands, three skills), the repo tooling
+  (`attention.py`, `tasks.py`, `agents-sync.py`, `agents-index.py`,
+  `check-links.py`), the seed spec with eight §12 decisions, this board
+  and the decision dossier. No commits exist yet on this repo; the
+  bootstrap lands as the first commit(s).
+
+## 4. Follow-ups
+
+Unowned work. Take the next unused `U` id; never renumber, never reuse.
+
+- [ ] **U1 · Sharpen §4.1's engine comparison with a measurement.** A
+      replay+snapshot micro-benchmark at 10^5 nodes for the JSONL option,
+      and a redb write/read equivalent — numbers turn D1 from a lean into
+      a decision. `action: measure` material for D1, though D1 itself is a
+      vote.
+- [ ] **U2 · Survey rmcp's tool macros against §6.** Confirm the proposed
+      tool list is expressible with stable error codes and ordered list
+      responses as rmcp schemas; record findings in §6 before D5 is
+      signed. Read the rmcp version's source; do not guess from its README.
+- [ ] **U3 · Collect the three sibling board dialects as fixtures.**
+      Snapshot camera/ikvm-html/dacode `TODO.md` + decisions files into
+      the future importer's test fixtures (§9, §10), with a short dialect
+      note each — needed before D7 can be signed with evidence.
+- [ ] **U4 · Draft the golden-file and determinism test scaffolding
+      shape** (spec §10) so M1 starts with the harness, not after it:
+      where fixtures live, how they regenerate, how the byte-compare test
+      is written once and reused.
+- [ ] **U5 · Decide the store's backup/corruption-recovery story** and
+      write it into §4's requirements or §8: what a torn last line of an
+      event log means, and whether snapshots are the recovery unit.
+      Feeds D1.
+
+## 5. Debt
+
+Deliberate shortcuts, acknowledged rather than fixed. Same id rules as §4.
+
+_No debt recorded yet — nothing has been built to take a shortcut in._
+
+## 6. Session log
+
+Newest first. One entry per session, written for someone who was not
+here. The final entry of a session is the handover
+(`.agents/skills/todo-next-imp/SKILL.md` defines the shape).
+
+### 2026-09-25 — bootstrap
+
+Repo had a git init and nothing else. Adopted the camera harness
+(the newest of the three sibling setups): `agent-rules.yaml` as the
+single source of truth, five agents generated by `tools/agents-sync.py`
+(orchestrator, implementer, cross-family dual reviewers, read-only
+explore), `/todo-next-imp` + `/todo-close` commands, three skills, the
+knowledge/pitfalls structure, and the four doc tools ported with this
+repo's paths. Models bound cross-family (qwen heavy / glm mid / flash
+light) per the dacode convention. Wrote the seed spec
+(`docs/todo-mcp-design.md`) around the user's stated constraints —
+deterministic, non-markdown, directed graph, local non-relational store,
+repo+epic selection, mutable repo paths — with the engine choice and
+seven other questions left open as §12/D1–D8 rather than pre-empted.
+
+**Handover.** Workspace: none (pre-M0; no `Cargo.toml`, every code gate
+skipped by construction). Landed: the whole harness + docs, uncommitted
+on `main` with no prior commits. Next step: the user votes D1–D3 — they
+gate M0 and everything after; U1's measurement is the cheapest way to
+de-risk D1 first if wanted. Blocked on you: all eight D-items
+(`tools/attention.py` renders them). Unverified: the tools have been run
+only against this bootstrap's own docs; agents-sync output has not been
+spawn-tested (first spawn of each role will confirm the
+`reasoning_values` rows, per the table's own caveat); no serena/ast-grep
+smoke until a workspace exists.

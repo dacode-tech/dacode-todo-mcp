@@ -1,0 +1,632 @@
+# Agent Rules Configuration — dacode-todo-mcp
+# ─────────────────────────────────────────────────────────────────────────
+# Single source of truth for roles, model bindings, MCP servers and the
+# session policies. All {{PLACEHOLDER}} values in .agents/roles/*.md
+# resolve from this config. Manual edits welcome — bump version.custom
+# when you do, then run `tools/agents-sync.py`.
+#
+# Effective version: {version.template}.{version.custom}
+
+# ─── Template Versioning ───────────────────────────────────────────────
+version:
+  template: "0.1"          # Inherited from the dacode agent-rules layout
+  custom: 1                # Local adjustment counter
+
+# ─── Project Identity ──────────────────────────────────────────────────
+project:
+  name: "dacode-todo-mcp"
+  description: "An MCP server for deterministic TODO/task handling: tasks are typed nodes in a directed graph inside a local, queryable, non-markdown store — selectable by repository and by top-level epic, with machine-decidable ordering and dependencies instead of prose boards"
+  language: "Rust"                   # Edition 2024; MCP via rmcp. Repo tooling: Python 3 + PyYAML.
+  file_extension: ".rs"
+  status: "Design phase — docs/todo-mcp-design.md is a seed spec and every §12 decision is open; no workspace exists yet"
+
+# ─── Directory Layout ──────────────────────────────────────────────────
+paths:
+  project_root: "."
+  docs_dir: "docs"                   # docs/todo-mcp-design.md is the spec
+  tools_dir: "tools"                 # agents-sync.py, tasks.py, agents-index.py, check-links.py, attention.py
+  tmp_dir: "tmp"                     # Scratch directory (gitignored)
+  crates_dir: "crates"               # Cargo workspace members (created at M0)
+
+# ─── Build, Test, Debug ────────────────────────────────────────────────
+# Everything builds and runs on the host (macOS, Apple Silicon). Scope to a
+# crate while iterating; workspace-wide is the final gate.
+commands:
+  fmt_check: "cargo fmt --check"
+  check: "cargo check --workspace --all-targets 2>&1 | tail -c 5000"
+  check_crate: "cargo check -p <crate> --all-targets 2>&1 | tail -c 5000"
+  test_crate: "cargo test -p <crate> 2>&1 | tail -c 5000"
+  test_workspace: "cargo test --workspace 2>&1 | tail -c 5000"
+  clippy: "cargo clippy --workspace --all-targets 2>&1 | tail -c 5000"
+  clippy_crate: "cargo clippy -p <crate> --all-targets 2>&1 | tail -c 5000"
+  build_release: "cargo build --release 2>&1 | tail -c 5000"
+  run_server: "cargo run -p todo-mcp -- --stdio   # smoke: initialize handshake over stdin"
+
+  # Harness self-checks.
+  agents_sync_check: "tools/agents-sync.py --check"
+  links_check: "tools/check-links.py"
+  index_check: "tools/agents-index.py --check"
+  attention: "tools/attention.py"
+
+# Verification steps run after each task (ordered).
+verification:
+  - name: "fmt"
+    command: "cargo fmt --check"
+    required: true
+  - name: "build"
+    command: "cargo check --workspace --all-targets"
+    required: true
+  - name: "test"
+    command: "cargo test -p <touched crate> (workspace-wide before declaring done)"
+    required: true
+  - name: "clippy"
+    command: "cargo clippy --workspace --all-targets"
+    required: true
+
+# ─── Code Quality Limits ───────────────────────────────────────────────
+limits:
+  line_length: 100                   # rustfmt max_width; the tool enforces it
+  indent: "4 spaces (rustfmt)"
+  target_loc: 600                    # Target LOC per new source file
+  max_loc: 1000                      # Hard maximum; split by responsibility
+  max_task_loc: 400                  # A single task's diff above this should be split
+
+# ═══ HARNESS + MODEL CONFIGURATION — SINGLE SOURCE OF TRUTH ═══════════
+#
+# This block is the ONLY place model IDs may appear. Role prompts, SKILL
+# files and AGENTS.md must refer to roles by name ("primary reviewer"),
+# never to a model ID. Run `tools/agents-sync.py` to propagate changes
+# into the per-harness adapters:
+#
+#   .opencode/opencode.json     opencode agents config (+ provider models)
+#   .opencode/agent/*.md        opencode agent definitions
+#   .opencode/commands/*.md     opencode slash commands
+#   .mcp.json                   Claude-Code-compatible MCP config
+#
+# Adapters are GENERATED. Do not hand-edit them; edit here and re-sync.
+#
+# All models route through the `alibaba-token-plan-cn` provider, a local
+# OpenAI-compatible proxy (baseURL set in ~/.config/opencode/opencode.jsonc,
+# http://127.0.0.1:8196/v1). Two of the IDs below are NOT in the
+# models.dev catalog; they are declared under `opencode_passthrough.
+# provider` so opencode resolves them, with limits mirroring the
+# catalogued siblings (qwen3.8-max, glm-5.2). If the proxy ever rejects
+# `reasoning_effort`, drop the `reasoning:` keys on the roles below and
+# re-sync — that is the only place they are emitted.
+
+harness:
+  # Bare model IDs, harness-agnostic. Re-point every role by editing these.
+  aliases:
+    heavy: "qwen3.8-max-0902"        # deepest reasoning — orchestration, implementation, primary review
+    mid:   "glm-5.3"                 # cross-family second opinion — secondary review
+    light: "qwen3.8-flash"           # cheap, mechanical work — search, triage
+
+  # Which `reasoning:` values each bound model accepts. **Nothing upstream checks
+  # this, which is why the table exists.** `tools/agents-sync.py`'s
+  # `check_reasoning` refuses to generate when a role's `reasoning:` is not listed
+  # here for the model it resolves to — and when a model has no entry at all — so
+  # bumping an alias forces the new model's values to be declared. A value the
+  # proxy rejects otherwise passes every config check there is and fails **at
+  # spawn time**, killing exactly the roles bound to that model, which reads as a
+  # spawn flake rather than a config fault. A fix does NOT take effect mid-session:
+  # regenerate, confirm the front matter changed, then start a new session.
+  #
+  # Each row records its source, inherited from the sibling repos' measurements
+  # (opencode 1.18.32, same proxy). An unevidenced value must not be added — the
+  # first spawn that contradicts a row is a bug in this table.
+  reasoning_values:
+    qwen3.8-max-0902: [high]           # in use by the three heavy roles in the
+                                       # sibling repo (dacode). `medium` is
+                                       # deliberately NOT listed: no role has ever
+                                       # used it on this exact id.
+    glm-5.3: [low, high, max]          # the sibling repo's measured set: `medium`
+                                       # was REJECTED at spawn there. `high` is
+                                       # what this repo binds and is not yet
+                                       # spawn-tested here.
+    qwen3.8-flash: [medium]            # explore's binding, in use in the sibling
+                                       # repo. The rest of this model's set is
+                                       # unverified.
+
+  targets:
+    opencode:
+      provider: "alibaba-token-plan-cn"
+      rename: {}
+
+  # Reviewers are deliberately cross-family (qwen primary, glm secondary)
+  # so their blind spots do not correlate — unlike a single-vendor pair,
+  # unanimous approval here is meaningful evidence. It still does not
+  # substitute for the mechanical gates: fmt, check, test, clippy share no
+  # blind spot with any model.
+
+  # Hand-maintained opencode config merged verbatim into the generated
+  # .opencode/opencode.json. For settings that are not role-derived.
+  #
+  # `provider` declares the two catalog-missing model IDs so agent
+  # front-matter resolves. `agent.build`/`agent.plan` are opencode's
+  # DEFAULTS — what a plain `opencode` session gets; they receive the
+  # MCP permissions but deliberately NOT the _rust conventions layer.
+  # That is what the named agents are for.
+  #
+  # `prompt:` IS NOT AN ADDITION — an agent `prompt` REPLACES the system
+  # prompt outright. Pointers to role docs live in AGENTS.md instead,
+  # which opencode appends to every agent's context and is additive by
+  # construction.
+  opencode_passthrough:
+    provider:
+      alibaba-token-plan-cn:
+        models:
+          qwen3.8-max-0902:
+            name: "Qwen3.8 Max (0902)"
+            reasoning: true
+            tool_call: true
+            limit:
+              context: 1000000
+              output: 131072
+          glm-5.3:
+            name: "GLM-5.3"
+            reasoning: true
+            tool_call: true
+            limit:
+              context: 1000000
+              output: 131072
+    agent:
+      build:
+        permission:
+          serena*: allow
+          serena_search_for_pattern: deny
+          serena_replace_content: deny
+          serena_replace_in_files: deny
+          ast_grep*: allow
+      plan:
+        permission:
+          serena*: allow
+          serena_search_for_pattern: deny
+          serena_replace_content: deny
+          serena_replace_in_files: deny
+          ast_grep*: allow
+
+# ─── Role → model binding ──────────────────────────────────────────────
+# `agent` is the generated opencode agent name. `alias` resolves via
+# harness.aliases above.
+#
+# `layers` are prompt fragments from .agents/roles/, inlined IN ORDER
+# before the role body. `_common` must come first and be identical
+# everywhere — it is the cacheable prefix. `_search` is the code-search
+# routing policy, wanted by anything that navigates this tree. Add
+# `_rust` only for agents that read or write Rust code; a search-only
+# agent should not pay for conventions it will never apply.
+#
+# `permission` is merged LAST into the generated opencode front-matter.
+roles:
+  orchestrator:
+    agent: "dacode-todo-mcp"
+    layers: [_common, _search, _rust]
+    reasoning: high
+    alias: heavy
+    mode: primary
+    purpose: "Decompose work, route, spawn workers/reviewers, commit."
+  implementer:
+    agent: "dacode-todo-mcp-implementer"
+    layers: [_common, _search, _rust]
+    reasoning: high
+    alias: heavy
+    mode: subagent
+    purpose: "Produce code + tests for one scoped task."
+  review_primary:
+    agent: "dacode-todo-mcp-reviewer-primary"
+    layers: [_common, _search, _rust]
+    reasoning: high
+    alias: heavy
+    mode: subagent
+    purpose: "Deep semantic and logic analysis."
+  review_secondary:
+    agent: "dacode-todo-mcp-reviewer-secondary"
+    layers: [_common, _search, _rust]
+    reasoning: high
+    alias: mid
+    mode: subagent
+    purpose: "Pattern consistency, spec compliance, convention drift."
+
+  # OVERRIDES opencode's built-in `explore` subagent, which inherits the
+  # parent's model and tools. Here: cheap model and the search layer it
+  # actually needs. Read-only is enforced by subtracting every mutating
+  # tool below rather than by asking nicely.
+  # Kept named `explore` precisely so it replaces the built-in rather than
+  # sitting beside it.
+  explore:
+    agent: "explore"
+    layers: [_common, _search]
+    reasoning: medium
+    alias: light
+    mode: subagent
+    purpose: "Search and answer questions about the codebase. Read-only."
+    permission:
+      edit: deny
+      write: deny
+      patch: deny
+      # Shell stays allowed: rg/ls/git-log are the search layer, and the
+      # routing policy tells it to start there. Mutating shell commands
+      # are covered by the safety rules in _common.
+
+# ─── Slash commands ────────────────────────────────────────────────────
+# Rendered by agents-sync.py into .opencode/commands/<name>.md, so a
+# command is declared here and its prompt body lives in
+# .agents/commands/<name>.md. The body is a file rather than a YAML block
+# scalar because these templates embed shell injections (`!`cmd``) and
+# `@file` references that a block scalar mangles.
+#
+# `agent` is validated against the roles above — a command pointing at an
+# agent that does not exist fails silently in the TUI.
+commands:
+  todo-next-imp:
+    description: "Next step: run the gates, report what is blocked, propose one step"
+    agent: "dacode-todo-mcp"
+    # No subtask: the report IS the thing the user wants in front of them,
+    # and the agreed next step continues in the same conversation.
+
+  todo-close:
+    description: "Close out the current unit of work: run the exit gate and report what is missing"
+    agent: "dacode-todo-mcp"
+
+# ─── Review Configuration ──────────────────────────────────────────────
+review:
+  dual_review: true                  # Two independent reviews
+
+  # The two reviewers run on different model families (qwen primary, glm
+  # secondary), so their blind spots largely do not correlate and
+  # unanimous approval is meaningful evidence. It still does not replace
+  # the mechanical gates — fmt, check, test, clippy — which share no
+  # blind spot with any model.
+
+  # Verdict merge rules (when dual_review: true)
+  # both_approved           → commit
+  # one_requests_changes    → address feedback, re-review with blocking model only
+  # both_request_changes    → address combined feedback, re-review with both
+  # one_rejects             → escalate to human (fundamental disagreement)
+
+# ─── Escalation Thresholds ─────────────────────────────────────────────
+escalation:
+  phase1_max_iterations: 5           # Same-agent retries before re-scoping
+  phase2_max_iterations: 3           # Re-scoped retries before fresh worker
+  phase3_max_iterations: 8           # Fresh worker total (phase1+phase2) before marking failed
+  max_parallel_workers: 2            # Max concurrent worker agents
+
+# ─── MCP Servers ──────────────────────────────────────────────────────
+# Rendered by agents-sync.py into:
+#   .opencode/opencode.json  -> "mcp" (type/command/environment)
+#   .mcp.json                -> "mcpServers" (command/args/env)
+mcp:
+  servers:
+    serena:
+      # Semantic code retrieval/editing over LSP — rust-analyzer for this
+      # tree. Requires:
+      #   uv tool install -p 3.13 serena-agent && serena init
+      # `--context ide` trims the tool set that duplicates harness
+      # built-ins; `--project-from-cwd` keeps this checkout-path
+      # independent. `--tool-timeout` is command-line only, so it is set
+      # here to keep it project-scoped. Until the Cargo workspace exists
+      # rust-analyzer has nothing to chew on — Serena returns little;
+      # grep and the design doc answer everything in the design phase.
+      command:
+        ["serena", "start-mcp-server", "--context", "ide",
+         "--project-from-cwd", "--tool-timeout", "900",
+         "--open-web-dashboard", "False"]
+      enabled: true
+      global: false
+      # All agents, reviewers included: a reviewer that cannot resolve a
+      # symbol cannot check trait impls, call sites, or who depends on a
+      # changed signature. The schema cost sits in the cached prefix.
+      enable_for: ["dacode-todo-mcp", "dacode-todo-mcp-implementer",
+                   "dacode-todo-mcp-reviewer-primary",
+                   "dacode-todo-mcp-reviewer-secondary", "explore"]
+      # These duplicate the harness's own grep/edit tools; dropped
+      # explicitly (--context ide does not remove them).
+      disable_tools:
+        - search_for_pattern
+        - replace_content
+        - replace_in_files
+
+    ast_grep:
+      # STRUCTURAL search layer. Official server from the ast-grep org
+      # (MIT); shells out to the `ast-grep` CLI, nothing leaves the host.
+      #   brew install ast-grep
+      #
+      # Why alongside Serena: tree-sitter parses BOTH branches of every
+      # `cfg(...)`/`#[cfg]` and sees macro call sites pre-expansion, so
+      # ast-grep finds code rust-analyzer cannot (disabled features,
+      # other targets). Sub-second with no index.
+      command: ["uvx", "--from", "git+https://github.com/ast-grep/ast-grep-mcp",
+                "ast-grep-server"]
+      enabled: true
+      global: false
+      enable_for: ["dacode-todo-mcp", "dacode-todo-mcp-implementer",
+                   "dacode-todo-mcp-reviewer-primary",
+                   "dacode-todo-mcp-reviewer-secondary", "explore"]
+      env:
+        AST_GREP_CONFIG: "sgconfig.yml"
+
+# ─── Session Integrity: canary + context health ───────────────────────
+session:
+  canary:
+    enabled: true
+
+    # Resolution order, highest first:
+    #   1. `token:` below, if set — a fixed literal.
+    #   2. Derived: `prefix` + sha256($USER + absolute repo path)[:6].
+    #
+    # It must NOT be anything the model can recompute at runtime. A
+    # MISSING canary is the positive signal; the agent is not expected to
+    # self-report degradation. Detection is the user's (or a hook's), not
+    # the model's.
+    #
+    # Deliberately NOT per-session: the token is baked into the generated
+    # agent prompts at sync time, and rotating it would rewrite the
+    # system prefix every session and invalidate the prompt cache.
+    prefix: "TDM-"
+    format: "[{token}]"
+
+    # Emitted as the FIRST characters of the final message of every turn
+    # that hands control back to the user.
+    placement: final_message_prefix
+
+  context_health:
+    enabled: true
+    # Advisory only. Any hard enforcement belongs in a harness hook, not
+    # in the prompt.
+    advise_when:
+      - "repeating work already completed earlier in the session"
+      - "re-reading files it has already read this session"
+      - "contradicting an earlier decision without new evidence"
+      - "user has corrected the same misunderstanding twice"
+    suggested_action: "summarize progress, then start a fresh session"
+
+  # ─── Persistent task tree ───────────────────────────────────────────
+  # Harness todo tools are session-scoped and flat. Multi-step work needs
+  # a tree that survives sessions and records HOW each item is verified.
+  # tools/tasks.py.
+  tasks:
+    enabled: true
+    # Gitignored, but inside the worktree so it shows up in an editor.
+    # Keyed by branch: switching branches switches trackers.
+    path: ".agents/cache/tasks/{branch}.yaml"
+    use_when_steps_exceed: 3
+    kinds: [goal, task, gate, finding, debt]
+
+  # ─── Context budgeting ───────────────────────────────────────────────
+  # Advisory ceilings for the orchestrator to size work against, not
+  # enforcement. Treat an overrun as a signal to split the task.
+  context_budget:
+    enabled: true
+    fallback_context: 1000000
+    # Degradation sets in well before a window is full, so half is a
+    # deliberate ceiling rather than a limit.
+    work_fraction: 0.5
+    # Sub-budget for search within that, per the code-search routing
+    # policy in _search.md.
+    search_fraction: 0.15
+
+# ─── Subagent Report Contract ─────────────────────────────────────────
+# Subagent output is the orchestrator's INPUT, so it is pure context
+# cost. Keep it dense.
+subagent_report:
+  format: yaml                       # YAML over JSON: no braces/quotes overhead
+  max_lines: 40                      # Hard cap; overflow goes to files on disk
+  rules:
+    - "Report outcomes and file:line references, never restate the diff."
+    - "Do not echo file contents the orchestrator can read itself."
+    - "No preamble, no closing summary, no pleasantries — YAML only."
+    - "Paths relative to repo root (crates/todo-domain/src/...)."
+    - "If a field is empty, omit the key entirely rather than emitting []."
+  schema: |
+    status: ok | changes_requested | blocked | failed
+    summary: <one line, <=100 chars>
+    files:            # only files actually modified
+      - path: crates/todo-domain/src/graph.rs
+        change: <few words>
+    issues:           # reviewers only
+      - sev: high | med | low
+        at: path:line
+        why: <one line>
+    verify:           # commands actually run, with real outcomes
+      fmt: pass | fail | skipped
+      build: pass | fail | skipped
+      test: pass | fail | skipped
+      clippy: pass | fail | skipped
+    blocked_on: <one line, only when status is blocked>
+
+# ─── Git Conventions ───────────────────────────────────────────────────
+# Private repo; the conventions follow the dacode family, not a mailing
+# list's.
+git:
+  author_name: "Anton Burticica"
+  author_email: "anton@dacode.ro"
+  signoff: ""
+  signoff_required: false            # no DCO here; this is a private repo
+  commit_prefix: ""                  # code: imperative subject, crate scope optional
+  subject_style: "crate-or-area: imperative summary"
+  subject_max: 72
+  body_wrap: 72
+  milestone_tag_pattern: ""
+
+  # HARD PROHIBITION, no exceptions, no "unless asked".
+  no_ai_attribution: true
+  # Nothing in a commit message, code comment, doc, or TODO entry may
+  # reference an LLM, an AI assistant, a model name, or a "generated
+  # with"/"co-authored-by"/"assisted by" line of any kind. The two
+  # `Reviewed-by:` role trailers below are the ONE established exception
+  # in the dacode family: they name harness roles, never models.
+
+  review_signoff: true
+  # Code commits carry the dual-review trailers, and ONLY after both
+  # reviewers actually returned status: ok on this diff:
+  #   Reviewed-by: dacode-todo-mcp-reviewer-primary <primary@dacode.local>
+  #   Reviewed-by: dacode-todo-mcp-reviewer-secondary <secondary@dacode.local>
+  # Docs, .agents/, tracker and generated files are review-exempt and
+  # carry no trailer. A trailer without a real review behind it is a
+  # forged attestation.
+
+  allowed_trailers:
+    - "Reviewed-by: dacode-todo-mcp-reviewer-primary <primary@dacode.local>"
+    - "Reviewed-by: dacode-todo-mcp-reviewer-secondary <secondary@dacode.local>"
+    - "Fixes: <12-hexdigit sha> (\"subject of the broken commit\")"
+  forbidden_trailers:
+    - "Co-authored-by: any tool, model or assistant"
+    - "Generated-by: / Assisted-by: / any AI attribution"
+    - "Signed-off-by: / Acked-by: / Tested-by: — not conventions of this repo"
+
+# ─── Coding Conventions ────────────────────────────────────────────────
+# Project-specific standards that all agents must follow. The full layer
+# lives in .agents/roles/_rust.md; this is the config-level summary.
+conventions:
+  style_authority: |
+    rustfmt is the mechanical authority on layout — `cargo fmt --check`
+    is a gate, not a suggestion. Clippy is the lint of record and must be
+    clean workspace-wide. Where this config and the spec disagree, the
+    spec wins, and the disagreement gets surfaced, not silently resolved.
+  naming:
+    functions: "snake_case"          # e.g., next_task(), add_edge()
+    types: "PascalCase"              # e.g., TaskGraph, RepoRegistry
+    constants: "SCREAMING_SNAKE_CASE" # e.g., MAX_GRAPH_NODES
+    variables: "snake_case"
+    modules_files: "snake_case"      # e.g., event_log.rs
+    crates: "kebab-case"             # e.g., todo-domain
+  error_handling: |
+    Result<T, E> for everything fallible; crate-local error enums with
+    context. Avoid unwrap()/expect() on production paths — library crates
+    deny clippy::unwrap_used/expect_used/panic/unreachable/
+    indexing_slicing/exit at the crate root, declared once as workspace
+    lints and inherited per crate, so a stray unwrap() is a build failure,
+    not a style note. Tests are exempt via #![cfg_attr(test, allow(...))]
+    at the crate root. No panics across crate boundaries; only the binary
+    decides what is fatal.
+  architecture: |
+    Crate dependency rules from spec §2 are enforced at review: the domain
+    crate has no I/O and no workspace deps; the store crate depends only
+    on the domain; the MCP server binary depends on both and owns the
+    wire surface. A `use` that crosses these lines is a defect, not a
+    style choice. §2 is a proposal until D-signed; do not build past it.
+  testing: |
+    Per spec §10: golden files pin the on-disk store format; property
+    tests pin graph invariants (acyclicity of `blocks`, determinism of
+    selection); MCP tools are tested through the protocol, not around it.
+    Run: cargo test -p <crate> scoped while iterating, workspace-wide
+    before declaring done.
+  comments: |
+    /// on every public item. // comments explain non-obvious rationale —
+    a remote invariant, a protocol guarantee from the spec, a race an
+    ordering avoids — never restate the code. // SAFETY: is mandatory on
+    every unsafe block, and unsafe should be vanishingly rare.
+
+# ─── Prohibited Actions ────────────────────────────────────────────────
+prohibited:
+  - "Never mention an LLM, AI, model or generating tool in a commit message, code comment, doc, or TODO entry — the two role Reviewed-by trailers are the only exception, and only after a real dual review"
+  - "Never add a Reviewed-by trailer for a review that did not happen, or for a diff that changed after the review without re-review"
+  - "Never settle a §12 open decision, or write code past one — agents propose, the user decides"
+  - "Never add an external crate dependency without flagging it first (Ask First in AGENTS.md)"
+  - "Never run git push, git reset, --amend, force-push, branch deletion, git config edits or --no-verify without explicit instruction"
+  - "Never claim fmt/check/test/clippy passed without having run it and seen it pass — report skipped, never infer"
+  - "Never commit secrets, target/, tmp/, .agents/cache/, or .opencode/node_modules/"
+  - "Never hand-edit .opencode/ or .agents/knowledge/INDEX.md — both are generated; edit agent-rules.yaml and re-sync"
+  - "Never bind any dev/test server to 0.0.0.0; 127.0.0.1 only unless the user explicitly asks"
+  - "Never rewrite the store's committed golden fixtures without calling the diff out as the compatibility event it is"
+
+# ─── Architecture ──────────────────────────────────────────────────────
+architecture:
+  overview: |
+    One MCP server that replaces markdown TODO boards with a deterministic
+    task graph. Markdown boards (the ones this repo's three sibling
+    projects run on) are excellent audit trails and terrible query
+    surfaces: "what can I work on next in repo X, epic Y" is a paragraph
+    of prose parsing away from an answer, and two readers can disagree
+    about it. Here, tasks are typed nodes, dependencies are typed edges,
+    and every question the board answers in prose answers in one
+    deterministic query.
+
+    The store is local, single-file, and queryable without a server
+    process; the exact engine is §12 item 1. The graph is a DAG on
+    `blocks` edges with a `parent` tree over it (repo → epic → task);
+    ordering is derived topologically, never hand-maintained. Selection is
+    by repository and by top-level epic, and a repository is keyed by a
+    stable id whose filesystem path is an updatable attribute — repos move.
+  key_files:
+    - path: "docs/todo-mcp-design.md"
+      description: "THE spec — purpose, domain model, storage options, graph semantics, MCP tool surface, registry, open decisions (§12), roadmap (§14)"
+    - path: "docs/implementation/TODO.md"
+      description: "Committed project board: what has landed, what is next, follow-ups (U-ids) and debt"
+    - path: "docs/implementation/decisions.md"
+      description: "Sign-off record for every §12 open decision"
+    - path: ".agents/knowledge/"
+      description: "Workflows (build-and-test, task-tracking) and patterns"
+  module_boundaries: |
+    - The domain crate (model + graph) has no I/O, no async, and no
+      workspace dependencies. It is the deterministic core everything
+      else renders.
+    - The store crate owns persistence behind one trait; the engine choice
+      (D1) must not leak above it.
+    - The server binary owns the MCP wire surface and nothing else — no
+      query logic that the domain crate could host.
+    - §2's layout is a PROPOSAL until its decisions are signed; do not
+      scaffold past it.
+
+# ─── Domain Knowledge ──────────────────────────────────────────────────
+domain:
+  design_docs:
+    - "docs/todo-mcp-design.md"
+  key_concepts:
+    - name: "Task graph"
+      description: "Typed nodes (repo, epic, task) plus typed edges (parent, blocks, relates). `blocks` edges form a DAG enforced at write time; ordering is a topological derivation, never a hand-kept field."
+      reference: "docs/todo-mcp-design.md §5"
+    - name: "Repo + epic selection"
+      description: "Every query names a repository, and may name one of its top-level epics. A repository is a stable id with a mutable path attribute, because checkouts move and the same tracker may be reached from another repo."
+      reference: "docs/todo-mcp-design.md §7"
+    - name: "Deterministic store"
+      description: "Local, single-file, queryable without a server. The engine is §12 item 1: event log + in-memory graph, embedded KV, or something else. Whatever wins, byte-stable canonical serialization and golden-file tests pin the format."
+      reference: "docs/todo-mcp-design.md §4"
+    - name: "MCP tool surface"
+      description: "The server's tools are the product: register/move repos, add epics and tasks, link dependencies, and ask the one question the whole system exists for — what is the next actionable task, in this repo, under this epic."
+      reference: "docs/todo-mcp-design.md §6"
+    - name: "Markdown boards are the migration source, not the target"
+      description: "camera, ikvm-html and dacode each run a U-id/D-id/M-id markdown system with real semantics worth importing once — and the importer is scope-limited (D7): import, do not live-sync."
+      reference: "docs/todo-mcp-design.md §9"
+  external_references:
+    - name: "Model Context Protocol specification"
+      url: "https://modelcontextprotocol.io/specification"
+    - name: "rmcp (official Rust MCP SDK)"
+      url: "https://github.com/modelcontextprotocol/rust-sdk"
+    - name: "opencode MCP configuration"
+      url: "https://opencode.ai/docs/mcp-servers/"
+
+# ─── Milestones ────────────────────────────────────────────────────────
+# TENTATIVE — the authoritative roadmap is docs/todo-mcp-design.md §14.
+milestones:
+  - id: "M0"
+    name: "spec settled: §12 decisions signed, Cargo workspace skeleton + gates green"
+  - id: "M1"
+    name: "domain model + storage engine: graph, statuses, persistence behind the store trait, golden files"
+  - id: "M2"
+    name: "queries: repo/epic selection, dependency resolution, deterministic next-task; repo registry with path updates"
+  - id: "M3"
+    name: "MCP server: the §6 tool surface over the wire, protocol-level tests, smoke against a real client"
+  - id: "M4"
+    name: "adoption: importers for the camera/ikvm-html/dacode markdown boards; the three repos tracked for real"
+  - id: "M5"
+    name: "packaging, docs, cross-repo access (if D8 arms it), polish"
+
+# ─── Synced Sources ────────────────────────────────────────────────────
+synced_sources: []
+
+# ─── Discovered Context ────────────────────────────────────────────────
+discovered:
+  last_scan_date: "2026-09-25"
+  repo_summary: "Empty repo with a git init and no commits. This harness (.agents/, tools/, docs/) is the bootstrap delivery; the Cargo workspace does not exist until M0 and must not be scaffolded past §2's proposal while D1–D3 are open."
+  file_counts:
+    rs: 0
+    md: 0
+  file_patterns:
+    - "crates/*/src/**/*.rs"
+  test_patterns: []
+  entry_points: []
+  existing_ci: "None"
+  toolchain: "Rust stable via rustup on macOS (Apple Silicon); Python 3 + PyYAML for repo tooling; uv for Serena; ast-grep via brew"
+  test_coverage_status: "N/A — no code yet"
+  test_framework: "Rust built-in (#[cfg(test)] + tests/); golden files for the store format"

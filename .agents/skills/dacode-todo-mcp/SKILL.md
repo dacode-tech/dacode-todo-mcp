@@ -1,0 +1,115 @@
+---
+name: dacode-todo-mcp
+description: "Domain knowledge for the dacode-todo-mcp server: the task-graph model, storage engine constraints, determinism discipline, the MCP tool surface, and the repo/epic registry. Load before reading, writing or reviewing any code in this repo."
+---
+
+# dacode-todo-mcp — Domain Knowledge
+
+## Inherited Base Instructions
+
+This skill inherits the mandatory protocols defined in
+[`.agents/skill-base.md`](../../skill-base.md):
+
+- **Pre-Task Knowledge Search** — spec section, nearest precedent, knowledge/, pitfalls-live.md before starting
+- **Canonical Commands** — cargo gates / `tools/*.py`; never hand-rolled equivalents
+- **Mandatory Review** — dual sign-off before every code commit; role trailers only after a real review
+- **No AI attribution** — in anything, ever
+- **Post-Task Knowledge Evolution** — capture patterns, workflows, pitfalls, and hard-won facts
+
+**Read `.agents/skill-base.md` in full before resuming work in this skill.**
+
+## What this project is
+
+One MCP server that replaces markdown TODO boards with a deterministic
+task graph. The three sibling projects it learns from — camera
+(`/Users/mouse/RPM/shelly/camera`), ikvm-html (`/Users/mouse/RPM/ali/ikvm-html`)
+and dacode (`/Users/mouse/RPM/dacode/dacode/dacode`) — each run a
+U-id/D-id/M-id markdown system with real semantics: stable ids that are
+never renumbered, decisions that gate milestones, evidence-backed
+closure. Those systems are excellent audit trails and poor query
+surfaces. This server keeps the semantics and makes every question
+machine-answerable: *what is the next actionable task, in repo X, under
+epic Y, given the dependency graph?*
+
+The spec is `docs/todo-mcp-design.md`. This skill is the short map; the
+spec is the territory, and §12 lists what is **not yet decided** — do not
+write code past an open decision.
+
+## The model in one paragraph
+
+A **repository** is a stable id with a mutable path attribute (checkouts
+move; the tracker must not care). A repository's tasks are grouped under
+**epics** (top-level, selectable). A **task** is a typed node with a
+status, timestamps and an evidence field for closure. **Edges** are typed:
+`parent` (repo → epic → task, a tree) and `blocks` (a DAG, enforced at
+write time). Ordering is never stored — it is derived topologically, and
+**next-task selection is a pure, documented function of graph state**
+(§5). Everything that reaches disk or wire is canonically serialized and
+pinned by golden files (§8, §10).
+
+## The property that makes this project exist
+
+**Determinism.** Two runs over unchanged state return byte-identical
+answers. The failure modes reviewers hunt (reviewer.md checklist item 2):
+`HashMap` iteration reaching disk or wire; a list returned without a
+total order; a sort with equal keys and no tiebreaker; a wall-clock read
+below the binary layer; non-canonical JSON field order. When in doubt,
+the test is: run it twice, compare bytes.
+
+## Storage — what is known and what is open
+
+Open: the engine itself is §12 item 1 (event log + in-memory graph vs
+embedded KV vs other). Not open, whatever wins:
+
+- local, single file, no server process to query it
+- survives a repository moving on the filesystem (paths are attributes,
+  ids are keys — §7)
+- corruption is a named error, never a panic
+- the format is pinned by golden files; a format change is a migration
+  with a version header, not an edit
+
+## MCP surface — what is known and what is open
+
+Open: the exact tool list and schemas are §12 item 5. Not open (§6's
+frame): tools are thin translations over domain operations; every tool
+names its repository; epic is a filter parameter wherever tasks are
+listed; errors are structured data with stable codes; every list has a
+documented order. The server speaks stdio transport first — it is what
+opencode and the other clients here use.
+
+## Crate map (proposal — §2, gated on D1–D3)
+
+| Crate | Job | Depends on |
+|---|---|---|
+| `todo-domain` | nodes, edges, graph invariants, selection, **no I/O, no async** | nothing |
+| `todo-store` | persistence behind one `Store` trait; engine (D1) sealed inside | todo-domain |
+| `todo-mcp` | the server binary: rmcp wire surface, translates, never decides | both |
+| `todo-cli` (optional, D5) | inspect/debug the store without a client | domain + store |
+
+## Verification for this domain
+
+Beyond the standard gates (`fmt`/`check`/`test`/`clippy`), this project
+has two verification shapes of its own:
+
+1. **Byte-stability**: serialize → load → serialize is identical; a tool
+   called twice on unchanged state returns identical output.
+2. **Protocol-level tool tests**: request in over the wire, response out
+   — never by calling the handler function around it. The wire is the
+   product.
+
+Until the workspace exists (pre-M0), all code gates are honestly
+`skipped` and doc gates (`attention.py`, `check-links.py`,
+`agents-sync.py --check`) carry the weight.
+
+## Where things live
+
+| Need | Path |
+|---|---|
+| The spec (model, storage, surface, §12, roadmap) | `docs/todo-mcp-design.md` |
+| Progress board (committed state) | `docs/implementation/TODO.md` |
+| Open decisions + recommendations | `docs/implementation/decisions.md` |
+| Rust conventions, architecture rules | `.agents/roles/_rust.md` |
+| Search policy | `.agents/roles/_search.md` |
+| Build gates on this host | `.agents/knowledge/workflows/build-and-test.md` |
+| The three trackers | `.agents/knowledge/workflows/task-tracking.md` |
+| Cold start / exit gate | `.agents/skills/todo-next-imp/SKILL.md` |

@@ -1,0 +1,30 @@
+{
+  "mcpServers": {
+    "serena": {
+      "type": "stdio",
+      "command": "serena",
+      "args": [
+        "start-mcp-server",
+        "--context",
+        "ide",
+        "--project-from-cwd",
+        "--tool-timeout",
+        "900",
+        "--open-web-dashboard",
+        "False"
+      ]
+    },
+    "ast_grep": {
+      "type": "stdio",
+      "command": "uvx",
+      "args": [
+        "--from",
+        "git+https://github.com/ast-grep/ast-grep-mcp",
+        "ast-grep-server"
+      ],
+      "env": {
+        "AST_GREP_CONFIG": "sgconfig.yml"
+      }
+    }
+  }
+}
