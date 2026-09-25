@@ -62,6 +62,7 @@ transitive-dependent weight, and a deferred summary (`total`/`ready`,
 D9); `graph_show` (§6.2) dumps the complete graph as canonical-JSON
 nodes with per-node adjacency; the agent-set `priority` field is
 display-only and never reorders.
+
 ## The property that makes this project exist
 
 **Determinism.** Two runs over unchanged state return byte-identical
@@ -119,17 +120,19 @@ has two verification shapes of its own:
    — never by calling the handler function around it. The wire is the
    product.
 
-Until the workspace exists (pre-M0), all code gates are honestly
-`skipped` and doc gates (`attention.py`, `check-links.py`,
-`agents-sync.py --check`) carry the weight.
+The workspace exists (M0, 2026-09-25), so the four code gates run on
+every delivery, with the doc gates (`attention.py --check`,
+`check-links.py`, `agents-sync.py --check`, `agents-index.py --check`)
+alongside them; on docs-only changes the doc gates carry the weight
+alone.
 
 ## Where things live
 
 | Need | Path |
 |---|---|
-| The spec (model, storage, surface, §12, roadmap) | `docs/todo-mcp-design.md` |
+| The spec (model, storage, surface, roadmap) | `docs/todo-mcp-design.md` |
 | Progress board (committed state) | `docs/implementation/TODO.md` |
-| Open decisions + recommendations | `docs/implementation/decisions.md` |
+| Decision record (D1–D11 signed) + dossiers | `docs/implementation/decisions.md` |
 | Rust conventions, architecture rules | `.agents/roles/_rust.md` |
 | Search policy | `.agents/roles/_search.md` |
 | Build gates on this host | `.agents/knowledge/workflows/build-and-test.md` |

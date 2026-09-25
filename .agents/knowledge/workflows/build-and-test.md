@@ -30,10 +30,10 @@ Rules:
   naming the invariant relied on (`.agents/roles/_rust.md`).
 - A gate you did not run is `skipped` with a reason. Never infer a pass.
 
-## Pre-M0 (no workspace yet)
+## Doc gates (every delivery)
 
-Until the Cargo workspace exists, every code gate is `skipped` by
-construction, and the doc gates carry the weight:
+The workspace exists (M0, 2026-09-25), so these run *alongside* the code
+gates at every delivery, and carry the weight alone on docs-only changes:
 
 ```bash
 tools/attention.py --check        # spec/decisions/board consistency
@@ -46,10 +46,11 @@ tools/tasks.py check              # tracker discipline
 ## Golden files and fixtures
 
 The store format and the MCP wire are pinned by fixtures (spec §10).
-Conventions:
+The full scaffolding — fixture locations and `v<N>` naming, the shared
+`assert_golden` helper, the `UPDATE_GOLDEN=1` regeneration ritual, the
+twice-run/round-trip determinism tests — lives in
+`.agents/knowledge/workflows/golden-files.md`. The non-negotiables:
 
-- Fixtures live under `crates/<crate>/tests/fixtures/` (path may be
-  refined by the §10 work; update this article when it is).
 - **A golden diff is a compatibility event.** Regenerating a golden is
   never a casual `--bless`; the commit message says what changed shape
   and why.

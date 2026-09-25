@@ -15,16 +15,20 @@ blocking. Rules, which `tools/attention.py` and the reviewers enforce:
 
 ## 1. Current state
 
-**Phase: M0 — the spec is fully signed; the skeleton is the next
-unit.** D9–D11 joined D1–D8 on 2026-09-25 (D9 with the user's
-until-targets refinement, D11 with an agent-set display-only priority
-field); their §12 items are deleted and §12 is closed. The spec is
-normative throughout. Nothing blocks M0, and M1's schema work is
-unblocked too.
+**Phase: M1 — decomposed 2026-09-26; the domain commits are ready to
+dispatch, the store commits await one user answer.** The M1 tree is
+open in the session tracker: three domain commits (value types §3,
+task graph §5.1, canonical order §5.2), five store/cli commits
+(canonical serialization + golden harness, JSONL log + `Store` trait
+§4, D4 layout + registry + locking §8, snapshots + compaction, minimal
+`todo-cli` inspector), and the M1 exit gate. U4 is answered by
+`.agents/knowledge/workflows/golden-files.md`.
 
 | Blocking | What | Action |
 |---|---|---|
-| — | nothing decision-shaped: all eleven D-items signed 2026-09-25 | start M0 |
+| U8 | first external-dependency ask (serde/serde_json, tempfile dev, `rust-version` → 1.89); gates the store commits | user answer |
+| U5 | torn-line/corruption-recovery proposal for the JSONL log; gates the log commit's final shape | user ok/edits → lands in spec §4 |
+| U7 | "six denied lints" wording | user bless/decline — non-blocking |
 
 ## 2. Milestones
 
@@ -35,7 +39,7 @@ exit criteria: spec §14. Priority is derived from the Gated-on column by
 | Milestone | Deliverable | Gated on | State |
 |---|---|---|---|
 | M0 | spec settled: §12 items 1–3 signed (done 2026-09-25); Cargo workspace skeleton with the lint regime; all gates green | — | done 2026-09-25 |
-| M1 | domain model + storage engine: graph, statuses, persistence behind the `Store` trait, golden files | — | unblocked — next |
+| M1 | domain model + storage engine: graph, statuses, persistence behind the `Store` trait, golden files | — | in progress — decomposed 2026-09-26; domain ready, store awaits U8/U5 |
 | M2 | queries: repo/epic selection, dependency resolution, deterministic `next_task`; registry with path updates | — | not started |
 | M3 | MCP server: the full §6 tool list over the wire, protocol-level tests, default-repo slug config (D8), smoke against a real client | — | not started |
 | M4 | adoption: camera-dialect importer first (D7), board fixtures checked in per §10; ikvm-html and dacode follow; the three repos tracked for real | — | not started |
@@ -107,15 +111,22 @@ Unowned work. Take the next unused `U` id; never renumber, never reuse.
       the future importer's test fixtures (§9, §10), with a short dialect
       note each — needed before M4; D7 is signed camera-first, so the
       camera fixture is the critical one.
-- [ ] **U4 · Draft the golden-file and determinism test scaffolding
+- [x] **U4 · Draft the golden-file and determinism test scaffolding
       shape** (spec §10) so M1 starts with the harness, not after it:
       where fixtures live, how they regenerate, how the byte-compare test
-      is written once and reused.
+      is written once and reused. **Answered 2026-09-26**:
+      `.agents/knowledge/workflows/golden-files.md` — `tests/golden/`
+      layout with format-version naming, one shared `assert_golden`
+      helper, the `UPDATE_GOLDEN=1` regeneration ritual, twice-run and
+      round-trip determinism tests. The harness itself is the first
+      store commit of the M1 tree.
 - [ ] **U5 · Decide the store's backup/corruption-recovery story** and
       write it into §4's requirements or §8: what a torn last line of an
       event log means, and whether snapshots are the recovery unit.
       Now scoped to the signed D1 engine (JSONL event log) and the D4
-      per-repo layout.
+      per-repo layout. **Proposal drafted 2026-09-26, awaits the user's
+      ok** — full text in the §6 entry; lands in spec §4 on approval,
+      and the JSONL-log commit is blocked until it does.
 - [x] **U6 · Land the D10 concretization on the user's ok**: per-kind
       id prefixes (task `U`, epic `E`, decision `D`, doc `S` —
       `camera:D3` echoes the board registers); decision status
@@ -140,6 +151,17 @@ Unowned work. Take the next unused `U` id; never renumber, never reuse.
       wildcard_imports ride its own rule. Surfaced by the M0 dual
       review; until it is answered, the workspace exceeds the spec
       floor, which is the safe direction.
+- [ ] **U8 · Answer the first external-dependency ask (M1 store).**
+      Requested 2026-09-26: `serde` + `serde_json` (runtime; canonical
+      serialization of events, snapshots, registry), `tempfile`
+      (dev-dependency; store tests), and a workspace `rust-version` bump
+      1.85 → 1.89 for std `File::try_lock` — verified available on this
+      host's rustc 1.98.1, so no locking crate is requested.
+      Sub-question: serde derives on `todo-domain` types (recommended;
+      §2's "depends on nothing" read as *no workspace deps*) vs
+      store-side DTO mapping (zero domain deps, more ceremony). Gates
+      the M1 store commits; the domain commits need none of it.
+      Ask-First per AGENTS.md.
 
 ## 5. Debt
 
@@ -152,6 +174,49 @@ _No debt recorded yet — nothing has been built to take a shortcut in._
 Newest first. One entry per session, written for someone who was not
 here. The final entry of a session is the handover
 (`.agents/skills/todo-next-imp/SKILL.md` defines the shape).
+
+### 2026-09-26 — M1 decomposition
+
+M1 decomposed into the session tracker: three domain commits (core
+value types §3; task graph with write-time cycle rejection and
+no-orphans §5.1; canonical order with the D6 tiebreaker §5.2), five
+store/cli commits (canonical serialization + the golden harness; JSONL
+event log + `Store` trait §4.2; D4 layout + registry + advisory
+locking §8; snapshots + compaction §4.1; a minimal `todo-cli`
+inspector), and the M1 exit gate — each with its `verify:` method
+decided at creation. Two facts established while planning: std
+`File::try_lock` compiles and locks on this host's rustc 1.98.1
+(measured — no locking crate needed, at the cost of a `rust-version`
+1.85→1.89 bump), and pre-sign-off wording had gone stale in three
+places (AGENTS.md's project-overview paragraph, the domain skill's
+verification section, build-and-test.md's Pre-M0 section) — fixed in
+this commit.
+
+**U4 answered**: the golden-file scaffolding shape is now
+`.agents/knowledge/workflows/golden-files.md` (fixture layout + `v<N>`
+naming, one shared `assert_golden` helper, the `UPDATE_GOLDEN=1`
+regeneration ritual, twice-run/round-trip determinism tests); the
+harness lands as the first store commit.
+
+**U5 proposal — awaits the user's ok; lands in spec §4 on approval.**
+Crash and recovery for the JSONL log: (1) every event is appended as
+one `write()` of a complete line under `O_APPEND`, fsync per append —
+the torn window is one event at most; (2) on replay, a malformed
+*last* line (no trailing newline, or unparseable) is a named
+`corrupt_store` error carrying the byte offset — never silently
+skipped, per §4's "not silent truncation"; a malformed line anywhere
+else in the log is `corrupt_store` unconditionally; (3) recovery is
+explicit: a `todo-cli` repair command shows the torn line and
+truncates it on confirmation, losing exactly that one in-flight event;
+(4) snapshots are the recovery unit — written temp+fsync+atomic-rename
+so they are never torn — and replay is latest snapshot + log tail;
+(5) the registry file follows the same atomic-rename discipline;
+(6) backup in v1 is copying a repo's store directory while no writer
+holds the lock — no separate backup mechanism.
+
+Two asks ride this decomposition and gate the store commits only (the
+domain commits need neither): U8 (first external dependencies) and the
+U5 ok above.
 
 ### 2026-09-25 — D10 concretization, JSON confirmed, M0 scaffolded
 

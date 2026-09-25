@@ -21,7 +21,8 @@ knowledge/
 ├── patterns/                       # Code shapes and how-tos (empty until code exists)
 │   └── .gitkeep
 └── workflows/                      # Build, verification and operational procedures
-    ├── build-and-test.md           # cargo gates, golden files, MCP smoke tests, output discipline
+    ├── build-and-test.md           # cargo gates, MCP smoke tests, output discipline
+    ├── golden-files.md             # golden scaffolding: fixture layout, assert_golden, UPDATE_GOLDEN ritual
     └── task-tracking.md            # the three trackers, node kinds, verify methods, the exit gate
 ```
 

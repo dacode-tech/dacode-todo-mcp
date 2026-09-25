@@ -102,10 +102,10 @@ question machine-answerable; determinism is the product property (spec
 §8), and the domain skill
 (`.agents/skills/dacode-todo-mcp/SKILL.md`) is the short map.
 
-The spec is `docs/todo-mcp-design.md`. It is a seed: §2–§10 are
-proposals, §12 lists what is not yet decided, §14 is the roadmap. When
-code and spec disagree, surface the disagreement; the spec moves only by
-user decision.
+The spec is `docs/todo-mcp-design.md`, normative throughout (§12 closed
+2026-09-25; a new decision opens a new D-entry there, mirrored by a new
+§12 item). When code and spec disagree, surface the disagreement; the
+spec moves only by user decision.
 
 ## Repository Structure
 
@@ -129,7 +129,7 @@ user decision.
 │   ├── agent/                      #   the five agents
 │   └── commands/                   #   the slash commands
 ├── docs/
-│   ├── todo-mcp-design.md          # THE spec; §12 is the open decisions; no links by convention
+│   ├── todo-mcp-design.md          # THE spec; §12 mirrors decisions (closed); no links by convention
 │   └── implementation/
 │       ├── README.md               # plan index: which file holds Truth / Reasoning / State
 │       ├── TODO.md                 # the committed board
