@@ -34,8 +34,8 @@ exit criteria: spec §14. Priority is derived from the Gated-on column by
 
 | Milestone | Deliverable | Gated on | State |
 |---|---|---|---|
-| M0 | spec settled: §12 items 1–3 signed (done 2026-09-25); Cargo workspace skeleton with the lint regime; all gates green | — | unblocked — next |
-| M1 | domain model + storage engine: graph, statuses, persistence behind the `Store` trait, golden files | — | not started |
+| M0 | spec settled: §12 items 1–3 signed (done 2026-09-25); Cargo workspace skeleton with the lint regime; all gates green | — | done 2026-09-25 |
+| M1 | domain model + storage engine: graph, statuses, persistence behind the `Store` trait, golden files | — | unblocked — next |
 | M2 | queries: repo/epic selection, dependency resolution, deterministic `next_task`; registry with path updates | — | not started |
 | M3 | MCP server: the full §6 tool list over the wire, protocol-level tests, default-repo slug config (D8), smoke against a real client | — | not started |
 | M4 | adoption: camera-dialect importer first (D7), board fixtures checked in per §10; ikvm-html and dacode follow; the three repos tracked for real | — | not started |
@@ -76,6 +76,15 @@ Oldest first. One line per delivery, with the commit hash once committed.
   (`missing_resolution`), audited `doc_set_path`, `#anchor` doc
   citations, `decision_update`/`doc_update` tool verbs. The user also
   confirmed canonical JSON as the `graph_show` wire format (§6.2).
+- 2026-09-25 — **M0: Cargo workspace skeleton**: four crates
+  (todo-domain, todo-store, todo-mcp, todo-cli), the lint regime
+  declared once at workspace level (six panic-family clippy denies +
+  wildcard_imports + unsafe_code + missing_docs) and inherited per
+  crate, cfg_attr(test) exemption at both library roots, zero external
+  dependencies (Cargo.lock = exactly the four members), documented
+  crate roots stating each §2 boundary. All four code gates green for
+  the first time; dual-reviewed, first spawn of all three worker roles
+  confirmed the model bindings. Hash backfilled in the next board edit.
 
 ## 4. Follow-ups
 
@@ -119,6 +128,18 @@ Unowned work. Take the next unused `U` id; never renumber, never reuse.
       with `#anchor` targets for registered docs. Proposed in the
       sign-off thread 2026-09-25; **approved and landed the same day**
       in §3/§6/§6.1 + the D10 banner.
+- [ ] **U7 · Clarify the "six denied lints" wording.** Spec §10's gate
+      sentence and AGENTS.md's coding-guidelines item 1 say "the six
+      denied lints of `.agents/roles/_rust.md`"; the workspace regime
+      declares six panic-family clippy denies (`unwrap_used`,
+      `expect_used`, `panic`, `unreachable`, `indexing_slicing`,
+      `exit`) plus `wildcard_imports` (from _rust.md's import rule),
+      plus `unsafe_code` and `missing_docs` at the rustc level. The
+      spec is signed text: either bless §10 to enumerate the full set,
+      or keep "six" as the panic-family shorthand and let
+      wildcard_imports ride its own rule. Surfaced by the M0 dual
+      review; until it is answered, the workspace exceeds the spec
+      floor, which is the safe direction.
 
 ## 5. Debt
 
@@ -131,6 +152,46 @@ _No debt recorded yet — nothing has been built to take a shortcut in._
 Newest first. One entry per session, written for someone who was not
 here. The final entry of a session is the handover
 (`.agents/skills/todo-next-imp/SKILL.md` defines the shape).
+
+### 2026-09-25 — D10 concretization, JSON confirmed, M0 scaffolded
+
+Three moves this session. (1) The user ok'd the D10 concretization and
+confirmed canonical JSON as the `graph_show` wire format: id prefixes
+(U/E/D/S), decision transitions enforced with `missing_resolution`,
+audited `doc_set_path`, `#anchor` citations — landed in §3/§6/§6.1
+(commit `bdfcd65`, U6 struck). (2) M0 scaffold dispatched to the
+implementer and dual-reviewed: four crates, the workspace lint regime
+inherited per crate, zero external deps, all four code gates green for
+the first time. The primary reviewer proved the lint regime with a
+fully reverted tripwire (unwrap + missing_docs both denied; test-cfg
+code exempt by mechanism) and flagged one medium finding — the board
+had not moved with the delivery; this entry and the M0 row are that
+move, in the same commit as the scaffold. The secondary verified the
+file set, manifest inheritance and every spec citation in the crate
+docs. First spawn of all three worker roles: the agent-rules model
+bindings work. (3) `_common.md`'s pre-M0 gate clause was made
+conditional so it cannot go stale (agents regenerated, config version
+4). The re-review pass caught two docs-side defects in this very move
+— an untrue session-log claim (an earlier draft of item 3 asserted a
+spec §10/AGENTS.md wording alignment that did not happen; rewritten to
+fact) and a stale knowledge INDEX (AGENTS.md edited without
+regenerating) — both fixed before the commit. The wording question
+itself is recorded as U7 rather than fixed silently: spec §10 is
+signed text and moves only by user decision.
+
+**Handover.** Workspace: exists — four empty documented crates, all
+gates green. Landed: `bdfcd65` (D10 concretization), the M0 scaffold
+commit (hash backfilled next), this board move. Next step: M1 —
+decompose the domain model (five node kinds, D9 statuses, edges and
+invariants per §3/§5) and the store (`Store` trait, JSONL event log,
+per-repo layout, golden files per §4/§8/§10); U4 (golden-file
+scaffolding shape) and U5 (torn-line/corruption story) feed it and
+should be settled inside the M1 decomposition, not before it. Blocked
+on you: nothing — M1 decomposition starts on your go. Unverified: MCP
+smoke (no wire until M3); per-crate lint tripwires for the other three
+crates (domain's was proven, the rest rest on manifest reads + green
+clippy); rust-analyzer/Serena index now buildable — the first M1 task
+should confirm it.
 
 ### 2026-09-25 — D9–D11 signed; §12 closed
 

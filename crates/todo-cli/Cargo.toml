@@ -1,0 +1,13 @@
+[package]
+name = "todo-cli"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "inspect/debug the store without an MCP client (D5)"
+
+[dependencies]
+todo-domain = { workspace = true }
+todo-store = { workspace = true }
+
+[lints]
+workspace = true

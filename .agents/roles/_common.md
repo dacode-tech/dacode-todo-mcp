@@ -85,5 +85,5 @@ toolchain excuse. Build and test output is long; pipe it:
 
 The gate order after a code change: `cargo fmt --check` → `cargo check`
 → `cargo test -p <crate>` → `cargo clippy --workspace --all-targets`.
-Until the Cargo workspace exists (before M0), every code gate is
-`skipped` by construction — say so rather than staying silent.
+Where no Cargo workspace exists yet, every code gate is `skipped` by
+construction — say so rather than staying silent.

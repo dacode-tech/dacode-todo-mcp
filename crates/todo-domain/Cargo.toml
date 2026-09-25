@@ -1,0 +1,9 @@
+[package]
+name = "todo-domain"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "nodes, edges, graph invariants, selection rules. No I/O, no async, no workspace deps"
+
+[lints]
+workspace = true

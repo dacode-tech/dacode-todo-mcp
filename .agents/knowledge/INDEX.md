@@ -26,5 +26,5 @@
 
 <!-- hashes drive --check -->
 ```
-4a46c33f  f65fdbd       288L  AGENTS.md
+c4bbf628  f65fdbd       285L  AGENTS.md
 ```

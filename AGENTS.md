@@ -17,22 +17,19 @@ If `MYAGENTS.md` exists at the repo root, it is untracked, personal, and
 
 ## Project State
 
-**Phase: M0 — spec signed, scaffold next.** An MCP server that replaces
+**Phase: M1 next — the workspace exists.** An MCP server that replaces
 markdown TODO boards with a deterministic task graph: tasks are typed
 nodes, dependencies are typed edges, everything lives in local
 per-repo non-relational stores (D4), and "what is next in repo X under
 epic Y" is a query, not a prose parse. Rust, rmcp, stdio transport.
 
-All eleven §12 decisions are signed (2026-09-25;
-`docs/implementation/decisions.md`) and §12 is closed, so the spec is
-normative throughout and the Cargo workspace skeleton (M0) is the next
-unit — it does not exist yet, and every code gate stays `skipped`
-until it lands. A new decision opens a new D-entry (D12+); signed
-shapes move only by a new user decision, never by edit. The doc gates
-(`attention.py`, `check-links.py`, `agents-sync.py --check`,
-`agents-index.py --check`) carry the weight until the skeleton exists.
-Run `tools/attention.py` for the current picture rather than trusting
-this paragraph.
+§12 is closed — all eleven decisions signed 2026-09-25
+(`docs/implementation/decisions.md`); the spec is normative
+throughout, and signed shapes move only by a new user decision (new
+D-entries, D12+), never by edit. M0 landed the same day: four crates,
+the workspace lint regime, all code gates green. Run
+`tools/attention.py` for the current picture rather than trusting this
+paragraph.
 
 ## The three rules that are not negotiable
 
