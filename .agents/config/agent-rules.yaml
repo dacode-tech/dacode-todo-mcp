@@ -10,7 +10,7 @@
 # ─── Template Versioning ───────────────────────────────────────────────
 version:
   template: "0.1"          # Inherited from the dacode agent-rules layout
-  custom: 1                # Local adjustment counter
+  custom: 2                # Local adjustment counter
 
 # ─── Project Identity ──────────────────────────────────────────────────
 project:
@@ -618,7 +618,7 @@ synced_sources: []
 # ─── Discovered Context ────────────────────────────────────────────────
 discovered:
   last_scan_date: "2026-09-25"
-  repo_summary: "Empty repo with a git init and no commits. This harness (.agents/, tools/, docs/) is the bootstrap delivery; the Cargo workspace does not exist until M0 and must not be scaffolded past §2's proposal while D1–D3 are open."
+  repo_summary: "Harness bootstrapped (committed e6d4761). D1–D8 signed 2026-09-25: the Cargo workspace skeleton (M0) is authorized and is the next unit; it does not exist yet. D9–D11 (statuses; references/specs/decisions as server entities; next-items) are open and gate M1/M2 — never write past them."
   file_counts:
     rs: 0
     md: 0

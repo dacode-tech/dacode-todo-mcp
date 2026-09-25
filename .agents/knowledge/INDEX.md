@@ -12,7 +12,7 @@
 
 | Doc | Covers | rev | lag | open |
 |---|---|---|---|---|
-| [`(repo root)`](../../AGENTS.md) | Repository-wide instructions. opencode appends this to every agent's | `untracked` | — | — |
+| [`(repo root)`](../../AGENTS.md) | Repository-wide instructions. opencode appends this to every agent's | `e6d4761` | — | — |
 
 ## Topics
 
@@ -26,5 +26,5 @@
 
 <!-- hashes drive --check -->
 ```
-0248bf5a  untracked     284L  AGENTS.md
+c875aa4f  e6d4761       287L  AGENTS.md
 ```

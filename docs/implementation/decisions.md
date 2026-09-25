@@ -10,28 +10,26 @@ same change — most orders delete the §12 item, so the spec moves too.
 and the meta block below; keep the shapes it parses.
 
 <!-- attention-meta — machine-readable; read by tools/attention.py.
-action: D1=vote
-action: D2=vote
-action: D3=vote
-action: D4=vote
-action: D5=vote
-action: D6=vote
-action: D7=vote
-action: D8=vote
+action: D9=vote
+action: D10=vote
+action: D11=vote
 -->
 
 ## Sign-off summary
 
 | ID | Decision | Recommendation | Confidence | Gates | Status |
 |---|---|---|---|---|---|
-| **D1** | Storage engine | (a) JSONL event log + in-memory graph, behind the Store trait | medium | M1 | open |
-| **D2** | Graph model and edge semantics | adopt §3/§5.1 as written | medium | M1 | open |
-| **D3** | Identity scheme | per-repo sequential integers per kind, never reused | medium | M1 | open |
-| **D4** | Store layout | one shared store for all repos under ~/.local/share/dacode-todo/ | medium | M2 | open |
-| **D5** | MCP tool surface | adopt the §6 list; ship todo-cli | medium | M3 | open |
-| **D6** | Selection tiebreaker | topology, then epic order, then id | medium | M2 | open |
-| **D7** | Importer scope | one-shot read-only import, camera dialect first | medium | M4 | open |
-| **D8** | Cross-repo ergonomics | defer cwd auto-detection to M5; id-keyed access in v1 | high | M4 | open |
+| ~~**D1**~~ | Storage engine | (a) JSONL event log + in-memory graph, behind the Store trait | medium | M1 | resolved (a) 2026-09-25 |
+| ~~**D2**~~ | Graph model and edge semantics | adopt §3/§5.1 as written | medium | M1 | resolved (a) 2026-09-25 |
+| ~~**D3**~~ | Identity scheme | per-repo sequential integers per kind, never reused | medium | M1 | resolved (a) 2026-09-25 — repo keys are immutable slugs |
+| ~~**D4**~~ | Store layout | one shared store for all repos under ~/.local/share/dacode-todo/ | medium | M2 | resolved (c) 2026-09-25 — user amendment: per-repo stores |
+| ~~**D5**~~ | MCP tool surface | adopt the §6 list; ship todo-cli | medium | M3 | resolved (a) 2026-09-25 |
+| ~~**D6**~~ | Selection tiebreaker | topology, then epic order, then id | medium | M2 | resolved (a) 2026-09-25 |
+| ~~**D7**~~ | Importer scope | one-shot read-only import, camera dialect first | medium | M4 | resolved (b) 2026-09-25 |
+| ~~**D8**~~ | Cross-repo ergonomics | defer cwd auto-detection to M5; id-keyed access in v1 | high | M4 | resolved (a) 2026-09-25 — plus default-repo slug config |
+| **D9** | Status vocabulary and the deferred state | (a) open/in_work/blocked/deferred/closed + keep wontfix; until-date is metadata | medium | M1 | open |
+| **D10** | References, specs and decisions as server entities | (b) layered: references list; decision nodes that can block; registered docs, prose stays in git | medium | M1 | open |
+| **D11** | Next-items surface and derived weight | (a) next_items batch with blocks annotations + derived weight, display-only | medium | M2 | open |
 
 ---
 
@@ -39,7 +37,14 @@ action: D8=vote
 
 ### D1 — Storage engine
 
-**Gates** M1 · **Action** vote
+**Resolved 2026-09-25 — option (a), signed by the user.** The user's
+stated lean matched the recommendation: tiny dataset, traversals not
+joins, human-auditable log, redb one crate away. Work order executed in
+the sign-off commit: §12 item 1 deleted, §4/§4.1 made normative. A
+fallback to (b) remains available only as a new decision brought to the
+user — never a silent swap.
+
+**Gates** M1 · **Resolved** 2026-09-25
 
 **Current.** Spec §4 lists the requirements (local, single-file,
 non-relational, deterministic bytes, versioned, corruption-safe,
@@ -70,12 +75,20 @@ it; the M1 row of TODO.md §2 unblocks.
 
 ### D2 — Graph model and edge semantics
 
-**Gates** M1 · **Action** vote
+**Resolved 2026-09-25 — option (a), signed by the user.** §3/§5.1
+adopted as written; epic-level `blocks` noted in §5.1 as a follow-up
+decision. In the same message and a follow-up, the user directed a
+status-vocabulary amendment and server-resident specs/decisions —
+recorded separately as D9/D10, which extend parts of this resolution
+when signed, rather than folded into it silently. Work order executed:
+§12 item 2 deleted, PROPOSED struck on §3 and §5.1.
+
+**Gates** M1 · **Resolved** 2026-09-25
 
 **Current.** §3 proposes three node kinds (repo, epic, task), four task
 kinds (task, gate, finding, debt), and §5.1 three edge kinds (parent
-tree, blocks DAG, relates annotation) with write-time cycle rejection and
-the no-orphans rule.
+tree, blocks DAG, relates annotation) with write-time cycle rejection
+and the no-orphans rule.
 
 **Options.**
 (a) Adopt §3/§5.1 as written.
@@ -96,7 +109,16 @@ and §5.1; TODO.md §2 unblocks the M1 model rows.
 
 ### D3 — Identity scheme
 
-**Gates** M1 · **Action** vote
+**Resolved 2026-09-25 — option (a) with repo slugs, signed by the
+user.** Per-repo sequential integers per kind for epics and tasks,
+server-allocated, never reused, never renumbered. Repos are keyed by an
+immutable slug — the user's own follow-up ("mcp per project can be
+configured to use specific repo/project slug as default") confirms
+slugs over integers for repo keys. Work order executed: §12 item 3
+deleted, §3's identity paragraph and §7's registry key made normative,
+never-reuse recorded in §3.
+
+**Gates** M1 · **Resolved** 2026-09-25
 
 **Current.** §7 requires stable ids (a repo's id survives a path
 change); §12 item 3 asks which scheme.
@@ -126,7 +148,21 @@ registry key normative; record the never-reuse rule in §3.
 
 ### D4 — Store layout
 
-**Gates** M2 · **Action** vote
+**Resolved 2026-09-25 — option (c), a user amendment over the
+recommendation.** User direction: keep per-repo/project store files
+rather than one database shared across projects. Layout: under
+`~/.local/share/dacode-todo/`, one directory per repository
+(`repos/<slug>/` — event log + snapshots) plus a shared registry file
+holding repo metadata and the slug→store mapping. No task data lives in
+a cross-project shared store. Epics and tasks remain nodes inside their
+repo's store — per-epic files would fragment single-writer atomicity
+for cross-epic edges (interpretation flagged to the user in the
+sign-off reply; a veto reopens this entry). Accepted trade-off:
+cross-repo queries iterate the registry and open per-repo stores
+instead of reading one file. Work order executed: §12 item 4 deleted,
+§2's data-location paragraph made normative, §8 lock scope noted.
+
+**Gates** M2 · **Resolved** 2026-09-25
 
 **Current.** §2 proposes one shared store under
 `~/.local/share/dacode-todo/`; §12 item 4 asks shared vs per-repo.
@@ -150,7 +186,14 @@ normative; note the lock scope in §8.
 
 ### D5 — MCP tool surface
 
-**Gates** M3 · **Action** vote
+**Resolved 2026-09-25 — option (a), signed by the user.** The §6 list
+is the v1 surface; `todo-cli` ships as the fourth workspace member.
+Note: D10, if signed, extends this list (decision/doc tools) by its own
+work order — an amendment by decision, not by accretion. Work order
+executed: §12 item 5 deleted, PROPOSED struck on §6 and §2's CLI row,
+tool list folded into TODO.md's M3 exit criteria.
+
+**Gates** M3 · **Resolved** 2026-09-25
 
 **Current.** §6 proposes the tool list, the principles (repo named by
 every tool, epic as filter, total orders, structured errors, writes
@@ -176,7 +219,16 @@ row; add the tool list to the M3 exit criteria in TODO.md §2.
 
 ### D6 — Selection tiebreaker
 
-**Gates** M2 · **Action** vote
+**Resolved 2026-09-25 — option (a), signed by the user.** Topology,
+then epic registration order, then task id. The user's follow-up ask
+for "weights/priorities" is drafted as D11: derived, display-only
+weight (transitive dependent count) that annotates without reordering —
+ordering itself is untouched by this signature, and a hand-set priority
+field would be a new decision amending this one. Work order executed:
+§12 item 6 deleted, the tiebreaker written into §5.2 as normative, to
+be pinned by §10's determinism tests.
+
+**Gates** M2 · **Resolved** 2026-09-25
 
 **Current.** §5.2 requires a total order behind `next_task`; topology
 alone leaves ties.
@@ -202,7 +254,15 @@ normative; pin it with the determinism tests of §10.
 
 ### D7 — Importer scope
 
-**Gates** M4 · **Action** vote
+**Resolved 2026-09-25 — option (b), signed by the user.** One-shot
+read-only import, camera dialect first; ikvm-html and dacode follow as
+mechanical extensions once the camera pipeline and fixtures prove the
+mapping. (c) (live sync) stays excluded: two sources of truth is the
+disease, not a feature. Work order executed: §12 item 7 deleted, §9
+made normative for the chosen scope, fixture plan folded into TODO.md's
+M4 deliverable.
+
+**Gates** M4 · **Resolved** 2026-09-25
 
 **Current.** §9 proposes one-shot, read-only import of the sibling
 boards with a fixed mapping (milestones→epics, U items→tasks, open
@@ -227,7 +287,17 @@ scope; add the fixture-plan row to the M4 block in TODO.md §2.
 
 ### D8 — Cross-repo ergonomics
 
-**Gates** M4 · **Action** vote
+**Resolved 2026-09-25 — option (a) plus a user-directed amendment.**
+No cwd auto-detection in v1 (deferred to M5); id-keyed access is the
+normal case. Amendment from the sign-off message: a server instance may
+be configured with a **default repo slug** (flag or env in the client's
+per-project mcp entry); an explicit repo parameter always wins. This is
+deterministic configuration, not a detection heuristic, so (a)'s
+rationale is untouched. Work order executed: §12 item 8 deleted, the
+deferral recorded in §7 and TODO.md's M5 row, the default-slug
+mechanism added to §6's principles and §13's wiring.
+
+**Gates** M4 · **Resolved** 2026-09-25
 
 **Current.** §7 makes id-keyed cross-repo access the normal case (any
 client can query any repo). What is open is the convenience layer:
@@ -249,6 +319,148 @@ later without a migration.
 **Confidence: high.** Deferring is reversible at zero cost; shipping
 detection early is not.
 
-**On sign-off:** delete §12 item 8; record the deferral in §7 and in the
-M5 row of TODO.md §2; if (b) is chosen instead, add a `repo_detect` row
+**On sign-off:** delete §12 item 8; record the deferral in §7 and in
+the M5 row of TODO.md §2; if (b) is chosen instead, add a `repo_detect` row
 to §6 and a determinism rule for its resolution order.
+
+### D9 — Status vocabulary and the deferred state
+
+**Gates** M1 · **Action** vote
+
+**Current.** §3 specifies `pending`, `active`, `blocked`, `done`,
+`wontfix` — the exact `tools/tasks.py` set — with the closure
+discipline (done⇒evidence, blocked⇒note). The user's sign-off message
+of 2026-09-25 directs a revised set: open, in-work, blocked, deferred
+(optionally with an until-when), closed — with blocked items carrying
+references and/or being determined from the graph. Two clarifications:
+graph-derived blocking already exists (§5.2 — a task with an unfinished
+`blocks` predecessor is not actionable whatever its status), and D2 was
+signed in the same message adopting §3 as written; this entry is the
+user's explicit amendment of the status vocabulary only — node kinds
+and edges are untouched.
+
+**Options.**
+(a) Six statuses: `open`, `in_work`, `blocked`, `deferred`, `closed`,
+`wontfix` — renames pending→open, active→in_work, done→closed; adds
+deferred; keeps wontfix. Closure discipline maps one-to-one:
+closed⇒evidence, blocked⇒note, deferred⇒note, plus an optional `until`
+date (RFC 3339) that is metadata only.
+(b) The five directed statuses exactly, folding wontfix into closed.
+(c) Keep the tasks.py set; model deferred as blocked with a dated note.
+
+**Recommendation.** (a). The renames are cosmetic and match the user's
+vocabulary; deferred deserves first-class status because "deliberately
+postponed" is a different fact than "externally stuck". The `until`
+date stays metadata — selection remains wall-clock-free (§8); an item
+leaves deferred by an explicit status change, never by the calendar.
+Calendar-driven reactivation would need a client-passed as-of timestamp
+in selection (a §5.2 amendment) — possible and still deterministic, but
+a new decision, not folded in here. Keeping `wontfix` preserves the one
+terminal that unblocks successors without evidence of completed work
+(§5.1), and the §9 importer mapping for struck-through board items; (b)
+either forces evidence onto deliberately-skipped work or punches a hole
+in the closure discipline; (c) conflates the two blocked flavors.
+
+**Confidence: medium.** Renames are zero-risk; deferred interacts with
+§5.2 actionability and §6.1 (`missing_note` already covers
+deferred-without-note).
+
+**On sign-off:** rewrite §3's status sentence and closure requirements;
+amend §5.2's actionability clause (deferred joins blocked as
+non-actionable); delete §12 item 9; the M1 rows of TODO.md §2.
+
+### D10 — References, specs and design decisions as server entities
+
+**Gates** M1 · **Action** vote
+
+**Current.** Nodes carry no external references; specs and decisions
+are git prose that this harness regex-parses (decisions.md +
+attention.py) — the strain the user wants gone, visible in the harness
+itself. The sign-off message asks for: epics that are JIRA issues
+(several links to external trackers), tasks referencing spec paragraphs
+or work items, and reviewable design docs that are non-actionable but
+citable; a follow-up message directs that **specs and design decisions
+should also live in the MCP server so they can be reliably referenced**.
+This overrides part of §11 ("D/B dossiers stay prose; the server tracks
+the gate they hang on") and extends signed D2's node kinds — recorded
+here rather than folded into D2's resolution silently.
+
+**Options.**
+(a) Pointers only: a `references` list on epics and tasks
+({kind, target, note?}, kind ∈ tracker/url/doc/spec/file/other); docs
+and decisions stay unregistered git prose.
+(b) Layered: the references list for externals (tracker keys, URLs,
+files), plus two new node kinds —
+  * `decision`: a structured dossier in the store {id, repo, title,
+    status open/signed/superseded, options, recommendation, resolution,
+    confidence, timestamps}. An open decision can carry `blocks` edges
+    to the tasks/epics it gates, so "never write past an unsigned
+    decision" becomes graph-enforced and `next_task` can never surface
+    work behind an open decision.
+  * `doc`: a registered document {id, repo, title, path, version} — a
+    stable address with a mutable path (the same trick as repo slugs vs
+    paths, §7). The prose body stays in git, where review, diff, blame
+    and backup live.
+(c) Full content store: spec-section bodies also live in the server and
+are edited through tools; the git markdown becomes a rendering/export.
+
+**Recommendation.** (b). Decisions are structured, lifecycle-driven and
+gating — exactly what a deterministic queryable store beats prose at;
+this repo currently regex-parses its own decision dossiers to render
+the attention table, which is the markdown-board disease reappearing in
+the harness. Spec *bodies* belong in git: merge review, diff and backup
+are git's determinism, and duplicating long prose into the store
+creates a second source of truth with none of those properties.
+Registering docs makes citations survive file moves and resolve
+cross-repo, which is what "reliably referenced" needs. (c) stays
+revisitable without migration: doc registration is the natural hook for
+a content cache or retrieval tool if cross-repo text access proves
+necessary. (a) is now below the user's direction: file+section cites
+rot and are unreachable from other repos.
+
+**Confidence: medium.** The decision-node schema has real design
+surface: dossier fields, supersession semantics, and the interplay with
+the signed §9 mapping — open D/B decisions currently map to `gate`
+tasks; under (b) they become decision nodes instead, and `gate` remains
+for non-decision checkpoints.
+
+**On sign-off:** add the references field and the decision/doc node
+kinds to §3; extend §5.1's `blocks` to decision→task/epic edges; add
+decision/doc tool rows to §6 (extending signed D5's list by this
+decision; schemas ride M3); amend §9's mapping (open D/B → decision
+nodes); narrow §11's "dossiers stay prose" clause to spec bodies;
+delete §12 item 10; the M1 rows of TODO.md §2.
+
+### D11 — Next-items surface and derived weight
+
+**Gates** M2 · **Action** vote
+
+**Current.** §5.2/§6 specify `next_task` returning the single first
+actionable node; D6(a) is signed (topology → epic order → id). The
+user's sign-off message asks for a way to query the **next open items**
+(plural) with references to the items they block, and "some
+weights/priorities". §11 excludes priority/effort fields in v1 — "by
+decision, not by accretion" — and D6's dossier says the same.
+
+**Options.**
+(a) `next_items(repo, epic?, limit?)`: the top-N actionable nodes in
+D6's canonical order, each annotated with its direct blocked-by/blocks
+ids and a derived weight = count of transitive dependents. `next_task`
+remains the limit=1 case. Weight is display-only: a pure function of
+the graph, no new state, no reordering.
+(b) (a) plus a hand-set `priority` field participating in the
+tiebreaker — amends the just-signed D6 and repeals §11's exclusion.
+(c) Keep the single `next_task`, no annotations.
+
+**Recommendation.** (a). It answers the agent's real question — a
+ranked batch with dependency context, "what unblocks the most" — while
+keeping the order a pure derivation: weight is computed, never entered,
+so there is nothing to maintain and nothing to drift. If hand-set
+priority that reorders selection is ever wanted, that is an explicit
+amendment of D6 (a new decision), which §11 already anticipates.
+
+**Confidence: medium.** The annotations are cheap traversals; the only
+open sub-question is limit's default (proposed: 10).
+
+**On sign-off:** amend §5.2 (batch selection) and §6's tool table (a
+`next_items` row); delete §12 item 11; the M2/M3 rows of TODO.md §2.

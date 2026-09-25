@@ -17,18 +17,21 @@ If `MYAGENTS.md` exists at the repo root, it is untracked, personal, and
 
 ## Project State
 
-**Phase: pre-M0 — design.** An MCP server that replaces markdown TODO
-boards with a deterministic task graph: tasks are typed nodes,
-dependencies are typed edges, everything lives in one local
-non-relational store, and "what is next in repo X under epic Y" is a
-query, not a prose parse. Rust, rmcp, stdio transport.
+**Phase: M0 — spec signed, scaffold next.** An MCP server that replaces
+markdown TODO boards with a deterministic task graph: tasks are typed
+nodes, dependencies are typed edges, everything lives in local
+per-repo non-relational stores (D4), and "what is next in repo X under
+epic Y" is a query, not a prose parse. Rust, rmcp, stdio transport.
 
-There is **no Cargo workspace yet**, and there must not be one until the
-decisions gating it are signed (spec §12 → `docs/implementation/decisions.md`
-D1–D3). Every code gate is `skipped` by construction until M0; the doc
-gates (`attention.py`, `check-links.py`, `agents-sync.py --check`,
-`agents-index.py --check`) carry the weight. Run `tools/attention.py`
-for the current picture rather than trusting this paragraph.
+D1–D8 are signed (2026-09-25; `docs/implementation/decisions.md`), so
+the Cargo workspace skeleton is authorized and is the next unit — it
+does not exist yet, and every code gate stays `skipped` until it lands.
+D9–D11 (statuses; references and specs/decisions as server entities;
+next-items) are drafted and gate M1/M2 — never write past them. The
+doc gates (`attention.py`, `check-links.py`, `agents-sync.py --check`,
+`agents-index.py --check`) carry the weight until the skeleton exists.
+Run `tools/attention.py` for the current picture rather than trusting
+this paragraph.
 
 ## The three rules that are not negotiable
 

@@ -1,9 +1,10 @@
 # dacode-todo-mcp — Design
 
-> **Status: seed spec, design phase.** Every section below is either a
-> requirement the user has stated, or a proposal marked PROPOSED. The
-> proposals move only when their §12 decision is signed; the sign-off
-> record is `docs/implementation/decisions.md`. This document carries no
+> **Status: core spec signed 2026-09-25 (D1–D8); §12 items 9–11 open.**
+> A section below is either a requirement the user has stated, or a
+> proposal made normative when its §12 decision was signed (record:
+> `docs/implementation/decisions.md`); anything still marked PROPOSED
+> moves only when its decision is signed. This document carries no
 > markdown links by convention (`tools/check-links.py` enforces it) —
 > paths and sections are cited in backticks.
 
@@ -31,26 +32,27 @@ by top-level epic**.
 Stated user constraints, which are requirements, not proposals:
 
 1. Deterministic handling — not markdown files.
-2. Directed graph as the working model (one candidate among several —
-   §12 item 1).
+2. Directed graph as the working model (storage settled by D1: JSONL
+   event log + in-memory graph).
 3. A local database that can be queried, **not a relational database**.
 4. Selection by repository *and* by top-level epic; the tooling asks for
    an epic name for the specific repo.
 5. Repository paths must be updatable — checkouts move on the
    filesystem, and the tracker may be accessed from a repository other
-   than the one a task belongs to (cross-repo access is optional for
-   now — §12 item 8).
+   than the one a task belongs to (id-keyed cross-repo access is v1;
+   cwd auto-detection deferred to M5 by D8).
 
 ## 2. Architecture and Crate Layout
 
-**PROPOSED — see §12.** Four Cargo workspace members, one binary:
+Normative (D1–D5 signed 2026-09-25). Four Cargo workspace members, one
+binary:
 
 | Crate | Job | Depends on |
 |---|---|---|
 | `todo-domain` | nodes, edges, graph invariants, selection rules. No I/O, no async, no workspace deps | nothing |
-| `todo-store` | persistence behind a single `Store` trait; the engine chosen by §12 item 1 is sealed inside this crate | `todo-domain` |
+| `todo-store` | persistence behind a single `Store` trait; the JSONL engine (D1) is sealed inside this crate | `todo-domain` |
 | `todo-mcp` | the server binary: rmcp (official Rust MCP SDK) wire surface over stdio. Translates, never decides | both |
-| `todo-cli` | inspect/debug the store without an MCP client. Optional — §12 item 5 decides whether it ships | domain + store |
+| `todo-cli` | inspect/debug the store without an MCP client. Ships (D5) | domain + store |
 
 Rules, enforced at review:
 
@@ -60,19 +62,27 @@ Rules, enforced at review:
   `todo-mcp`.
 - Selection and ordering logic lives in `todo-domain` and nowhere else;
   the binary exposes it, it does not implement it.
-- Whether the server is async is constrained by §12 item 1; until then
-  domain and store stay sync and runtime-agnostic.
+- The D1 engine (JSONL event log + in-memory graph) needs no async
+  runtime: domain and store stay sync and runtime-agnostic; the binary
+  may adopt tokio for rmcp, the libraries must not require it.
 
-Data location: one store shared by all registered repositories, under
-`~/.local/share/dacode-todo/` (macOS: the same path; no XDG relocation
-game). Single store vs one file per repository is §12 item 4.
+Data location (D4, signed with a user amendment — per-repo stores, not
+one shared database): under `~/.local/share/dacode-todo/` (macOS: the
+same path; no XDG relocation game), one directory per repository —
+`repos/<slug>/` holding that repo's event log and snapshots — plus a
+shared registry file holding repo metadata and the slug→store mapping.
+No task data lives in a cross-project shared store; cross-repo queries
+iterate the registry and open per-repo stores. Lock scope: §8.
 
 ## 3. Domain Model
 
-**PROPOSED — §12 items 2 and 3 settle the edges and the ids.** Three
-node kinds, mirroring what the sibling boards already mean:
+Normative (D2, D3 signed 2026-09-25; the status-vocabulary amendment
+is pending as §12 item 9, references and decision/doc node kinds as
+§12 item 10). Three node kinds, mirroring what the sibling boards
+already mean:
 
-- **Repo** — a stable id (the key), a display name, a filesystem path
+- **Repo** — a stable slug id (the key, immutable — D3), a display
+  name, a filesystem path
   (a mutable attribute, §7), and a registration timestamp.
 - **Epic** — a repo's top-level grouping: id, repo, title, description,
   status. The selection unit the user asked for: every list query may
@@ -82,20 +92,29 @@ node kinds, mirroring what the sibling boards already mean:
   `evidence` (required to reach `done`), `note` (required to reach
   `blocked`), timestamps.
 
+**Identity (D3).** Repos are keyed by an immutable slug chosen at
+registration (`camera`); display name and path stay mutable. Epics and
+tasks get per-repo sequential integers per kind, allocated by the
+server, never reused, never renumbered — gaps are meaningful. Prose
+cites `camera:U7`-style ids. Sequential allocation rides the
+single-writer lock (§8).
+
 Task kinds carry the sibling projects' vocabulary: `task` (one unit of
 work), `gate` (a checkpoint that must pass), `finding` (discovered, not
 the point of the task), `debt` (a deliberate shortcut). Statuses:
 `pending`, `active`, `blocked`, `done`, `wontfix` — the exact set
 `tools/tasks.py` already enforces, whose closure rules (evidence for
 done, note for blocked, verify decided at creation) this server adopts as
-product behaviour (§6), not just convention.
+product behaviour (§6), not just convention. A revised vocabulary
+directed by the user (open / in-work / deferred / closed) is pending as
+§12 item 9; until signed, this set stands.
 
 Timestamps are RFC 3339 UTC, passed in by the caller layer; nothing below
 the binary reads a wall clock (§8).
 
 ## 4. Storage
 
-Requirements — these bind whatever §12 item 1 chooses:
+Requirements — these bind the chosen engine (D1: JSONL event log):
 
 - **Local and single-file** (or single-directory): no server process to
   query it, no network, no daemon to keep alive.
@@ -131,16 +150,18 @@ Requirements — these bind whatever §12 item 1 chooses:
 - **(d) A dedicated graph database.** Server weight or heavy
   dependencies for a graph that fits in a megabyte. Excluded.
 
-This spec leans (a), with (b) as the fallback if event-log replay or
-snapshotting proves awkward; the `Store` trait (§4.2) makes the choice
-reversible at one crate's cost. §12 item 1 decides.
+**Signed (D1, 2026-09-25): (a)** — append-only JSONL event log +
+in-memory graph + periodic snapshots. (b) redb remains the named
+fallback if replay or snapshotting proves awkward in M1 — reachable
+only as a new decision brought to the user, behind the `Store` trait
+(§4.2), never a silent swap.
 
 ### 4.2 The Store trait
 
 One trait, owned by `todo-store`, is the whole persistence surface:
 open/create, read the graph, append a mutation, snapshot/compact,
-format version. Whatever engine wins §12 item 1 implements it; the
-domain and server crates never see past it.
+format version. The JSONL engine (D1) implements it; the domain and
+server crates never see past it.
 
 ## 5. Graph Semantics and Ordering
 
@@ -152,7 +173,8 @@ Two structural edge kinds plus one annotation:
   repo; every task has exactly one epic. Reparenting a task moves it;
   deleting an epic requires its tasks to move first or be closed — no
   orphans, ever.
-- **`blocks`** — a DAG over tasks (and optionally epics). `A blocks B`
+- **`blocks`** — a DAG over tasks (epic-level `blocks` is a follow-up
+  decision when a real query needs one — D2). `A blocks B`
   means B is not actionable until A is `done` or `wontfix`. **A write
   that would create a cycle is rejected before it lands** — cycle
   detection at write time, not repair at query time.
@@ -164,7 +186,9 @@ Two structural edge kinds plus one annotation:
 Order is never stored; it is derived. The canonical order is a
 topological order of `blocks` restricted to a repo (and optionally one
 epic), with a total-order tiebreaker so the derivation is a function,
-not a coincidence — the tiebreaker is §12 item 6.
+not a coincidence. The tiebreaker (D6, signed): topology first, then
+epic registration order, then task id (creation order) — all derived
+from existing fields, no stored priority, no new state.
 
 `next_task(repo, epic?)` returns the first node in canonical order that
 is **actionable**: status `pending` or `active`, not `blocked`, and no
@@ -174,13 +198,17 @@ every platform.
 
 ## 6. MCP Tool Surface
 
-**PROPOSED — §12 item 5 settles the list and the schemas.** Principles
-that are not up for grabs:
+Normative (D5 signed 2026-09-25; JSON schemas firm up against rmcp's
+macros in M3). Principles that are not up for grabs:
 
-- Every tool names its repository; epic is an optional filter wherever
-  tasks are listed. The client flow the user asked for is
-  `repo_list` → `epic_list(repo)` → `next_task(repo, epic)`, and the
-  harness asks the user for the epic name when the query needs one.
+- Every tool takes a repository parameter. A server instance may be
+  configured with a default repo slug (D8 amendment: a startup flag or
+  env var in the client's per-project mcp entry, §13); an explicit
+  parameter always wins, and the default is configuration, never a cwd
+  heuristic. Epic is an optional filter wherever tasks are listed. The
+  client flow the user asked for is `repo_list` → `epic_list(repo)` →
+  `next_task(repo, epic)`, and the harness asks the user for the epic
+  name when the query needs one.
 - Every returned list carries the documented total order of §5.2 —
   a tool that returns an unordered list is a bug.
 - Errors are structured data with stable codes (§6.1), never panics and
@@ -205,7 +233,7 @@ Sketch (names are the proposal; rmcp's tool macros will shape schemas):
 | `task_link` / `task_unlink` | `blocks` / `relates` edges; cycle-checked |
 | `next_task` | **the question the system exists for** (§5.2) |
 | `graph_show` | dump a repo's (or epic's) subgraph for debugging and handovers |
-| `import_md` | one-shot importer from the sibling markdown boards (§9, §12 item 7) |
+| `import_md` | one-shot importer from the sibling markdown boards (§9; D7: camera dialect first) |
 
 ### 6.1 Error contract
 
@@ -219,8 +247,8 @@ never parse a message.
 
 The server is global: one store, many repositories, reached from
 whichever repo the client happens to be in. A repository is keyed by its
-**stable id** (§12 item 3), never by its path — because paths are the
-thing that changes:
+**stable slug** (D3), never by its path — because paths are the thing
+that changes:
 
 - `repo_register(name, path)` mints the id and records the path.
 - `repo_set_path(repo, new_path)` updates it when a checkout moves. The
@@ -228,8 +256,9 @@ thing that changes:
   a repo's locations is part of the audit trail.
 - Accessing the tracker **from** a repo other than the one a task
   belongs to is the normal case, not a special one: queries name the
-  target repo explicitly. Auto-detecting "my repo" from the client's cwd
-  is a convenience layer on top (§12 item 8), never the mechanism.
+  target repo explicitly. Per D8 (signed): cwd auto-detection is
+  deferred to M5; the v1 convenience layer is the per-instance default
+  repo slug (§6, §13) — explicit configuration, never a heuristic.
 
 ## 8. Determinism and Concurrency
 
@@ -245,11 +274,14 @@ Determinism is the product property; everything else is a feature:
   layer.
 - **Byte-stability test**: serialize → load → serialize is identical;
   any tool called twice on unchanged state returns identical bytes.
-- **Single writer**: one process mutates the store at a time, held by an
+- **Single writer**: one process mutates one store at a time, held by an
   advisory file lock at the process boundary (`locked` error, §6.1, when
-  contended). Readers may be concurrent only if the engine (a)/(b)
-  choice makes that safe; until §12 item 1 lands, the design assumes
-  one process, which is what one MCP server is.
+  contended). Lock scope follows the D4 layout: one lock per repo store
+  plus one for the registry; an operation touching several stores
+  acquires locks in sorted-slug order, so acquisition order can never
+  deadlock. The JSONL engine (D1) tolerates concurrent readers of a
+  committed log; the design still assumes one server process, which is
+  what one MCP server is.
 
 ## 9. Adoption and Migration
 
@@ -257,7 +289,9 @@ The three sibling boards are the migration source and the acceptance
 test. Each has a slightly different dialect — camera and ikvm-html:
 `U` follow-ups, `D` decisions, `M` milestones, session logs; dacode:
 `U`/`B`/`A` registers plus milestone sub-steps — and the importer
-(§12 item 7) maps them once, read-only:
+(D7, signed: the camera dialect first in v1; ikvm-html and dacode
+follow once the camera pipeline and fixtures prove the mapping) maps
+them once, read-only:
 
 - milestones and epics-in-prose → **epics**
 - `U` items → **tasks** (kind `task`, or `debt` where the board says
@@ -308,6 +342,8 @@ workspace lints). Beyond them, the shapes this project is judged by:
 - No live sync with markdown files (§9).
 - No replacement of the sibling projects' decision culture: `D`/`B`
   dossiers stay prose; the server tracks the *gate* they hang on.
+  (Pending amendment — §12 item 10 would move decision dossiers into
+  the server as structured nodes; spec bodies stay in git either way.)
 
 ## 12. Open Decisions
 
@@ -316,39 +352,35 @@ Each item is mirrored by a `D`-numbered entry in
 confidence and an `On sign-off:` work order. Agents propose; the user
 decides. An item is deleted from this list when its decision is signed.
 
-1. **Storage engine** — (a) append-only JSONL event log + in-memory
-   graph + snapshots, (b) embedded KV (redb), (c)/(d) excluded by §4.1.
-   Spec leans (a). Gates M1. See decisions.md D1.
-2. **Graph model and edge semantics** — the §3/§5.1 proposal: node kinds
-   repo/epic/task, task kinds task/gate/finding/debt, edges
-   parent/blocks/relates, write-time cycle rejection, no-orphans rule.
-   Gates M1. See decisions.md D2.
-3. **Identity scheme** — ids for repos, epics, tasks: per-repo sequential
-   integers (board-style `U7`), ULIDs, or typed slugs. Stability and
-   never-reuse guarantees are part of the choice. Gates M1. See
-   decisions.md D3.
-4. **Store layout** — one shared store file for all repos vs one file per
-   repo plus a registry index; where it lives; what `graph_show` exports
-   across repos. Gates M2. See decisions.md D4.
-5. **MCP tool surface** — the §6 list and names as proposed, or amended;
-   whether `todo-cli` ships as a workspace member. Gates M3. See
-   decisions.md D5.
-6. **Selection tiebreaker** — the total order §5.2 requires when
-   topology alone does not decide: creation order, id order, an explicit
-   priority field, or epic order first. Gates M2. See decisions.md D6.
-7. **Importer scope** — one-shot read-only import of the three sibling
-   boards (no live sync), with the §9 mapping; which dialects are in v1.
-   Gates M4. See decisions.md D7.
-8. **Cross-repo ergonomics** — cwd auto-detection of "my repo" and
-   querying other repos' tasks from any client: in v1 or deferred.
-   Keying by stable repo id happens either way (§7). Gates M4. See
-   decisions.md D8.
+Items 1–8 were signed 2026-09-25 and deleted; their resolutions live in
+`docs/implementation/decisions.md`, and the sections they settled are
+normative above. Items 9–11 were drafted from the sign-off message's
+new requirements:
+
+9. **Status vocabulary and the deferred state** — the user's sign-off
+   directs open / in-work / blocked / deferred (optional until-date) /
+   closed; reconciliation with the §3 set (keep `wontfix`? does
+   deferred-until touch selection?). Gates M1. See decisions.md D9.
+10. **References, specs and design decisions in the server** —
+    `references` (tracker keys, URLs, files) on epics and tasks; design
+    decisions as structured server nodes whose open state can `block`
+    work; specs/docs registered as stably-addressable entities with
+    their prose bodies staying in git. User directive: specs and
+    decisions must live in the server so they can be reliably
+    referenced. Gates M1. See decisions.md D10.
+11. **Next-items surface and derived weight** — a batch `next_items`
+    with blocked-by/blocks annotations and derived weight (transitive
+    dependents, display-only); whether any hand-set priority may
+    reorder selection (amends D6, repeals §11's exclusion). Gates M2.
+    See decisions.md D11.
 
 ## 13. Packaging and Distribution
 
 One binary, `todo-mcp`, built with `cargo build --release` and wired into
 clients as a local stdio MCP server — in opencode, an `mcp` entry in the
-global config naming the binary and the store location. Store format
+global config naming the binary and the store location. A per-project
+mcp entry may pass a default repo slug (flag or env — §6, D8);
+explicit tool parameters override it. Store format
 version travels in the file header, independent of the binary version; a
 binary refuses a store newer than it understands (`version_mismatch`,
 §6.1) rather than guessing. No packaging beyond the binary in v1.

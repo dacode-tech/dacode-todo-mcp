@@ -44,8 +44,11 @@ status, timestamps and an evidence field for closure. **Edges** are typed:
 `parent` (repo → epic → task, a tree) and `blocks` (a DAG, enforced at
 write time). Ordering is never stored — it is derived topologically, and
 **next-task selection is a pure, documented function of graph state**
-(§5). Everything that reaches disk or wire is canonically serialized and
-pinned by golden files (§8, §10).
+(§5); the tiebreaker (D6): topology → epic registration order → task
+id. Everything that reaches disk or wire is canonically serialized and
+pinned by golden files (§8, §10). Open model amendments: the status
+vocabulary (§12 item 9) and references/decision/doc nodes (§12 item
+10) — do not pre-empt them in code.
 
 ## The property that makes this project exist
 
@@ -56,10 +59,14 @@ total order; a sort with equal keys and no tiebreaker; a wall-clock read
 below the binary layer; non-canonical JSON field order. When in doubt,
 the test is: run it twice, compare bytes.
 
-## Storage — what is known and what is open
+## Storage — settled and pending
 
-Open: the engine itself is §12 item 1 (event log + in-memory graph vs
-embedded KV vs other). Not open, whatever wins:
+Settled (D1, signed 2026-09-25): append-only JSONL event log +
+in-memory graph + periodic snapshots behind the `Store` trait; redb is
+the named fallback, reachable only as a new decision. Layout (D4, user
+amendment): per-repo directories under `~/.local/share/dacode-todo/`
+plus a shared registry — no cross-project shared database. Fixed
+requirements (§4), whatever happens:
 
 - local, single file, no server process to query it
 - survives a repository moving on the filesystem (paths are attributes,
@@ -68,23 +75,27 @@ embedded KV vs other). Not open, whatever wins:
 - the format is pinned by golden files; a format change is a migration
   with a version header, not an edit
 
-## MCP surface — what is known and what is open
+## MCP surface — settled and pending
 
-Open: the exact tool list and schemas are §12 item 5. Not open (§6's
-frame): tools are thin translations over domain operations; every tool
-names its repository; epic is a filter parameter wherever tasks are
+Settled (D5): the §6 tool list is the v1 surface and `todo-cli` ships;
+JSON schemas firm up against rmcp's macros in M3. Pending: D11 may add
+a `next_items` batch tool; D9/D10 shape payload fields (statuses,
+references, decision/doc nodes). Fixed (§6's frame): tools are thin
+translations over domain operations; every tool takes a repo parameter
+(a per-instance default slug is configuration, never a cwd heuristic —
+D8); epic is a filter parameter wherever tasks are
 listed; errors are structured data with stable codes; every list has a
 documented order. The server speaks stdio transport first — it is what
 opencode and the other clients here use.
 
-## Crate map (proposal — §2, gated on D1–D3)
+## Crate map (normative — §2, D1–D5 signed)
 
 | Crate | Job | Depends on |
 |---|---|---|
 | `todo-domain` | nodes, edges, graph invariants, selection, **no I/O, no async** | nothing |
 | `todo-store` | persistence behind one `Store` trait; engine (D1) sealed inside | todo-domain |
 | `todo-mcp` | the server binary: rmcp wire surface, translates, never decides | both |
-| `todo-cli` (optional, D5) | inspect/debug the store without a client | domain + store |
+| `todo-cli` (ships, D5) | inspect/debug the store without a client | domain + store |
 
 ## Verification for this domain
 
