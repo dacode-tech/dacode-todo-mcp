@@ -10,7 +10,7 @@
 # ─── Template Versioning ───────────────────────────────────────────────
 version:
   template: "0.1"          # Inherited from the dacode agent-rules layout
-  custom: 4                # Local adjustment counter
+  custom: 5                # Local adjustment counter
 
 # ─── Project Identity ──────────────────────────────────────────────────
 project:
@@ -118,14 +118,19 @@ harness:
     qwen3.8-max-0902: [high]           # in use by the three heavy roles in the
                                        # sibling repo (dacode). `medium` is
                                        # deliberately NOT listed: no role has ever
-                                       # used it on this exact id.
+                                       # used it on this exact id. Spawn-tested
+                                       # here 2026-09-25 (orchestrator,
+                                       # implementer, review_primary — the M0
+                                       # cycle).
     glm-5.3: [low, high, max]          # the sibling repo's measured set: `medium`
                                        # was REJECTED at spawn there. `high` is
-                                       # what this repo binds and is not yet
-                                       # spawn-tested here.
+                                       # what this repo binds; spawn-tested here
+                                       # 2026-09-25 (review_secondary, the M0
+                                       # dual review).
     qwen3.8-flash: [medium]            # explore's binding, in use in the sibling
                                        # repo. The rest of this model's set is
-                                       # unverified.
+                                       # unverified; explore itself has not yet
+                                       # spawned here.
 
   targets:
     opencode:
