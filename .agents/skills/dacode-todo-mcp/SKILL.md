@@ -56,10 +56,12 @@ document; the prose body stays in git). Statuses (D9): `open`,
 `in_work`, `blocked`, `deferred`, `closed`, `wontfix`; deferred items
 record until-targets as `blocks` edges, never auto-reopen. Epics and
 tasks carry `references` lists (tracker keys, URLs, spec cites).
-`next_items` (D11) returns a ranked actionable batch annotated with
-what blocks what plus a derived transitive-dependent weight; the
-agent-set `priority` field is display-only and never reorders.
-
+`next_items` (D11) returns a ranked actionable batch — repo/epic- or
+task-scoped — annotated with what blocks what, a derived
+transitive-dependent weight, and a deferred summary (`total`/`ready`,
+D9); `graph_show` (§6.2) dumps the complete graph as canonical-JSON
+nodes with per-node adjacency; the agent-set `priority` field is
+display-only and never reorders.
 ## The property that makes this project exist
 
 **Determinism.** Two runs over unchanged state return byte-identical

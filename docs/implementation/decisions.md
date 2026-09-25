@@ -338,6 +338,15 @@ surface the item as until-satisfied and reopening is an explicit
 deferred⇒note. Work order executed: §3 statuses/closure rewritten,
 §5.2 actionability amended, §12 item 9 deleted, TODO.md M1 rows.
 
+**Amended 2026-09-25 (same day, user-directed).** Deferred items must
+be surfaced, not merely queryable: `next_task`/`next_items` responses
+carry a deferred summary for the queried scope — `deferred: {total,
+ready}`, where `ready` counts deferred items whose until-target
+`blocks` predecessors are all finished — and `task_list(status=deferred)`
+gains a ready filter for when the agent decides to look. The summary
+informs; auto-reactivation remains excluded. Landed in §5.2/§6 in the
+amendment commit.
+
 **Gates** M1 · **Resolved** 2026-09-25
 
 **Current.** §3 specifies `pending`, `active`, `blocked`, `done`,
@@ -473,6 +482,17 @@ ordering input. Promotion into the tiebreaker would be a new decision
 amending D6 (flagged to the user at sign-off). Work order executed:
 §5.2 batch selection, §6 `next_items` row, §11 amended, §12 item 11
 deleted, TODO.md M2/M3 rows.
+
+**Amended 2026-09-25 (same day, user-directed).** Two extensions:
+`next_items` also takes a `task` scope — the transitive dependents of
+a non-top-level item, in the same canonical order, each marked
+immediately actionable or still held by other predecessors — and
+`graph_show` is specified as the complete-graph handover function
+(new §6.2): canonical-order nodes with per-node `blocked_by`/`blocks`
+adjacency, wire format canonical JSON, any YAML/Mermaid render a pure
+function of that structure behind a `format` parameter. Ordering
+remains server-side (`todo-domain`) and D6-pure; `priority` remains
+display-only.
 
 **Gates** M2 · **Resolved** 2026-09-25
 

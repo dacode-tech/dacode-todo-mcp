@@ -66,6 +66,11 @@ Oldest first. One line per delivery, with the commit hash once committed.
   `blocks` edges; `next_items` batch with derived weight and an
   agent-set, display-only `priority`. Spec normative throughout, §9
   mapping and §11 non-goals amended, §6 tool table extended.
+- 2026-09-25 — **D9/D11 same-day amendments** (user-directed):
+  deferred summary (`total`/`ready`) on next_task/next_items plus a
+  ready filter on task_list (D9); task-scoped next_items and the §6.2
+  graph_show complete-graph dump (D11). D10 concretization proposed in
+  the sign-off thread, lands on the user's ok (U6).
 
 ## 4. Follow-ups
 
@@ -97,6 +102,18 @@ Unowned work. Take the next unused `U` id; never renumber, never reuse.
       event log means, and whether snapshots are the recovery unit.
       Now scoped to the signed D1 engine (JSONL event log) and the D4
       per-repo layout.
+- [ ] **U6 · Land the D10 concretization on the user's ok**: per-kind
+      id prefixes (task `U`, epic `E`, decision `D`, doc `S` —
+      `camera:D3` echoes the board registers); decision status
+      transitions enforced like task closure (`signed`/`superseded`
+      require `resolution` — a `missing_resolution` code in §6.1);
+      signing flips status and its `blocks` edges simply stop gating
+      (no edge mutation, history preserved); milestone gating modeled
+      as `blocks` edges to epics, not a field; `doc_set_path` audited
+      like `repo_set_path`; references entries `{kind, target, note?}`
+      with `#anchor` targets for registered docs. Proposed in the
+      sign-off thread 2026-09-25; on ok, edit §3/§5.1/§6/§6.1 and the
+      D10 banner.
 
 ## 5. Debt
 
@@ -128,13 +145,28 @@ never an ordering input; D6's tiebreaker stands untouched. All three
 work orders executed: §12 items 9–11 deleted and the section closed,
 §3/§5/§6/§9/§11 rewritten normative, board and harness docs updated.
 
+Right after the sign-off the user amended two of them (same day, same
+authority). **D9**: deferred items get surfaced, not just queried —
+next_task/next_items carry `deferred: {total, ready}` for the scope,
+task_list gains a ready filter; still no auto-reactivation. **D11**:
+next_items also takes a `task` scope (a non-top-level item's
+transitive dependents, canonical order), and `graph_show` became the
+complete-graph handover function, specified in the new §6.2 —
+canonical-order nodes with per-node blocked_by/blocks adjacency, JSON
+on the wire, any YAML/Mermaid render a pure function of that
+structure. The user also asked for the D10 concretization proposal;
+it was delivered in the sign-off thread (id prefixes, decision
+transition enforcement, doc path auditing) and lands on their ok
+(U6).
+
 **Handover.** Workspace: none yet — M0 is fully unblocked (§12
 closed) and is the only thing standing between here and M1. Landed:
-this sign-off commit (docs only). Next step: scaffold the M0
-workspace — empty crates, workspace lints, the gate order green — on
-the user's go, which is the only thing blocking. Blocked on you: the
-go for M0; nothing decision-shaped. Unverified: as before — no agent
-spawn-tests, no serena/ast-grep smoke until the workspace exists.
+the sign-off commit and the D9/D11 amendment commit (docs only). Next
+step: scaffold the M0 workspace — empty crates, workspace lints, the
+gate order green — on the user's go. Blocked on you: the go for M0,
+and an ok (or edits) on the D10 concretization (U6). Unverified: as
+before — no agent spawn-tests, no serena/ast-grep smoke until the
+workspace exists.
 
 ### 2026-09-25 — D1–D8 signed; D9–D11 drafted
 

@@ -232,11 +232,24 @@ a decision predecessor at `signed`/`superseded`). `blocked` and
 selection is a pure function of graph state: same store bytes in, same
 answer out, on every run and every platform.
 
-Batch selection (D11): `next_items(repo, epic?, limit?)` returns up to
-`limit` (default 10) actionable nodes in canonical order, each
-annotated with its direct blocked-by/blocks ids and a derived weight =
-count of transitive dependents. Annotations never reorder.
-`next_task` is the limit=1 case.
+Batch selection (D11, amended same day at the user's direction):
+`next_items(repo?, epic?, task?, limit?)` returns up to `limit`
+(default 10) actionable nodes in canonical order, each annotated with
+its direct blocked-by/blocks ids and a derived weight = count of
+transitive dependents. Annotations never reorder; ordering is computed
+server-side, in `todo-domain`, never in the client (§2). `next_task`
+is the limit=1 case. With `task`, the scope becomes that item's
+transitive dependents — the work hanging off a non-top-level item —
+in the same canonical order, each marked immediately actionable or
+still held by other predecessors.
+
+Both `next_task` and `next_items` responses also carry a deferred
+summary for the queried scope (D9 amendment): `deferred: {total,
+ready}` — how many deferred items the scope holds, and how many of
+them have every until-target `blocks` predecessor finished, i.e. are
+worth revisiting now. The summary informs; nothing reopens
+automatically. An agent that decides to look queries
+`task_list(status=deferred)`, optionally filtered to ready items.
 
 ## 6. MCP Tool Surface
 
@@ -272,14 +285,14 @@ Sketch (names are the proposal; rmcp's tool macros will shape schemas):
 | `repo_register` / `repo_list` / `repo_show` | registry CRUD (§7) |
 | `repo_set_path` | a checkout moved; update the path attribute |
 | `epic_add` / `epic_list` / `epic_update` | top-level grouping per repo |
-| `task_add` / `task_show` / `task_list` | task CRUD; `task_list` filters by repo, epic, status, kind |
+| `task_add` / `task_show` / `task_list` | task CRUD; `task_list` filters by repo, epic, status, kind, and — for deferred items — until-satisfied (`ready`) |
 | `task_update` | status + fields, with the closure discipline above |
 | `task_link` / `task_unlink` | `blocks` / `relates` edges (task and decision sources); cycle-checked |
 | `next_task` | **the question the system exists for** (§5.2) |
-| `next_items` | ranked actionable batch with blocked-by/blocks annotations and derived weight (§5.2, D11) |
+| `next_items` | ranked actionable batch — repo/epic-scoped, or task-scoped (its dependents) — with blocked-by/blocks annotations, derived weight and the deferred summary (§5.2, D11 amended) |
 | `decision_add` / `decision_list` / `decision_show` / `decision_sign` | decision dossiers (D10); signing resolves what the decision blocked |
 | `doc_register` / `doc_list` / `doc_set_path` | registered-document records for stable citation (D10) |
-| `graph_show` | dump a repo's (or epic's) subgraph for debugging and handovers |
+| `graph_show` | the complete graph (all repos) or one repo/epic subgraph, as an LLM-consumable handover dump (§6.2, D11 amended) |
 | `import_md` | one-shot importer from the sibling markdown boards (§9; D7: camera dialect first) |
 
 ### 6.1 Error contract
@@ -289,6 +302,22 @@ Stable codes, versioned like the store format: `unknown_id`,
 `missing_note`, `orphan_not_allowed`, `corrupt_store`,
 `version_mismatch`, `locked`. A client may branch on a code; it must
 never parse a message.
+
+### 6.2 The graph dump (D11 amendment)
+
+`graph_show(repo?, epic?)` is the function that hands an agent the
+whole picture: with no arguments, every registered repo in sorted-slug
+order; with `repo`, that repo; with `epic`, that epic's subtree plus
+the decisions gating it. Output: nodes grouped by epic in §5.2
+canonical order, each node carrying its `blocked_by`/`blocks` id
+lists — dependencies explicit per node, no separate edge table to
+join — plus status, kind, priority and references. Wire format is
+canonical JSON (§8: fixed field order, sorted keys, golden-pinned):
+MCP results are JSON anyway, and one canonical serializer is one
+determinism surface. A YAML or Mermaid rendering, if wanted later, is
+a pure function of this structure behind a `format` parameter — never
+a second source of truth. Size is the caller's problem: the dump is
+complete and deterministic; clients slice.
 
 ## 7. Multi-Repo Registry and Path Handling
 
