@@ -15,19 +15,18 @@ blocking. Rules, which `tools/attention.py` and the reviewers enforce:
 
 ## 1. Current state
 
-**Phase: M1 — decomposed 2026-09-26; the domain commits are ready to
-dispatch, the store commits await one user answer.** The M1 tree is
-open in the session tracker: three domain commits (value types §3,
-task graph §5.1, canonical order §5.2), five store/cli commits
-(canonical serialization + golden harness, JSONL log + `Store` trait
-§4, D4 layout + registry + locking §8, snapshots + compaction, minimal
-`todo-cli` inspector), and the M1 exit gate. U4 is answered by
-`.agents/knowledge/workflows/golden-files.md`.
+**Phase: M1 — decomposed 2026-09-26; U4 answered and U5 signed the
+same day.** The M1 tree is open in the session tracker: three domain
+commits (value types §3, task graph §5.1, canonical order §5.2), five
+store/cli commits (canonical serialization + golden harness, JSONL log
++ `Store` trait §4, D4 layout + registry + locking §8, snapshots +
+compaction, minimal `todo-cli` inspector), and the M1 exit gate. U4 is
+answered by `.agents/knowledge/workflows/golden-files.md`; U5's
+crash/recovery story is approved and landed as spec §4.3.
 
 | Blocking | What | Action |
 |---|---|---|
-| U8 | first external-dependency ask (serde/serde_json, tempfile dev, `rust-version` → 1.89); gates the store commits | user answer |
-| U5 | torn-line/corruption-recovery proposal for the JSONL log; gates the log commit's final shape | user ok/edits → lands in spec §4 |
+| U8 | first external dependencies (serde + `dacode-json`, tempfile dev, `rust-version` → 1.95); gates the store commits and shapes the domain's derives | user answer |
 | U7 | "six denied lints" wording | user bless/decline — non-blocking |
 
 ## 2. Milestones
@@ -39,7 +38,7 @@ exit criteria: spec §14. Priority is derived from the Gated-on column by
 | Milestone | Deliverable | Gated on | State |
 |---|---|---|---|
 | M0 | spec settled: §12 items 1–3 signed (done 2026-09-25); Cargo workspace skeleton with the lint regime; all gates green | — | done 2026-09-25 |
-| M1 | domain model + storage engine: graph, statuses, persistence behind the `Store` trait, golden files | — | in progress — decomposed 2026-09-26; domain ready, store awaits U8/U5 |
+| M1 | domain model + storage engine: graph, statuses, persistence behind the `Store` trait, golden files | — | in progress — decomposed 2026-09-26; domain ready, store awaits U8 |
 | M2 | queries: repo/epic selection, dependency resolution, deterministic `next_task`; registry with path updates | — | not started |
 | M3 | MCP server: the full §6 tool list over the wire, protocol-level tests, default-repo slug config (D8), smoke against a real client | — | not started |
 | M4 | adoption: camera-dialect importer first (D7), board fixtures checked in per §10; ikvm-html and dacode follow; the three repos tracked for real | — | not started |
@@ -120,13 +119,14 @@ Unowned work. Take the next unused `U` id; never renumber, never reuse.
       helper, the `UPDATE_GOLDEN=1` regeneration ritual, twice-run and
       round-trip determinism tests. The harness itself is the first
       store commit of the M1 tree.
-- [ ] **U5 · Decide the store's backup/corruption-recovery story** and
+- [x] **U5 · Decide the store's backup/corruption-recovery story** and
       write it into §4's requirements or §8: what a torn last line of an
       event log means, and whether snapshots are the recovery unit.
       Now scoped to the signed D1 engine (JSONL event log) and the D4
-      per-repo layout. **Proposal drafted 2026-09-26, awaits the user's
-      ok** — full text in the §6 entry; lands in spec §4 on approval,
-      and the JSONL-log commit is blocked until it does.
+      per-repo layout. **Resolved 2026-09-26**: the proposal (§6 entry)
+      was approved by the user as drafted and landed as spec §4.3
+      "Crash and recovery", with the D1 banner amended in
+      `decisions.md`; plain files stand, no redb decision opened.
 - [x] **U6 · Land the D10 concretization on the user's ok**: per-kind
       id prefixes (task `U`, epic `E`, decision `D`, doc `S` —
       `camera:D3` echoes the board registers); decision status
@@ -151,17 +151,22 @@ Unowned work. Take the next unused `U` id; never renumber, never reuse.
       wildcard_imports ride its own rule. Surfaced by the M0 dual
       review; until it is answered, the workspace exceeds the spec
       floor, which is the safe direction.
-- [ ] **U8 · Answer the first external-dependency ask (M1 store).**
-      Requested 2026-09-26: `serde` + `serde_json` (runtime; canonical
-      serialization of events, snapshots, registry), `tempfile`
-      (dev-dependency; store tests), and a workspace `rust-version` bump
-      1.85 → 1.89 for std `File::try_lock` — verified available on this
-      host's rustc 1.98.1, so no locking crate is requested.
-      Sub-question: serde derives on `todo-domain` types (recommended;
-      §2's "depends on nothing" read as *no workspace deps*) vs
-      store-side DTO mapping (zero domain deps, more ceremony). Gates
-      the M1 store commits; the domain commits need none of it.
-      Ask-First per AGENTS.md.
+- [ ] **U8 · Approve the first external dependencies (M1 store).**
+      Revised 2026-09-26 after the user offered their own JSON library:
+      `serde` (+derive; the schema layer), **`dacode-json`** as the
+      serializer (path dep on `/Users/mouse/RPM/dacode/rust/json-tiers`;
+      probed on this host — output byte-identical to serde_json,
+      twice-run stable, round-trip clean, torn-line errors carry byte
+      offsets, panic-free under the same clippy regime), `tempfile`
+      (dev-only), and workspace `rust-version` 1.85 → 1.95
+      (`dacode-json`'s floor; subsumes the std `File::try_lock` bump, so
+      no locking crate). Open sub-questions: serde derives on
+      `todo-domain` types (recommended; §2's "depends on nothing" read
+      as *no workspace deps*) vs store-side DTO mirrors; path dep vs
+      registry pin. The user granted modifications to `dacode-json` if
+      M1 needs one (proposed as a diff; that repo's commits stay with
+      its owner). Gates the store commits (t9–t13) and shapes t6's
+      derives. Ask-First per AGENTS.md.
 
 ## 5. Debt
 
@@ -217,6 +222,21 @@ holds the lock — no separate backup mechanism.
 Two asks ride this decomposition and gate the store commits only (the
 domain commits need neither): U8 (first external dependencies) and the
 U5 ok above.
+
+**Later the same day — U5 approved.** The user ok'd the proposal as
+drafted: it lands as spec §4.3 "Crash and recovery" with the D1 banner
+amended in `decisions.md`; U5 is struck below. The same message offered
+the user's own JSON library for U8 (`dacode-json` at
+`/Users/mouse/RPM/dacode/rust/json-tiers`) and granted modifications to
+it if M1 needs one (proposed as a diff; that repo's commits stay with
+its owner). A probe crate (`tmp/dj-probe`, scratch) measured it against
+the store's use case: serialization byte-identical to serde_json,
+twice-run identical, round-trip equal, and torn JSONL lines produce
+named errors carrying byte offsets — the exact shape §4.3's
+`corrupt_store` needs. U8 was revised accordingly (serde + dacode-json
++ tempfile dev, `rust-version` → 1.95) and explained to the user in
+plain terms; it remains the single gate on the store commits. No redb
+decision was opened — plain files stand per D1.
 
 ### 2026-09-25 — D10 concretization, JSON confirmed, M0 scaffolded
 

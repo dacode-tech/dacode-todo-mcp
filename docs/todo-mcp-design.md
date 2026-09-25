@@ -199,6 +199,30 @@ open/create, read the graph, append a mutation, snapshot/compact,
 format version. The JSONL engine (D1) implements it; the domain and
 server crates never see past it.
 
+### 4.3 Crash and recovery
+
+The JSONL engine's crash semantics, concretizing the requirement above
+that corruption is a named error, never a silent truncation:
+
+- **Appends**: every event is one `write()` of a complete line under
+  `O_APPEND`, followed by `fsync` — the torn window is at most one
+  event, the one in flight when a crash happens.
+- **Replay**: a malformed *last* line (no trailing newline, or
+  unparseable) is a named `corrupt_store` error (§6.1) carrying its
+  byte offset — never silently skipped. A malformed line anywhere else
+  in the log is `corrupt_store` unconditionally: the interior of a log
+  does not tear in a crash.
+- **Repair** is explicit only — a repair operation (surfaced as a
+  `todo-cli` command) shows the torn line and truncates it on
+  confirmation, losing exactly that one in-flight event. No automatic
+  repair path exists.
+- **Snapshots are the recovery unit**: written temp-file + `fsync` +
+  atomic rename, so they are never torn; replay reads the latest
+  snapshot, then the log tail after it. The registry file follows the
+  same atomic-rename discipline.
+- **Backup** in v1 is copying a repo's store directory while no writer
+  holds the lock (§8); there is no separate backup mechanism.
+
 ## 5. Graph Semantics and Ordering
 
 ### 5.1 Nodes and edges

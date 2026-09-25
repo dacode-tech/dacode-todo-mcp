@@ -43,6 +43,20 @@ the sign-off commit: §12 item 1 deleted, §4/§4.1 made normative. A
 fallback to (b) remains available only as a new decision brought to the
 user — never a silent swap.
 
+**Concretization approved 2026-09-26 (board U5).** The user ok'd the
+crash/recovery story drafted in the M1 decomposition, landed as the new
+§4.3: single-`write()` `O_APPEND` line appends with `fsync` per event
+(the torn window is one in-flight event); a torn *last* line is a named
+`corrupt_store` error carrying its byte offset, never silently skipped;
+a malformed interior line is `corrupt_store` unconditionally; repair is
+explicit (show, then truncate on confirmation, losing exactly that one
+event); snapshots are atomic (temp+fsync+rename) and are the recovery
+unit — replay = latest snapshot + log tail; the registry follows the
+same rename discipline; v1 backup = copy the store directory under no
+writer lock. Board U5 struck. The user declined to open a redb/D12
+decision: plain files stand, and the fallback stays reachable only via
+a new decision with measurements.
+
 **Gates** M1 · **Resolved** 2026-09-25
 
 **Current.** Spec §4 lists the requirements (local, single-file,
