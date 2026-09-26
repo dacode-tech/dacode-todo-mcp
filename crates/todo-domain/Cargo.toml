@@ -5,5 +5,8 @@ edition.workspace = true
 rust-version.workspace = true
 description = "nodes, edges, graph invariants, selection rules. No I/O, no async, no workspace deps"
 
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+
 [lints]
 workspace = true

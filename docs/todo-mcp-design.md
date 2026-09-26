@@ -109,7 +109,8 @@ mirroring what the sibling boards already mean:
   edge mutation, the history stays. Gating a milestone is a `blocks`
   edge to an epic (§9 maps milestones to epics), not a field.
 - **Doc** (D10) — a registered document: id, repo, title, path
-  (mutable, like a repo's), version, timestamps. The prose body lives
+  (mutable, like a repo's), version, `references`, timestamps. The
+  prose body lives
   in git; the server holds the stable address so citations survive
   file moves and resolve from any repo. The server never becomes the
   editor of prose bodies. A path update is an audited mutation, like
@@ -149,8 +150,11 @@ until-satisfied and reopening is an explicit update. `wontfix` remains
 the one terminal that unblocks successors without evidence of
 completed work (§5.1).
 
-Timestamps are RFC 3339 UTC, passed in by the caller layer; nothing below
-the binary reads a wall clock (§8).
+Timestamps are RFC 3339 UTC on a canonical subset — exactly
+`YYYY-MM-DDTHH:MM:SSZ`: no offsets (not even `+00:00`), no fractional
+seconds, one spelling per instant, which is what §8's byte-stability
+requires — and are passed in by the caller layer; nothing below the
+binary reads a wall clock (§8).
 
 ## 4. Storage
 

@@ -87,9 +87,19 @@ Oldest first. One line per delivery, with the commit hash once committed.
   wildcard_imports + unsafe_code + missing_docs) and inherited per
   crate, cfg_attr(test) exemption at both library roots, zero external
   dependencies (Cargo.lock = exactly the four members), documented
-  crate roots stating each §2 boundary. All four code gates green for
-  the first time; dual-reviewed, first spawn of all three worker roles
-  confirmed the model bindings. Landed as `57b531c`.
+   crate roots stating each §2 boundary. All four code gates green for
+   the first time; dual-reviewed, first spawn of all three worker roles
+   confirmed the model bindings. Landed as `57b531c`.
+- 2026-09-26 — **M1 t6: domain value types**: spec §3 as typed Rust —
+   ids/slugs (U/E/D/S prefixes, `slug:U7` display form), canonical RFC
+   3339 timestamps and dates, references as a canonical-sorted set with
+   validating deserialization, closure discipline as errors total over
+   §6.1's eight domain codes, five node structs with serde derives.
+   serde is the crate's only dependency (U8); `rust-version` 1.95.
+   Dual-reviewed in two rounds; surfaced a §3 Doc-references erratum
+   (aligned to the signed D10 record), the timestamp canonical-subset
+   sentence in §3, and U9 (M3 wire code for invalid input). 45 tests,
+   all gates green. Landed as `HASH-t6`.
 
 ## 4. Follow-ups
 
@@ -174,6 +184,15 @@ Unowned work. Take the next unused `U` id; never renumber, never reuse.
       the serializer stays confined to `todo-store`), `dacode-json` by
       path, `tempfile` dev-only, `rust-version` 1.95. The deps ride the
       first code commits (t6: serde + the bump; t9: `dacode-json`).
+- [ ] **U9 · Decide the wire code for invalid input (M3).** t6's error
+      model keeps `DomainError` total over exactly the eight §6.1 codes
+      and puts malformed-input failures (bad slug/id/timestamp/date/
+      reference) in a companion `ValueError` with no code — none of the
+      eight fits, and §6.1's list is versioned, so the domain may not
+      extend it unilaterally. At M3 the wire layer needs the decision:
+      a new §6.1 code (e.g. `invalid`) or a per-case mapping rule.
+      Surfaced by the t6 dual review; record the choice in §6.1 before
+      the MCP surface lands.
 
 ## 5. Debt
 
@@ -244,6 +263,21 @@ named errors carrying byte offsets — the exact shape §4.3's
 + tempfile dev, `rust-version` → 1.95) and explained to the user in
 plain terms; it remains the single gate on the store commits. No redb
 decision was opened — plain files stand per D1.
+
+**t6 landed — M1's first code.** Two implementer spawns died with
+"Connection reset by server"; the third succeeded with the task spec
+moved to a scratch file and a short spawn prompt (recorded as
+P-LIVE-001). Dual review: the primary requested changes — `Doc` lacked
+the `references` field §3's own References paragraph and the D10
+record grant (a spec self-contradiction, resolved by erratum toward
+the signed record), and `Reference` deserialization skipped validation
+— while the secondary approved with overlapping minors (a false MSRV
+allow-reason; both reviewers independently proved `is_multiple_of`
+stable since 1.87). The fix round applied all six items plus the
+timestamp canonical subset (no fractions, no offsets — now a §3
+sentence) and synthetic fixture paths; both reviewers re-approved the
+fixed diff. U9 (wire code for invalid input at M3) opened from the
+ValueError judgment call.
 
 **U8 approved.** The user ok'd the revised ask as recommended: serde
 with derives on `todo-domain` types — §2's rules clarified so *no
