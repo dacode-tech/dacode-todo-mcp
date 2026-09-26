@@ -99,7 +99,7 @@ Oldest first. One line per delivery, with the commit hash once committed.
    Dual-reviewed in two rounds; surfaced a §3 Doc-references erratum
    (aligned to the signed D10 record), the timestamp canonical-subset
    sentence in §3, and U9 (M3 wire code for invalid input). 45 tests,
-   all gates green. Landed as `HASH-t6`.
+   all gates green. Landed as `730fc7a`.
 
 ## 4. Follow-ups
 
