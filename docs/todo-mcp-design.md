@@ -58,6 +58,10 @@ binary:
 Rules, enforced at review:
 
 - A `use` that crosses a boundary above is a defect, not a style choice.
+- `todo-domain`'s *no workspace deps* means no path dependency on a
+  sibling crate. `serde` derives on domain types are the shared schema
+  layer, not a boundary violation; the serializer itself (the JSON
+  engine) is confined to `todo-store`.
 - The storage engine does not leak above the `Store` trait: no engine
   type, engine error, or engine feature flag in `todo-domain` or
   `todo-mcp`.

@@ -15,19 +15,21 @@ blocking. Rules, which `tools/attention.py` and the reviewers enforce:
 
 ## 1. Current state
 
-**Phase: M1 — decomposed 2026-09-26; U4 answered and U5 signed the
-same day.** The M1 tree is open in the session tracker: three domain
-commits (value types §3, task graph §5.1, canonical order §5.2), five
-store/cli commits (canonical serialization + golden harness, JSONL log
-+ `Store` trait §4, D4 layout + registry + locking §8, snapshots +
-compaction, minimal `todo-cli` inspector), and the M1 exit gate. U4 is
-answered by `.agents/knowledge/workflows/golden-files.md`; U5's
-crash/recovery story is approved and landed as spec §4.3.
+**Phase: M1 executing — fully unblocked 2026-09-26.** U4 answered
+(`.agents/knowledge/workflows/golden-files.md`), U5 signed (spec §4.3),
+U8 approved (serde + derives on domain, `dacode-json` by path, tempfile
+dev-only, `rust-version` → 1.95). The M1 tree is open in the session
+tracker: three domain commits (value types §3, task graph §5.1,
+canonical order §5.2), five store/cli commits (canonical serialization
++ golden harness, JSONL log + `Store` trait §4, D4 layout + registry +
+locking §8, snapshots + compaction, minimal `todo-cli` inspector), and
+the M1 exit gate. Dispatch starts at the domain value types.
 
 | Blocking | What | Action |
 |---|---|---|
-| U8 | first external dependencies (serde + `dacode-json`, tempfile dev, `rust-version` → 1.95); gates the store commits and shapes the domain's derives | user answer |
-| U7 | "six denied lints" wording | user bless/decline — non-blocking |
+| — | nothing: U4/U5/U8 all resolved 2026-09-26 | execute the M1 tree |
+
+(U7 remains open but non-blocking.)
 
 ## 2. Milestones
 
@@ -38,7 +40,7 @@ exit criteria: spec §14. Priority is derived from the Gated-on column by
 | Milestone | Deliverable | Gated on | State |
 |---|---|---|---|
 | M0 | spec settled: §12 items 1–3 signed (done 2026-09-25); Cargo workspace skeleton with the lint regime; all gates green | — | done 2026-09-25 |
-| M1 | domain model + storage engine: graph, statuses, persistence behind the `Store` trait, golden files | — | in progress — decomposed 2026-09-26; domain ready, store awaits U8 |
+| M1 | domain model + storage engine: graph, statuses, persistence behind the `Store` trait, golden files | — | in progress — tree open; U4/U5/U8 resolved 2026-09-26, dispatch started |
 | M2 | queries: repo/epic selection, dependency resolution, deterministic `next_task`; registry with path updates | — | not started |
 | M3 | MCP server: the full §6 tool list over the wire, protocol-level tests, default-repo slug config (D8), smoke against a real client | — | not started |
 | M4 | adoption: camera-dialect importer first (D7), board fixtures checked in per §10; ikvm-html and dacode follow; the three repos tracked for real | — | not started |
@@ -151,7 +153,7 @@ Unowned work. Take the next unused `U` id; never renumber, never reuse.
       wildcard_imports ride its own rule. Surfaced by the M0 dual
       review; until it is answered, the workspace exceeds the spec
       floor, which is the safe direction.
-- [ ] **U8 · Approve the first external dependencies (M1 store).**
+- [x] **U8 · Approve the first external dependencies (M1 store).**
       Revised 2026-09-26 after the user offered their own JSON library:
       `serde` (+derive; the schema layer), **`dacode-json`** as the
       serializer (path dep on `/Users/mouse/RPM/dacode/rust/json-tiers`;
@@ -166,7 +168,12 @@ Unowned work. Take the next unused `U` id; never renumber, never reuse.
       registry pin. The user granted modifications to `dacode-json` if
       M1 needs one (proposed as a diff; that repo's commits stay with
       its owner). Gates the store commits (t9–t13) and shapes t6's
-      derives. Ask-First per AGENTS.md.
+      derives. Ask-First per AGENTS.md. **Resolved 2026-09-26 —
+      approved as recommended**: serde derives on `todo-domain` (spec
+      §2's rules clarified: *no workspace deps* = no sibling path deps;
+      the serializer stays confined to `todo-store`), `dacode-json` by
+      path, `tempfile` dev-only, `rust-version` 1.95. The deps ride the
+      first code commits (t6: serde + the bump; t9: `dacode-json`).
 
 ## 5. Debt
 
@@ -237,6 +244,16 @@ named errors carrying byte offsets — the exact shape §4.3's
 + tempfile dev, `rust-version` → 1.95) and explained to the user in
 plain terms; it remains the single gate on the store commits. No redb
 decision was opened — plain files stand per D1.
+
+**U8 approved.** The user ok'd the revised ask as recommended: serde
+with derives on `todo-domain` types — §2's rules clarified so *no
+workspace deps* reads as no sibling path deps, the serializer confined
+to the store — `dacode-json` consumed by path, `tempfile` dev-only,
+`rust-version` 1.85 → 1.95. U4/U5/U8 all resolved the same day, the M1
+tree is fully unblocked; dispatch starts at t6 (domain value types),
+whose implementer run also confirms the Serena index. The
+`dacode-json` modification offer stands (diffs proposed, its repo's
+commits stay with its owner); the probe needed none.
 
 ### 2026-09-25 — D10 concretization, JSON confirmed, M0 scaffolded
 
