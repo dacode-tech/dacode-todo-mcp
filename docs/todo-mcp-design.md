@@ -150,11 +150,14 @@ until-satisfied and reopening is an explicit update. `wontfix` remains
 the one terminal that unblocks successors without evidence of
 completed work (§5.1).
 
-Timestamps are RFC 3339 UTC on a canonical subset — exactly
-`YYYY-MM-DDTHH:MM:SSZ`: no offsets (not even `+00:00`), no fractional
-seconds, one spelling per instant, which is what §8's byte-stability
-requires — and are passed in by the caller layer; nothing below the
-binary reads a wall clock (§8).
+Timestamps are RFC 3339 UTC on a canonical subset —
+`YYYY-MM-DDTHH:MM:SS.sssssssssZ`: always `Z` (no offsets, not even
+`+00:00`), the fraction always present at a fixed nine-digit
+(nanosecond) precision, inputs carrying zero to nine fraction digits
+zero-padded and longer ones rejected, so every instant has exactly one
+canonical spelling and fixed-width order is chronological, which is
+what §8's byte-stability requires — and they are passed in by the
+caller layer; nothing below the binary reads a wall clock (§8).
 
 ## 4. Storage
 

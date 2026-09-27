@@ -132,8 +132,10 @@ mod tests {
             references,
             priority: Some(Priority::High),
             until: Some(Date::parse("2026-10-01").unwrap()),
+            // created is second-precision, updated fractional, so the
+            // node round-trips exercise both padding paths.
             created: ts("2026-09-25T09:00:00Z"),
-            updated: ts("2026-09-26T17:30:00Z"),
+            updated: ts("2026-09-26T17:30:00.123456789Z"),
         }
     }
 
@@ -204,12 +206,33 @@ mod tests {
         );
         assert_eq!(
             to_bytes(&ts("2026-09-26T12:34:56Z")).unwrap(),
-            b"20:2026-09-26T12:34:56Z"
+            b"30:2026-09-26T12:34:56.000000000Z"
+        );
+        assert_eq!(
+            to_bytes(&ts("2026-09-26T12:34:56.5Z")).unwrap(),
+            b"30:2026-09-26T12:34:56.500000000Z"
         );
         assert_eq!(
             to_bytes(&Date::parse("2026-10-01").unwrap()).unwrap(),
             b"10:2026-10-01"
         );
+    }
+
+    #[test]
+    fn fractional_timestamp_serde_roundtrips_and_is_byte_stable() {
+        // A fractional input normalizes to the 30-byte canonical spelling
+        // on the way in, then survives serde unchanged.
+        let stamp = ts("2026-09-26T12:34:56.5Z");
+        assert_eq!(stamp.as_str(), "2026-09-26T12:34:56.500000000Z");
+        let bytes = to_bytes(&stamp).unwrap();
+        assert_eq!(bytes, b"30:2026-09-26T12:34:56.500000000Z");
+        // twice-run byte identity
+        assert_eq!(to_bytes(&stamp).unwrap(), bytes);
+        // round-trip: deserialize re-parses the canonical spelling and
+        // re-serializes identically.
+        let reloaded: Timestamp = from_bytes(&bytes).unwrap();
+        assert_eq!(reloaded, stamp);
+        assert_eq!(to_bytes(&reloaded).unwrap(), bytes);
     }
 
     #[test]

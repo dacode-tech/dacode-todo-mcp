@@ -23,7 +23,8 @@ tracker: three domain commits (value types §3, task graph §5.1,
 canonical order §5.2), five store/cli commits (canonical serialization
 + golden harness, JSONL log + `Store` trait §4, D4 layout + registry +
 locking §8, snapshots + compaction, minimal `todo-cli` inspector), and
-the M1 exit gate. Dispatch starts at the domain value types.
+the M1 exit gate. t6 (value types) and t14 (fractional-second
+timestamps, a user decision) have landed; next is t7, the task graph.
 
 | Blocking | What | Action |
 |---|---|---|
@@ -100,6 +101,13 @@ Oldest first. One line per delivery, with the commit hash once committed.
    (aligned to the signed D10 record), the timestamp canonical-subset
    sentence in §3, and U9 (M3 wire code for invalid input). 45 tests,
    all gates green. Landed as `730fc7a`.
+- 2026-09-26 — **M1 t14: fractional-second timestamps** (user
+   decision, recorded in §6): the canonical form becomes
+   `YYYY-MM-DDTHH:MM:SS.sssssssssZ` — fraction always present, fixed
+   nine digits, zero-padded from 0–9 input digits, longer rejected
+   (never rounded), leap `:60` composes with a fraction; one spelling
+   per instant, fixed-width Ord chronological. §3's timestamp sentence
+   amended. 46 tests, dual-reviewed in one round. Landed as `HASH-t14`.
 
 ## 4. Follow-ups
 
@@ -264,6 +272,18 @@ named errors carrying byte offsets — the exact shape §4.3's
 plain terms; it remains the single gate on the store commits. No redb
 decision was opened — plain files stand per D1.
 
+**U8 approved.** The user ok'd the revised ask as recommended: serde
+with derives on `todo-domain` types — §2's rules clarified so *no
+workspace deps* reads as no sibling path deps, the serializer confined
+to the store — `dacode-json` consumed by path, `tempfile` dev-only,
+`rust-version` 1.85 → 1.95. U4/U5/U8 all resolved the same day, the M1
+tree is fully unblocked; dispatch started at t6 (domain value types).
+The promised Serena index check instead surfaced a python-only
+language-server configuration — fixed in `f4315c5`, activation to be
+verified next session. The `dacode-json` modification offer stands
+(diffs proposed, its repo's commits stay with its owner); the probe
+needed none.
+
 **t6 landed — M1's first code.** Two implementer spawns died with
 "Connection reset by server"; the third succeeded with the task spec
 moved to a scratch file and a short spawn prompt (recorded as
@@ -279,15 +299,46 @@ sentence) and synthetic fixture paths; both reviewers re-approved the
 fixed diff. U9 (wire code for invalid input at M3) opened from the
 ValueError judgment call.
 
-**U8 approved.** The user ok'd the revised ask as recommended: serde
-with derives on `todo-domain` types — §2's rules clarified so *no
-workspace deps* reads as no sibling path deps, the serializer confined
-to the store — `dacode-json` consumed by path, `tempfile` dev-only,
-`rust-version` 1.85 → 1.95. U4/U5/U8 all resolved the same day, the M1
-tree is fully unblocked; dispatch starts at t6 (domain value types),
-whose implementer run also confirms the Serena index. The
-`dacode-json` modification offer stands (diffs proposed, its repo's
-commits stay with its owner); the probe needed none.
+**t14 — fractional seconds (user decision).** Of the two §3 errata
+surfaced at the t6 checkpoint, the user confirmed Doc.references
+stands and directed that timestamps accept fractional seconds. §8's
+byte-stability forces the normalization: the canonical form is now
+`YYYY-MM-DDTHH:MM:SS.sssssssssZ` — fraction always present, fixed
+nine digits, inputs with 0–9 fraction digits zero-padded, longer
+rejected (never rounded), leap `:60` composing with a fraction, so
+one instant keeps exactly one spelling and fixed-width Ord stays
+chronological. Deserialize shares the constructor's normalization, so
+the store can never persist a non-canonical spelling. §3's timestamp
+sentence amended; 46 tests; both reviewers approved in one round, the
+primary tracing every parse boundary and the ordering invariant. The
+user's decision is recorded here — the traceability ledger the primary
+reviewer's commit condition asked for; no D-entry, since this refines
+§3's timestamp sentence rather than reopening a signed decision.
+
+**Handover.** Workspace: `main` at `HASH-t14` plus a hash-backfill
+commit, clean; `todo-domain` carries the §3 value types (t6 + t14),
+the other three crates are still documented M0 shells; rustc 1.98.1,
+MSRV 1.95; serde is the only external dependency in the tree — t9
+adds the `dacode-json` path dep and `tempfile` dev-dep, both already
+approved under U8. Landed this session: the M1 decomposition + golden
+scaffolding (`5ed9b6e`), U5 → spec §4.3 (`0caeff2`), the U8 approval
++ §2 serde rule (`7aa49cc`), the Serena rust-LS enablement
+(`f4315c5`), t6 (`730fc7a`, backfill `65491a2`), t14 (this commit).
+Next step: **t7 — the task graph (§5.1)**: parent tree, `blocks` DAG
+with write-time cycle rejection, no-orphans + epic-delete rules,
+decision gating edges, per-repo id-allocation counters (never reused),
+seeded mutation-sequence tests; then t8 (canonical order §5.2), then
+the store commits t9–t13 (golden harness first per
+`workflows/golden-files.md`; §4.3 corruption semantics in t10; t9's
+tracker note carries two review nits — pin Doc's references position
+and the 30-byte timestamp spelling in the goldens). Dispatch protocol
+proven this session: task spec in `tmp/tN-spec.md`, short spawn prompt
+(P-LIVE-001). Blocked on you: nothing — U4/U5/U8 resolved; open and
+non-blocking: U7 (lint wording), U9 (M3 invalid-input wire code), U2
+(pre-M3), U3 (pre-M4). Unverified: Serena rust-LS activation (config
+fixed, no session has run under it yet — start with
+`get_symbols_overview` on `crates/todo-domain/src/node.rs`); MCP smoke
+(no wire until M3); per-crate lint tripwires for store/mcp/cli.
 
 ### 2026-09-25 — D10 concretization, JSON confirmed, M0 scaffolded
 

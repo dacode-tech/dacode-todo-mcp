@@ -5,11 +5,14 @@
 //! strict canonical forms only, so parse∘format is the identity and
 //! lexicographic order over the stored strings is a total order.
 //!
-//! - [`Timestamp`]: exactly `YYYY-MM-DDTHH:MM:SSZ` — a canonical subset
-//!   of RFC 3339. Uppercase `T`/`Z` only; numeric UTC offsets (including
-//!   `+00:00`) and fractional seconds are rejected, so each instant has
-//!   one spelling and the round trip is byte-stable. Second `60` is
-//!   accepted: RFC 3339 permits leap seconds.
+//! - [`Timestamp`]: `YYYY-MM-DDTHH:MM:SS.sssssssssZ` — a canonical
+//!   subset of RFC 3339 with the fraction always present at a fixed
+//!   nine-digit (nanosecond) precision. Uppercase `T`/`Z` only; numeric
+//!   UTC offsets (including `+00:00`) are rejected. Inputs may carry
+//!   zero to nine fraction digits and are zero-padded to nine; longer
+//!   fractions are rejected, so each instant has exactly one spelling
+//!   and the round trip is byte-stable. Second `60` is accepted: RFC
+//!   3339 permits leap seconds.
 //! - [`Date`]: `YYYY-MM-DD` — the shape of a task's optional `until`
 //!   (D9), which is pure metadata; selection reads no calendar (§8).
 
@@ -21,31 +24,44 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::ValueError;
 
-/// Length of a canonical `YYYY-MM-DDTHH:MM:SSZ` timestamp, in bytes.
-const TIMESTAMP_LEN: usize = 20;
+/// Length of the canonical stored spelling
+/// `YYYY-MM-DDTHH:MM:SS.sssssssssZ`, in bytes.
+const TIMESTAMP_LEN: usize = 30;
+/// Length of the `YYYY-MM-DDTHH:MM:SS` date-and-time prefix, in bytes.
+const DATETIME_LEN: usize = 19;
+/// Fixed number of fraction digits in the canonical spelling.
+const FRACTION_DIGITS: usize = 9;
 /// Length of a canonical `YYYY-MM-DD` date, in bytes.
 const DATE_LEN: usize = 10;
 /// Index of the seconds field's first digit in a canonical timestamp.
 const SECONDS_AT: usize = 17;
 
-/// An RFC 3339 UTC timestamp in canonical form, exactly
-/// `YYYY-MM-DDTHH:MM:SSZ` (e.g. `2026-09-26T12:34:56Z`). Validated at
-/// construction; the stored bytes are exactly what formatting emits.
+/// An RFC 3339 UTC timestamp stored in canonical form, exactly
+/// `YYYY-MM-DDTHH:MM:SS.sssssssssZ` (30 bytes, e.g.
+/// `2026-09-26T12:34:56.000000000Z`). Validated and normalized at
+/// construction: [`Timestamp::parse`] accepts an optional fraction of
+/// one to nine digits (or none) and stores the zero-padded nine-digit
+/// canonical spelling, so the stored bytes are exactly what formatting
+/// and serialization emit.
 ///
 /// The canonical form is a deliberate subset of RFC 3339: uppercase
-/// `T`/`Z` only, no numeric UTC offset (not even `+00:00`), and no
-/// fractional seconds — one spelling per instant, so parse∘format is
+/// `T`/`Z` only, no numeric UTC offset (not even `+00:00`), and a fixed
+/// nine-digit fraction — one spelling per instant, so parse∘format is
 /// byte-identical and [`Ord`] (lexicographic over the fixed-width
-/// string) is exactly chronological order. Second `60` is accepted
-/// because RFC 3339 permits leap seconds.
+/// string) is exactly chronological order, fractional boundaries
+/// included. Second `60` is accepted because RFC 3339 permits leap
+/// seconds.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Timestamp(String);
 
 impl Timestamp {
-    /// Parses and validates an RFC 3339 UTC timestamp in canonical form.
+    /// Parses an RFC 3339 UTC timestamp and normalizes it to the
+    /// canonical nine-digit-fraction spelling. Accepts `...:SSZ` (no
+    /// fraction → `.000000000`) and `...:SS.fZ` for one to nine digits
+    /// `f` (zero-padded to nine); rejects longer fractions and anything
+    /// else non-canonical.
     pub fn parse(s: &str) -> Result<Self, ValueError> {
-        validate_timestamp(s)?;
-        Ok(Self(s.to_owned()))
+        Ok(Self(canonical_timestamp(s)?))
     }
 
     /// The canonical timestamp string.
@@ -127,22 +143,28 @@ impl<'de> Deserialize<'de> for Date {
     }
 }
 
-fn validate_timestamp(s: &str) -> Result<(), ValueError> {
+/// Validates `s` and returns its canonical 30-byte spelling
+/// `YYYY-MM-DDTHH:MM:SS.sssssssssZ`, zero-padding a supplied fraction or
+/// supplying `.000000000` when none is present. Fraction digits beyond
+/// nine are rejected, never rounded or truncated (spec §3).
+fn canonical_timestamp(s: &str) -> Result<String, ValueError> {
     let invalid = || ValueError::InvalidTimestamp {
         input: s.to_owned(),
     };
     let b = s.as_bytes();
-    // Canonical form is exactly `YYYY-MM-DDTHH:MM:SSZ`: 20 bytes, no
-    // fractional seconds, terminating `Z` (see the type docs).
-    if b.len() != TIMESTAMP_LEN {
+    // The shortest accepted input is a bare `YYYY-MM-DDTHH:MM:SSZ`
+    // (20 bytes). Over-long input is not length-capped here: an
+    // over-long fraction is rejected by the nine-digit check below, so
+    // that check stays the single reachable statement of the rule (and
+    // `.len()` short-circuits before any per-byte scan).
+    if b.len() < DATETIME_LEN + 1 {
         return Err(invalid());
     }
     let (year, month, day) = date_fields(b).ok_or_else(invalid)?;
     // Fixed positions: the shape is not negotiable.
     let fixed_ok = b.get(10).copied() == Some(b'T')
         && b.get(13).copied() == Some(b':')
-        && b.get(16).copied() == Some(b':')
-        && b.get(SECONDS_AT + 2).copied() == Some(b'Z');
+        && b.get(16).copied() == Some(b':');
     if !fixed_ok {
         return Err(invalid());
     }
@@ -153,11 +175,41 @@ fn validate_timestamp(s: &str) -> Result<(), ValueError> {
     if hour > 23 || minute > 59 || second > 60 {
         return Err(invalid());
     }
-    if calendar_valid(year, month, day) {
-        Ok(())
-    } else {
-        Err(invalid())
+    if !calendar_valid(year, month, day) {
+        return Err(invalid());
     }
+    // The tail after `SS` is either `Z` (no fraction) or `.` followed by
+    // one-to-nine ASCII digits and a final `Z`.
+    let tail = b.get(DATETIME_LEN..).ok_or_else(invalid)?;
+    let fraction: &[u8] = if tail == b"Z" {
+        &[]
+    } else {
+        let digits = match (tail.first().copied(), tail.last().copied(), tail.len()) {
+            (Some(b'.'), Some(b'Z'), n) if n >= 3 => tail.get(1..n - 1).ok_or_else(invalid)?,
+            _ => return Err(invalid()),
+        };
+        if digits.is_empty()
+            || digits.len() > FRACTION_DIGITS
+            || !digits.iter().all(u8::is_ascii_digit)
+        {
+            return Err(invalid());
+        }
+        digits
+    };
+    // Rebuild the canonical spelling from the validated date-time prefix
+    // and the zero-padded fraction.
+    let datetime = s.get(..DATETIME_LEN).ok_or_else(invalid)?;
+    let mut canonical = String::with_capacity(TIMESTAMP_LEN);
+    canonical.push_str(datetime);
+    canonical.push('.');
+    for &byte in fraction {
+        canonical.push(char::from(byte));
+    }
+    for _ in fraction.len()..FRACTION_DIGITS {
+        canonical.push('0');
+    }
+    canonical.push('Z');
+    Ok(canonical)
 }
 
 fn validate_date(s: &str) -> Result<(), ValueError> {
@@ -228,46 +280,74 @@ mod tests {
     use super::*;
 
     #[test]
-    fn timestamp_accepts_canonical_utc() {
-        for s in [
-            "2026-09-26T12:34:56Z",
-            "2026-09-26T00:00:00Z",
-            "2026-12-31T23:59:59Z",
-            "2024-02-29T06:00:00Z", // leap day
-            "2000-02-29T06:00:00Z", // century divisible by 400
-            "2016-12-31T23:59:60Z", // leap second, RFC 3339 permits 60
+    fn timestamp_accepts_and_normalizes_to_canonical() {
+        // (input, canonical 30-byte spelling). No-fraction inputs gain
+        // `.000000000`; a one-to-nine-digit fraction is zero-padded to
+        // nine digits.
+        for (input, canonical) in [
+            ("2026-09-26T12:34:56Z", "2026-09-26T12:34:56.000000000Z"),
+            ("2026-09-26T00:00:00Z", "2026-09-26T00:00:00.000000000Z"),
+            ("2026-12-31T23:59:59Z", "2026-12-31T23:59:59.000000000Z"),
+            ("2024-02-29T06:00:00Z", "2024-02-29T06:00:00.000000000Z"),
+            ("2000-02-29T06:00:00Z", "2000-02-29T06:00:00.000000000Z"),
+            // leap second, RFC 3339 permits 60
+            ("2016-12-31T23:59:60Z", "2016-12-31T23:59:60.000000000Z"),
+            // fractions: 1, 5, 9 digits, zero-padded to nine
+            ("2026-09-26T12:34:56.5Z", "2026-09-26T12:34:56.500000000Z"),
+            (
+                "2026-09-26T12:34:56.12345Z",
+                "2026-09-26T12:34:56.123450000Z",
+            ),
+            (
+                "2026-09-26T12:34:56.123456789Z",
+                "2026-09-26T12:34:56.123456789Z",
+            ),
+            // an already-canonical fraction round-trips unchanged
+            (
+                "2026-09-26T12:34:56.000000000Z",
+                "2026-09-26T12:34:56.000000000Z",
+            ),
+            // leap second with a fraction
+            ("2016-12-31T23:59:60.5Z", "2016-12-31T23:59:60.500000000Z"),
         ] {
-            let ts = Timestamp::parse(s);
-            assert_eq!(ts.map(|t| t.as_str().to_owned()), Ok(s.to_owned()), "{s}");
+            let ts = Timestamp::parse(input).unwrap_or_else(|e| panic!("{input}: {e}"));
+            assert_eq!(ts.as_str(), canonical, "as_str for {input}");
+            assert_eq!(ts.to_string(), canonical, "display for {input}");
+            assert_eq!(ts.as_str().len(), TIMESTAMP_LEN, "width for {input}");
         }
     }
 
     #[test]
     fn timestamp_rejects_malformed() {
         for s in [
-            "2026-09-26T12:34:56+00:00",   // numeric offset, even UTC
-            "2026-09-26T12:34:56+02:00",   // non-UTC offset
-            "2026-09-26T12:34:56-05:00",   // non-UTC offset
-            "2026-09-26t12:34:56z",        // lowercase t/z
-            "2026-09-26 12:34:56Z",        // space instead of T
-            "2026-09-26T12:34:56",         // no zone at all
-            "2026-09-26T12:34:56.5Z",      // fractional seconds: canonical form has none
-            "2026-09-26T12:34:56.123456Z", // fractional seconds
-            "2026-09-26T12:34:56.Z",       // empty fraction
-            "2026-09-26T12:34:56.5",       // fraction without Z
-            "2026-09-26T12:34:56ZX",       // trailing garbage
-            "2026-09-26T24:00:00Z",        // hour 24
-            "2026-09-26T12:60:00Z",        // minute 60
-            "2026-09-26T12:34:61Z",        // second 61
-            "2026-13-01T00:00:00Z",        // month 13
-            "2026-00-01T00:00:00Z",        // month 0
-            "2026-01-00T00:00:00Z",        // day 0
-            "2026-04-31T00:00:00Z",        // April has 30 days
-            "2023-02-29T00:00:00Z",        // 2023 is not a leap year
-            "2100-02-29T00:00:00Z",        // century, not divisible by 400
-            "26-09-26T12:34:56Z",          // short year
-            "2026-9-26T12:34:56Z",         // unpadded month
-            "",                            // empty
+            "2026-09-26T12:34:56+00:00",        // numeric offset, even UTC
+            "2026-09-26T12:34:56+02:00",        // non-UTC offset
+            "2026-09-26T12:34:56-05:00",        // non-UTC offset
+            "2026-09-26t12:34:56z",             // lowercase t/z
+            "2026-09-26t12:34:56.5z",           // lowercase with fraction
+            "2026-09-26 12:34:56Z",             // space instead of T
+            "2026-09-26T12:34:56",              // no zone at all
+            "2026-09-26T12:34:56.Z",            // lone dot, empty fraction
+            "2026-09-26T12:34:56.5",            // fraction without Z
+            "2026-09-26T12:34:56.1234567890Z",  // ten fraction digits (> 9)
+            "2026-09-26T12:34:56.12345678901Z", // eleven fraction digits
+            "2026-09-26T12:34:56.5Z5",          // garbage after fraction Z
+            "2026-09-26T12:34:56.5ZX",          // trailing garbage
+            "2026-09-26T12:34:56Z.",            // trailing dot after Z
+            "2026-09-26T12:34:56. 5Z",          // space in fraction
+            "2026-09-26T24:00:00Z",             // hour 24
+            "2026-09-26T12:60:00Z",             // minute 60
+            "2026-09-26T12:34:61Z",             // second 61
+            "2026-09-26T12:34:61.5Z",           // second 61 with fraction
+            "2026-13-01T00:00:00Z",             // month 13
+            "2026-00-01T00:00:00Z",             // month 0
+            "2026-01-00T00:00:00Z",             // day 0
+            "2026-04-31T00:00:00Z",             // April has 30 days
+            "2023-02-29T00:00:00Z",             // 2023 is not a leap year
+            "2100-02-29T00:00:00Z",             // century, not divisible by 400
+            "26-09-26T12:34:56Z",               // short year
+            "2026-9-26T12:34:56Z",              // unpadded month
+            "",                                 // empty
         ] {
             assert_eq!(
                 Timestamp::parse(s),
@@ -324,11 +404,20 @@ mod tests {
 
     #[test]
     fn ord_is_chronological() {
-        // The canonical fixed-width form has one precision, so
-        // lexicographic Ord is unconditionally chronological order.
-        let early = Timestamp::parse("2026-09-26T12:34:56Z").unwrap();
-        let late = Timestamp::parse("2026-09-26T12:34:57Z").unwrap();
-        assert!(early < late);
+        // Fixed-width canonical spelling → lexicographic Ord is
+        // unconditionally chronological, across fraction boundaries.
+        let a = Timestamp::parse("2026-09-26T12:00:00Z").unwrap();
+        let b = Timestamp::parse("2026-09-26T12:00:00.5Z").unwrap();
+        let c = Timestamp::parse("2026-09-26T12:00:00.999999999Z").unwrap();
+        let d = Timestamp::parse("2026-09-26T12:00:01Z").unwrap();
+        assert_eq!(a.as_str(), "2026-09-26T12:00:00.000000000Z");
+        assert_eq!(b.as_str(), "2026-09-26T12:00:00.500000000Z");
+        assert_eq!(c.as_str(), "2026-09-26T12:00:00.999999999Z");
+        assert_eq!(d.as_str(), "2026-09-26T12:00:01.000000000Z");
+        assert!(a < b, "{a} < {b}");
+        assert!(b < c, "{b} < {c}");
+        assert!(c < d, "{c} < {d}");
+        // Date Ord is unchanged.
         let d1 = Date::parse("2026-09-26").unwrap();
         let d2 = Date::parse("2026-10-01").unwrap();
         assert!(d1 < d2);
