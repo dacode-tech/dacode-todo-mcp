@@ -7,6 +7,10 @@ description = "persistence behind a single Store trait; the JSONL engine (D1) is
 
 [dependencies]
 todo-domain = { workspace = true }
+dacode-json = { workspace = true }
+# Traits for the codec's generic bounds only; the `derive` feature
+# arrives with t10's event structs.
+serde = { version = "1" }
 
 [lints]
 workspace = true

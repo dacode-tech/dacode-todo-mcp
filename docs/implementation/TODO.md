@@ -25,8 +25,9 @@ canonical order §5.2), five store/cli commits (canonical serialization
 locking §8, snapshots + compaction, minimal `todo-cli` inspector), and
 the M1 exit gate. t6 (value types), t14 (fractional-second timestamps,
 a user decision), t7 (the task graph §5.1) and t8 (the canonical order
-§5.2) have landed — the domain layer of M1 is complete; next is t9,
-the store's canonical serialization + golden harness.
+§5.2) have landed — the domain layer of M1 is complete — and t9 (the
+store's canonical serialization + golden harness) is the first store
+commit; next is t10, the JSONL event log + `Store` trait.
 
 | Blocking | What | Action |
 |---|---|---|
@@ -146,6 +147,31 @@ Oldest first. One line per delivery, with the commit hash once committed.
     surfaced a task-spec parenthetical that inverted D6 — resolved
     toward signed §5.2, confirmed by both reviewers). Landed as
     `6cc4691`.
+- 2026-09-27 — **M1 t9: store canonical serialization + golden
+    harness**: the first store commit — `codec::to_bytes`/`from_bytes`
+    over `dacode-json` (U8; path dep declared once at the workspace
+    root), the engine sealed inside the crate (§2: no engine type in
+    any public signature). `StoreError::CorruptStore { offset, detail }`
+    makes corruption a named error carrying the engine's byte offset
+    (§4.3, §6.1's `corrupt_store`); `version_mismatch`/`locked`
+    variants are t10/t11's, growth path documented. `FORMAT_VERSION =
+    1` is §4's single version source — goldens' `.v1` naming references
+    it, t10's log header and t12's snapshot header will carry it. The
+    golden harness per the U4 workflow: one shared `assert_golden`
+    helper (`UPDATE_GOLDEN=1` temp+rename regeneration, bounded
+    line-level diff on mismatch), every test nested in `mod golden` so
+    the `-- golden` name filter selects all (f11). First golden
+    `serialize_nodes.v1`: five fixture nodes as JSONL, pinning
+    declaration field order, `Doc.references` after `version`, the
+    30-byte nine-digit-fraction timestamp spelling, canonical reference
+    sorting, and every enum wire spelling — the two t6/t14 review-nit
+    pins. The trailing-bytes contract for t10's line splitter probed
+    and pinned: non-whitespace rejected at the stray offset, trailing
+    LF clean. `testcodec` stays as the domain-local serde-contract
+    check (§2 forbids domain→store deps). 11 store tests; the domain's
+    108 pass unmodified; Cargo.lock 11 → 13 (`dacode-json` + `zmij`).
+    Dual-reviewed in one round, three low nits dispositioned in §6 and
+    the tracker.
 
 ## 4. Follow-ups
 
@@ -285,28 +311,62 @@ maps and never calls `tasks_of_epic`. The primary noted four
 pre-existing intra-doc-link warnings in `drafts.rs` — untouched by
 this diff, recorded as tracker f10.
 
+**Later the same session — t9: store codec + golden harness.** On the
+user's go, t9 was dispatched the same way: the orchestrator decisions
+settled into `tmp/t9-spec.md` first (dep wiring, the `StoreError`
+shape with `corrupt_store` as the only t9 variant, codec naming, the
+`testcodec` verdict — kept, because §2 forbids a domain→store
+dependency and the domain's 108 tests use it as their byte-level
+instrument — golden fixture coverage, the integration-test-crate lint
+exemption mechanism), then a short spawn prompt, one implementer
+landing. No P-LIVE-001 recurrence. Outcome: `src/{codec,error}.rs` +
+`FORMAT_VERSION`, the shared `assert_golden` harness, the first golden
+(`serialize_nodes.v1`, five JSONL lines, 1671 bytes), 11 store tests;
+`dacode-json` + `zmij` enter the lock (11 → 13 packages); the domain's
+108 pass unmodified; `tempfile` deferred to t10 (the first task that
+needs temp data roots). Two facts established for t10: the engine
+rejects non-whitespace trailing bytes at the stray offset but parses a
+trailing LF cleanly — the JSONL line splitter can rely on it, pinned
+by test and doc — and libtest's post-`--` filter is a test-*name*
+filter, so every store test file needs a `mod` wrapper matching its
+verify line (f11). Dual review approved in one round with three low
+nits: a doc-comment newline inside a code span renders a path with a
+space in it (f12, fix rides t10 — it re-reads these files anyway); an
+interrupted `UPDATE_GOLDEN` run can leave a hidden `.tmp` debris file
+between write and rename, golden integrity holds (f13, accepted); and
+the git-diff half of the regeneration ritual is only meaningful once
+the golden is tracked — re-run after the commit, which it was.
+
 **Handover.** Workspace: `main` at this commit, clean; `todo-domain`
-carries the §3 value types (t6 + t14), the §5.1 graph (t7) and the
-§5.2 canonical order (t8) — 108 tests, the domain layer of M1
-complete; store/mcp/cli are documented M0 shells; rustc 1.98.1, MSRV
-1.95; serde is still the only external dependency — t9 adds
-`dacode-json` (path) and `tempfile` (dev), both approved under U8,
-nothing to install. Serena's semantic layer is live (f3 closed). Next
-step: **dispatch t9** — the store's canonical serialization + golden
-harness per `workflows/golden-files.md`, the first of the five
-store/cli commits; it carries the two t6/t7 review-nit pins (Doc's
-references position after `version`; the nine-digit timestamp
-spelling) and decides `testcodec`'s fate (superseded by the golden
-harness vs kept as the domain-local determinism check). Why t9 before
-t10: the harness must exist before the first serialized bytes do, and
-t10's event schema rides t9's serialization decisions; t10 also
-carries f8 (burned-id replay validation). After t9: t10–t13 in
-tracker order, then g5's M1 exit gate. Blocked on you: nothing. Open,
-non-blocking: U7 (lint wording), U9 (M3 wire code), U2 (pre-M3), U3
-(pre-M4); findings f4–f10 and debt d1 carry verify lines in the
-tracker. Unverified: MCP smoke (no wire until M3); per-crate lint
-tripwires for store/mcp/cli; t9's goldens do not exist yet — they are
-t9's verify line, not this session's claim.
+carries the §3 value types + the §5 graph and order (108 tests);
+`todo-store` carries the canonical codec, `StoreError` and the golden
+harness (11 tests, one golden); mcp/cli are documented M0 shells;
+rustc 1.98.1, MSRV 1.95. Dependencies: serde (domain), `dacode-json`
++ `zmij` (store) — `dacode-json` is a path dep on the sibling checkout
+`../rust/json-tiers`, so a cold machine needs that repo beside this
+one's parent; nothing else to install. Serena's semantic layer is
+live. Landed this session: t8 (`6cc4691`, backfill `4c32815`) and t9
+(this commit, backfill follows). Next step: **dispatch t10** — the
+JSONL event log + `Store` trait (§4.1/§4.2/§4.3): versioned header
+line carrying `FORMAT_VERSION`, single-write `O_APPEND` appends +
+fsync, replay into the in-memory graph through t7's explicit-id insert
+path (counters only ever raised), named corruption errors (torn last
+line → `corrupt_store` with offset; interior garbage unconditionally),
+and f8's validation (replay must reject, or prove impossible, an
+explicit-id insert of a number burned by an epic cascade). t10's
+manifest moves: serde gains the `derive` feature for the event
+structs, `tempfile` enters as dev-dep (both approved, U8). Its spec
+inherits f11 (the `mod` wrapper for the `-- log` filter), f12 (fix
+the doc-span newline while in these files) and t9's trailing-bytes
+contract; f5 (counters raise-to-max entry point) and f6 (repo_set_*
+audit instant rides the store event) land in t10/t12's scope. Then
+t11–t13 in tracker order, then g5's M1 exit gate. Blocked on you:
+nothing. Open, non-blocking: U7 (lint wording), U9 (M3 wire code), U2
+(pre-M3), U3 (pre-M4); findings f4–f13 and debt d1 carry verify lines
+in the tracker. Unverified: MCP smoke (no wire until M3); per-crate
+lint tripwires for mcp/cli; real crash behavior — fsync/torn-window
+semantics will be tested with hand-torn fixtures, not an actual
+crash (t10's verify line).
 
 ### 2026-09-27 — t7: the task graph
 

@@ -15,6 +15,10 @@ rust-version = "1.95"
 [workspace.dependencies]
 todo-domain = { path = "crates/todo-domain" }
 todo-store = { path = "crates/todo-store" }
+# The canonical JSON engine (D1, dependency approved at U8): serde_json-
+# compatible bytes, sealed inside todo-store (spec §2). Path dependencies
+# appear once, here, like the lint regime.
+dacode-json = { path = "../rust/json-tiers" }
 
 # The lint regime is declared once, here, and inherited per crate via
 # `[lints] workspace = true` (see .agents/roles/_rust.md): a new crate
