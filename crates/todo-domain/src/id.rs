@@ -6,8 +6,9 @@
 //! (spec §7), never part of identity. Epics, tasks, decisions and docs
 //! get per-repo sequential integers per kind — allocated by the server,
 //! never reused, never renumbered, gaps meaningful. Allocation itself
-//! (counters, next-id) is graph logic and lands with the graph; this
-//! module owns the id *types*: construction, parse, format, ordering.
+//! (counters, next-id) is graph logic and lives in [`crate::Graph`];
+//! this module owns the id *types*: construction, parse, format,
+//! ordering.
 //!
 //! Display/parse format is `<slug>:<prefix><n>` with the per-kind prefix
 //! of §3 — task `U`, epic `E`, decision `D`, doc `S`: `camera:U7`,
@@ -122,6 +123,16 @@ macro_rules! node_id {
                     });
                 }
                 Ok(Self { slug, number })
+            }
+
+            /// The infallible form of [`Self::new`] for a caller that has
+            /// already excluded zero — the graph's allocation counters
+            /// hand out `NonZeroU64`, so their ids cannot be malformed.
+            pub fn from_nonzero(slug: RepoSlug, number: std::num::NonZeroU64) -> Self {
+                Self {
+                    slug,
+                    number: number.get(),
+                }
             }
 
             /// The repository this id belongs to.
@@ -336,6 +347,26 @@ mod tests {
         assert!(EpicId::new(slug("camera"), 0).is_err());
         assert!(DecisionId::new(slug("camera"), 0).is_err());
         assert!(DocId::new(slug("camera"), 0).is_err());
+    }
+
+    #[test]
+    fn from_nonzero_matches_new_for_the_same_number() {
+        let nonzero = std::num::NonZeroU64::new(7).unwrap();
+        assert_eq!(
+            TaskId::from_nonzero(slug("camera"), nonzero),
+            TaskId::new(slug("camera"), 7).unwrap()
+        );
+        assert_eq!(
+            EpicId::from_nonzero(slug("camera"), nonzero).to_string(),
+            "camera:E7"
+        );
+        // The largest number parses too, so the infallible form covers
+        // the whole `new` domain above zero.
+        let max = std::num::NonZeroU64::new(u64::MAX).unwrap();
+        assert_eq!(
+            DocId::from_nonzero(slug("camera"), max),
+            DocId::from_str(&format!("camera:S{}", u64::MAX)).unwrap()
+        );
     }
 
     #[test]

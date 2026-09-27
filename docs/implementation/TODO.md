@@ -24,7 +24,8 @@ canonical order §5.2), five store/cli commits (canonical serialization
 + golden harness, JSONL log + `Store` trait §4, D4 layout + registry +
 locking §8, snapshots + compaction, minimal `todo-cli` inspector), and
 the M1 exit gate. t6 (value types) and t14 (fractional-second
-timestamps, a user decision) have landed; next is t7, the task graph.
+timestamps, a user decision) and t7 (the task graph §5.1) have landed;
+next is t8, canonical order.
 
 | Blocking | What | Action |
 |---|---|---|
@@ -108,6 +109,23 @@ Oldest first. One line per delivery, with the commit hash once committed.
    (never rounded), leap `:60` composes with a fraction; one spelling
    per instant, fixed-width Ord chronological. §3's timestamp sentence
    amended. 46 tests, dual-reviewed in one round. Landed as `73849bf`.
+- 2026-09-27 — **M1 t7: the task graph (§5.1)**: the single-repo
+   in-memory graph — `parent` tree kept as validated fields (§3's
+   signed node shapes; no edge table), `blocks` DAG with exactly the
+   three legal edge shapes (task→task, decision→task, decision→epic;
+   the rest unrepresentable by type, so §6.1's closed code list needed
+   no extension), write-time cycle rejection with a deterministic
+   `[s, t, …, s]` path, atomic rejected writes, `relates` as canonical
+   undirected task↔task annotation, epic-delete cascade (terminal
+   tasks delete with their edges; anything else is
+   `orphan_not_allowed`), per-repo per-kind sequential id allocation
+   that never reuses a number plus an explicit-id insert path for t10's
+   replay that only ever raises the counters, and the closure
+   discipline re-run on every mutation. 47 graph tests including
+   seeded mutation sequences against an independent whole-graph
+   invariant scan; 94 crate tests total; dual-reviewed in one round
+   (four low findings, recorded in §6 and the session tracker). Landed
+   as `<hash>`.
 
 ## 4. Follow-ups
 
@@ -213,6 +231,43 @@ _No debt recorded yet — nothing has been built to take a shortcut in._
 Newest first. One entry per session, written for someone who was not
 here. The final entry of a session is the handover
 (`.agents/skills/todo-next-imp/SKILL.md` defines the shape).
+
+### 2026-09-27 — t7: the task graph
+
+Dispatch note first: P-LIVE-001 recurred in a new shape — two
+implementer spawns died instantly with "Connection reset by server"
+*despite* the proven protocol (spec in `tmp/t7-spec.md`, a few-line
+spawn prompt), a control explore spawn succeeded in between, and the
+third implementer attempt landed. The correlation is not purely prompt
+size; retry-with-control remains the method.
+
+The architectural decisions were settled by the orchestrator before
+dispatch and written into the task spec so t8/t10 do not relitigate
+them: **single-repo graph** (D4's per-repo stores, §8's per-repo lock,
+§5.2's repo-scoped order — multi-repo views stay server-side);
+**`parent` stays a field** (§3's signed node shapes; the graph enforces
+the tree, no edge table); **deterministic cycle paths** (`[s, t, …, s]`
+via sorted-successor DFS); **counters never reused**, with an
+explicit-id insert path for t10's replay that only raises them; **no
+serde on graph types** — the persisted shape is the event log's and the
+snapshot's call (t10/t12).
+
+Outcome: `graph/{state,edges,drafts,nodes}` + a tests module, 47 graph
+tests (cycle paths asserted whole, orphan and cascade rules, allocation
+gaps, a seeded mutation sequence checked after every step by an
+independent whole-graph invariant scan), 94 crate tests total; all four
+gates re-run green by the orchestrator. Dual review approved in one
+round with four low findings, dispositioned rather than silently
+dropped: `update_*` patches can rewrite `created` (tracker f7 — M3's
+`task_update` schema must not expose it); an explicit-id insert can
+revive a number burned by an epic cascade (f8 — t10's replay validation
+owns it, and t10's tracker note now carries it); the seeded scan checks
+foreign id slugs for epics/tasks but not decisions/docs (f9); the
+counter-exhaustion → `duplicate` mapping (f4, documented, unreachable
+at §4.1's scale). Serena's rust-LS was confirmed still dark (f3): the
+daemon predates the config fix and needs a restart — reviewers used the
+lexical and read layers, which was sufficient. Next: **t8, canonical
+order (§5.2)** — topology, then epic registration order, then task id.
 
 ### 2026-09-26 — M1 decomposition
 

@@ -15,13 +15,18 @@
 //! every platform; no wall clock, no randomness, no hash-iteration
 //! order.
 //!
-//! Current surface (M1, spec §3): the core value types — identity
-//! ([`RepoSlug`], the typed node ids [`TaskId`]/[`EpicId`]/
+//! Current surface (M1, spec §3 and §5.1): the core value types —
+//! identity ([`RepoSlug`], the typed node ids [`TaskId`]/[`EpicId`]/
 //! [`DecisionId`]/[`DocId`]), time values ([`Timestamp`], [`Date`]),
 //! [`References`], the status/kind vocabularies with the closure
 //! discipline ([`Task::validate`], [`Decision::validate`]), and the five
-//! node structs ([`Repo`], [`Epic`], [`Task`], [`Decision`], [`Doc`]).
-//! Edges, graph invariants and selection land in later M1 commits.
+//! node structs ([`Repo`], [`Epic`], [`Task`], [`Decision`], [`Doc`]) —
+//! plus the in-memory task graph over them: [`Graph`] holds one
+//! repository's nodes, its §5.1 edges and the §3 id-allocation counters,
+//! enforcing the `parent` tree, the acyclic `blocks` DAG
+//! ([`BlocksEdge`], [`BlockEnd`], cycle-checked at write time), the
+//! `relates` annotation and the no-orphans rule. Ordering and selection
+//! (§5.2) land in the next M1 commits.
 
 #![cfg_attr(
     test,
@@ -35,6 +40,7 @@
 )]
 
 mod error;
+mod graph;
 mod id;
 mod node;
 mod reference;
@@ -42,6 +48,9 @@ mod status;
 mod time;
 
 pub use error::{DomainError, ErrorCode, ValueError};
+pub use graph::{
+    BlockEnd, BlocksEdge, Counters, DecisionDraft, DocDraft, EpicDraft, Graph, TaskDraft,
+};
 pub use id::{DecisionId, DocId, EpicId, MAX_SLUG_LEN, RepoSlug, TaskId};
 pub use node::{Confidence, Decision, Doc, Epic, Repo, Task};
 pub use reference::{Reference, ReferenceKind, References};

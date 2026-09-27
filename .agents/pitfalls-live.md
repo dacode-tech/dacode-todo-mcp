@@ -52,23 +52,27 @@
 
 ## Entries
 
-### P-LIVE-001: subagent spawn dies "Connection reset by server" on a large inline prompt
+### P-LIVE-001: subagent spawn dies "Connection reset by server" on the implementer binding
 - **Scope**: harness / subagent dispatch (the task tool), observed on
-  the implementer binding; 2026-09-26, M1 t6
+  the implementer binding; 2026-09-26 (M1 t6), recurred 2026-09-27
+  (M1 t7)
 - **Discovered**: t6 dispatch, 2026-09-26
-- **Symptom**: two consecutive implementer spawns failed instantly with
-  "Connection reset by server" on a ~7 KB inline prompt. A control
-  spawn (explore role, tiny prompt) succeeded immediately; the third
-  implementer attempt — same task, spec moved to `tmp/t6-spec.md`,
-  prompt a few lines pointing at it — succeeded first try.
-- **Root cause**: unconfirmed. Correlates with large inline prompts on
-  the heavy-model binding; the same role spawned fine with large
-  prompts on 2026-09-25 (M0), so it may be transient provider trouble
-  or a payload-related rejection.
-- **Workaround**: write the full task spec to a scratch file and keep
-  the spawn prompt short — pointer + hard constraints only. Cheaper to
-  read for humans too, and it survives a spawn retry verbatim.
+- **Symptom**: implementer spawns fail instantly with "Connection reset
+  by server". t6: two failures on a ~7 KB inline prompt, control spawn
+  (explore, tiny prompt) fine, third attempt with spec-file + short
+  prompt succeeded first try. t7: **the short-prompt protocol itself
+  failed twice (~1.3 KB and ~0.4 KB prompts), the same control spawn
+  succeeded in between, and the third identical attempt succeeded** —
+  so prompt size is not the (only) trigger.
+- **Root cause**: unconfirmed. Instant failure isolated to the
+  implementer binding while other roles spawn fine in the same window;
+  consistent with transient provider/relay trouble on the heavy-model
+  binding rather than payload content.
+- **Workaround**: unchanged — spec in a scratch file, short spawn
+  prompt — plus the retry loop the t7 run confirmed: on failure, fire
+  a control spawn (explore, tiny prompt) to isolate binding vs
+  infrastructure, then retry the identical prompt; both incidents
+  succeeded on attempt 3.
 - **Obsoleted by**: a confirmed root cause. If transient: nothing. If
-  payload-related: a size guideline in the orchestrator's dispatch
-  docs.
+  binding-related: a provider/model change in `agent-rules.yaml`.
 - **Source**: struggle

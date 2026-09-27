@@ -14,8 +14,8 @@
 //! (the graph and server layers enforce that; the check order below is
 //! fixed, so the same invalid node always yields the same error).
 //!
-//! Edges, graph invariants and selection are later M1 commits; the
-//! structs here are the nodes those edges will connect.
+//! The structs here are the nodes [`crate::Graph`] connects with §5.1's
+//! typed edges; selection (§5.2) is a later M1 commit.
 
 use serde::{Deserialize, Serialize};
 
@@ -69,8 +69,10 @@ pub struct Task {
     pub id: TaskId,
     /// The repo this task belongs to.
     pub repo: RepoSlug,
-    /// The parent epic id (the `parent` edge of §5.1, as a field until
-    /// the graph commit lands edges).
+    /// The parent epic id — the `parent` edge of §5.1. There is no
+    /// parent edge table: this field *is* the edge, and
+    /// [`crate::Graph`] enforces the tree invariant over it (the epic
+    /// must exist in the graph; reparenting is a validated update).
     pub epic: EpicId,
     /// What kind of work this records.
     pub kind: TaskKind,
