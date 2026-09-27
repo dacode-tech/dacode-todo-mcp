@@ -125,7 +125,7 @@ Oldest first. One line per delivery, with the commit hash once committed.
    seeded mutation sequences against an independent whole-graph
    invariant scan; 94 crate tests total; dual-reviewed in one round
    (four low findings, recorded in §6 and the session tracker). Landed
-   as `<hash>`.
+   as `7ddfd79`.
 
 ## 4. Follow-ups
 
