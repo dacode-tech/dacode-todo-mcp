@@ -107,7 +107,7 @@ Oldest first. One line per delivery, with the commit hash once committed.
    nine digits, zero-padded from 0–9 input digits, longer rejected
    (never rounded), leap `:60` composes with a fraction; one spelling
    per instant, fixed-width Ord chronological. §3's timestamp sentence
-   amended. 46 tests, dual-reviewed in one round. Landed as `HASH-t14`.
+   amended. 46 tests, dual-reviewed in one round. Landed as `73849bf`.
 
 ## 4. Follow-ups
 
@@ -315,7 +315,7 @@ user's decision is recorded here — the traceability ledger the primary
 reviewer's commit condition asked for; no D-entry, since this refines
 §3's timestamp sentence rather than reopening a signed decision.
 
-**Handover.** Workspace: `main` at `HASH-t14` plus a hash-backfill
+**Handover.** Workspace: `main` at `73849bf` plus a hash-backfill
 commit, clean; `todo-domain` carries the §3 value types (t6 + t14),
 the other three crates are still documented M0 shells; rustc 1.98.1,
 MSRV 1.95; serde is the only external dependency in the tree — t9
