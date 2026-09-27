@@ -269,6 +269,48 @@ daemon predates the config fix and needs a restart — reviewers used the
 lexical and read layers, which was sufficient. Next: **t8, canonical
 order (§5.2)** — topology, then epic registration order, then task id.
 
+**Later the same session — Serena restored, t8 spec pre-written.** The
+user restarted opencode; `get_symbols_overview` and `find_symbol` now
+resolve Rust symbols (`graph/state.rs` probed), so f3 is closed — the
+`f4315c5` config fix was correct and the stale daemon was the whole
+cause. The t8 task spec was assembled while the t7 API was fresh:
+`tmp/t8-spec.md` (gitignored scratch — if it is gone, the orchestrator
+decisions below are its skeleton). Settled there: the canonical order
+covers **tasks only** over `TaskToTask` edges (decision gating feeds
+M2's actionability, `relates` never orders — §5.1); best-first Kahn
+keyed `(epic number, task number)`, which *is* the D6 tiebreaker;
+status-independent; epic scope = induced subgraph; total function
+returning `Vec<TaskId>` (`Result` only for an unknown epic);
+determinism proven by insertion-order-robust byte identity plus an
+independent minimality recomputation in seeded tests. Selection
+(`next_task`/`next_items`) stays out — it is M2.
+
+**Handover.** Workspace: `main` at this commit, clean; `todo-domain`
+carries §3 value types (t6 + t14) and the §5.1 task graph (t7, `7ddfd79`,
+94 tests); store/mcp/cli are documented M0 shells; rustc 1.98.1, MSRV
+1.95; serde the only external dependency — nothing to install. Serena's
+semantic layer is live again (f3 closed). Landed this session: t7 +
+backfill (`7ddfd79`, `2294771`), the P-LIVE-001 recurrence evidence,
+tracker findings f7–f9 (t10's note carries f8). Next step: **dispatch
+t8** — the spec is already at `tmp/t8-spec.md`, so the whole dispatch is
+a short spawn prompt pointing at it (P-LIVE-001: on "Connection reset
+by server", fire a control explore spawn to isolate, then retry the
+identical prompt — both incidents succeeded on attempt 3), then dual
+review, gates, commit, board move. Why t8 before t9: it completes §5's
+domain layer while the t7 API is fresh, and it is small; the
+alternative — starting t9's golden harness in parallel in a different
+crate — trades the proven single-implementer loop for concurrency the
+task does not need. After t8: t9–t13 in tracker order (t9 pins Doc's
+references position and the 30-byte timestamp spelling in the goldens;
+t10 carries f8 and §4.3; d1's `tasks_of_epic` scan may go hot under t8
+— its report must say). Then g5's M1 exit gate. Blocked on you:
+nothing. Open, non-blocking: U7 (lint wording), U9 (M3 wire code), U2
+(pre-M3), U3 (pre-M4); findings f7–f9 and debt d1 carry verify lines in
+the tracker. Unverified: MCP smoke (no wire until M3); per-crate lint
+tripwires for store/mcp/cli (domain's proven at M0, the rest rest on
+manifest reads + green clippy); t8's byte-identity and minimality tests
+do not exist yet — they are t8's verify line, not this session's claim.
+
 ### 2026-09-26 — M1 decomposition
 
 M1 decomposed into the session tracker: three domain commits (core
