@@ -171,7 +171,7 @@ Oldest first. One line per delivery, with the commit hash once committed.
     check (§2 forbids domain→store deps). 11 store tests; the domain's
     108 pass unmodified; Cargo.lock 11 → 13 (`dacode-json` + `zmij`).
     Dual-reviewed in one round, three low nits dispositioned in §6 and
-    the tracker.
+    the tracker. Landed as `fc23f27`.
 
 ## 4. Follow-ups
 
