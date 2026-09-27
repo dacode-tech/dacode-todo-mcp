@@ -25,8 +25,11 @@
 //! repository's nodes, its §5.1 edges and the §3 id-allocation counters,
 //! enforcing the `parent` tree, the acyclic `blocks` DAG
 //! ([`BlocksEdge`], [`BlockEnd`], cycle-checked at write time), the
-//! `relates` annotation and the no-orphans rule. Ordering and selection
-//! (§5.2) land in the next M1 commits.
+//! `relates` annotation and the no-orphans rule. The §5.2 canonical
+//! order lands on top of it — [`Graph::canonical_order`] and
+//! [`Graph::canonical_order_of_epic`] derive the topological order with
+//! the D6 tiebreaker (topology, epic registration order, task id);
+//! selection (`next_task`/`next_items`) is M2.
 
 #![cfg_attr(
     test,

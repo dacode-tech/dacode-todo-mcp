@@ -23,9 +23,10 @@ tracker: three domain commits (value types §3, task graph §5.1,
 canonical order §5.2), five store/cli commits (canonical serialization
 + golden harness, JSONL log + `Store` trait §4, D4 layout + registry +
 locking §8, snapshots + compaction, minimal `todo-cli` inspector), and
-the M1 exit gate. t6 (value types) and t14 (fractional-second
-timestamps, a user decision) and t7 (the task graph §5.1) have landed;
-next is t8, canonical order.
+the M1 exit gate. t6 (value types), t14 (fractional-second timestamps,
+a user decision), t7 (the task graph §5.1) and t8 (the canonical order
+§5.2) have landed — the domain layer of M1 is complete; next is t9,
+the store's canonical serialization + golden harness.
 
 | Blocking | What | Action |
 |---|---|---|
@@ -122,10 +123,28 @@ Oldest first. One line per delivery, with the commit hash once committed.
    that never reuses a number plus an explicit-id insert path for t10's
    replay that only ever raises the counters, and the closure
    discipline re-run on every mutation. 47 graph tests including
-   seeded mutation sequences against an independent whole-graph
-   invariant scan; 94 crate tests total; dual-reviewed in one round
-   (four low findings, recorded in §6 and the session tracker). Landed
-   as `7ddfd79`.
+    seeded mutation sequences against an independent whole-graph
+    invariant scan; 94 crate tests total; dual-reviewed in one round
+    (four low findings, recorded in §6 and the session tracker). Landed
+    as `7ddfd79`.
+- 2026-09-27 — **M1 t8: canonical order (§5.2)**: the deterministic
+    topological derivation over the t7 graph — best-first Kahn over
+    `TaskToTask` edges keyed `(epic number, task number)`, which is the
+    signed D6 tiebreaker itself: topology constrains, the key chooses
+    among simultaneously ready candidates. Order is never stored; no
+    new state. The repo-scoped derivation is a total function
+    (`Vec<TaskId>`); the epic-scoped one is the induced subgraph
+    (`Result` only for an unknown epic). Statuses do not filter;
+    `priority` (D11) and `relates` (§5.1) never enter the key; decision
+    gating edges feed M2's actionability, not the order. The defensive
+    Kahn-remainder fallback appends in key order — unreachable via the
+    public API, pinned by the seeded tests, never a panic. 14 new tests
+    including an independent naive best-first recomputation pinning
+    lexicographic minimality on seeded DAGs, and byte identity across
+    shuffled-insertion isomorphic rebuilds; 108 crate tests total;
+    dual-reviewed in one round with zero findings (the implementer
+    surfaced a task-spec parenthetical that inverted D6 — resolved
+    toward signed §5.2, confirmed by both reviewers).
 
 ## 4. Follow-ups
 
@@ -231,6 +250,62 @@ _No debt recorded yet — nothing has been built to take a shortcut in._
 Newest first. One entry per session, written for someone who was not
 here. The final entry of a session is the handover
 (`.agents/skills/todo-next-imp/SKILL.md` defines the shape).
+
+### 2026-09-27 — t8: canonical order
+
+Dispatch was cheap because the spec was pre-written last session
+(`tmp/t8-spec.md`): one short spawn prompt, one implementer landing —
+no P-LIVE-001 recurrence, no control spawn needed.
+
+The process earned its keep elsewhere: the task spec's required-test
+1(i) parenthetical ("a later epic's U1 precedes an earlier epic's U9")
+inverted the signed D6 tiebreaker. The implementer surfaced the
+contradiction instead of silently fixing it, followed §5.2 — the
+earlier-registered epic wins between topologically independent tasks —
+and both reviewers independently confirmed the direction. Lesson for
+pre-written specs: example orders inside test descriptions are spec
+text too, and get checked against the signed decision before dispatch.
+
+Outcome: `graph/order.rs` (repo-scoped total `canonical_order`,
+epic-scoped induced-subgraph `canonical_order_of_epic`, private
+`(epic number, task number)` key with the M2 seam documented) plus 14
+tests — tiebreaker levels, byte identity across twice-runs and
+seeded-shuffled isomorphic rebuilds, status/priority/relates
+indifference, seeded DAGs checked against an independent naive
+best-first recomputation (lexicographic minimality), degenerate
+shapes; 108 crate tests total. All four gates green in the
+implementer's, both reviewers' and the orchestrator's runs. Dual
+review approved in one round with zero findings; the primary traced
+Kahn correctness (unique keys, exactly one in-degree decrement per
+edge, panic-free remainder fallback), the secondary verified all eight
+settled decisions and the required-test list line by line. Tracker
+debt d1 stays cold: the derivation builds its own in-degree/successor
+maps and never calls `tasks_of_epic`. The primary noted four
+pre-existing intra-doc-link warnings in `drafts.rs` — untouched by
+this diff, recorded as tracker f10.
+
+**Handover.** Workspace: `main` at this commit, clean; `todo-domain`
+carries the §3 value types (t6 + t14), the §5.1 graph (t7) and the
+§5.2 canonical order (t8) — 108 tests, the domain layer of M1
+complete; store/mcp/cli are documented M0 shells; rustc 1.98.1, MSRV
+1.95; serde is still the only external dependency — t9 adds
+`dacode-json` (path) and `tempfile` (dev), both approved under U8,
+nothing to install. Serena's semantic layer is live (f3 closed). Next
+step: **dispatch t9** — the store's canonical serialization + golden
+harness per `workflows/golden-files.md`, the first of the five
+store/cli commits; it carries the two t6/t7 review-nit pins (Doc's
+references position after `version`; the nine-digit timestamp
+spelling) and decides `testcodec`'s fate (superseded by the golden
+harness vs kept as the domain-local determinism check). Why t9 before
+t10: the harness must exist before the first serialized bytes do, and
+t10's event schema rides t9's serialization decisions; t10 also
+carries f8 (burned-id replay validation). After t9: t10–t13 in
+tracker order, then g5's M1 exit gate. Blocked on you: nothing. Open,
+non-blocking: U7 (lint wording), U9 (M3 wire code), U2 (pre-M3), U3
+(pre-M4); findings f4–f10 and debt d1 carry verify lines in the
+tracker. Unverified: MCP smoke (no wire until M3); per-crate lint
+tripwires for store/mcp/cli; t9's goldens do not exist yet — they are
+t9's verify line, not this session's claim.
 
 ### 2026-09-27 — t7: the task graph
 

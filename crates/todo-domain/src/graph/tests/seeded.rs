@@ -31,8 +31,9 @@ const SEEDS: [u64; 5] = [1, 7, 42, 0x5EED_2026, 0xDEAD_BEEF];
 type Issued = BTreeMap<char, BTreeSet<u64>>;
 
 /// splitmix64 — one `u64` of state, one output per step, no seed value
-/// degenerates it (a zero state still advances).
-struct Rng(u64);
+/// degenerates it (a zero state still advances). Shared with the order
+/// tests, whose insertion shuffles must be just as reproducible.
+pub(super) struct Rng(pub(super) u64);
 
 impl Rng {
     fn next_u64(&mut self) -> u64 {
@@ -44,7 +45,7 @@ impl Rng {
     }
 
     /// A value in `0..n`; `n` must be non-zero.
-    fn below(&mut self, n: usize) -> usize {
+    pub(super) fn below(&mut self, n: usize) -> usize {
         (self.next_u64() % n as u64) as usize
     }
 
