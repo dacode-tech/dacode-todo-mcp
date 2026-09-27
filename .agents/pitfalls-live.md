@@ -76,3 +76,26 @@
 - **Obsoleted by**: a confirmed root cause. If transient: nothing. If
   binding-related: a provider/model change in `agent-rules.yaml`.
 - **Source**: struggle
+
+### P-LIVE-002: cargo's post-`--` test argument is a libtest NAME filter, not a target selector
+- **Scope**: workspace test layout — every verify line of the form
+  `cargo test -p <crate> -- <filter>`, in particular t10–t13's
+  `todo-store`/`todo-cli` integration test files
+- **Discovered**: t9, 2026-09-27
+- **Symptom**: `cargo test -p todo-store -- golden` selects only tests
+  whose *names* contain `golden`. Tests sitting flat in
+  `tests/golden.rs` are named after their functions, so the filter can
+  match zero tests and a verify line passes vacuously.
+- **Root cause**: libtest treats the positional argument after `--` as
+  a substring filter over full test paths; an integration file's name
+  is not part of its tests' names unless the tests are nested in a
+  module.
+- **Workaround**: nest every test in the file in a `mod` whose name
+  matches the verify filter (t9: `mod golden` → names become
+  `golden::…`), or select the target with `--test <name>`. Treat
+  `0 filtered out` plus the expected passed-count in the *right*
+  target as the only proof a filter-selected run actually ran.
+- **Obsoleted by**: nothing planned — this is libtest behavior. It is a
+  standing layout discipline for new store/cli test files; consolidate
+  into `pitfalls.md` at the M1 gate.
+- **Source**: review
