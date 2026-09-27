@@ -144,7 +144,8 @@ Oldest first. One line per delivery, with the commit hash once committed.
     shuffled-insertion isomorphic rebuilds; 108 crate tests total;
     dual-reviewed in one round with zero findings (the implementer
     surfaced a task-spec parenthetical that inverted D6 — resolved
-    toward signed §5.2, confirmed by both reviewers).
+    toward signed §5.2, confirmed by both reviewers). Landed as
+    `6cc4691`.
 
 ## 4. Follow-ups
 
