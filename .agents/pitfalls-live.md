@@ -143,3 +143,32 @@
   layout rule for new test targets. Consolidate into `pitfalls.md` at
   the M1 gate.
 - **Source**: struggle
+### P-LIVE-005: a filtered `cargo test` verify line can pass vacuously — filters OR, a no-match exits 0, and zsh does not word-split
+- **Scope**: every verify line of the form `cargo test -p <crate> -- <a>
+  <b> …`, and any script/loop that builds one from a variable; measured on
+  rustc 1.98.1 / cargo on darwin, zsh (this harness's shell)
+- **Discovered**: t11 spec, 2026-09-28
+- **Symptom**: two independent ways a green run proves nothing. (1) A
+  filter that matches no test prints `running 0 tests` / `test result:
+  ok. 0 passed` and **exits 0** —
+  `cargo test -p todo-store -- zzznomatch; echo $?` → `0`. (2) A loop
+  variable holding several tokens is passed as ONE filter under zsh:
+  `for f in "log golden"; do cargo test -p todo-store -- $f; done` selects
+  0 tests, because zsh does not word-split an unquoted parameter and
+  libtest then substring-matches the literal `"log golden"`. The first
+  measurement of this looked like "multiple filters are ANDed"; it was the
+  shell, not libtest.
+- **Root cause**: libtest reports success for an empty selection (a filter
+  is a convenience, not an assertion), and zsh's default is
+  `SH_WORD_SPLIT` off — unlike bash, where `$f` would have split.
+- **Workaround**: write verify commands literally in tracker/spec text, or
+  use `${=f}` in zsh when splitting is intended. Treat **the passed count
+  plus `0 filtered out` in the expected target** as the only proof a
+  filtered run ran (P-LIVE-002), never the exit code. Established for
+  real: multiple positional filters are **ORed** —
+  `cargo test -p todo-store -- zzznomatch golden` runs 8 in `golden.rs`
+  and 2 in `log.rs`, so the second filter alone decided the union.
+- **Obsoleted by**: nothing planned — libtest and zsh behavior. Standing
+  discipline for verify lines; consolidate into `pitfalls.md` at the M1
+  gate with P-LIVE-002.
+- **Source**: struggle

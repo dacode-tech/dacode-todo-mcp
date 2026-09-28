@@ -6,9 +6,10 @@
 //! their own: [`StoreError::Io`], the file machinery's, and
 //! [`StoreError::Domain`], which wraps the domain's shared vocabulary
 //! rather than translating it — a rejected mutation reports the same
-//! error the graph would have, because that is what happened. The growth
-//! path from here is `locked` with t11's advisory locks; §6.1's list is
-//! closed and versioned like the format, so nothing else joins it.
+//! error the graph would have, because that is what happened. §6.1's list
+//! is closed and versioned like the format, and this crate now emits every
+//! code on it: `locked` — §8's single-writer refusal — landed with the D4
+//! layout's advisory locks, so nothing else joins it.
 //!
 //! No foreign type appears in a variant: the engine's error does not
 //! cross this crate's boundary (§2), so engine and `std::io` messages are
@@ -16,7 +17,19 @@
 
 use std::fmt;
 
-use todo_domain::DomainError;
+use todo_domain::{DomainError, RepoSlug};
+
+/// Which store §8's single writer found contended — the payload of
+/// [`StoreError::Locked`], and the unit a lock is scoped to (spec §8:
+/// one lock per repo store plus one for the registry).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum LockTarget {
+    /// One repository's store, named by its slug — never by a path
+    /// (spec §7: the slug is the key).
+    Repo(RepoSlug),
+    /// The shared registry file.
+    Registry,
+}
 
 /// An error raised by the store. Codes are stable machine-readable
 /// identities a client may branch on (spec §6.1); `detail` text is
@@ -54,6 +67,13 @@ pub enum StoreError {
         /// The version this build writes and reads — [`crate::FORMAT_VERSION`].
         expected: u32,
     },
+    /// Another writer holds the store's advisory lock (spec §8's single
+    /// writer; §6.1's `locked` when contended). Nothing was opened, read
+    /// or written: the refusal is the whole effect of the attempt.
+    Locked {
+        /// The contended lock — a repo store or the registry.
+        target: LockTarget,
+    },
     /// The filesystem refused a read, a write or an `fsync`.
     ///
     /// Carries no §6.1 code: the list is closed, and how a client sees a
@@ -78,6 +98,7 @@ impl StoreError {
         match self {
             Self::CorruptStore { .. } => "corrupt_store",
             Self::VersionMismatch { .. } => "version_mismatch",
+            Self::Locked { .. } => "locked",
             Self::Io { .. } => "io",
             Self::Domain(error) => error.code().as_str(),
         }
@@ -107,6 +128,12 @@ impl fmt::Display for StoreError {
                 f,
                 "store format version {found}, this build reads version {expected}"
             ),
+            Self::Locked {
+                target: LockTarget::Repo(slug),
+            } => write!(f, "store is locked: repo {slug}"),
+            Self::Locked {
+                target: LockTarget::Registry,
+            } => write!(f, "store is locked: the registry"),
             Self::Io { detail } => write!(f, "io: {detail}"),
             Self::Domain(error) => write!(f, "{error}"),
         }
@@ -118,6 +145,24 @@ impl std::error::Error for StoreError {}
 impl From<DomainError> for StoreError {
     fn from(error: DomainError) -> Self {
         Self::Domain(error)
+    }
+}
+
+/// An io fault as this crate reports it: what was attempted and the
+/// [`std::io::ErrorKind`] that refused it. Never the `io::Error` itself
+/// (no foreign type crosses the boundary, §2) and never a path —
+/// `io::Error`'s own message can carry one, which is exactly why the
+/// detail is spelled from the kind. The one construction site of every
+/// [`StoreError::Io`] in the crate.
+pub(crate) fn io_error(context: &str, error: &std::io::Error) -> StoreError {
+    io_error_kind(context, error.kind())
+}
+
+/// [`io_error`] for a kind already known — same one spelling, so a
+/// reconstructed fault is byte-identical to an observed one.
+pub(crate) fn io_error_kind(context: &str, kind: std::io::ErrorKind) -> StoreError {
+    StoreError::Io {
+        detail: format!("{context}: {kind:?}"),
     }
 }
 
@@ -171,6 +216,26 @@ mod tests {
             "store format version 2, this build reads version 1"
         );
         assert_eq!(err.domain(), None);
+    }
+
+    #[test]
+    fn locked_names_its_target_and_code_without_a_path() {
+        use std::str::FromStr;
+
+        let repo = StoreError::Locked {
+            target: LockTarget::Repo(RepoSlug::from_str("camera").unwrap()),
+        };
+        assert_eq!(repo.code(), "locked");
+        assert_eq!(repo.to_string(), "store is locked: repo camera");
+        assert_eq!(repo.domain(), None);
+        assert!(!repo.to_string().contains('/'));
+
+        let registry = StoreError::Locked {
+            target: LockTarget::Registry,
+        };
+        assert_eq!(registry.code(), "locked");
+        assert_eq!(registry.to_string(), "store is locked: the registry");
+        assert_eq!(registry.domain(), None);
     }
 
     #[test]

@@ -26,9 +26,9 @@ locking §8, snapshots + compaction, minimal `todo-cli` inspector), and
 the M1 exit gate. t6 (value types), t14 (fractional-second timestamps,
 a user decision), t7 (the task graph §5.1) and t8 (the canonical order
 §5.2) have landed — the domain layer of M1 is complete — followed by
-t9 (canonical serialization + golden harness) and t10 (the JSONL event
-log + `Store` trait, §4); next is t11, the D4 layout + registry +
-advisory locking.
+t9 (canonical serialization + golden harness), t10 (the JSONL event
+log + `Store` trait, §4) and t11 (the D4 layout + registry + advisory
+locking, §2/§7/§8); next is t12, snapshots + compaction.
 
 | Blocking | What | Action |
 |---|---|---|
@@ -204,8 +204,59 @@ Oldest first. One line per delivery, with the commit hash once committed.
     the t9 golden regenerates byte-identical; f12's doc-span fix rode
     along. 33 store tests (19 new); the domain's 108 unmodified;
     Cargo.lock 13 → 26 (`tempfile` dev tree). Dual-reviewed in one
-    round, four low findings dispositioned in §6 and the tracker.
-    Landed as `df79982`.
+     round, four low findings dispositioned in §6 and the tracker.
+     Landed as `df79982`.
+- 2026-09-28 — **M1 t11: D4 layout + registry + advisory locking
+     (§2/§7/§8)**: the store now lives under an injected `DataRoot` —
+     `repos/<slug>/event-log.jsonl` plus one lock file per protected file
+     (`<file>.lock`, the single rule that keeps two logs in one directory
+     from sharing a lock) — and §4.2's open/create half joined the `Store`
+     trait as `where Self: Sized` constructors, which is how the tension
+     t10 reported resolves: the trait stays the seam D1's redb fallback
+     would plug into, and `dyn Store` still compiles behind a
+     compile-time pin. Every store is locked, always — `JsonlStore` owns
+     a `FileLock` over std `File::try_lock`, measured on this host
+     (`TryLockError{WouldBlock, Error}`, two fds in one process conflict,
+     `Drop` releases, and a lock follows the **inode**, so a rename
+     defeats it: hence dedicated lock files, and no atomically-rewritten
+     file is ever its own lock target). §6.1's `locked` arrives as
+     `StoreError::Locked { target: LockTarget }` with a path-free
+     `Display`. Lock order is total — the registry first, then sorted
+     slugs — and is safe *because* the registry stores only immutable
+     fields, so nothing ever wants the registry lock while holding a
+     store lock. That is the one narrow reading of signed §2 text here,
+     and it is flagged for veto: the registry holds
+     `{format_version, repos: [{registered_at, slug}]}` sorted by slug,
+     §7's mutable `name`/`path` stay solely on the `Repo` node (indexing
+     them would need two writes per `repo_set_path` and would break the
+     lock-order argument), and the slug→store mapping is derived rather
+     than stored. The cost is recorded, not hidden: a cold `repo_list`
+     must open stores, which M3 answers from handles it already holds —
+     extending the registry later is a golden-visible format change,
+     cheap before M3 and expensive after. `register` writes store bytes
+     before the index, so the only crash state is a store directory the
+     registry does not list (`register` then refuses `duplicate`; t13's
+     inspector resolves it), never a registry entry with no store;
+     `open_many` dedupes, sorts and is all-or-nothing, its rollback
+     pinned by test rather than asserted. The registry document gets its
+     own golden (`registry.v1`, 238 bytes) written through the real
+     `register` path under §4.3's temp+fsync+atomic-rename discipline,
+     with `deny_unknown_fields` and a version probe ordered before the
+     strict parse; the two existing goldens are byte-identical. 55 store
+     tests (22 new: 19 in the `layout` target, 3 lib unit tests), 163
+     workspace-wide; the domain's 108 unmodified; `Cargo.lock` unchanged
+     — no new dependency. Dual-reviewed over four rounds: eleven fix
+     items in round one (three minors from the primary, two from the
+     secondary, five lows and three lows — among them a
+     self-contradictory recovery paragraph, an untested load-time sort
+     whose removal left every test green while `contains` binary-searched
+     an unsorted vector, and an error path that masked `PermissionDenied`
+     as Decision 11's `NotFound`), one stale test doc in round two, and
+     in round three a false clause in the orchestrator's own replacement
+     text, which the primary disproved after the secondary had ratified
+     it. f15's two test renames rode along; the verify line moved off
+     name filters onto `cargo test -p todo-store --test layout`
+     (P-LIVE-005). Landed as this commit.
 
 ## 4. Follow-ups
 
@@ -311,6 +362,125 @@ _No debt recorded yet — nothing has been built to take a shortcut in._
 Newest first. One entry per session, written for someone who was not
 here. The final entry of a session is the handover
 (`.agents/skills/todo-next-imp/SKILL.md` defines the shape).
+
+### 2026-09-28 — t11: D4 layout, registry, advisory locking
+
+Dispatch was the proven one: the orchestrator decisions settled into
+`tmp/t11-spec.md` first (23 decisions, 6 judgment calls, 18 required
+tests), then a short spawn prompt, one implementer landing — no
+P-LIVE-001 recurrence, the fourth clean dispatch in a row.
+
+Three measurements preceded the spec and shaped it. **std
+`File::try_lock`** returns `std::fs::TryLockError{WouldBlock,
+Error(io::Error)}`, not an `io::ErrorKind` — so §6.1's `locked` mapping
+is a match on that enum, and `rust-version` 1.95 already covers its 1.89
+stabilization (no bump). Two handles in one process genuinely conflict
+and `Drop` releases, so §8's contention test needs no second process.
+And a lock follows the **inode**, not the path: renaming a locked file
+defeats the lock, which is why the layout uses dedicated `<file>.lock`
+files and why no atomically-rewritten file (the registry, t12's
+snapshots) is ever its own lock target. The second measurement corrected
+an assumption of the orchestrator's own: libtest **ORs** multiple
+positional filters, and a filter matching nothing **exits 0**. The first
+probe appeared to show AND semantics because **zsh does not word-split an
+unquoted `$f`** — `cargo test -- $f` with `f="log golden"` passed one
+filter, the literal string, and selected nothing while looking green.
+That is P-LIVE-005, and it moved t11's verify line off name filters onto
+`cargo test -p todo-store --test layout`, which selects the target
+exactly and fails loudly if renamed.
+
+Outcome: `src/{layout,lock,registry}.rs` plus edits to
+`log.rs`/`store.rs`/`error.rs`/`lib.rs`, 19 tests in the new `layout`
+target and 3 lib unit tests, the `registry.v1` golden, 55 store tests
+and 163 workspace-wide; `Cargo.lock` unchanged, no new dependency. The
+§4.2 tension t10 reported is resolved: open/create are trait
+constructors under `where Self: Sized`, so the trait remains the seam a
+fallback engine would implement and `dyn Store` still compiles (pinned by
+a const, verified by compiling three scratch traits against it). The
+inherent engine constructors were renamed `create_log`/`open_log` to stop
+them shadowing the trait's, and t10's 19 tests changed only mechanically.
+One narrow reading of signed §2 text is recorded in §3 and flagged for
+veto: the registry holds only `{slug, registered_at}` — both immutable —
+and derives the slug→store mapping, because indexing §7's mutable
+`name`/`path` would need two writes per `repo_set_path` and would break
+the lock-order argument that keeps §8's acquisition order total.
+
+Dual review took four rounds, and each earned its cost. Round one: three
+minors and five lows from the primary, two minors and three lows from the
+secondary, converging on a recovery paragraph in `layout.rs` that
+contradicted itself within four lines, an untested load-time sort whose
+removal left all 49 tests green while `contains` binary-searched an
+unsorted vector, and a read-only-fallback error path that replaced the
+original `PermissionDenied` with `NotFound` — Decision 11's exact "never
+registered" signal, so a client could have been invited to register a
+repo that already exists. Round two closed all eleven fix items and left
+one new stale doc: retiring the test-name "token gymnastics" had
+falsified `tests/layout.rs`'s claim that the three-token union selects
+the identical set. Round three was one clause, in the orchestrator's own
+replacement text: it claimed the golden catches a reordered mirror field,
+which the primary disproved (the mirror is serialize-only, serde matches
+by name, the golden comes from the production struct) **after the
+secondary had ratified it** — a reviewer count is not a proof, and the
+two families' blind spots correlated exactly where the claim was newest.
+
+**Handover.** Workspace: `main` at this commit, clean; `todo-domain`
+unchanged since t8 (108 tests); `todo-store` carries t9's codec + golden
+harness, t10's event log + `Store` trait and t11's layout + registry +
+locks — 55 tests, three goldens (`serialize_nodes.v1`, `event_log.v1`,
+`registry.v1`); mcp/cli are documented M0 shells; rustc 1.98.1, MSRV
+1.95. Dependencies unchanged: serde, `dacode-json` + `zmij` (path dep on
+the sibling checkout `../rust/json-tiers` — a cold machine needs that
+repo beside this one's parent), `tempfile` (dev). Serena's semantic layer
+is live. Landed this session: t11 (this commit) + hash backfill,
+P-LIVE-005, tracker f16/f17 and t15, f15 closed.
+
+Next step: **dispatch t12** — snapshots + compaction (§4.1): atomic
+temp+fsync+rename snapshot, replay = latest snapshot + log tail, log
+truncation, the snapshot golden. It carries f5 (the domain `Counters`
+needs a raise-to-max write entry point, because replaying snapshot nodes
+cannot restore a counter whose highest-numbered node was deleted), f16
+(whether to fsync the parent directory after an atomic rename — §4.3
+names temp+fsync+rename and a dir fsync is stronger than the signed text,
+plus it needs a cross-platform story), and two constraints t11
+established: the store lock protects the `.lock` **inode** while
+`JsonlStore.file` is an append handle to the **log** inode, so compaction
+must truncate in place or reopen that handle after any rename; and a
+snapshot is atomically rewritten, so it is never its own lock target —
+the store's existing `.lock` covers it. Why t12 before t13: the inspector
+should dump and repair a store whose final on-disk shape already exists,
+and t13's verify line reads a snapshot that t12 defines.
+
+Then t13 (the `todo-cli` inspector + §4.3's repair command), which
+carries: f14 (does the log header gain `deny_unknown_fields`? the
+registry's is the precedent, and the reason for the divergence is
+documented in `registry.rs`), f17 (a contended bare-path open names the
+log's parent directory as a slug, so `LockTarget` can name an uninvolved
+repo and its `None` arm reports `io` rather than §6.1's `locked` —
+whether `LockTarget` grows a third variant is t13's call, §6.1's list
+being closed), d2 (`event.rs` at 759 lines, split the replay half when
+t13 grows it), the registry↔store divergence report (a store directory
+the registry does not list), and a **lock-free read path** — today every
+`open_log` takes the writer lock, so `dump`/`verify` over a committed log
+would contend with a live server. Then g5's M1 exit gate. t15 (domain:
+f9's scan scope + f10's four intra-doc links and the stale `testcodec`
+doc line) is a small separate commit that can land anywhere; it was kept
+out of t11 on crate boundaries, not on priority.
+
+Blocked on you: nothing. Open, non-blocking: U7 (lint wording), U9 (M3
+wire code — still also the `"io"` mapping), U2 (pre-M3), U3 (pre-M4);
+and the registry's narrow reading of §2 above is yours to veto — the
+window is cheap until M3 ships a `repo_list` against it.
+
+Unverified: MCP smoke (no wire until M3); per-crate lint tripwires for
+mcp/cli (domain's was proven at M0, the rest rest on manifest reads +
+green clippy); real crash behavior — §4.3's semantics are tested with
+hand-built fixtures and a documented write ordering, never an actual
+crash or power loss; multi-process lock contention is tested as two
+handles in one process, measured equivalent on this host but not proven
+across processes; the two permission-corner tests are `#[cfg(unix)]` and
+were confirmed non-vacuous at uid 502, so on a privileged or non-unix run
+they print a note or vanish rather than pass; and the registry's
+durability without a directory fsync (f16) is unmeasured.
 
 ### 2026-09-27 — t8: canonical order
 

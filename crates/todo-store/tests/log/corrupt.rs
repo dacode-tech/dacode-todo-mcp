@@ -101,7 +101,7 @@ fn header_faults_are_named_errors() {
         newer.extend_from_slice(line);
     }
     let fixture = write_fixture(&dir, "version-2.jsonl", &newer);
-    let error = JsonlStore::open(&fixture).unwrap_err();
+    let error = JsonlStore::open_log(&fixture).unwrap_err();
     assert_eq!(
         error,
         StoreError::VersionMismatch {
@@ -151,7 +151,7 @@ fn replay_rejects_a_burned_number() {
     // wrote cannot contain that line, so replay refuses it.
     let dir = TempDir::new().unwrap();
     let path = log_path(&dir);
-    let mut store = JsonlStore::create(&path, repo()).unwrap();
+    let mut store = JsonlStore::create_log(&path, repo()).unwrap();
     let epic = store
         .add_epic(epic_draft("one"), at("2026-09-25T08:05:00Z"))
         .unwrap();

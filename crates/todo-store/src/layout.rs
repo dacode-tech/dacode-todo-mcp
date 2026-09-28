@@ -1,0 +1,390 @@
+//! The D4 layout: where a data root keeps its per-repo stores and the
+//! shared registry, and the only code in this crate that knows.
+//!
+//! Under the **injected** root (the binary configures it — §13/D8 make
+//! the location the server's configuration, never a cwd heuristic; D4's
+//! default *location* is `~/.local/share/dacode-todo/`, but nothing
+//! below the binary layer reads the environment, a home directory, a
+//! clock or the cwd):
+//!
+//! ```text
+//! <root>/registry.json            the shared slug index
+//! <root>/registry.json.lock       its advisory lock (§8)
+//! <root>/repos/<slug>/event-log.jsonl        one repository's log
+//! <root>/repos/<slug>/event-log.jsonl.lock   its advisory lock (§8)
+//! ```
+//!
+//! The names are part of the versioned format (§4) and exist here as
+//! constants behind [`DataRoot`]'s accessors, so no other code — t13's
+//! inspector and repair included — ever hardcodes a path. One rule
+//! derives every lock path with no exception: **a lock file is the
+//! protected file's path plus `.lock`** — never a fixed directory-level
+//! name, so two logs in one directory cannot silently share a lock. The
+//! rule exists because the lock follows the inode, and the protected
+//! files that *are* atomically rewritten (the registry, t12's snapshots)
+//! must never be their own lock target (see `lock.rs`).
+//!
+//! `repos/<slug>/` is traversal-safe by construction: [`RepoSlug`]'s
+//! charset admits no `.`, no `..`, no separator and no empty string, so
+//! a slug can only ever name one directory level below `repos/` (pinned
+//! by `tests/layout/paths.rs`, not assumed).
+//!
+//! # The total lock order (§8)
+//!
+//! The registry lock is the **least element**; store locks follow in
+//! sorted-slug order ([`RepoSlug`]'s derived `Ord`). §8 states the
+//! sorted-slug half; the registry's place is this crate's decision, and
+//! what makes the whole order safe is that **the registry holds only
+//! immutable fields, so no operation ever needs the registry lock while
+//! holding a store lock**: [`DataRoot::register`] takes registry → the
+//! new slug's store, and [`DataRoot::open_many`] takes sorted slugs
+//! only. If a mutable field ever enters the registry — a `path` index,
+//! say — that argument dies on the spot: `repo_set_path` would then need
+//! the registry lock *while holding the store lock*, acquiring in the
+//! forbidden order. Extend the registry format only together with a
+//! re-derived lock order.
+//!
+//! # Registry ↔ store divergence is a report, not a check
+//!
+//! [`DataRoot::open`] does not consult the registry: the store directory
+//! is authoritative for that repo's data, and a missing one is the
+//! engine's honest io error. [`DataRoot::register`] writes store bytes
+//! *before* the registry index, so a crash can never leave a registry
+//! entry with no store — the property the ordering buys. The reverse
+//! (a store the registry does not list) has two windows, told apart by
+//! whether the log's first byte landed:
+//!
+//! - A crash **before the log exists** leaves an *empty* `repos/<slug>/`.
+//!   Re-registering completes it — the directory is not a refusal, only a
+//!   log is (see [`DataRoot::register`]).
+//! - A crash **after the log landed but before the index was saved**
+//!   leaves a store the registry does not list. `register` refuses it as
+//!   `duplicate` — a half-created store is never silently adopted, that
+//!   would hide the crash — and a human resolves it through t13's
+//!   inspector.
+//!
+//! Either way the divergence is *reported* (by t13), never silently
+//! repaired here.
+
+use std::fs;
+use std::path::{Path, PathBuf};
+
+use todo_domain::{DomainError, Repo, RepoSlug};
+
+use crate::error::{LockTarget, StoreError, io_error};
+use crate::lock::RegistryLock;
+use crate::log::JsonlStore;
+use crate::registry::Registry;
+
+/// The registry document's file name (§2's shared registry file).
+const REGISTRY_FILE: &str = "registry.json";
+/// The registry's lock file: the protected path plus `.lock`, the one
+/// rule of this module.
+const REGISTRY_LOCK_FILE: &str = "registry.json.lock";
+/// The per-repo store directory's name under `repos/`.
+const REPOS_DIR: &str = "repos";
+/// The event log's file name inside a store directory — t10's fixture
+/// spelling, kept (the name is part of the versioned format, §4).
+const LOG_FILE: &str = "event-log.jsonl";
+/// A log's lock file: the protected path plus `.lock`.
+const LOG_LOCK_FILE: &str = "event-log.jsonl.lock";
+/// The lock-path rule itself, spelled once: every lock in this crate is
+/// its protected file's path plus this suffix.
+const LOCK_SUFFIX: &str = ".lock";
+
+/// An injected data root and the whole D4 layout under it: per-repo
+/// stores in `repos/<slug>/` plus the shared registry (§2).
+///
+/// The root is taken as given — no validation, no canonicalization, both
+/// of which would read the filesystem or the cwd, and §8 forbids the
+/// clock and the environment below the binary layer. A relative root is
+/// the caller's choice; the binary injects an absolute one.
+///
+/// Constructing a `DataRoot` touches nothing. Two paths create:
+/// [`DataRoot::register`] — the store directory, the log, and the registry
+/// — and [`DataRoot::lock_registry`], which makes the root directory so
+/// the registry's lock file has a home. The read paths ([`Registry::load`],
+/// [`DataRoot::open`], [`DataRoot::open_many`]) create no store and no
+/// registry, with one exception: opening a store whose directory exists
+/// but whose log is missing creates a zero-byte `.lock` beside the absent
+/// log before the open fails — a lock file's bytes mean nothing, so the
+/// debris is harmless (see [`crate::JsonlStore::open_log`]).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DataRoot {
+    /// The injected root directory.
+    root: PathBuf,
+}
+
+impl DataRoot {
+    /// A data root at `root`. Injected by the caller — the binary
+    /// resolves D4's default location and passes an absolute path; this
+    /// crate never reads the environment, home or cwd to find one.
+    pub fn new(root: impl Into<PathBuf>) -> Self {
+        Self { root: root.into() }
+    }
+
+    /// The injected root directory.
+    pub fn root(&self) -> &Path {
+        &self.root
+    }
+
+    /// `<root>/repos` — the parent of every store directory.
+    pub fn repos_dir(&self) -> PathBuf {
+        self.root.join(REPOS_DIR)
+    }
+
+    /// `<root>/repos/<slug>` — one repository's store directory. The
+    /// slug's charset makes this traversal-safe by construction (module
+    /// docs).
+    pub fn store_dir(&self, slug: &RepoSlug) -> PathBuf {
+        self.repos_dir().join(slug.as_str())
+    }
+
+    /// `<root>/repos/<slug>/event-log.jsonl` — the store's event log.
+    pub fn log_path(&self, slug: &RepoSlug) -> PathBuf {
+        self.store_dir(slug).join(LOG_FILE)
+    }
+
+    /// `<root>/repos/<slug>/event-log.jsonl.lock` — the store's advisory
+    /// lock file (§8).
+    pub fn lock_path(&self, slug: &RepoSlug) -> PathBuf {
+        self.store_dir(slug).join(LOG_LOCK_FILE)
+    }
+
+    /// `<root>/registry.json` — the shared registry (§2).
+    pub fn registry_path(&self) -> PathBuf {
+        self.root.join(REGISTRY_FILE)
+    }
+
+    /// `<root>/registry.json.lock` — the registry's advisory lock file
+    /// (§8).
+    pub fn registry_lock_path(&self) -> PathBuf {
+        self.root.join(REGISTRY_LOCK_FILE)
+    }
+
+    /// Acquires the registry's advisory lock (§8's one registry writer).
+    /// The guard's `Drop` releases it. A contended registry is
+    /// [`StoreError::Locked`] with [`LockTarget::Registry`].
+    ///
+    /// Creates the root directory when absent — the lock file needs a
+    /// home — so this is one of the two creating paths of a `DataRoot`
+    /// (see the struct docs), not a pure read.
+    pub fn lock_registry(&self) -> Result<RegistryLock, StoreError> {
+        fs::create_dir_all(&self.root).map_err(|error| io_error("create the data root", &error))?;
+        RegistryLock::acquire(&self.registry_lock_path())
+    }
+
+    /// Registers `repo` and returns its open, locked store — §6's
+    /// `repo_register` underneath (§7: the slug is the key, chosen at
+    /// registration and immutable ever after).
+    ///
+    /// The order is the crash-consistency order (module docs): registry
+    /// lock → load the registry → refuse a duplicate → create the store
+    /// → write the registry → return the store still holding its own
+    /// lock. Both refusals are checked under the registry lock and are
+    /// the same `duplicate` code: the registry lists the slug, **or**
+    /// `log_path(slug)` already exists — a half-created store directory
+    /// is never silently adopted, a human resolves it through t13's
+    /// inspector. An *empty* store directory with no log is not a
+    /// refusal: creating the store completes what a crashed earlier
+    /// attempt left behind.
+    pub fn register(&self, repo: Repo) -> Result<JsonlStore, StoreError> {
+        let registry_lock = self.lock_registry()?;
+        let mut registry = Registry::load(self)?;
+        if registry.contains(&repo.slug) || self.log_path(&repo.slug).exists() {
+            return Err(duplicate(&repo.slug));
+        }
+
+        // Store bytes land before the registry index, so a crash can
+        // never leave an entry with no store. The reverse window is the
+        // module docs' second case: the log is down, so a
+        // re-registration is refused as a duplicate and t13's inspector
+        // resolves it.
+        let store = self.create_store(&repo)?;
+
+        registry.insert(&repo);
+        registry.save(self)?;
+        drop(registry_lock);
+        Ok(store)
+    }
+
+    /// Creates a repository's store directory and log under this root,
+    /// returning the locked store — [`crate::Store::create`]'s body and
+    /// the store-creation half of [`DataRoot::register`].
+    ///
+    /// This is the one write path that creates the per-repo directory:
+    /// [`JsonlStore::create_log`] keeps the engine's bare-path semantics
+    /// (`create_new` on the log, no parent creation), so the D4 directory
+    /// is made here, where the layout is known. It touches **no**
+    /// registry — a store created this way is on disk but unlisted, which
+    /// is exactly what a registration crashed after this point leaves
+    /// behind, and what a later [`DataRoot::register`] then refuses as a
+    /// `duplicate` (module docs).
+    pub(crate) fn create_store(&self, repo: &Repo) -> Result<JsonlStore, StoreError> {
+        fs::create_dir_all(self.store_dir(&repo.slug))
+            .map_err(|error| io_error("create the store directory", &error))?;
+        JsonlStore::create_log(self.log_path(&repo.slug), repo.clone())
+    }
+
+    /// Opens the store registered under `slug` and returns it locked.
+    ///
+    /// The registry is **not** consulted: the store directory is
+    /// authoritative for that repo's data, and a missing log is the
+    /// engine's honest [`StoreError::Io`] (`open the event log:
+    /// NotFound`). Registry↔store divergence is a report, and t13's
+    /// inspector owns it (module docs). Creates nothing.
+    pub fn open(&self, slug: &RepoSlug) -> Result<JsonlStore, StoreError> {
+        JsonlStore::open_log(self.log_path(slug))
+    }
+
+    /// Opens several stores for §2's cross-repo queries: "iterate the
+    /// registry and open per-repo stores". The slice-of-references shape
+    /// lets a caller pass [`Registry::slugs`] straight in —
+    /// `open_many(&registry.slugs())` — with no clone-collect between the
+    /// two halves of that sentence.
+    ///
+    /// The slugs are deduplicated and sorted ascending, and the locks are
+    /// acquired in exactly that order — §8's sorted-slug rule, and the
+    /// order that can never deadlock against another `open_many`. Dedupe
+    /// is required, not cosmetic: a lock is per descriptor, so one slug
+    /// twice is two fds on one lock file, and the second conflicts with
+    /// the first.
+    ///
+    /// All-or-nothing: on any failure the stores already opened are
+    /// dropped as the local vector goes out of scope, and each store's
+    /// `Drop` releases its advisory lock, so the error is returned with
+    /// nothing left held. RAII provides this — there is no explicit
+    /// unwind, and the rollback test in `tests/layout/lock.rs` pins the
+    /// observable result. The success case returns the stores in
+    /// sorted-slug order.
+    pub fn open_many(&self, slugs: &[&RepoSlug]) -> Result<Vec<JsonlStore>, StoreError> {
+        let mut sorted: Vec<&RepoSlug> = slugs.to_vec();
+        sorted.sort();
+        sorted.dedup();
+
+        let mut stores: Vec<JsonlStore> = Vec::with_capacity(sorted.len());
+        for slug in sorted {
+            // `?` returns early on any failure; `stores` then drops and
+            // releases every lock already taken (see the doc above).
+            stores.push(self.open(slug)?);
+        }
+        Ok(stores)
+    }
+}
+
+/// The refused re-registration: a repo's id *is* its slug (D3), so the
+/// taken id is the slug's own string — the domain's `duplicate` code,
+/// because that is what happened (§6.1).
+fn duplicate(slug: &RepoSlug) -> StoreError {
+    StoreError::Domain(DomainError::Duplicate {
+        id: slug.to_string(),
+    })
+}
+
+/// The one lock-path rule of this module: the protected file's path plus
+/// `.lock`. [`crate::JsonlStore`]'s bare-path constructors use this so a
+/// log's lock is derived, never spelled twice.
+pub(crate) fn lock_path_for(path: &Path) -> PathBuf {
+    let mut lock = path.as_os_str().to_os_string();
+    lock.push(LOCK_SUFFIX);
+    PathBuf::from(lock)
+}
+
+/// Whether the store directory that would hold the log at `path` is
+/// absent — the honest "no store here" that the engine's bare-path
+/// constructors report as the log's own io `NotFound`, never as a lock
+/// fault.
+///
+/// The lock file sits beside the log (one rule, above), so a directory
+/// that does not exist can hold neither: `create(true)` on the lock file
+/// would fail `NotFound` there, and Decision 11 pins the missing-store
+/// report to the engine's `open the event log: NotFound`, not to the lock
+/// machinery. Checking the directory up front keeps §8's lock-first order
+/// for every store that *is* there while never surfacing a lock detail for
+/// one that is not. A bare file name (empty parent → cwd) or a root path
+/// is not "missing" here; the lock attempt handles those.
+pub(crate) fn store_dir_missing(path: &Path) -> bool {
+    match path.parent() {
+        Some(parent) => !parent.as_os_str().is_empty() && !parent.exists(),
+        None => false,
+    }
+}
+
+/// The [`LockTarget`] of a log living at `path` inside the D4 layout:
+/// the store directory's name *is* the slug (`repos/<slug>/…`), so a
+/// contended bare-path lock reports which repo it refused without ever
+/// carrying a path.
+///
+/// A path outside the layout — a corruption fixture's temp file — has no
+/// directory that parses as a slug; the report is this crate's io shape
+/// with a fixed detail. The case is only reachable when such a path is
+/// *contended* (see [`crate::lock`]'s lazy-target note): every other
+/// fault on a bare path keeps t10's exact report.
+///
+/// The derivation trusts the parent directory's name, so a contended
+/// bare-path open of a log whose parent happens to be a valid slug names
+/// *that* slug — which need not be a repo involved in the call. Through
+/// [`DataRoot`] this cannot happen (the parent always is the store's own
+/// slug); the only future non-layout caller is t13's inspector, so whether
+/// [`LockTarget`] grows a variant for "a store outside the layout" is
+/// t13's decision, not this function's. §6.1's list is closed and Decision
+/// 5 pins the two variants, so none is added here.
+pub(crate) fn store_target_from_log_path(path: &Path) -> Result<LockTarget, StoreError> {
+    let dir_name = path
+        .parent()
+        .and_then(|parent| parent.file_name())
+        .map(|name| name.to_string_lossy().into_owned());
+    match dir_name
+        .as_deref()
+        .and_then(|name| RepoSlug::new(name.to_owned()).ok())
+    {
+        Some(slug) => Ok(LockTarget::Repo(slug)),
+        None => Err(StoreError::Io {
+            detail: DETAIL_NO_SLUG.to_owned(),
+        }),
+    }
+}
+
+/// The fixed detail of a contended lock whose file does not sit in a
+/// store directory.
+const DETAIL_NO_SLUG: &str = "name the contended store: its directory is not a slug";
+
+#[cfg(test)]
+mod tests {
+    use std::path::Path;
+
+    use todo_domain::RepoSlug;
+
+    use super::{DETAIL_NO_SLUG, store_target_from_log_path};
+    use crate::error::{LockTarget, StoreError};
+
+    #[test]
+    fn a_non_layout_path_names_no_slug() {
+        // A log whose parent directory is not a valid slug — the shape a
+        // corruption fixture's temp file has — cannot name a repo, so the
+        // contended-lock report is this crate's io shape with the fixed
+        // detail, never a `Locked` with a made-up target.
+        let path = Path::new("/tmp/Not A Slug/event-log.jsonl");
+        let error = store_target_from_log_path(path).unwrap_err();
+        assert_eq!(
+            error,
+            StoreError::Io {
+                detail: DETAIL_NO_SLUG.to_owned()
+            }
+        );
+        assert_eq!(error.code(), "io");
+        assert!(!error.to_string().contains('/'), "{error} carries no path");
+    }
+
+    #[test]
+    fn a_layout_path_names_its_own_slug() {
+        // The happy path the derivation exists for: `repos/<slug>/…`
+        // yields that slug, so a contended D4 open names the right repo.
+        let path = Path::new("/data/repos/camera/event-log.jsonl");
+        let target = store_target_from_log_path(path).unwrap();
+        assert_eq!(
+            target,
+            LockTarget::Repo(RepoSlug::new("camera".to_owned()).unwrap())
+        );
+    }
+}

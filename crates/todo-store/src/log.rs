@@ -14,11 +14,15 @@
 //! offset, which is where t13's repair truncates from, and the engine's
 //! position *within* that line rides in the `detail` text.
 //!
-//! The layout is a bare path today: [`JsonlStore::create`] and
-//! [`JsonlStore::open`] take the log file itself. t11 wraps them in the D4
-//! layout — `repos/<slug>/` under an injected data root, plus the shared
-//! registry — and puts §8's advisory lock on the handle this struct keeps
-//! open (single writer, one process per store).
+//! The engine's own constructors — [`JsonlStore::create_log`] and
+//! [`JsonlStore::open_log`] — take a bare log path, and every store they
+//! return is **locked**: §8's single writer holds an advisory lock on
+//! `<path>.lock` (the layout's one lock-path rule) for the store's whole
+//! lifetime, released by its `Drop`. There is no unlocked store and no
+//! opt-out. The D4 layout lives above them: [`crate::Store::create`] and
+//! [`crate::Store::open`] resolve `repos/<slug>/event-log.jsonl` under a
+//! [`crate::DataRoot`] and delegate here, and [`crate::DataRoot::register`]
+//! adds the registry index around the same call.
 //!
 //! Durability note: an append that fails after the domain accepted the
 //! mutation leaves memory one event ahead of disk, which is §4.3's crash
@@ -31,23 +35,30 @@ use std::io::{self, Read, Write};
 use std::path::Path;
 
 use todo_domain::{
-    BlocksEdge, Decision, DecisionId, Doc, DocId, Epic, EpicId, Graph, Repo, Task, TaskId,
-    Timestamp,
+    BlocksEdge, Decision, DecisionId, Doc, DocId, Epic, EpicId, Graph, Repo, RepoSlug, Task,
+    TaskId, Timestamp,
 };
 use todo_domain::{DecisionDraft, DocDraft, EpicDraft, TaskDraft};
 
 use crate::FORMAT_VERSION;
 use crate::codec::{from_bytes, to_bytes};
-use crate::error::StoreError;
+use crate::error::{LockTarget, StoreError, io_error, io_error_kind};
 use crate::event::{
     BlocksEdgeDto, DecisionPatch, DocPatch, EpicPatch, Event, LogHeader, TaskPatch,
     apply_decision_patch, apply_doc_patch, apply_epic_patch, apply_task_patch, replay_step,
 };
+use crate::layout::{DataRoot, lock_path_for, store_dir_missing, store_target_from_log_path};
+use crate::lock::{CONTEXT_STORE, FileLock};
 use crate::store::Store;
 
 /// The line terminator, and the only byte the log's line discipline
 /// attaches meaning to (§4.1: every mutation is one JSON line).
 const LINE_FEED: u8 = b'\n';
+
+/// The io-fault contexts of the two bare-path constructors, pinned by
+/// tests: a missing log reports the operation that missed it.
+const CONTEXT_CREATE_LOG: &str = "create the event log";
+const CONTEXT_OPEN_LOG: &str = "open the event log";
 
 /// The corruption details, pinned by `tests/log/corrupt.rs`:
 /// deterministic, and never carrying a host path — a §4.3 report is all a
@@ -60,38 +71,65 @@ const DETAIL_BAD_HEADER: &str = "the log's first line is not a format-version he
 const DETAIL_BAD_EVENT: &str = "the line is not a parseable event";
 const DETAIL_BAD_SEED: &str = "the log's first event must be repo_register, found ";
 
-/// One repository's store: its event log and the graph replayed from it.
+/// One repository's store: its event log, the graph replayed from it, and
+/// §8's advisory lock on the log.
 ///
 /// The [`Store`] trait is the whole surface a caller above this crate
 /// needs; this struct is the D1 engine behind it and is only named
-/// directly to create or open a log.
+/// directly to create or open a log by path.
+///
+/// Every store is locked — there is no unlocked store and no `Option`
+/// around the lock. The lock is acquired **before** the log is created or
+/// read and released by this value's `Drop`, so the guard's lifetime is
+/// the store's and a store cannot outlive its own write exclusivity.
 #[derive(Debug)]
 pub struct JsonlStore {
-    /// The log file, kept open for appends: §8's single writer, and the
-    /// handle t11's advisory lock goes on.
+    /// The log file, kept open for appends: §8's single writer.
     file: File,
+    /// §8's advisory lock, held for this store's lifetime. The leading
+    /// underscore is the point: nothing reads it, dropping it is the
+    /// release.
+    _lock: FileLock,
     /// The graph every read answers from, kept current by every append.
     graph: Graph,
 }
 
 impl JsonlStore {
     /// Creates a log at `path` holding one repository, and returns the
-    /// store over it.
+    /// locked store over it.
     ///
-    /// The file must not exist: creation is `create_new`, so an existing
-    /// log is an io error and never a truncation (§4: corruption and loss
-    /// are named errors, not silent ones). The header line and the
-    /// `repo_register` seed are one `write_all` followed by `sync_all`, so
-    /// a crash during creation leaves either a log [`JsonlStore::open`]
-    /// rejects as corrupt — an empty or torn file — or a whole seeded one,
-    /// never a half-created store that opens. The seed's `ts` is `repo`'s
+    /// The lock on `<path>.lock` is acquired first, so two racing creates
+    /// of one path cannot both proceed: the loser sees
+    /// [`StoreError::Locked`], not a torn file. The file must not exist:
+    /// creation is `create_new`, so an existing log is an io error and
+    /// never a truncation (§4: corruption and loss are named errors, not
+    /// silent ones). The header line and the `repo_register` seed are one
+    /// `write_all` followed by `sync_all`, so a crash during creation
+    /// leaves either a log [`JsonlStore::open_log`] rejects as corrupt —
+    /// an empty or torn file — or a whole seeded one, never a
+    /// half-created store that opens. The seed's `ts` is `repo`'s
     /// registration time.
-    pub fn create<P: AsRef<Path>>(path: P, repo: Repo) -> Result<Self, StoreError> {
+    ///
+    /// On any error the lock guard drops, so a failed create leaves no
+    /// lock held. It may leave a zero-byte `<path>.lock` beside a log that
+    /// does not exist — accepted and harmless, since a lock file's bytes
+    /// mean nothing (the `lock` module documents why). A path whose store
+    /// directory does not exist reports the honest `create the event log:
+    /// NotFound`, never a lock fault — the directory holds no lock file to
+    /// create either.
+    pub fn create_log<P: AsRef<Path>>(path: P, repo: Repo) -> Result<Self, StoreError> {
+        let path = path.as_ref();
+        if store_dir_missing(path) {
+            return Err(io_error_kind(CONTEXT_CREATE_LOG, io::ErrorKind::NotFound));
+        }
+        // Lock first: the whole create runs under it.
+        let lock = FileLock::acquire(&lock_path_for(path), LockTarget::Repo(repo.slug.clone()))?;
+
         let mut file = OpenOptions::new()
             .append(true)
             .create_new(true)
-            .open(path.as_ref())
-            .map_err(|error| io_error("create the event log", &error))?;
+            .open(path)
+            .map_err(|error| io_error(CONTEXT_CREATE_LOG, &error))?;
 
         let graph = Graph::new(repo.clone());
         let event = Event::RepoRegister {
@@ -107,25 +145,56 @@ impl JsonlStore {
             .map_err(|error| io_error("write the event log's header and seed", &error))?;
         file.sync_all()
             .map_err(|error| io_error("flush the event log to disk", &error))?;
-        Ok(Self { file, graph })
+        Ok(Self {
+            file,
+            _lock: lock,
+            graph,
+        })
     }
 
-    /// Opens the log at `path` and replays it into the graph it describes
-    /// (§4.1). The handle stays open for appends.
+    /// Opens the log at `path`, replays it into the graph it describes
+    /// (§4.1), and returns the locked store. The handle stays open for
+    /// appends.
     ///
-    /// A missing file is an io error, never an empty store. A log whose
-    /// header declares another format version is
+    /// The lock on `<path>.lock` is acquired before the log is read, so a
+    /// contended open is [`StoreError::Locked`] and never a partial read.
+    /// The lock's target slug is derived from the store directory only if
+    /// the open *is* contended, so a bare path outside the D4 layout — a
+    /// corruption fixture's temp file — still opens, replays and reports
+    /// its engine faults exactly as [`crate::Store::open`] over a real
+    /// store does (the `lock` module documents the lazy derivation).
+    ///
+    /// A missing file is an io error, never an empty store — and a
+    /// missing store *directory* reports the same honest
+    /// `open the event log: NotFound` rather than a lock fault, because a
+    /// directory that does not exist holds neither the log nor a lock file
+    /// ([`DataRoot::open`]'s answer for a slug that was never registered).
+    /// A log whose header declares another format version is
     /// [`StoreError::VersionMismatch`]; a log that is malformed anywhere —
     /// a torn last line, garbage in the interior, a seed out of place, an
     /// event the domain rejects, an id that is not the next of its kind —
     /// is [`StoreError::CorruptStore`] carrying the offending line's
-    /// absolute byte offset.
-    pub fn open<P: AsRef<Path>>(path: P) -> Result<Self, StoreError> {
+    /// absolute byte offset. On any of these the lock guard drops: a
+    /// failed open never leaves a stale lock, which is what lets a caller
+    /// open the same corrupt path twice and get the same positioned error
+    /// both times.
+    pub fn open_log<P: AsRef<Path>>(path: P) -> Result<Self, StoreError> {
+        let path = path.as_ref();
+        if store_dir_missing(path) {
+            return Err(io_error_kind(CONTEXT_OPEN_LOG, io::ErrorKind::NotFound));
+        }
+        let lock_path = lock_path_for(path);
+        // Lock first: the whole open runs under it. The target is derived
+        // lazily, on contention only.
+        let lock = FileLock::acquire_reporting(&lock_path, CONTEXT_STORE, || {
+            store_target_from_log_path(path)
+        })?;
+
         let mut file = OpenOptions::new()
             .read(true)
             .append(true)
-            .open(path.as_ref())
-            .map_err(|error| io_error("open the event log", &error))?;
+            .open(path)
+            .map_err(|error| io_error(CONTEXT_OPEN_LOG, &error))?;
         // A freshly opened handle reads from 0, and `O_APPEND` moves the
         // write position to the end on every write regardless of where a
         // read left it — so one handle serves both replay and append.
@@ -133,7 +202,11 @@ impl JsonlStore {
         file.read_to_end(&mut bytes)
             .map_err(|error| io_error("read the event log", &error))?;
         let graph = replay(&bytes)?;
-        Ok(Self { file, graph })
+        Ok(Self {
+            file,
+            _lock: lock,
+            graph,
+        })
     }
 
     /// §4.3's append discipline: one `write_all` of a complete line under
@@ -153,6 +226,22 @@ impl JsonlStore {
 }
 
 impl Store for JsonlStore {
+    fn create(root: &DataRoot, repo: Repo) -> Result<Self, StoreError>
+    where
+        Self: Sized,
+    {
+        // The D4 directory is the layout's to make; the engine's own
+        // `create_log` stays a bare-path constructor (§4.2).
+        root.create_store(&repo)
+    }
+
+    fn open(root: &DataRoot, slug: &RepoSlug) -> Result<Self, StoreError>
+    where
+        Self: Sized,
+    {
+        Self::open_log(root.log_path(slug))
+    }
+
     fn graph(&self) -> &Graph {
         &self.graph
     }
@@ -488,15 +577,5 @@ fn prefixed(context: &str, error: &StoreError) -> String {
     match error {
         StoreError::CorruptStore { detail, .. } => format!("{context}: {detail}"),
         other => format!("{context}: {other}"),
-    }
-}
-
-/// An io fault as this crate reports it: what was attempted and the
-/// [`io::ErrorKind`] that refused it. Never the error itself (no foreign
-/// type crosses the boundary, §2) and never a path — `io::Error`'s own
-/// message can carry one.
-fn io_error(context: &str, error: &io::Error) -> StoreError {
-    StoreError::Io {
-        detail: format!("{context}: {:?}", error.kind()),
     }
 }

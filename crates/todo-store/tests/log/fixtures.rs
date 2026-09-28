@@ -230,7 +230,7 @@ fn spec_references() -> References {
 /// Creates a log at `path` and runs the whole scripted timeline over
 /// it, returning the open store.
 pub(super) fn build_timeline(path: &Path) -> JsonlStore {
-    let mut store = JsonlStore::create(path, repo()).unwrap();
+    let mut store = JsonlStore::create_log(path, repo()).unwrap();
     timeline_first_half(&mut store);
     timeline_second_half(&mut store);
     store
@@ -532,7 +532,7 @@ pub(super) fn timeline_second_half(store: &mut JsonlStore) {
 /// `blocks` edge between them — for the corruption fixtures, whose
 /// assertions are about byte offsets and read better over a short file.
 pub(super) fn short_store(path: &Path) -> JsonlStore {
-    let mut store = JsonlStore::create(path, repo()).unwrap();
+    let mut store = JsonlStore::create_log(path, repo()).unwrap();
     let epic = store
         .add_epic(
             epic_draft("Ship the sensor pipeline"),
@@ -629,7 +629,7 @@ pub(super) fn write_fixture(dir: &TempDir, name: &str, bytes: &[u8]) -> PathBuf 
 /// at `offset` whose detail contains `needle`, carries no path, and is
 /// byte-identical on a second attempt (§4.3's report is deterministic).
 pub(super) fn expect_corrupt(path: &Path, offset: usize, needle: &str) -> StoreError {
-    let error = JsonlStore::open(path).unwrap_err();
+    let error = JsonlStore::open_log(path).unwrap_err();
     match &error {
         StoreError::CorruptStore {
             offset: Some(found),
@@ -642,7 +642,7 @@ pub(super) fn expect_corrupt(path: &Path, offset: usize, needle: &str) -> StoreE
         other => panic!("expected a positioned corrupt_store, got {other:?}"),
     }
     assert_eq!(error.code(), "corrupt_store");
-    assert_eq!(error, JsonlStore::open(path).unwrap_err());
+    assert_eq!(error, JsonlStore::open_log(path).unwrap_err());
     error
 }
 

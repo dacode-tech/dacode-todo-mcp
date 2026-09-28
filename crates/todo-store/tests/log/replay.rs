@@ -29,7 +29,7 @@ fn replay_of_the_scripted_timeline_is_graph_equal() {
     let original = store.graph().clone();
     drop(store);
 
-    let reopened = JsonlStore::open(&path).unwrap();
+    let reopened = JsonlStore::open_log(&path).unwrap();
     // `Graph` derives `PartialEq` including the counters, so this one
     // assertion is the whole replay contract (§4.1).
     assert_eq!(reopened.graph(), &original);
@@ -160,7 +160,7 @@ fn the_scripted_timeline_matches_its_golden_log() {
 // =================================================================
 
 #[test]
-fn the_same_timeline_twice_is_byte_identical() {
+fn the_same_timeline_twice_is_deterministic() {
     let dir = TempDir::new().unwrap();
     let first = timeline_bytes(&dir.path().join("first.jsonl"));
     let second = timeline_bytes(&dir.path().join("second.jsonl"));
@@ -168,7 +168,7 @@ fn the_same_timeline_twice_is_byte_identical() {
 }
 
 #[test]
-fn appends_after_a_reopen_are_byte_identical() {
+fn appends_after_a_reopen_are_byte_stable() {
     let dir = TempDir::new().unwrap();
     let one_session = timeline_bytes(&dir.path().join("one-session.jsonl"));
 
@@ -176,12 +176,12 @@ fn appends_after_a_reopen_are_byte_identical() {
     // replay must leave the graph exactly where the writer had it, and
     // the appends that follow must be the same bytes.
     let path = dir.path().join("two-sessions.jsonl");
-    let mut store = JsonlStore::create(&path, repo()).unwrap();
+    let mut store = JsonlStore::create_log(&path, repo()).unwrap();
     timeline_first_half(&mut store);
     let mid_graph = store.graph().clone();
     drop(store);
 
-    let mut reopened = JsonlStore::open(&path).unwrap();
+    let mut reopened = JsonlStore::open_log(&path).unwrap();
     assert_eq!(reopened.graph(), &mid_graph);
     timeline_second_half(&mut reopened);
     drop(reopened);
@@ -197,7 +197,7 @@ fn appends_after_a_reopen_are_byte_identical() {
 fn a_created_log_is_its_header_and_its_seed() {
     let dir = TempDir::new().unwrap();
     let path = log_path(&dir);
-    drop(JsonlStore::create(&path, repo()).unwrap());
+    drop(JsonlStore::create_log(&path, repo()).unwrap());
 
     let seed = repo();
     let mut expected = Vec::new();
@@ -219,20 +219,20 @@ fn create_refuses_an_existing_log_and_open_refuses_a_missing_one() {
     let dir = TempDir::new().unwrap();
     let path = log_path(&dir);
     let bytes_before = {
-        drop(JsonlStore::create(&path, repo()).unwrap());
+        drop(JsonlStore::create_log(&path, repo()).unwrap());
         fs::read(&path).unwrap()
     };
 
     // Creation is `create_new`: an existing log is an io error, never
     // a truncation.
-    let error = JsonlStore::create(&path, repo()).unwrap_err();
+    let error = JsonlStore::create_log(&path, repo()).unwrap_err();
     assert!(matches!(error, StoreError::Io { .. }), "{error}");
     assert_eq!(error.code(), "io");
     assert!(error.to_string().contains("AlreadyExists"), "{error}");
     assert_eq!(fs::read(&path).unwrap(), bytes_before);
-    assert!(JsonlStore::open(&path).is_ok());
+    assert!(JsonlStore::open_log(&path).is_ok());
 
-    let error = JsonlStore::open(dir.path().join("no-such-log.jsonl")).unwrap_err();
+    let error = JsonlStore::open_log(dir.path().join("no-such-log.jsonl")).unwrap_err();
     assert!(matches!(error, StoreError::Io { .. }), "{error}");
     assert!(error.to_string().contains("NotFound"), "{error}");
     // No host path in the detail — the context and the kind are all a
@@ -363,7 +363,7 @@ fn unlinking_an_absent_edge_mirrors_the_domain() {
     assert_eq!(lines_of_kind(&lines(&bytes), "relates_unlink").len(), 2);
     drop(store);
     assert_eq!(
-        JsonlStore::open(&path).unwrap().graph().blocks_edges(),
+        JsonlStore::open_log(&path).unwrap().graph().blocks_edges(),
         edges_before
     );
 }
@@ -443,7 +443,7 @@ fn a_patch_keeps_untouched_cleared_and_replaced_apart() {
     assert_eq!(cleared.note, None);
     drop(store);
 
-    let reopened = JsonlStore::open(&path).unwrap();
+    let reopened = JsonlStore::open_log(&path).unwrap();
     assert_eq!(
         reopened.graph().task(&task_id(1)),
         Some(&after),

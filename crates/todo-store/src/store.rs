@@ -5,14 +5,18 @@
 //!
 //! §4.2 names five responsibilities: open/create, read the graph, append
 //! a mutation, snapshot/compact, and the format version. This trait holds
-//! the middle three; the other two are constructors and a later commit:
+//! four of them; snapshot/compact is the later commit:
 //!
-//! - **open/create** are the engine's own constructors
-//!   ([`crate::JsonlStore::open`], [`crate::JsonlStore::create`]) while
-//!   they take a bare file path. t11 wraps them in the D4 layout —
-//!   `repos/<slug>/` under an injected data root, plus the registry — at
-//!   which point opening a store takes a repo, not a path, and the
-//!   trait's constructor half joins it here.
+//! - **open/create** are [`Store::create`] and [`Store::open`]: they take
+//!   a [`crate::DataRoot`] and a repo or a slug — never a bare file path —
+//!   and resolve the D4 layout (§2) themselves. They are `where Self:
+//!   Sized` so the trait stays object-safe: a constructor cannot be called
+//!   through a `dyn Store` (there is no `Self` to build), but that is no
+//!   loss — a caller holding a `dyn Store` already has an opened store.
+//!   The bound keeps them out of the vtable, so `dyn Store` still compiles
+//!   and every mutation below stays dispatchable; the
+//!   `_OBJECT_SAFE_IS_PINNED` const asserts that at compile time, because
+//!   M3's server depends on it.
 //! - **snapshot/compact** arrive with t12 (§4.1: periodic snapshot plus
 //!   truncation bounds replay). The trait grows in-crate; a caller that
 //!   only appends and reads is unaffected.
@@ -38,16 +42,51 @@
 //! when the change happened.
 
 use todo_domain::{
-    BlocksEdge, Decision, DecisionId, Doc, DocId, Epic, EpicId, Graph, Repo, Task, TaskId,
-    Timestamp,
+    BlocksEdge, Decision, DecisionId, Doc, DocId, Epic, EpicId, Graph, Repo, RepoSlug, Task,
+    TaskId, Timestamp,
 };
 use todo_domain::{DecisionDraft, DocDraft, EpicDraft, TaskDraft};
 
 use crate::error::StoreError;
 use crate::event::{DecisionPatch, DocPatch, EpicPatch, TaskPatch};
+use crate::layout::DataRoot;
 
 /// The whole persistence surface a caller above this crate uses (§4.2).
 pub trait Store {
+    /// Creates the store for `repo` in the D4 layout under `root`
+    /// (`repos/<slug>/event-log.jsonl`, §2) and returns it open and
+    /// locked. The slug must not already have a log there: creation is
+    /// `create_new`, so an existing store is a named error, never a
+    /// truncation. This does **not** touch the registry — registering a
+    /// repo (the index write under §8's registry lock, with the duplicate
+    /// refusal) is [`DataRoot::register`], which builds on this.
+    ///
+    /// **A caller above this crate registers a new repository only through
+    /// [`DataRoot::register`], never through this constructor directly.**
+    /// `create` writes a log the registry does not list, which is exactly
+    /// the half-created state `register` then refuses as a `duplicate`
+    /// forever after (see [`DataRoot`]'s divergence note) — so calling it
+    /// directly strands the slug, resolvable only by t13's inspector. It
+    /// is the engine seam a fallback implementation plugs into, not the
+    /// registration path.
+    ///
+    /// `where Self: Sized`: a constructor cannot dispatch through
+    /// `dyn Store`, and does not need to — see the module docs.
+    fn create(root: &DataRoot, repo: Repo) -> Result<Self, StoreError>
+    where
+        Self: Sized;
+
+    /// Opens the store for `slug` in the D4 layout under `root`, replays
+    /// its log into the graph it describes (§4.1), and returns it locked.
+    /// The registry is not consulted: the store directory is
+    /// authoritative, and a missing log is the engine's honest io error.
+    ///
+    /// `where Self: Sized`: a constructor cannot dispatch through
+    /// `dyn Store`, and does not need to — see the module docs.
+    fn open(root: &DataRoot, slug: &RepoSlug) -> Result<Self, StoreError>
+    where
+        Self: Sized;
+
     /// The in-memory graph: every read is a query over it, never a
     /// reload (§4.1 — load replays the log once, at open).
     fn graph(&self) -> &Graph;
@@ -157,3 +196,13 @@ pub trait Store {
     /// error ([`Graph::unlink_relates`]).
     fn unlink_relates(&mut self, a: TaskId, b: TaskId, at: Timestamp) -> Result<(), StoreError>;
 }
+
+/// Compile-time pin: `dyn Store` must keep compiling, because M3's server
+/// holds opened stores as trait objects behind the §2 boundary. The
+/// `where Self: Sized` constructors are what keep the trait object-safe;
+/// this const fails the build the moment a change (a new non-`Sized`
+/// method, a `Self` return, a generic) makes `Store` non-object-safe, so
+/// the property cannot silently regress. The binding is never called —
+/// its type is the assertion.
+#[allow(dead_code, reason = "a compile-time assertion; the value is its type")]
+const _OBJECT_SAFE_IS_PINNED: fn(&dyn Store) = |_| {};
