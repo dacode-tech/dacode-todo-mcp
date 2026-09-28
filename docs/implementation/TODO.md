@@ -317,7 +317,7 @@ Oldest first. One line per delivery, with the commit hash once committed.
      compaction archive the events it drops? §7's audit-trail sentence vs
      §4.1's truncation) and U11 (`dacode-json` cannot deserialize serde
      tuples — P-LIVE-006, worked around without moving a wire byte).
-     Landed as this commit.
+     Landed as `a22fced`.
 
 ## 4. Follow-ups
 
@@ -540,8 +540,8 @@ runs `cargo doc`; g5's verify line now does). f5 and f16 closed; f18
 (the f16 paragraph's enumeration), f19 (`compact()`'s order is not pinned
 by a test, with the technique that would pin it), f20 and d3 recorded.
 
-**Handover.** Workspace: `main` at this commit plus the hash backfill,
-clean; `todo-domain` carries §3's value types, §5's graph and order, and
+**Handover.** Workspace: `main` at `a22fced` plus the hash-backfill
+commit, clean; `todo-domain` carries §3's value types, §5's graph and order, and
 the f5 counters entry point (111 tests); `todo-store` carries t9's codec
 + golden harness, t10's event log + `Store` trait, t11's layout +
 registry + locks and t12's snapshots + compaction — 86 tests, four
