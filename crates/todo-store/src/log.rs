@@ -30,9 +30,9 @@
 //! session-fatal by design — the caller reopens, and replay from disk
 //! drops the unpersisted mutation (see [`crate::Store`]).
 
-use std::fs::{File, OpenOptions};
+use std::fs::{self, File, OpenOptions};
 use std::io::{self, Read, Write};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use todo_domain::{
     BlocksEdge, Decision, DecisionId, Doc, DocId, Epic, EpicId, Graph, Repo, RepoSlug, Task,
@@ -47,9 +47,15 @@ use crate::event::{
     BlocksEdgeDto, DecisionPatch, DocPatch, EpicPatch, Event, LogHeader, TaskPatch,
     apply_decision_patch, apply_doc_patch, apply_epic_patch, apply_task_patch, replay_step,
 };
-use crate::layout::{DataRoot, lock_path_for, store_dir_missing, store_target_from_log_path};
+use crate::layout::{
+    DataRoot, lock_path_for, snapshot_path_for, store_dir_missing, store_target_from_log_path,
+};
 use crate::lock::{CONTEXT_STORE, FileLock};
-use crate::store::Store;
+use crate::snapshot::{
+    SnapshotDocument, load_snapshot, rename_into_place, temp_path_for, write_snapshot_atomic,
+    write_temp,
+};
+use crate::store::{Compaction, Store};
 
 /// The line terminator, and the only byte the log's line discipline
 /// attaches meaning to (§4.1: every mutation is one JSON line).
@@ -59,6 +65,13 @@ const LINE_FEED: u8 = b'\n';
 /// tests: a missing log reports the operation that missed it.
 const CONTEXT_CREATE_LOG: &str = "create the event log";
 const CONTEXT_OPEN_LOG: &str = "open the event log";
+/// The io-fault context of the post-compaction reopen: the append handle
+/// must follow the log's new inode (t11's constraint — the lock protects
+/// the `.lock` inode, the handle writes the log inode).
+const CONTEXT_REOPEN_LOG: &str = "reopen the event log after compaction";
+/// The io-fault context of the pre-compaction read: the old log's bytes
+/// are what the event count and the covered region are measured over.
+const CONTEXT_READ_LOG: &str = "read the event log for compaction";
 
 /// The corruption details, pinned by `tests/log/corrupt.rs`:
 /// deterministic, and never carrying a host path — a §4.3 report is all a
@@ -84,6 +97,10 @@ const DETAIL_BAD_SEED: &str = "the log's first event must be repo_register, foun
 /// the store's and a store cannot outlive its own write exclusivity.
 #[derive(Debug)]
 pub struct JsonlStore {
+    /// The log's path as constructed with: the snapshot path is derived
+    /// from it (the layout's suffix rule), and compaction renames and
+    /// reopens exactly this path.
+    path: PathBuf,
     /// The log file, kept open for appends: §8's single writer.
     file: File,
     /// §8's advisory lock, held for this store's lifetime. The leading
@@ -146,6 +163,7 @@ impl JsonlStore {
         file.sync_all()
             .map_err(|error| io_error("flush the event log to disk", &error))?;
         Ok(Self {
+            path: path.to_path_buf(),
             file,
             _lock: lock,
             graph,
@@ -155,6 +173,15 @@ impl JsonlStore {
     /// Opens the log at `path`, replays it into the graph it describes
     /// (§4.1), and returns the locked store. The handle stays open for
     /// appends.
+    ///
+    /// Replay is §4.3's: when a snapshot exists beside the log
+    /// (`<path>.snapshot`, the layout's suffix rule) it is the recovery
+    /// unit — its graph is restored and only the log tail from its
+    /// `log_offset` onward is applied; without one, the whole log is
+    /// replayed line by line. The snapshot is used automatically and
+    /// never written here: nothing below the binary layer decides *when*
+    /// to snapshot (§8's no-clock rule; [`Store::snapshot`] and
+    /// [`Store::compact`] are explicit calls).
     ///
     /// The lock on `<path>.lock` is acquired before the log is read, so a
     /// contended open is [`StoreError::Locked`] and never a partial read.
@@ -174,10 +201,13 @@ impl JsonlStore {
     /// a torn last line, garbage in the interior, a seed out of place, an
     /// event the domain rejects, an id that is not the next of its kind —
     /// is [`StoreError::CorruptStore`] carrying the offending line's
-    /// absolute byte offset. On any of these the lock guard drops: a
-    /// failed open never leaves a stale lock, which is what lets a caller
-    /// open the same corrupt path twice and get the same positioned error
-    /// both times.
+    /// absolute byte offset. A snapshot that contradicts its log —
+    /// another repo's slug, a `log_offset` beyond the log's end, before
+    /// the seed's end or off a line boundary — is likewise a named error
+    /// (see `replay_from_snapshot`). On any of these the lock guard
+    /// drops: a failed open never leaves a stale lock, which is what lets
+    /// a caller open the same corrupt path twice and get the same
+    /// positioned error both times.
     pub fn open_log<P: AsRef<Path>>(path: P) -> Result<Self, StoreError> {
         let path = path.as_ref();
         if store_dir_missing(path) {
@@ -201,8 +231,9 @@ impl JsonlStore {
         let mut bytes = Vec::new();
         file.read_to_end(&mut bytes)
             .map_err(|error| io_error("read the event log", &error))?;
-        let graph = replay(&bytes)?;
+        let graph = replay(path, &bytes)?;
         Ok(Self {
+            path: path.to_path_buf(),
             file,
             _lock: lock,
             graph,
@@ -222,6 +253,44 @@ impl JsonlStore {
         self.file
             .sync_all()
             .map_err(|error| io_error("flush the event log to disk", &error))
+    }
+
+    /// The log's byte length, measured through the append handle's own
+    /// descriptor (`fstat`): the size the kernel reports for the very
+    /// inode every append lands on, so it cannot drift from the bytes on
+    /// disk the way a length tracked in the struct could — the handle is
+    /// the second source of truth this avoids, and §8's single writer
+    /// means nothing else appends between the measurement and the use.
+    fn log_len(&self) -> Result<u64, StoreError> {
+        self.file
+            .metadata()
+            .map(|metadata| metadata.len())
+            .map_err(|error| io_error("measure the event log", &error))
+    }
+
+    /// Re-points the append handle at the log's current inode after a
+    /// rename replaced it (t11's constraint: the lock protects the
+    /// `.lock` **inode** while this handle writes the **log inode**, so a
+    /// handle kept across the log's rename would append to the
+    /// renamed-away file forever — the orphaned inode, invisible to every
+    /// later open).
+    ///
+    /// The old descriptor drops as the field is overwritten, which is the
+    /// close; the new one opens with `open_log`'s flags. If this open
+    /// fails the store is in the documented session-fatal io state with
+    /// an added edge: the handle still references the orphaned inode, so
+    /// any append a caller risked anyway would land in the old log, not
+    /// the new one. The caller must reopen — the same contract a failed
+    /// append has (`store.rs`), stated here because the orphan makes it
+    /// load-bearing.
+    fn reopen_log(&mut self) -> Result<(), StoreError> {
+        let file = OpenOptions::new()
+            .read(true)
+            .append(true)
+            .open(&self.path)
+            .map_err(|error| io_error(CONTEXT_REOPEN_LOG, &error))?;
+        self.file = file;
+        Ok(())
     }
 }
 
@@ -248,6 +317,106 @@ impl Store for JsonlStore {
 
     fn format_version(&self) -> u32 {
         FORMAT_VERSION
+    }
+
+    fn snapshot(&mut self) -> Result<u64, StoreError> {
+        let log_offset = self.log_len()?;
+        let document = SnapshotDocument::from_graph(&self.graph, log_offset);
+        write_snapshot_atomic(&snapshot_path_for(&self.path), &document)?;
+        Ok(log_offset)
+    }
+
+    fn compact(&mut self) -> Result<Compaction, StoreError> {
+        // `events_dropped` without a second parse: every committed line —
+        // header and seed included — is exactly one LF-terminated line
+        // (§4.1's line discipline, held by construction on an opened
+        // store), so counting LF bytes over the old log and subtracting
+        // the two lines that survive is the count. A torn fragment from a
+        // crashed earlier session carries no LF and is not counted: it
+        // was never a committed event, and the rewrite drops it like the
+        // rest of the covered region.
+        let old_log = fs::read(&self.path).map_err(|error| io_error(CONTEXT_READ_LOG, &error))?;
+        let log_bytes_before = old_log.len() as u64;
+        let committed_lines = old_log.iter().filter(|byte| **byte == LINE_FEED).count() as u64;
+        let events_dropped = committed_lines.saturating_sub(2);
+
+        // The step order IS the crash-safety argument; the table lives in
+        // `Store::compact`'s doc (store.rs). Snapshot BEFORE truncating,
+        // so a covering document is on disk before the log it covers is
+        // shortened. The old truncate-then-re-base order had two silent
+        // corners §4 bars: a first-ever compaction crashed between the
+        // renames left NO snapshot beside the short log (a clean bare-repo
+        // open), and a repeat compaction left the prior re-based snapshot
+        // whose offset *equalled* the new short length (a clean stale open
+        // that dropped the intervening events). Both are named errors now.
+
+        // (1) The covering snapshot: `log_offset` = the current full log
+        // length, through its own temp+fsync+rename. After it the pair on
+        // disk is consistent — full log + a snapshot covering all of it,
+        // empty tail.
+        let cover_offset = self.snapshot()?;
+
+        // (2) The new log: header + a re-emitted seed + the events after
+        // the covering snapshot's offset — empty by construction ((1)
+        // covered the whole log), but kept general so the shape is right
+        // if that ever changes. The re-emitted seed carries the *current*
+        // repo node (Decision 9 of the task — after compaction the log's
+        // seed and the snapshot's `repo` are the same node, which is what
+        // makes replay's slug check exact and keeps the compacted log
+        // self-describing). `registered_at` is immutable (§3), so the
+        // re-emitted seed's `ts` is the registration's own audit instant —
+        // no clock is read (§8).
+        let repo = self.graph.repo().clone();
+        let seed = Event::RepoRegister {
+            ts: repo.registered_at.clone(),
+            repo,
+        };
+        let mut new_log = to_bytes(&LogHeader::current())?;
+        new_log.push(LINE_FEED);
+        new_log.extend_from_slice(&to_bytes(&seed)?);
+        new_log.push(LINE_FEED);
+        let tail_start = usize::try_from(cover_offset).unwrap_or(old_log.len());
+        if let Some(tail) = old_log.get(tail_start..) {
+            new_log.extend_from_slice(tail);
+        }
+        let log_bytes_after = new_log.len() as u64;
+        let log_temp = temp_path_for(&self.path);
+        write_temp(&log_temp, &new_log, "the compacted log")?;
+
+        // (3) Rename the log into place.
+        rename_into_place(&log_temp, &self.path, "the compacted log")?;
+        // A (4)-failure — or a crash between (3) and (4) — leaves the
+        // short log beside the COVERING snapshot, whose `log_offset` (the
+        // old full length) now exceeds the short log: reopen reports
+        // "beyond the log's end" naming both numbers, and the live
+        // snapshot still holds the whole graph, so t13's repair recovers
+        // by re-basing the offset. The append handle is still on the
+        // orphaned old inode at that point: session-fatal, and the caller
+        // must not append before reopening.
+
+        // (4) Re-base the snapshot: the same graph, `log_offset` = the new
+        // log's length — so the bytes differ from (1)'s document only in
+        // that field. Its own temp+fsync+rename; after it the pair is
+        // consistent again (short log + snapshot at its length, empty tail).
+        // No directory fsync follows either rename, by decision (see the
+        // `snapshot` module docs, f16).
+        let snapshot_path = snapshot_path_for(&self.path);
+        let mut rebased = to_bytes(&SnapshotDocument::from_graph(&self.graph, log_bytes_after))?;
+        rebased.push(LINE_FEED);
+        let snapshot_temp = temp_path_for(&snapshot_path);
+        write_temp(&snapshot_temp, &rebased, "the snapshot")?;
+        rename_into_place(&snapshot_temp, &snapshot_path, "the snapshot")?;
+
+        // (5) Reopen the append handle: it must follow the log's new
+        // inode, or every later append lands on the orphaned old one
+        // (see `reopen_log`).
+        self.reopen_log()?;
+
+        Ok(Compaction {
+            log_bytes_before,
+            log_bytes_after,
+            events_dropped,
+        })
     }
 
     fn add_epic(&mut self, draft: EpicDraft, at: Timestamp) -> Result<Epic, StoreError> {
@@ -430,19 +599,26 @@ impl Store for JsonlStore {
 }
 
 /// Replays log bytes into the graph they describe (§4.1): the header, the
-/// seed, then every event in order.
+/// seed, then — when a snapshot sits beside the log — the restored graph
+/// plus only the tail after the snapshot's `log_offset` (§4.3: "replay
+/// reads the latest snapshot, then the log tail after it"); without one,
+/// every event in order.
 ///
 /// The whole log is read into one buffer and split once: at §4.1's scale —
 /// 10^3 to 10^5 nodes — the buffer is the cheaper machinery, and holding
 /// every byte in one place is what lets a line's offset be absolute rather
-/// than relative to whatever a streaming reader had buffered. t12's
-/// snapshot + log-tail replay narrows what has to be read, not how.
+/// than relative to whatever a streaming reader had buffered. A snapshot
+/// narrows what has to be *applied*, not what has to be read: the offset
+/// checks below need the covered bytes to prove the boundary.
 ///
 /// The order of the header's own checks is deliberate — parse, version,
 /// terminator — so a log written by a newer build reports
 /// [`StoreError::VersionMismatch`] even when its header line is the only
 /// thing in the file: that is a migration question (§4), not corruption.
-fn replay(bytes: &[u8]) -> Result<Graph, StoreError> {
+/// The log's checks all run before the snapshot is consulted, so a log
+/// that is itself malformed reports its own fault at its own offset even
+/// when a snapshot exists.
+fn replay(path: &Path, bytes: &[u8]) -> Result<Graph, StoreError> {
     let mut lines = LineSplit::new(bytes);
 
     let Some(header) = lines.next() else {
@@ -460,9 +636,45 @@ fn replay(bytes: &[u8]) -> Result<Graph, StoreError> {
             format!("{DETAIL_BAD_SEED}{}", event.kind()),
         ));
     };
-    let mut graph = Graph::new(repo.clone());
+    // `parse_line` committed the seed, so it is terminated: the seed's
+    // end is the first byte a snapshot may cover, and the first byte a
+    // tail may start at.
+    let seed_end = seed.offset + seed.bytes.len() + 1;
 
+    match load_snapshot(&snapshot_path_for(path))? {
+        None => {
+            let mut graph = Graph::new(repo.clone());
+            for line in lines {
+                let event = parse_line(&line)?;
+                replay_step(&mut graph, &event)
+                    .map_err(|fault| corrupt(line.offset, fault.to_string()))?;
+            }
+            Ok(graph)
+        }
+        Some(document) => replay_from_snapshot(document, &repo.slug, seed_end, bytes, lines),
+    }
+}
+
+/// §4.3's replay over a snapshot: the document reconciles itself against
+/// the log (slug and the three offset checks, all in `snapshot.rs`), is
+/// restored to a graph, and only the uncovered tail is applied. The
+/// covered region `[seed_end, log_offset)` is skipped without being
+/// parsed: the snapshot *is* its record, and what a compaction dropped
+/// from the log stays dropped (§4.1's truncation bounds both replay and
+/// retention — the `snapshot` module docs state the reading).
+fn replay_from_snapshot(
+    document: SnapshotDocument,
+    seed_slug: &RepoSlug,
+    seed_end: usize,
+    bytes: &[u8],
+    lines: LineSplit<'_>,
+) -> Result<Graph, StoreError> {
+    let offset = document.reconcile_with_log(seed_slug, seed_end, bytes.len() as u64, bytes)?;
+    let mut graph = document.restore()?;
     for line in lines {
+        if line.offset < offset {
+            continue;
+        }
         let event = parse_line(&line)?;
         replay_step(&mut graph, &event).map_err(|fault| corrupt(line.offset, fault.to_string()))?;
     }

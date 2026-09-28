@@ -97,6 +97,23 @@ impl Counters {
         }
     }
 
+    /// The highest number issued per kind, as a settable value — the
+    /// snapshot-restore entry point (§3's never-reuse rule: a counter
+    /// whose highest-numbered node was deleted cannot be recovered from
+    /// the nodes alone). The four arguments are positional in the
+    /// per-kind order §3 lists — epic, task, decision, doc — and the
+    /// persisted shape that carries them is the store's (§4.1), named
+    /// per kind there so a transposition cannot ride this constructor
+    /// into a restore.
+    pub fn from_highest(epic: u64, task: u64, decision: u64, doc: u64) -> Self {
+        Self {
+            epic,
+            task,
+            decision,
+            doc,
+        }
+    }
+
     counter!("epic", epic, epic, next_epic, raise_epic);
     counter!("task", task, task, next_task, raise_task);
     counter!(
@@ -184,6 +201,20 @@ impl Graph {
     /// The id-allocation counters, for the store to persist (§3).
     pub fn counters(&self) -> Counters {
         self.counters
+    }
+
+    /// Raises every counter to `max(current, counters)`; never lowers —
+    /// the write half of [`Graph::counters`], and monotonic for the same
+    /// reason: §3's allocation never re-issues a number, so a restore
+    /// that lowered a counter would. A snapshot restore calls this
+    /// *after* inserting its nodes, so the inserts' own raise-to-max has
+    /// already run and only the numbers burned above the highest live id
+    /// are left to restore.
+    pub fn raise_counters_to(&mut self, counters: Counters) {
+        self.counters.raise_epic(counters.epic());
+        self.counters.raise_task(counters.task());
+        self.counters.raise_decision(counters.decision());
+        self.counters.raise_doc(counters.doc());
     }
 
     /// The epic under `id`, if this graph holds one.
@@ -430,6 +461,9 @@ fn drop_edge(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::graph::drafts::{EpicDraft, TaskDraft};
+    use crate::reference::References;
+    use crate::status::{Status, TaskKind};
     use crate::time::Timestamp;
     use std::str::FromStr;
 
@@ -492,6 +526,154 @@ mod tests {
         // Exhaustion is a None, not a wrap: `u64::MAX` has no successor.
         counters.raise_task(u64::MAX);
         assert_eq!(counters.next_task(), None);
+    }
+
+    #[test]
+    fn counters_from_highest_pins_each_kind_independently() {
+        // Four positional arguments, four distinct values: a
+        // transposition cannot pass this test.
+        let counters = Counters::from_highest(1, 2, 3, 4);
+        assert_eq!(counters.epic(), 1);
+        assert_eq!(counters.task(), 2);
+        assert_eq!(counters.decision(), 3);
+        assert_eq!(counters.doc(), 4);
+        // The restore lands as if those numbers had been issued: the next
+        // of each kind continues above its restored highest.
+        assert_eq!(counters.next_epic(), NonZeroU64::new(2));
+        assert_eq!(counters.next_task(), NonZeroU64::new(3));
+        assert_eq!(counters.next_decision(), NonZeroU64::new(4));
+        assert_eq!(counters.next_doc(), NonZeroU64::new(5));
+    }
+
+    #[test]
+    fn raise_counters_to_is_monotonic_per_kind() {
+        let mut graph = Graph::new(repo());
+        graph.raise_counters_to(Counters::from_highest(5, 6, 7, 8));
+        assert_eq!(
+            (
+                graph.counters().epic(),
+                graph.counters().task(),
+                graph.counters().decision(),
+                graph.counters().doc()
+            ),
+            (5, 6, 7, 8)
+        );
+
+        // A smaller set changes nothing — per kind, not all-or-nothing.
+        graph.raise_counters_to(Counters::from_highest(9, 1, 7, 0));
+        assert_eq!(
+            (
+                graph.counters().epic(),
+                graph.counters().task(),
+                graph.counters().decision(),
+                graph.counters().doc()
+            ),
+            (9, 6, 7, 8)
+        );
+    }
+
+    #[test]
+    fn a_burned_number_survives_a_counter_restore() {
+        // f5's case at the domain level: an epic cascade burns a task
+        // number whose node is gone, so no insert can restore the
+        // counter — only the persisted highest can.
+        let mut graph = Graph::new(repo());
+        let at = Timestamp::parse("2026-09-26T09:00:00Z").unwrap();
+        let keep = graph
+            .add_epic(EpicDraft {
+                title: "keep".to_owned(),
+                description: String::new(),
+                status: Status::Open,
+                references: References::new(),
+            })
+            .unwrap();
+        let doomed = graph
+            .add_epic(EpicDraft {
+                title: "doomed".to_owned(),
+                description: String::new(),
+                status: Status::Open,
+                references: References::new(),
+            })
+            .unwrap();
+        graph
+            .add_task(
+                TaskDraft {
+                    epic: keep.id.clone(),
+                    kind: TaskKind::Task,
+                    title: "first".to_owned(),
+                    body: String::new(),
+                    status: Status::Open,
+                    verify: Some("cargo test".to_owned()),
+                    evidence: None,
+                    note: None,
+                    references: References::new(),
+                    priority: None,
+                    until: None,
+                },
+                at.clone(),
+            )
+            .unwrap();
+        let burned = graph
+            .add_task(
+                TaskDraft {
+                    epic: doomed.id.clone(),
+                    kind: TaskKind::Task,
+                    title: "second".to_owned(),
+                    body: String::new(),
+                    status: Status::Closed,
+                    verify: Some("cargo test".to_owned()),
+                    evidence: Some("ran it".to_owned()),
+                    note: None,
+                    references: References::new(),
+                    priority: None,
+                    until: None,
+                },
+                at,
+            )
+            .unwrap();
+        assert_eq!(burned.id, task(2));
+        assert_eq!(graph.delete_epic(doomed.id).unwrap(), vec![task(2)]);
+
+        // The state a snapshot would persist: one live task, counters
+        // holding both burned numbers.
+        let persisted = graph.counters();
+        assert_eq!((persisted.epic(), persisted.task()), (2, 2));
+
+        // Restoring the live nodes alone cannot recover the burned
+        // number: the raise-to-max of the inserts stops at the highest
+        // *live* id…
+        let mut restored = Graph::new(graph.repo().clone());
+        restored
+            .insert_epic(graph.epic(&keep.id).unwrap().clone())
+            .unwrap();
+        restored
+            .insert_task(graph.task(&task(1)).unwrap().clone())
+            .unwrap();
+        assert_eq!(restored.counters().task(), 1);
+
+        // …so the counter restore is what keeps §3's never-reuse rule,
+        // and the next allocation continues above the burned number.
+        restored.raise_counters_to(persisted);
+        assert_eq!(restored.counters(), graph.counters());
+        let next = restored
+            .add_task(
+                TaskDraft {
+                    epic: keep.id,
+                    kind: TaskKind::Task,
+                    title: "third".to_owned(),
+                    body: String::new(),
+                    status: Status::Open,
+                    verify: Some("cargo test".to_owned()),
+                    evidence: None,
+                    note: None,
+                    references: References::new(),
+                    priority: None,
+                    until: None,
+                },
+                Timestamp::parse("2026-09-26T10:00:00Z").unwrap(),
+            )
+            .unwrap();
+        assert_eq!(next.id, task(3), "the burned number is never reissued");
     }
 
     #[test]

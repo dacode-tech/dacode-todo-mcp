@@ -27,8 +27,11 @@ the M1 exit gate. t6 (value types), t14 (fractional-second timestamps,
 a user decision), t7 (the task graph §5.1) and t8 (the canonical order
 §5.2) have landed — the domain layer of M1 is complete — followed by
 t9 (canonical serialization + golden harness), t10 (the JSONL event
-log + `Store` trait, §4) and t11 (the D4 layout + registry + advisory
-locking, §2/§7/§8); next is t12, snapshots + compaction.
+log + `Store` trait, §4), t11 (the D4 layout + registry + advisory
+locking, §2/§7/§8) and t12 (snapshots + compaction, §4.1/§4.3) — four of
+the five store/cli commits are in, and `Store` now carries all five of
+§4.2's responsibilities; next is t13, the `todo-cli` inspector, the last
+M1 code task before the g5 exit gate.
 
 | Blocking | What | Action |
 |---|---|---|
@@ -257,6 +260,64 @@ Oldest first. One line per delivery, with the commit hash once committed.
      it. f15's two test renames rode along; the verify line moved off
      name filters onto `cargo test -p todo-store --test layout`
      (P-LIVE-005). Landed as `5b72b76`.
+- 2026-09-28 — **M1 t12: snapshots + compaction (§4.1/§4.3)**: the
+     second half of the signed D1 engine, and the last of §4.2's five
+     responsibilities. A store's snapshot is `<log>.snapshot` — t11's
+     suffix rule extended, so two logs in one directory cannot share one
+     — a whole-file JSON document (`{format_version, log_offset, repo,
+     counters, epics, tasks, decisions, docs, blocks, relates}`, one
+     trailing LF, `deny_unknown_fields`, a version probe ordered before
+     the strict parse) written temp+`fsync`+atomic-rename per §4.3, and
+     it gets **no lock of its own**: an atomically rewritten file is never
+     its own lock target, so the store's existing `.lock` covers it.
+     Replay reads the latest snapshot, validates it against the log
+     (`log_offset` within the log, at or after the seed's end, exactly on
+     a line boundary, and the snapshot's repo **slug** — only the slug,
+     never the whole node, because the seed holds the repo as registered
+     while §7's `repo_set_path` mutates it) and then applies the tail.
+     Restore is `insert_*` per node (no sequential-id check: a snapshot
+     legitimately holds cascade gaps), then edges, then the counters —
+     which needed f5's domain entry point, `Counters::from_highest` +
+     `Graph::raise_counters_to`, monotonic so a restore can never re-issue
+     a burned number (§3), plus a check that no live id exceeds its kind's
+     counter. `compact()` snapshots, truncates the log to
+     `header + re-emitted seed`, re-bases the snapshot's offset and
+     reopens the append handle — the reopen is mandatory, because t11
+     established that the lock protects the `.lock` inode while the handle
+     points at the *log* inode, so a rename orphans it. **The step order
+     is the crash-safety argument and it was wrong first time**: the
+     initial implementation staged both temps and renamed log-then-
+     snapshot, which the primary reviewer proved loses events *silently*
+     in two crash-reachable corners (a first-ever compaction leaves
+     `header + seed` with no snapshot at all, which opens clean as a bare
+     repo graph; a repeat compaction can leave a prior `log_offset`
+     exactly equal to the new length, so every check passes and the reopen
+     yields the previous compaction's state) — both violations of §4's
+     "never silent truncation". Amended to snapshot-into-place first, then
+     truncate, then re-base: every crash point is now either a correct
+     open or a named `corrupt_store`, and the one window is recoverable
+     because the live covering snapshot holds the whole graph. Two tests
+     pin both corners from real bytes and prove the re-base repair
+     recovers everything. The residual silent case is **not**
+     crash-reachable and is documented as such: deleting a compacted
+     store's snapshot out of band leaves `header + seed`, which is
+     indistinguishable from a fresh store — closing it needs a persistent
+     compaction marker in the log header, i.e. f14's decision and a
+     golden-moving format change. 86 store tests (31 new), 111 domain
+     (108 unmodified + 3), 197 workspace-wide; `Cargo.lock` unchanged;
+     the three existing goldens byte-identical and `snapshot.v1` new
+     (2025 bytes, four *distinct* counter values so a `from_highest`
+     transposition cannot pass, with a number burned above the highest
+     live id). Dual-reviewed over three rounds; the second round's split
+     verdict — secondary `ok`, primary `major` on the same diff — is the
+     clearest evidence yet that the cross-family pairing is load-bearing,
+     and the secondary's own post-mortem (it instance-checked the spec's
+     crash argument instead of falsifying it against the state space) is
+     recorded in §6. Two engine/format follow-ups opened: U10 (does
+     compaction archive the events it drops? §7's audit-trail sentence vs
+     §4.1's truncation) and U11 (`dacode-json` cannot deserialize serde
+     tuples — P-LIVE-006, worked around without moving a wire byte).
+     Landed as this commit.
 
 ## 4. Follow-ups
 
@@ -350,6 +411,42 @@ Unowned work. Take the next unused `U` id; never renumber, never reuse.
       a new §6.1 code (e.g. `invalid`) or a per-case mapping rule.
       Surfaced by the t6 dual review; record the choice in §6.1 before
       the MCP surface lands.
+- [ ] **U10 · Decide whether compaction archives the events it drops.**
+      §4.1 signs "periodic snapshot + truncation bounds replay"; §7 signs
+      "the history of a repo's locations is part of the audit trail"; and
+      §4 makes human auditability a strong preference because "the store
+      holds the audit trail the markdown boards held". t12 implements the
+      first and reconciles the other two as: §7 guarantees a change is
+      *recorded as a mutation* rather than silently overwriting a field,
+      §4.1 bounds how long the *live* log retains any event, and §4.3's
+      backup (copy the directory under the lock) is the archive. That
+      reading is argued in `snapshot.rs`'s module doc but it is a reading,
+      and the alternative is cheap right now: (a) drop as landed, backups
+      are the archive; (b) `compact()` renames the old log to an archive
+      sibling (`event-log.1.jsonl`) with a bounded rotation, preserving
+      the trail in the live store; (c) a persistent compaction marker in
+      the log header, which also closes the one residual silent case (an
+      out-of-band snapshot deletion) and rides f14 — but moves
+      `event_log.v1.golden`, a called-out compatibility event. **Nothing
+      in M1 calls `compact()`** — §6 lists no tool for it and t13's cli
+      has not landed — so no history is destroyed by the code as shipped;
+      the choice gets expensive the moment a caller exists. Surfaced by
+      the t12 dual review.
+- [ ] **U11 · Report or fix `dacode-json`'s tuple deserialization.**
+      The serializer this project adopted at U8 (path dependency on
+      `/Users/mouse/RPM/dacode/rust/json-tiers`) serializes serde tuples
+      correctly but cannot read them back: it consumes the first element
+      and reports the rest as trailing characters. Reproduced twice
+      independently during t12, in this tree and in a scratch crate over
+      plain `Vec<(u64, u64)>` (P-LIVE-006). t12 keeps the canonical wire
+      shape and narrows on the read side, so no byte moved and the
+      workaround reduces to the derived impl with zero byte movement once
+      the engine is fixed. U8's resolution grants modifications to that
+      repo **proposed as a diff**, with its commits staying with its
+      owner: decide whether to propose one, or to keep the workaround and
+      a "no tuples in a persisted schema" house rule. Either way, prefer
+      named-field structs over tuples in new schemas — they dodge the bug
+      and read better in an editor, which is §4's auditability point.
 
 ## 5. Debt
 
@@ -362,6 +459,138 @@ _No debt recorded yet — nothing has been built to take a shortcut in._
 Newest first. One entry per session, written for someone who was not
 here. The final entry of a session is the handover
 (`.agents/skills/todo-next-imp/SKILL.md` defines the shape).
+
+### 2026-09-28 — t12: snapshots + compaction
+
+Dispatch was the proven one — decisions settled into `tmp/t12-spec.md`
+(15 decisions, 6 judgment calls, 14 required tests), a short spawn
+prompt, one implementer landing: the fifth clean dispatch in a row, no
+P-LIVE-001 recurrence. t12 was the first M1 task to span two crates, and
+the split held: `todo-domain` gained exactly two public items
+(`Counters::from_highest`, `Graph::raise_counters_to`, +182/−0) plus
+three additive tests, with the 108 pre-existing tests unmodified, and
+everything else landed in `todo-store`.
+
+**The process earned its keep, and the defect was mine.** Decision 8 of
+the task spec prescribed `compact()`'s step order — stage both temps,
+rename the log, rename the snapshot — with a safety argument attached: a
+crash between the renames leaves an old snapshot whose `log_offset`
+exceeds the new log's length, which replay reports as `corrupt_store`.
+The argument silently presupposed that a prior snapshot exists and that
+its offset is large. Both presuppositions are false, and the consequences
+are the two things §4 forbids outright: a **first-ever** compaction
+crashing in that window leaves `header + seed` with no snapshot at all,
+which the no-snapshot replay branch opens cleanly as a bare repo graph —
+every event silently gone; and a **repeat** compaction can leave a prior
+re-based offset exactly *equal* to the new short length, so all three
+offset checks pass and the reopen silently yields the previous
+compaction's state. The secondary reviewer verified the code matched the
+spec and that the spec's stated consequence held in the case the spec's
+own reasoning instantiated — and returned `ok`. The primary re-derived
+the crash state space in the next round, found both corners, and
+retracted its own earlier clearance of the same area. Its post-mortem,
+which the secondary then adopted verbatim as the lesson: **a spec's
+safety argument is a claim to falsify against the full state space, not
+ground truth to instance-check the code against.** Recorded as tracker
+f20 for the g5 consolidation into `.agents/pitfalls.md`, because this is
+the second M1 task whose *spec* was wrong and whose review caught it (t8
+inverted the signed D6 tiebreaker inside a test description).
+
+The fix was an amended Decision 8, not a doc qualification: `compact()`
+now snapshots the covering document **into place** first (after which the
+on-disk pair is consistent), then stages and renames the truncated log,
+then re-bases the snapshot's offset, then reopens the append handle.
+Every crash point is a correct open or a named `corrupt_store`, and the
+one window is recoverable because the live covering snapshot holds the
+whole graph — both corner tests prove the re-base repair restores
+everything, counters included. No format change, no golden moved. What
+remains silent is *not* crash-reachable and is documented as such:
+deleting a compacted store's snapshot out of band leaves `header + seed`,
+indistinguishable from a fresh store; closing that needs a persistent
+compaction marker in the log header, which is f14's conversation and a
+golden-moving one.
+
+Two discoveries rode along. **`dacode-json` cannot deserialize serde
+tuples** — it serializes `Vec<(A,B)>` correctly and then refuses to read
+its own bytes, consuming the first element and reporting the rest as
+trailing characters; reproduced by the implementer and independently by
+the primary reviewer in a scratch crate. t12 keeps the canonical wire
+shape and narrows on the read side (`Vec<Vec<TaskId>>` plus a pinned
+non-pair rejection), so no byte moved and the workaround evaporates when
+the engine is fixed. That repo is the user's (U8 grants modifications
+proposed as a diff), so it is board U11 and P-LIVE-006, not a silent
+patch. **§7's audit-trail sentence** — "the history of a repo's locations
+is part of the audit trail" — is the strongest signed counter-text to
+truncation, and the spec's reading did not address it; the reconciliation
+now in `snapshot.rs` is that §7 guarantees *recorded as a mutation*,
+§4.1 bounds live-log retention, and §4.3's backup is the archive. Whether
+compaction should archive the events it drops instead is board U10 and is
+cheap to decide now, because nothing in M1 calls `compact()`.
+
+Outcome: `src/snapshot.rs` (555 lines) plus edits to `log.rs` (793),
+`store.rs` (287), `layout.rs`, `lib.rs`; 31 tests in the new `snapshot`
+target; the `snapshot.v1` golden (2025 bytes, four distinct counter
+values so a `from_highest` transposition cannot pass, with a number
+burned above the highest live id); 86 store tests, 111 domain, 197
+workspace-wide; `Cargo.lock` unchanged; the three existing goldens
+byte-identical; `cargo doc -p todo-store` warning-free for the first time
+(the orchestrator's one-line fix to a stale intra-doc link at
+`event.rs:658` — a t11 leftover nobody had looked for, because no gate
+runs `cargo doc`; g5's verify line now does). f5 and f16 closed; f18
+(the f16 paragraph's enumeration), f19 (`compact()`'s order is not pinned
+by a test, with the technique that would pin it), f20 and d3 recorded.
+
+**Handover.** Workspace: `main` at this commit plus the hash backfill,
+clean; `todo-domain` carries §3's value types, §5's graph and order, and
+the f5 counters entry point (111 tests); `todo-store` carries t9's codec
++ golden harness, t10's event log + `Store` trait, t11's layout +
+registry + locks and t12's snapshots + compaction — 86 tests, four
+goldens (`serialize_nodes.v1`, `event_log.v1`, `registry.v1`,
+`snapshot.v1`); mcp/cli are still documented M0 shells; rustc 1.98.1,
+MSRV 1.95. Dependencies unchanged: serde, `dacode-json` + `zmij` (path
+dep on the sibling checkout `../rust/json-tiers` — a cold machine needs
+that repo beside this one's parent), `tempfile` (dev). Serena's semantic
+layer is live.
+
+Next step: **dispatch t13** — the `todo-cli` inspector, the last M1 code
+task before g5. It is bigger than a smoke command: `dump` (canonical
+graph JSON), `verify` (log integrity including §4.3's torn-tail
+diagnostic), `repair` (show the torn line, truncate on confirmation), and
+it inherits five things t12 and t11 left on its plate — the **lock-free
+read path** (every `open_log` takes the writer lock today, so `dump`
+would contend with a live server), the **log+snapshot pair as one unit**
+(a compacted store is only readable with its snapshot; report the pair
+divergence; the (3)–(4)-window repair is *re-base the snapshot's
+`log_offset`*, proven recoverable by both corner tests), f14 (does the
+log header gain `deny_unknown_fields`? the registry and the snapshot both
+have it — that is the precedent, and the header marker that would close
+U10's residual silent case rides the same decision), f17 (`LockTarget`'s
+bare-path corner), and f19 (the order-sensitive `compact` test, writable
+today by parking a directory at `<log>.snapshot`). Plus the d2/d3 split
+conversation (`event.rs` 759, `log.rs` 793, `state.rs` 777). Then g5's
+M1 exit gate, which now includes `cargo doc --workspace --no-deps`.
+Alternative, if the user prefers: t15 (domain: f9's scan scope + f10's
+four intra-doc links) is a small independent commit that can land before
+or after t13 and would make g5's `cargo doc` gate unconditionally clean.
+
+Blocked on you: **U10** (does compaction archive what it drops? nothing
+calls it yet, so the window is cheap) and **U11** (propose a `dacode-json`
+diff, or keep the workaround and a no-tuples house rule). Non-blocking:
+U7 (lint wording), U9 (M3's wire code, still also the `"io"` mapping), U2
+(pre-M3), U3 (pre-M4), and t11's narrow reading of §2's registry
+metadata, which is still open to veto.
+
+Unverified: MCP smoke (no wire until M3); per-crate lint tripwires for
+mcp/cli; **no real crash or power loss anywhere** — §4.3's semantics and
+t12's crash-point table are tested with hand-constructed on-disk states
+built from real bytes, never an induced crash, and `compact()`'s step
+*order* is not externally observable without a fault-injection seam (f19
+names the technique that would make it observable); multi-process lock
+contention is two handles in one process; the two permission-corner tests
+are `#[cfg(unix)]` and vanish rather than pass elsewhere; snapshot
+durability without a directory fsync is unmeasured (f16's accepted
+reasoning, not a measurement); and nothing has yet called `compact()`
+outside tests.
 
 ### 2026-09-28 — t11: D4 layout, registry, advisory locking
 

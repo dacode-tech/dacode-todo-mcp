@@ -655,7 +655,7 @@ impl std::error::Error for ReplayFault {}
 /// Applies one replayed event to a graph whose seed has already been
 /// read (§4.1: load replays the log into the graph).
 ///
-/// This is the same path [`crate::JsonlStore::open`] walks, exposed for a
+/// This is the same path [`crate::JsonlStore::open_log`] walks, exposed for a
 /// reader that works over events rather than over a store handle — t13's
 /// inspector dumping or verifying a log line by line. The seed event
 /// itself is not applied here: it builds the graph the caller passes in,

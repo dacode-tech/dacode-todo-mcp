@@ -5,7 +5,7 @@
 //!
 //! §4.2 names five responsibilities: open/create, read the graph, append
 //! a mutation, snapshot/compact, and the format version. This trait holds
-//! four of them; snapshot/compact is the later commit:
+//! all five:
 //!
 //! - **open/create** are [`Store::create`] and [`Store::open`]: they take
 //!   a [`crate::DataRoot`] and a repo or a slug — never a bare file path —
@@ -17,9 +17,12 @@
 //!   and every mutation below stays dispatchable; the
 //!   `_OBJECT_SAFE_IS_PINNED` const asserts that at compile time, because
 //!   M3's server depends on it.
-//! - **snapshot/compact** arrive with t12 (§4.1: periodic snapshot plus
-//!   truncation bounds replay). The trait grows in-crate; a caller that
-//!   only appends and reads is unaffected.
+//! - **snapshot/compact** are [`Store::snapshot`] and [`Store::compact`]
+//!   (§4.1: periodic snapshot plus truncation bounds replay; §4.3:
+//!   snapshots are the recovery unit). They are explicit calls with no
+//!   policy and no clock behind them — a trigger needs a clock or a
+//!   caller, and §8 bars clocks below the binary layer while §6 lists no
+//!   snapshot tool, so t13's cli and M3's server decide *when*.
 //!
 //! Two contracts every method shares:
 //!
@@ -94,6 +97,64 @@ pub trait Store {
     /// The format version this store writes and read successfully —
     /// [`crate::FORMAT_VERSION`] (§4's versioning requirement).
     fn format_version(&self) -> u32;
+
+    /// Writes a snapshot of the current graph beside the log (§4.1:
+    /// "periodic snapshot + truncation bounds replay"; §4.3: "snapshots
+    /// are the recovery unit") and returns the `log_offset` it covered —
+    /// the log's byte length at the call, so a reopen restores the graph
+    /// and replays only the lines appended after this instant. The write
+    /// is temp-file + `fsync` + atomic rename, so a snapshot is never
+    /// torn and the previous one stays loadable until the rename lands;
+    /// a failed snapshot changes nothing on disk and is **not**
+    /// session-fatal — the log and the graph are untouched.
+    ///
+    /// **No policy, no clock.** Snapshotting is this explicit call and
+    /// nothing else: no threshold, no timer, no snapshot-on-open. A
+    /// trigger policy needs a clock or a caller, and §8 bars clocks below
+    /// the binary layer while §6 lists no snapshot tool — t13's cli and
+    /// M3's server decide *when*, this method is only *how*.
+    fn snapshot(&mut self) -> Result<u64, StoreError>;
+
+    /// Snapshots and truncates in one operation (§4.1's other half), in
+    /// that order — **snapshot first, then truncate** — because the order
+    /// is the whole crash-safety argument. The covering snapshot (its
+    /// `log_offset` = the current full log length) lands through its own
+    /// temp+fsync+rename *before* the log it covers is shortened, and the
+    /// snapshot is re-based onto the short log only after that rename. So
+    /// a covering document is on disk before the log shrinks beneath it.
+    /// The covered events **leave the live log** (retention is §4.1's
+    /// truncation; the archive story is §4.3's backup — copy the store
+    /// directory under the lock); the `snapshot` module docs state the
+    /// reading. Like [`Store::snapshot`], this is an explicit call with no
+    /// policy and no clock behind it. The report is [`Compaction`]: what
+    /// t13's cli prints, never a decision this crate makes.
+    ///
+    /// Every interruption is a correct open or a *named* error, never a
+    /// silent wrong graph — the table is the correctness argument (steps
+    /// numbered as the engine comments them):
+    ///
+    /// | crash point | on-disk state | reopen |
+    /// |---|---|---|
+    /// | before (1) lands | previous log + previous snapshot (or none) | correct — the old pair still replays |
+    /// | (1)–(3) | full log + covering snapshot (`log_offset` = full length) | correct — empty tail |
+    /// | (3)–(4) | short log + covering snapshot (`log_offset` = old full length, now &gt; the short log) | **named** `corrupt_store` "beyond the log's end", both numbers in the detail; the live snapshot still holds the whole graph, so t13's repair recovers by re-basing the offset |
+    /// | after (4) | short log + re-based snapshot (`log_offset` = short length) | correct — empty tail |
+    ///
+    /// **After a compaction the log and its snapshot are one unit, and the
+    /// snapshot is load-bearing, not an optimization.** The table's (3)–(4)
+    /// window is a named error *because of the order*: the covering
+    /// snapshot is already on disk when the log shrinks. One case the
+    /// order cannot reach, kept separate and honest: **out-of-band
+    /// deletion** of a compacted store's snapshot while its tail is empty
+    /// replays the short log as a bare repo graph, indistinguishable from
+    /// a freshly created store. That is not crash-reachable (it takes a
+    /// deletion no step performs) and §4's "corruption is a named error"
+    /// cannot catch it — nothing on disk claims a snapshot existed.
+    /// Closing it needs a persistent compaction marker, a signed-format
+    /// change (a log-header field, f14's decision, moving
+    /// `event_log.v1.golden`); t13's inspector is the vantage that can
+    /// flag the divergence. The `snapshot` module docs record both cases.
+    fn compact(&mut self) -> Result<Compaction, StoreError>;
 
     /// Adds an epic and appends its `epic_add` line. `at` is the audit
     /// instant: an epic carries no timestamps (§3), so the line is the
@@ -195,6 +256,24 @@ pub trait Store {
     /// line; `at` is the audit instant. An absent annotation is not an
     /// error ([`Graph::unlink_relates`]).
     fn unlink_relates(&mut self, a: TaskId, b: TaskId, at: Timestamp) -> Result<(), StoreError>;
+}
+
+/// What one [`Store::compact`] did — a report for the caller to print
+/// (t13's cli), never a policy input: the engine decides nothing from it
+/// and keeps no state in it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Compaction {
+    /// The log's byte length before the compaction.
+    pub log_bytes_before: u64,
+    /// The log's byte length after: the re-emitted header and seed, which
+    /// is also the re-based snapshot's `log_offset`.
+    pub log_bytes_after: u64,
+    /// The committed event lines the covered region held — everything
+    /// after the seed, which the new log drops and the snapshot now
+    /// records. Counted as LF-terminated lines, without a second parse;
+    /// a torn fragment from a crashed earlier session was never a
+    /// committed event and is not counted (the engine documents both).
+    pub events_dropped: u64,
 }
 
 /// Compile-time pin: `dyn Store` must keep compiling, because M3's server

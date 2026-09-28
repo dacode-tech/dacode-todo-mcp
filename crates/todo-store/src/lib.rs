@@ -36,16 +36,18 @@
 //! the persisted schema. The D4 layout ([`DataRoot`]), the shared
 //! registry ([`Registry`], [`RegistryEntry`]) and §8's advisory locks
 //! ([`RegistryLock`], and the per-store lock every [`JsonlStore`] holds)
-//! are landed. The serialized bytes are pinned by the golden files under
-//! `tests/golden/` (spec §10,
+//! are landed, as are §4.1/§4.3's snapshots and log compaction
+//! ([`Store::snapshot`], [`Store::compact`] → [`Compaction`]) — explicit
+//! calls with no policy and no clock behind them; t13's cli and M3's
+//! server decide *when*. The serialized bytes are pinned by the golden
+//! files under `tests/golden/` (spec §10,
 //! `.agents/knowledge/workflows/golden-files.md`): `event_log`,
-//! `serialize_nodes` and `registry`. Snapshots and log compaction (t12)
-//! grow the trait in-crate; the cli inspector and §4.3's repair (t13)
-//! read the store back. Through M1 the constructors return the concrete
-//! [`JsonlStore`]; M3's server gets a boxed opener (`Box<dyn Store>`) if
-//! it would otherwise have to name the engine — the `dyn Store`
-//! object-safety pin keeps that available, and it is deliberately not
-//! built now.
+//! `serialize_nodes`, `registry` and `snapshot`. The cli inspector and
+//! §4.3's repair (t13) read the store back. Through M1 the constructors
+//! return the concrete [`JsonlStore`]; M3's server gets a boxed opener
+//! (`Box<dyn Store>`) if it would otherwise have to name the engine — the
+//! `dyn Store` object-safety pin keeps that available, and it is
+//! deliberately not built now.
 
 #![cfg_attr(
     test,
@@ -65,6 +67,7 @@ mod layout;
 mod lock;
 mod log;
 mod registry;
+mod snapshot;
 mod store;
 
 pub use codec::{from_bytes, to_bytes};
@@ -77,7 +80,7 @@ pub use layout::DataRoot;
 pub use lock::RegistryLock;
 pub use log::JsonlStore;
 pub use registry::{Registry, RegistryEntry};
-pub use store::Store;
+pub use store::{Compaction, Store};
 
 /// The store format version — spec §4: "a format version in the header;
 /// a format change is a migration, never an in-place edit of meaning".
@@ -87,8 +90,11 @@ pub use store::Store;
 /// it ([`JsonlStore::create_log`] writes it as the log's first line and
 /// [`JsonlStore::open_log`] checks it before replaying anything), the
 /// registry document carries it ([`Registry::load`] checks it), the
-/// snapshot header (t12) will carry it, and stored bytes disagreeing with
-/// it are §6.1's `version_mismatch`. A format change bumps this constant
-/// and lands a migration; during one, the old and new goldens coexist
-/// (`.agents/knowledge/workflows/golden-files.md`).
+/// snapshot document carries it (`snapshot` checks it before the strict
+/// parse), and stored bytes disagreeing with it are §6.1's
+/// `version_mismatch`. A format change bumps this constant and lands a
+/// migration; during one, the old and new goldens coexist
+/// (`.agents/knowledge/workflows/golden-files.md`). Note that the
+/// snapshot's `log_offset` couples `snapshot.v<N>` to `event_log.v<N>`'s
+/// exact bytes: an event-schema change moves two goldens.
 pub const FORMAT_VERSION: u32 = 1;

@@ -172,3 +172,34 @@
   discipline for verify lines; consolidate into `pitfalls.md` at the M1
   gate with P-LIVE-002.
 - **Source**: struggle
+### P-LIVE-006: `dacode-json` serializes serde tuples but cannot deserialize them
+- **Scope**: `todo-store`'s persisted documents (the snapshot's `relates`
+  array, t12) and any future schema that uses a serde tuple or a
+  tuple-shaped newtype; the engine is the sibling path dependency at
+  `/Users/mouse/RPM/dacode/rust/json-tiers` (U8), outside this repo
+- **Discovered**: t12, 2026-09-28
+- **Symptom**: `to_bytes` over `Vec<(A, B)>` emits the expected
+  `[[a,b],…]`, but `from_bytes` over those same bytes fails — it consumes
+  the first element and reports the rest as trailing characters
+  (`expected , or } at byte 21` nested, `trailing characters at byte 8`
+  at top level). Reproduced by both the implementer and the primary
+  reviewer, in this tree and in a scratch crate over plain
+  `Vec<(u64, u64)>`.
+- **Root cause**: unconfirmed inside the engine; consistent with the
+  deserializer not driving a tuple visitor past its first element. Not a
+  serde derive issue — the same types serialize correctly.
+- **Workaround**: keep the canonical wire shape (Decision 4's two-element
+  arrays, pinned by `snapshot.v1.golden`) and narrow on the read side —
+  deserialize as `Vec<Vec<TaskId>>` and reject any inner array whose
+  length is not 2 as `corrupt_store`
+  (`crates/todo-store/src/snapshot.rs`, `relates_from_arrays`; the reject
+  path is pinned by
+  `snapshot::corrupt::a_relates_entry_that_is_not_a_pair_is_rejected`).
+  Prefer a named-field struct over a tuple in any *new* schema: it avoids
+  the bug entirely and reads better in an editor (§4's auditability).
+- **Obsoleted by**: a fix upstream in `dacode-json`, at which point the
+  narrowing reduces to the derived impl with **zero byte movement** (the
+  wire shape never changed). Board follow-up U11 tracks proposing that
+  diff; U8's resolution allows modifications proposed as a diff, with
+  that repo's commits staying with its owner.
+- **Source**: struggle

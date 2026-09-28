@@ -10,19 +10,21 @@
 //! ```text
 //! <root>/registry.json            the shared slug index
 //! <root>/registry.json.lock       its advisory lock (§8)
-//! <root>/repos/<slug>/event-log.jsonl        one repository's log
-//! <root>/repos/<slug>/event-log.jsonl.lock   its advisory lock (§8)
+//! <root>/repos/<slug>/event-log.jsonl             one repository's log
+//! <root>/repos/<slug>/event-log.jsonl.lock        its advisory lock (§8)
+//! <root>/repos/<slug>/event-log.jsonl.snapshot    its latest snapshot (§4.3)
 //! ```
 //!
 //! The names are part of the versioned format (§4) and exist here as
 //! constants behind [`DataRoot`]'s accessors, so no other code — t13's
 //! inspector and repair included — ever hardcodes a path. One rule
-//! derives every lock path with no exception: **a lock file is the
-//! protected file's path plus `.lock`** — never a fixed directory-level
-//! name, so two logs in one directory cannot silently share a lock. The
-//! rule exists because the lock follows the inode, and the protected
-//! files that *are* atomically rewritten (the registry, t12's snapshots)
-//! must never be their own lock target (see `lock.rs`).
+//! derives every file beside the log with no exception: **a derived file
+//! is the protected file's path plus a suffix** — `.lock` for the
+//! advisory lock, `.snapshot` for the snapshot — never a fixed
+//! directory-level name, so two logs in one directory cannot silently
+//! share either. The rule exists because the lock follows the inode, and
+//! the protected files that *are* atomically rewritten (the registry, the
+//! snapshots) must never be their own lock target (see `lock.rs`).
 //!
 //! `repos/<slug>/` is traversal-safe by construction: [`RepoSlug`]'s
 //! charset admits no `.`, no `..`, no separator and no empty string, so
@@ -91,6 +93,13 @@ const LOG_LOCK_FILE: &str = "event-log.jsonl.lock";
 /// The lock-path rule itself, spelled once: every lock in this crate is
 /// its protected file's path plus this suffix.
 const LOCK_SUFFIX: &str = ".lock";
+/// A log's snapshot file: the protected path plus `.snapshot` — t11's
+/// derivation rule extended (a derived file is the protected file's path
+/// plus a suffix), so two logs in one directory cannot share a snapshot.
+/// The snapshot gets no lock file of its own: an atomically rewritten
+/// file is never its own lock target (`lock.rs`), and the log's lock
+/// already covers it.
+const SNAPSHOT_SUFFIX: &str = ".snapshot";
 
 /// An injected data root and the whole D4 layout under it: per-repo
 /// stores in `repos/<slug>/` plus the shared registry (§2).
@@ -149,6 +158,12 @@ impl DataRoot {
     /// lock file (§8).
     pub fn lock_path(&self, slug: &RepoSlug) -> PathBuf {
         self.store_dir(slug).join(LOG_LOCK_FILE)
+    }
+
+    /// `<root>/repos/<slug>/event-log.jsonl.snapshot` — the store's
+    /// latest snapshot (§4.3), the log path plus the `.snapshot` suffix.
+    pub fn snapshot_path(&self, slug: &RepoSlug) -> PathBuf {
+        snapshot_path_for(&self.log_path(slug))
     }
 
     /// `<root>/registry.json` — the shared registry (§2).
@@ -285,9 +300,23 @@ fn duplicate(slug: &RepoSlug) -> StoreError {
 /// `.lock`. [`crate::JsonlStore`]'s bare-path constructors use this so a
 /// log's lock is derived, never spelled twice.
 pub(crate) fn lock_path_for(path: &Path) -> PathBuf {
-    let mut lock = path.as_os_str().to_os_string();
-    lock.push(LOCK_SUFFIX);
-    PathBuf::from(lock)
+    suffixed(path, LOCK_SUFFIX)
+}
+
+/// The snapshot-path rule: the log's path plus `.snapshot` — a pure
+/// suffix append on the full file name, never a directory-level name, so
+/// two logs in one directory cannot share a snapshot. The engine derives
+/// its snapshot path with this; [`DataRoot::snapshot_path`] returns the
+/// same path for layout callers.
+pub(crate) fn snapshot_path_for(path: &Path) -> PathBuf {
+    suffixed(path, SNAPSHOT_SUFFIX)
+}
+
+/// One path plus one suffix — the derivation rule both helpers share.
+fn suffixed(path: &Path, suffix: &str) -> PathBuf {
+    let mut derived = path.as_os_str().to_os_string();
+    derived.push(suffix);
+    PathBuf::from(derived)
 }
 
 /// Whether the store directory that would hold the log at `path` is
