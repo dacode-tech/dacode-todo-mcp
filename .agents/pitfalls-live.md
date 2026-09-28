@@ -99,3 +99,47 @@
   standing layout discipline for new store/cli test files; consolidate
   into `pitfalls.md` at the M1 gate.
 - **Source**: review
+
+### P-LIVE-003: serde collapses absent vs null on plain `Option` patch fields
+- **Scope**: patch/partial-update schemas — `todo-store`'s event patch
+  DTOs (t10) and M3's wire patch schemas (`task_update` & co.)
+- **Discovered**: t10, 2026-09-27
+- **Symptom**: with a plain `Option<T>` patch field, "clear this field"
+  and "leave this field alone" are the same bytes: `{"note":null}` and
+  an absent `note` both deserialize to `None`, so a clearing patch
+  replays as a no-op.
+- **Root cause**: serde's derived `Deserialize` maps both an absent
+  field (under `#[serde(default)]`) and an explicit JSON `null` to
+  `None`. RFC 7386-style three-state patch semantics (absent = keep,
+  null = clear, value = replace) need `Option<Option<T>>`, whose derived
+  `Serialize` in turn needs help to keep the states apart on the way out.
+- **Workaround**: `Option<Option<T>>` with
+  `#[serde(default, deserialize_with = "double_option",
+  skip_serializing_if = "Option::is_none")]` — the pattern in
+  `crates/todo-store/src/event.rs`; pinned by a test that cannot even
+  compile under the naive `Option`
+  (`a_patch_keeps_untouched_cleared_and_replaced_apart`).
+- **Obsoleted by**: nothing planned — M3's wire patch schemas should
+  reuse the pattern (or the store DTOs directly); consolidate into
+  `pitfalls.md` at the M1 gate.
+- **Source**: struggle
+
+### P-LIVE-004: a `tests/<name>.rs` crate root cannot pair with `tests/<name>/mod.rs` (E0761)
+- **Scope**: workspace integration-test layout — `todo-store`'s
+  `tests/log.rs` + `tests/log/` (t10) and t11–t13's test files under
+  the P-LIVE-002 mod-wrapper discipline
+- **Discovered**: t10, 2026-09-27
+- **Symptom**: `mod log;` inside `tests/log.rs` fails with E0761: file
+  for module `log` found at both `tests/log.rs` and `tests/log/mod.rs`.
+- **Root cause**: rustc module resolution — for a `mod log;` declared in
+  the crate root `tests/log.rs`, both `tests/log/mod.rs` and the root
+  file itself are candidate paths, which is ambiguous.
+- **Workaround**: declare the wrapper inline in the crate root —
+  `mod log { mod fixtures; mod replay; mod corrupt; }` — with the
+  submodules as `tests/log/<file>.rs` and no `mod.rs` in the directory.
+  Test names still come out `log::…`, so the P-LIVE-002 verify-line
+  filter keeps working.
+- **Obsoleted by**: nothing planned — rustc module resolution; standing
+  layout rule for new test targets. Consolidate into `pitfalls.md` at
+  the M1 gate.
+- **Source**: struggle

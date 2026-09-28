@@ -2,15 +2,21 @@
 //! `version_mismatch`, `locked`. The domain's error module delegates
 //! these three here by name.
 //!
-//! This commit lands the one variant the serializer needs,
-//! [`StoreError::CorruptStore`]. The growth path is one variant per
-//! code as the engine lands — `version_mismatch` with t10's log header
-//! check, `locked` with t11's advisory locks, plus an io variant for
-//! the file machinery — each defined here, never as a foreign type: the
-//! engine's error does not cross this crate's boundary (§2), so engine
-//! messages are carried as `detail` strings.
+//! [`StoreError`] carries the codes plus the two faults that have none of
+//! their own: [`StoreError::Io`], the file machinery's, and
+//! [`StoreError::Domain`], which wraps the domain's shared vocabulary
+//! rather than translating it — a rejected mutation reports the same
+//! error the graph would have, because that is what happened. The growth
+//! path from here is `locked` with t11's advisory locks; §6.1's list is
+//! closed and versioned like the format, so nothing else joins it.
+//!
+//! No foreign type appears in a variant: the engine's error does not
+//! cross this crate's boundary (§2), so engine and `std::io` messages are
+//! carried as `detail` strings.
 
 use std::fmt;
+
+use todo_domain::DomainError;
 
 /// An error raised by the store. Codes are stable machine-readable
 /// identities a client may branch on (spec §6.1); `detail` text is
@@ -22,6 +28,12 @@ pub enum StoreError {
     /// hold, or a value could not be serialized (see [`crate::to_bytes`]
     /// and [`crate::from_bytes`]). Corruption is this named error, never
     /// a panic and never a silent truncation (spec §4).
+    ///
+    /// Over a log, `offset` is the **absolute** byte offset of the
+    /// offending line's start — where a repair truncates from (§4.3) —
+    /// while the engine's own position *within* that line rides in
+    /// `detail`. The codec's offsets, by contrast, are relative to the
+    /// slice it was handed (see [`crate::from_bytes`]).
     CorruptStore {
         /// The byte offset where the engine located the fault (spec
         /// §4.3: the error carries its offset), when the fault has a
@@ -33,13 +45,49 @@ pub enum StoreError {
         /// *type* never crosses this crate's boundary (§2).
         detail: String,
     },
+    /// The stored bytes declare a format version this build does not read
+    /// (spec §4: a format change is a migration, never an in-place edit
+    /// of meaning). Nothing is written to such a log.
+    VersionMismatch {
+        /// The version the header declares.
+        found: u32,
+        /// The version this build writes and reads — [`crate::FORMAT_VERSION`].
+        expected: u32,
+    },
+    /// The filesystem refused a read, a write or an `fsync`.
+    ///
+    /// Carries no §6.1 code: the list is closed, and how a client sees a
+    /// filesystem fault is M3's wire mapping (U9). `io` is this crate's
+    /// own spelling of the variant, not a code to branch on.
+    Io {
+        /// What was attempted and the [`std::io::ErrorKind`] it failed
+        /// with. Never the `io::Error` itself, and never a host path.
+        detail: String,
+    },
+    /// The domain rejected the mutation — a validation, a duplicate, an
+    /// unknown id, a cycle. The write is atomic (spec §8): nothing was
+    /// applied and nothing was appended.
+    Domain(DomainError),
 }
 
 impl StoreError {
     /// The stable §6.1 code of this error — total, one code per variant.
+    /// [`StoreError::Io`] reports `"io"`, which is *not* one of §6.1's
+    /// codes; see that variant.
     pub fn code(&self) -> &'static str {
         match self {
             Self::CorruptStore { .. } => "corrupt_store",
+            Self::VersionMismatch { .. } => "version_mismatch",
+            Self::Io { .. } => "io",
+            Self::Domain(error) => error.code().as_str(),
+        }
+    }
+
+    /// The domain error this carries, when it wraps one.
+    pub fn domain(&self) -> Option<&DomainError> {
+        match self {
+            Self::Domain(error) => Some(error),
+            _ => None,
         }
     }
 }
@@ -55,11 +103,23 @@ impl fmt::Display for StoreError {
                 offset: None,
                 detail,
             } => write!(f, "corrupt store: {detail}"),
+            Self::VersionMismatch { found, expected } => write!(
+                f,
+                "store format version {found}, this build reads version {expected}"
+            ),
+            Self::Io { detail } => write!(f, "io: {detail}"),
+            Self::Domain(error) => write!(f, "{error}"),
         }
     }
 }
 
 impl std::error::Error for StoreError {}
+
+impl From<DomainError> for StoreError {
+    fn from(error: DomainError) -> Self {
+        Self::Domain(error)
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -97,5 +157,42 @@ mod tests {
             assert!(!once.is_empty());
             assert_eq!(once, err.to_string());
         }
+    }
+
+    #[test]
+    fn version_mismatch_reports_both_versions_and_its_code() {
+        let err = StoreError::VersionMismatch {
+            found: 2,
+            expected: 1,
+        };
+        assert_eq!(err.code(), "version_mismatch");
+        assert_eq!(
+            err.to_string(),
+            "store format version 2, this build reads version 1"
+        );
+        assert_eq!(err.domain(), None);
+    }
+
+    #[test]
+    fn io_carries_its_context_without_a_code_of_its_own() {
+        let err = StoreError::Io {
+            detail: "open the event log: NotFound".to_owned(),
+        };
+        assert_eq!(err.code(), "io");
+        assert_eq!(err.to_string(), "io: open the event log: NotFound");
+    }
+
+    #[test]
+    fn a_domain_fault_keeps_the_domain_code_and_message() {
+        let domain = DomainError::MissingEvidence {
+            id: "camera:U7".to_owned(),
+        };
+        let err = StoreError::from(domain.clone());
+        assert_eq!(err.code(), "missing_evidence");
+        assert_eq!(err.domain(), Some(&domain));
+        // The message is the domain's own: no store-level rewording
+        // stands between a client and the shared vocabulary.
+        assert_eq!(err.to_string(), domain.to_string());
+        assert_eq!(err, StoreError::Domain(domain));
     }
 }

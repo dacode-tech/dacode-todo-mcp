@@ -8,9 +8,14 @@ description = "persistence behind a single Store trait; the JSONL engine (D1) is
 [dependencies]
 todo-domain = { workspace = true }
 dacode-json = { workspace = true }
-# Traits for the codec's generic bounds only; the `derive` feature
-# arrives with t10's event structs.
-serde = { version = "1" }
+# Traits for the codec's generic bounds, `derive` for the event schema
+# (§4.1): the log's lines are store-side DTOs, not domain types.
+serde = { version = "1", features = ["derive"] }
+
+[dev-dependencies]
+# Temporary paths for the log tests (U8-approved, deferred from t9): a
+# test that writes a log never writes a fixed path or the cwd.
+tempfile = "3"
 
 [lints]
 workspace = true

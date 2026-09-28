@@ -1,7 +1,8 @@
-//! The golden-file helper (`.agents/knowledge/workflows/
-//! golden-files.md`): the one implementation of the compare-and-
-//! regenerate contract, shared by every golden test of this crate. A
-//! second byte-compare implementation anywhere is a review finding.
+//! The golden-file helper
+//! (`.agents/knowledge/workflows/golden-files.md`): the one
+//! implementation of the compare-and-regenerate contract, shared by every
+//! golden test of this crate. A second byte-compare implementation
+//! anywhere is a review finding.
 
 use std::fs;
 use std::io::ErrorKind;

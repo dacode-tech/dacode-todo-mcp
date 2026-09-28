@@ -1,6 +1,6 @@
 //! The golden file of the canonical serializer plus its determinism
-//! instruments (spec §8, §10; `.agents/knowledge/workflows/
-//! golden-files.md`).
+//! instruments (spec §8, §10;
+//! `.agents/knowledge/workflows/golden-files.md`).
 //!
 //! The fixtures are the store-side twins of the domain crate's
 //! `sample_*` set — camera repo, `camera:U7`/`E2`/`D3`/`S1` — so both

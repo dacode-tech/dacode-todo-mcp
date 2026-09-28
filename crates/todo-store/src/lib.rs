@@ -20,13 +20,19 @@
 //! Current surface (M1): the canonical serializer over the domain's
 //! serde schema — [`to_bytes`]/[`from_bytes`], with the JSON engine
 //! (D1) sealed inside the crate — [`StoreError`], carrying §6.1's
-//! `corrupt_store` with the engine's byte offset (spec §4.3), and
-//! [`FORMAT_VERSION`], the single source of §4's versioning
-//! requirement. The serialized bytes are pinned by the
-//! golden files under `tests/golden/` (spec §10,
-//! `.agents/knowledge/workflows/golden-files.md`). The `Store` trait,
-//! the event log and the §6.1 codes `version_mismatch`/`locked` are the
-//! next M1 commits (spec §14).
+//! `corrupt_store` and `version_mismatch` with the byte offset a repair
+//! needs (spec §4.3), [`FORMAT_VERSION`], the single source of §4's
+//! versioning requirement, and the persistence surface itself:
+//! [`Store`], the one trait of §4.2, with [`JsonlStore`] — the
+//! append-only event log with its versioned header, its replay into the
+//! in-memory graph and §4.3's single-write append discipline — as the
+//! D1 implementation, over [`Event`], the persisted schema. The
+//! serialized bytes are pinned by the golden files under
+//! `tests/golden/` (spec §10,
+//! `.agents/knowledge/workflows/golden-files.md`). Snapshots and log
+//! compaction (t12) grow the trait in-crate; the D4 layout, the
+//! registry and §8's advisory locks (t11) wrap [`JsonlStore`]'s
+//! constructors; §6.1's `locked` arrives with them.
 
 #![cfg_attr(
     test,
@@ -41,17 +47,28 @@
 
 mod codec;
 mod error;
+mod event;
+mod log;
+mod store;
 
 pub use codec::{from_bytes, to_bytes};
 pub use error::StoreError;
+pub use event::{
+    BlocksEdgeDto, DecisionPatch, DocPatch, EpicPatch, Event, ReplayFault, TaskPatch,
+    apply_decision_patch, apply_doc_patch, apply_epic_patch, apply_task_patch, replay_step,
+};
+pub use log::JsonlStore;
+pub use store::Store;
 
 /// The store format version — spec §4: "a format version in the header;
 /// a format change is a migration, never an in-place edit of meaning".
 ///
 /// The single source every versioned surface references: golden file
-/// names embed it (`<subject>.v<N>.golden`), the event-log header (t10)
-/// and the snapshot header (t12) carry it, and stored bytes disagreeing
-/// with it are §6.1's `version_mismatch`. A format change bumps this
-/// constant and lands a migration; during one, the old and new goldens
-/// coexist (`.agents/knowledge/workflows/golden-files.md`).
+/// names embed it (`<subject>.v<N>.golden`), the event-log header carries
+/// it ([`JsonlStore::create`] writes it as the log's first line and
+/// [`JsonlStore::open`] checks it before replaying anything), the snapshot
+/// header (t12) will carry it, and stored bytes disagreeing with it are
+/// §6.1's `version_mismatch`. A format change bumps this constant and
+/// lands a migration; during one, the old and new goldens coexist
+/// (`.agents/knowledge/workflows/golden-files.md`).
 pub const FORMAT_VERSION: u32 = 1;

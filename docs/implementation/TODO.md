@@ -25,9 +25,10 @@ canonical order §5.2), five store/cli commits (canonical serialization
 locking §8, snapshots + compaction, minimal `todo-cli` inspector), and
 the M1 exit gate. t6 (value types), t14 (fractional-second timestamps,
 a user decision), t7 (the task graph §5.1) and t8 (the canonical order
-§5.2) have landed — the domain layer of M1 is complete — and t9 (the
-store's canonical serialization + golden harness) is the first store
-commit; next is t10, the JSONL event log + `Store` trait.
+§5.2) have landed — the domain layer of M1 is complete — followed by
+t9 (canonical serialization + golden harness) and t10 (the JSONL event
+log + `Store` trait, §4); next is t11, the D4 layout + registry +
+advisory locking.
 
 | Blocking | What | Action |
 |---|---|---|
@@ -172,6 +173,38 @@ Oldest first. One line per delivery, with the commit hash once committed.
     108 pass unmodified; Cargo.lock 11 → 13 (`dacode-json` + `zmij`).
     Dual-reviewed in one round, three low nits dispositioned in §6 and
     the tracker. Landed as `fc23f27`.
+- 2026-09-27 — **M1 t10: JSONL event log + `Store` trait (§4)**: the
+    signed D1 engine. Versioned header (`{"format_version":1}` reading
+    `FORMAT_VERSION`); 17 event kinds mirroring the domain mutation
+    surface 1:1 as flat internally-tagged JSONL lines (kind first,
+    caller-passed `ts` on every event — the repo audit instant §3's
+    `Repo` has no field for, closing f6); full-node payloads on adds,
+    store-owned patch DTOs on updates — **zero `todo-domain` changes**,
+    as `drafts.rs`'s module doc mandates. Patch DTOs carry no
+    `id`/`repo`/`created` and deny unknown fields, so node history is
+    unreachable through the persisted surface (f7 closed at the store
+    boundary), with RFC 7386 three-state semantics (absent untouched,
+    `null` clears, value replaces) via a double-option deserializer.
+    Replay: `repo_register` seeds the graph; an add whose id is not
+    the next sequential number is `corrupt_store` — a number burned by
+    an epic cascade can never be revived from a log (f8 closed
+    store-side); any malformed line is `corrupt_store` with the
+    absolute line-start offset for t13's repair; a final line without
+    its LF is torn even when parseable (§4.3); a wrong header version
+    is `version_mismatch`. Append = one `write_all` of the complete
+    line under `O_APPEND` + `sync_all`; domain rejections write
+    nothing; io failure after apply is documented session-fatal
+    (reopen replays the disk truth). `trait Store` is the §4.2 surface
+    (graph + version + 16 mutations returning the new state;
+    open/create join at t11, snapshot/compact at t12); `StoreError`
+    grows by exactly `VersionMismatch`, `Io` (detail string only —
+    `"io"` documented as not a §6.1 code, pending U9) and
+    `Domain(DomainError)`. Golden `event_log.v1` (35 lines) exercises
+    every kind with cascade id gaps and mixed-precision timestamps;
+    the t9 golden regenerates byte-identical; f12's doc-span fix rode
+    along. 33 store tests (19 new); the domain's 108 unmodified;
+    Cargo.lock 13 → 26 (`tempfile` dev tree). Dual-reviewed in one
+    round, four low findings dispositioned in §6 and the tracker.
 
 ## 4. Follow-ups
 
@@ -337,36 +370,73 @@ between write and rename, golden integrity holds (f13, accepted); and
 the git-diff half of the regeneration ritual is only meaningful once
 the golden is tracked — re-run after the commit, which it was.
 
+**Later the same session — t10: the JSONL event log + `Store` trait.**
+Dispatched on the user's go with the same protocol: the orchestrator
+decisions settled into `tmp/t10-spec.md` (the 17-kind event taxonomy
+mirroring the domain mutation surface 1:1; store-owned patch DTOs and
+zero domain changes — `drafts.rs`'s module doc is the mandate; replay
+equality on `Graph`'s existing `PartialEq` derive; f8 closed via a
+store-side sequential-id check; f6 via the event `ts`), a short spawn
+prompt, one implementer landing — no P-LIVE-001 recurrence, the third
+clean dispatch in a row. Outcome: `src/{event,store,log}.rs`, 19 new
+tests under `tests/log/`, the `event_log.v1` golden (35 lines, every
+kind, the cascade gap visible in the ids), 33 store tests and 141
+workspace-wide; `tempfile` enters as dev-dep (Cargo.lock 13 → 26, its
+tree only). Two traps surfaced and were recorded as pitfalls: serde
+collapses absent vs `null` on a plain `Option` patch field, so "clear
+this field" replays as "leave it" — fixed with `skip_serializing_if` +
+a double-option deserializer (RFC 7386 semantics), pinned by a test
+that cannot compile under the naive `Option` (P-LIVE-003; M3's wire
+patch schemas face the same trap); and a `tests/<name>.rs` crate root
+cannot pair with `tests/<name>/mod.rs` (E0761), so the P-LIVE-002
+wrapper must be an inline `mod log { mod fixtures; … }` (P-LIVE-004,
+inherited by t11–t13). Dual review approved in one round with four low
+findings: the log header accepts unknown fields (no
+`deny_unknown_fields`; inert today — t13's tamper/repair story should
+decide it consciously, f14); the `tests/log/` determinism test names
+dropped the workflow's `*_deterministic`/`*_byte_stable` suffixes (f15,
+rename rides a later tests-only commit, possibly with f9); `event.rs`
+is 759 lines against the 600 target (split the replay half when t13
+grows it — debt d2); and the `Option<Option<T>>` deviation from the
+task spec's Decision 5 was ratified by both reviewers as an
+improvement (documented, golden-pinned). Tensions reported, not
+silently fixed: §4.2 lists open/create inside the trait, but they stay
+inherent `JsonlStore` constructors until t11's layout exists (the
+trait docs say when they join); `code()` returns `"io"` for io
+failures, documented as not a §6.1 code pending U9. Tracker closures
+this commit: f6, f7, f8, f11, f12 done with evidence.
+
 **Handover.** Workspace: `main` at this commit, clean; `todo-domain`
-carries the §3 value types + the §5 graph and order (108 tests);
-`todo-store` carries the canonical codec, `StoreError` and the golden
-harness (11 tests, one golden); mcp/cli are documented M0 shells;
-rustc 1.98.1, MSRV 1.95. Dependencies: serde (domain), `dacode-json`
-+ `zmij` (store) — `dacode-json` is a path dep on the sibling checkout
-`../rust/json-tiers`, so a cold machine needs that repo beside this
-one's parent; nothing else to install. Serena's semantic layer is
-live. Landed this session: t8 (`6cc4691`, backfill `4c32815`) and t9
-(this commit, backfill follows). Next step: **dispatch t10** — the
-JSONL event log + `Store` trait (§4.1/§4.2/§4.3): versioned header
-line carrying `FORMAT_VERSION`, single-write `O_APPEND` appends +
-fsync, replay into the in-memory graph through t7's explicit-id insert
-path (counters only ever raised), named corruption errors (torn last
-line → `corrupt_store` with offset; interior garbage unconditionally),
-and f8's validation (replay must reject, or prove impossible, an
-explicit-id insert of a number burned by an epic cascade). t10's
-manifest moves: serde gains the `derive` feature for the event
-structs, `tempfile` enters as dev-dep (both approved, U8). Its spec
-inherits f11 (the `mod` wrapper for the `-- log` filter), f12 (fix
-the doc-span newline while in these files) and t9's trailing-bytes
-contract; f5 (counters raise-to-max entry point) and f6 (repo_set_*
-audit instant rides the store event) land in t10/t12's scope. Then
-t11–t13 in tracker order, then g5's M1 exit gate. Blocked on you:
-nothing. Open, non-blocking: U7 (lint wording), U9 (M3 wire code), U2
-(pre-M3), U3 (pre-M4); findings f4–f13 and debt d1 carry verify lines
-in the tracker. Unverified: MCP smoke (no wire until M3); per-crate
-lint tripwires for mcp/cli; real crash behavior — fsync/torn-window
-semantics will be tested with hand-torn fixtures, not an actual
-crash (t10's verify line).
+carries the §3 value types + the §5 graph and order (108 tests,
+untouched since t8); `todo-store` carries the canonical codec + golden
+harness (t9) and the JSONL event log + `Store` trait (t10) — 33 tests,
+two goldens; mcp/cli are documented M0 shells; rustc 1.98.1, MSRV
+1.95. Dependencies: serde (domain; store with `derive`), `dacode-json`
++ `zmij` (store; path dep on the sibling checkout `../rust/json-tiers`
+— a cold machine needs that repo beside this one's parent), `tempfile`
+(store dev). Serena's semantic layer is live. Landed this session: t8
+(`6cc4691`), t9 (`fc23f27`), t10 (this commit) + hash backfills. Next
+step: **dispatch t11** — D4 layout + registry + advisory locking
+(§2/§7/§8): `repos/<slug>/` under an injected data root, the registry
+file with its own golden and §4.3's atomic-rename discipline, std
+`File::try_lock` (no locking crate — measured at the M1
+decomposition), sorted-slug lock acquisition order, the `locked` error
+(the variant t9's error-module growth path announced), and §4.2's
+open/create moving into the `Store` trait — t10's reported tension
+resolves there. t11 inherits P-LIVE-002/004 (inline `mod` wrapper for
+the `-- layout registry lock` filters) and may fold in f15's rename.
+Then t12 (snapshots + compaction, carrying f5's raise-to-max counters
+entry point and riding t10's event schema), then t13 (the cli
+inspector + §4.3's repair command, carrying f14's header decision and
+d2's split review), then g5's M1 exit gate. Blocked on you: nothing.
+Open, non-blocking: U7 (lint wording), U9 (M3 wire code — now also
+the `"io"` mapping), U2 (pre-M3), U3 (pre-M4); findings f4, f5, f9,
+f10, f13, f14, f15 and debts d1, d2 carry verify lines in the
+tracker. Unverified: MCP smoke (no wire until M3); per-crate lint
+tripwires for mcp/cli; real crash behavior — §4.3's semantics are
+tested with hand-built fixtures (torn lines, spliced garbage), never
+an actual crash or power loss; multi-process lock contention will be
+tested as two handles in one process at t11, not two processes.
 
 ### 2026-09-27 — t7: the task graph
 
