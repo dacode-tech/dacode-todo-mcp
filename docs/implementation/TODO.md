@@ -256,7 +256,7 @@ Oldest first. One line per delivery, with the commit hash once committed.
      text, which the primary disproved after the secondary had ratified
      it. f15's two test renames rode along; the verify line moved off
      name filters onto `cargo test -p todo-store --test layout`
-     (P-LIVE-005). Landed as this commit.
+     (P-LIVE-005). Landed as `5b72b76`.
 
 ## 4. Follow-ups
 
@@ -423,15 +423,16 @@ by name, the golden comes from the production struct) **after the
 secondary had ratified it** — a reviewer count is not a proof, and the
 two families' blind spots correlated exactly where the claim was newest.
 
-**Handover.** Workspace: `main` at this commit, clean; `todo-domain`
-unchanged since t8 (108 tests); `todo-store` carries t9's codec + golden
+**Handover.** Workspace: `main` at `5b72b76` plus the hash-backfill
+commit, clean; `todo-domain` unchanged since t8 (108 tests);
+`todo-store` carries t9's codec + golden
 harness, t10's event log + `Store` trait and t11's layout + registry +
 locks — 55 tests, three goldens (`serialize_nodes.v1`, `event_log.v1`,
 `registry.v1`); mcp/cli are documented M0 shells; rustc 1.98.1, MSRV
 1.95. Dependencies unchanged: serde, `dacode-json` + `zmij` (path dep on
 the sibling checkout `../rust/json-tiers` — a cold machine needs that
 repo beside this one's parent), `tempfile` (dev). Serena's semantic layer
-is live. Landed this session: t11 (this commit) + hash backfill,
+is live. Landed this session: t11 (`5b72b76`) + the hash backfill,
 P-LIVE-005, tracker f16/f17 and t15, f15 closed.
 
 Next step: **dispatch t12** — snapshots + compaction (§4.1): atomic
