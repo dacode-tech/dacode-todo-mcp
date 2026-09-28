@@ -205,6 +205,7 @@ Oldest first. One line per delivery, with the commit hash once committed.
     along. 33 store tests (19 new); the domain's 108 unmodified;
     Cargo.lock 13 → 26 (`tempfile` dev tree). Dual-reviewed in one
     round, four low findings dispositioned in §6 and the tracker.
+    Landed as `df79982`.
 
 ## 4. Follow-ups
 
