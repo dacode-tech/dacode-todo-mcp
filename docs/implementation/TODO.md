@@ -602,7 +602,8 @@ Oldest first. One line per delivery, with the commit hash once committed.
       implementer and confirmed by both on re-review), and a doc
       justification pointing at a constant in a file its own test target
       does not include. One taste-level wording finding was dispositioned
-      rather than opening a fourth round for one word (**f35**).
+      rather than opening a fourth round for one word (**f35**). Landed as
+      `4c5782b`.
 
 ## 4. Follow-ups
 
