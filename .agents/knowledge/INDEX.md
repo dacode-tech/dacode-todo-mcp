@@ -26,5 +26,5 @@
 
 <!-- hashes drive --check -->
 ```
-3414909a  5ed9b6e       285L  AGENTS.md
+551665d6  5ed9b6e       292L  AGENTS.md
 ```

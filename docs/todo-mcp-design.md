@@ -232,7 +232,19 @@ that corruption is a named error, never a silent truncation:
   snapshot, then the log tail after it. The registry file follows the
   same atomic-rename discipline.
 - **Backup** in v1 is copying a repo's store directory while no writer
-  holds the lock (§8); there is no separate backup mechanism.
+  holds the lock (§8); there is no separate backup mechanism. **The
+  backup is therefore the archive** (U10, resolved 2026-09-29):
+  compaction drops the events its snapshot covers, because a snapshot
+  holds the resulting *state* and not the history. §7's guarantee is that
+  a change is *recorded as a mutation* rather than silently overwriting a
+  field — not that the live log retains it forever — and §4.1's
+  truncation bounds that retention. Nothing in v1 calls `compact()`: §6
+  lists no tool for it and §4.1's own scale argument (10^3–10^5 nodes,
+  every query a traversal) says replay is already cheap, so no
+  `todo-cli` subcommand exposes it either. If a caller ever lands, taking
+  a backup first is the contract, and the log header gains a persistent
+  compaction marker at that point — a golden-moving format change spent
+  only when something can actually compact.
 
 ## 5. Graph Semantics and Ordering
 
@@ -337,7 +349,7 @@ Sketch (names are the proposal; rmcp's tool macros will shape schemas):
 | `decision_add` / `decision_list` / `decision_show` / `decision_update` | decision dossiers (D10); `decision_update` to `signed`/`superseded` requires `resolution` — the closure discipline applied to decisions |
 | `doc_register` / `doc_list` / `doc_set_path` / `doc_update` | registered-document records for stable citation (D10); `doc_set_path` is audited like `repo_set_path` |
 | `graph_show` | the complete graph (all repos) or one repo/epic subgraph, as an LLM-consumable handover dump (§6.2, D11 amended) |
-| `import_md` | one-shot importer from the sibling markdown boards (§9; D7: camera dialect first) |
+| `import_md` | one-shot importer from the sibling markdown boards (§9; D7 as amended by D12: the dacode dialect first, and the only one with a checked-in fixture) |
 
 ### 6.1 Error contract
 
@@ -422,9 +434,11 @@ The three sibling boards are the migration source and the acceptance
 test. Each has a slightly different dialect — camera and ikvm-html:
 `U` follow-ups, `D` decisions, `M` milestones, session logs; dacode:
 `U`/`B`/`A` registers plus milestone sub-steps — and the importer
-(D7, signed: the camera dialect first in v1; ikvm-html and dacode
-follow once the camera pipeline and fixtures prove the mapping) maps
-them once, read-only:
+(D7 as amended by **D12**: the **dacode** dialect first, because its
+board carries the deeper structure and the more complex references,
+which is the hard half of the mapping below; camera and ikvm-html
+follow as live-test subjects, their boards never copied into this
+repository) maps them once, read-only:
 
 - milestones and epics-in-prose → **epics**
 - `U` items → **tasks** (kind `task`, or `debt` where the board says
@@ -448,8 +462,10 @@ after M3** — never dogfood an unsigned design; until then the board and
 
 Gates on every change: `cargo fmt --check`, `cargo check --workspace
 --all-targets`, `cargo test`, `cargo clippy --workspace --all-targets`
-(clean; the six denied lints of `.agents/roles/_rust.md` inherited from
-workspace lints). Beyond them, the shapes this project is judged by:
+(clean; the denied lints of `.agents/roles/_rust.md` inherited from
+workspace lints — `_rust.md` is the enumeration, so this sentence does
+not carry a count that a tenth lint would falsify). Beyond them, the
+shapes this project is judged by:
 
 - **Golden files** pin the store's bytes and every tool's
   request/response pair. A golden diff is a compatibility event, named
@@ -460,9 +476,16 @@ workspace lints). Beyond them, the shapes this project is judged by:
 - **Protocol-level tests**: every MCP tool tested request-in/response-out
   over the wire, never by calling the handler around it.
 - **Determinism tests**: run twice, compare bytes (§8).
-- **Importer fixtures**: the real committed `TODO.md` snapshots of the
-  three sibling repos, checked into `crates/<importer>/tests/fixtures/`,
-  with the expected graph beside each.
+- **Importer fixtures** (D12): the real committed `TODO.md` snapshot of
+  the **dacode** sibling board, checked into
+  `crates/<importer>/tests/fixtures/` with the expected graph beside it.
+  It is the only sibling content this repository holds — `camera` and
+  `ikvm-html` are other products and are exercised by pointing the
+  importer at their live boards instead, which no test can pin because a
+  live board legitimately changes between runs. If that proves too weak
+  at M4, the remedy is a **synthetic** fixture written in this repo in
+  the camera dialect (hand-authored, no copied content), not committing
+  their boards.
 
 ## 11. Non-Goals
 
@@ -517,7 +540,9 @@ gates (`tools/attention.py`).
   deterministic `next_task`; registry with path updates.
 - **M3** — MCP server: the §6 surface over the wire, protocol-level
   tests, smoke against a real client (opencode).
-- **M4** — adoption: importers for the camera/ikvm-html/dacode boards;
-  the three repos tracked for real.
+- **M4** — adoption: the importer for the **dacode** board first (D12),
+  verified against its checked-in fixture; camera and ikvm-html imported
+  from their live boards and never copied into this repository; the three
+  repos tracked for real.
 - **M5** — packaging, docs, cross-repo ergonomics if D8 arms them,
   polish.

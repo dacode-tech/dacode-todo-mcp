@@ -146,9 +146,16 @@ agent. rustfmt and clippy are the mechanical authorities; the spec's
 shapes are the precedent while the codebase is young. The five that
 reviewers enforce by hand:
 
-1. No `unwrap()`/`expect()`/`panic!` on production paths — the six
-   denied clippy lints are workspace lints, inherited per crate; a new
-   crate without the inheritance is itself a finding.
+1. No `unwrap()`/`expect()`/`panic!` on production paths — the denied
+   lints are workspace lints, inherited per crate; a new crate without
+   the inheritance is itself a finding. There are nine, not the "six"
+   this item used to claim: seven clippy (the six panic-family —
+   `unwrap_used`, `expect_used`, `panic`, `unreachable`,
+   `indexing_slicing`, `exit` — plus `wildcard_imports`) and two rustc
+   (`unsafe_code`, `missing_docs`). `Cargo.toml`'s
+   `[workspace.lints]` is the enumeration and spec §10 delegates to
+   `.agents/roles/_rust.md`, so no prose here needs a count that a tenth
+   lint would falsify.
 2. Crate boundaries (spec §2): domain has no I/O, no async, no workspace
    deps; the storage engine never leaks above the `Store` trait; the
    binary translates and does not decide.

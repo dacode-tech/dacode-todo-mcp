@@ -29,6 +29,7 @@ and the meta block below; keep the shapes it parses.
 | ~~**D9**~~ | Status vocabulary and the deferred state | (a) open/in_work/blocked/deferred/closed + keep wontfix; until-date is metadata | medium | M1 | resolved (a) 2026-09-25 — until-targets ride blocks edges |
 | ~~**D10**~~ | References, specs and decisions as server entities | (b) layered: references list; decision nodes that can block; registered docs, prose stays in git | medium | M1 | resolved (b) 2026-09-25 |
 | ~~**D11**~~ | Next-items surface and derived weight | (a) next_items batch with blocks annotations + derived weight, display-only | medium | M2 | resolved (a) 2026-09-25 — plus agent-set priority field, display-only |
+| ~~**D12**~~ | Importer fixture scope (amends D7) | dacode dialect first; camera and ikvm-html are live-test subjects only, never checked in here | high | M4 | resolved 2026-09-29 — user decision, reversing D7's order |
 
 ---
 
@@ -275,7 +276,12 @@ disease, not a feature. Work order executed: §12 item 7 deleted, §9
 made normative for the chosen scope, fixture plan folded into TODO.md's
 M4 deliverable.
 
-**Gates** M4 · **Resolved** 2026-09-25
+**Amended 2026-09-29 by D12.** The camera-first *order* is reversed to
+dacode-first, and camera/ikvm-html become live-test subjects whose board
+content is never checked into this repository. The one-shot, read-only,
+no-live-sync scope of D7 is unchanged. See D12.
+
+**Gates** M4 · **Resolved** 2026-09-25 · **Amended** 2026-09-29 (D12)
 
 **Current.** §9 proposes one-shot, read-only import of the sibling
 boards with a fixed mapping (milestones→epics, U items→tasks, open
@@ -549,3 +555,57 @@ open sub-question is limit's default (proposed: 10).
 
 **On sign-off:** amend §5.2 (batch selection) and §6's tool table (a
 `next_items` row); delete §12 item 11; the M2/M3 rows of TODO.md §2.
+
+---
+
+### D12 — Importer fixture scope (amends D7)
+
+**Resolved 2026-09-29 — user decision.** The **dacode** dialect is the
+importer's first target and the only sibling board checked into this
+repository as a fixture. `camera` and `ikvm-html` become **live-test
+subjects after conversion**: the server is pointed at them in place, and
+no content from either is copied into this repo's tree.
+
+D7's *scope* is unchanged — one-shot, read-only, no live two-way sync.
+Only its *order* and its fixture plan move.
+
+**Gates** M4 · **Resolved** 2026-09-29
+
+**Current (before this decision).** D7 signed camera-first, on the
+reasoning that camera is the newest harness and closest to this spec's
+vocabulary. §10 planned fixtures as "the real committed `TODO.md`
+snapshots of the **three** sibling repos". §6's `import_md` row and §14's
+M4 row both name camera first.
+
+**Why the user reversed it.** Two reasons, and the second is a constraint
+rather than a preference:
+
+1. **`camera` and `dacode` are both actively developed**, so a snapshot
+   of either goes stale; but `dacode`'s board has the **deeper structure
+   and the more complex references**, which is the hard half of §9's
+   mapping — D10's `references` entries, `#anchor` doc citations,
+   decision→work `blocks` edges. `camera` has the more recent *manners*
+   (registers, session-log shape), which the mapping table absorbs
+   cheaply. Stressing the importer on the hard axis first is worth more
+   than stressing it on the familiar one.
+2. **No traces of `camera` or `ikvm-html` in this repository.** They are
+   other products; their board content does not belong committed here even
+   as a test fixture. `dacode` is this project's own family, so its board
+   can be checked in. That makes the live-test route the only available
+   one for the other two — and it is a better test anyway, since it runs
+   the importer against a real, current board rather than a snapshot.
+
+**Consequence, stated plainly rather than hidden.** §10's "verified
+against checked-in fixtures" now holds for one dialect, not three. The
+camera and ikvm-html dialects get **no pinned golden**: their correctness
+is argued by a live run a human inspects, which is weaker and
+non-reproducible — a live board changes, so the same importer run twice
+can legitimately differ. If that proves too weak at M4, the remedy is a
+*synthetic* fixture in camera's dialect (hand-written in this repo, no
+copied content), not reversing this decision. That trade is accepted
+here.
+
+**On sign-off:** amend §9's dialect/order parenthetical; §10's
+"Importer fixtures" bullet (one sibling snapshot, plus the synthetic-
+fixture remedy); §6's `import_md` row; §14's M4 row; D7's banner above;
+TODO.md §2's M4 row, §4's U3, §3 and §6.

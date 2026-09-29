@@ -35,10 +35,11 @@ M1 code task before the g5 exit gate.
 
 | Blocking | What | Action |
 |---|---|---|
-| U10 | t13's `verify`/`repair` semantics, and f14's log-header marker (a golden-moving format change, cheap only while no store exists outside tests) | decide: drop as landed / archive sibling / persistent header marker |
+| — | nothing: U10 resolved 2026-09-29, and every other open item is non-blocking | execute t15, then t13, then the g5 exit gate |
 
-(U7, U12 and U2/U3 remain open but non-blocking; U5/U8/U9/U11 are
-resolved. t15 is the one M1 task gated on nothing.)
+(Open but non-blocking: U12, and U2 which is scheduled after g5.
+Resolved: U4/U5/U6/U7/U8/U9/U10/U11/U3-superseded-by-D12. t15 is gated on
+nothing.)
 
 ## 2. Milestones
 
@@ -52,7 +53,7 @@ exit criteria: spec §14. Priority is derived from the Gated-on column by
 | M1 | domain model + storage engine: graph, statuses, persistence behind the `Store` trait, golden files | — | in progress — tree open; U4/U5/U8 resolved 2026-09-26, dispatch started |
 | M2 | queries: repo/epic selection, dependency resolution, deterministic `next_task`; registry with path updates | — | not started |
 | M3 | MCP server: the full §6 tool list over the wire, protocol-level tests, default-repo slug config (D8), smoke against a real client | — | not started |
-| M4 | adoption: camera-dialect importer first (D7), board fixtures checked in per §10; ikvm-html and dacode follow; the three repos tracked for real | — | not started |
+| M4 | adoption: the dacode-dialect importer first (**D12**, amending D7), its board the only fixture checked in per §10; camera and ikvm-html imported from their live boards and never copied into this repo; the three repos tracked for real | — | not started |
 | M5 | packaging, docs, cwd auto-detection (deferred by D8), polish | — | not started |
 
 ## 3. Done
@@ -364,6 +365,37 @@ Oldest first. One line per delivery, with the commit hash once committed.
      eleven describes a malformed slug. Two doc comments now contradict
      §6.1 and are f22, split by crate boundary — the `ValueError` module
      doc rides t15, the `StoreError::Io` one rides t13.
+- 2026-09-29 — **five open items settled in one exchange**: U10, U7, U3
+     (as **D12**), U2's scheduling, and t11's registry veto window.
+     **U10** resolved to (a) drop-as-landed plus *nothing calls
+     `compact()` yet* — the reframe being that compaction is not garbage
+     collection of done work and does not necessarily free space, since
+     the snapshot holds the whole current graph and the trade is log bytes
+     for snapshot bytes; §4.1's own scale argument says replay is already
+     cheap, so the t12 reading is blessed into §4.3 rather than left as a
+     crate-local argument. f14 was **split**: `deny_unknown_fields` on
+     `LogHeader` rides t13 (deserialize-only, no golden moves), the
+     compaction **marker is deferred** until something can actually
+     compact, and **t13 ships no `compact` subcommand**. **U7** resolved by
+     a third option — delete the count from §10 rather than enumerate nine
+     names in signed text, since `_rust.md` is already the enumeration;
+     AGENTS.md item 1 states the nine and says why the prose carries no
+     count. **U3** was not executed as written: the user signed **D12**,
+     reversing D7's order to **dacode-first** and making camera/ikvm-html
+     **live-test subjects whose board content is never copied into this
+     repository**. D12's dossier states the consequence plainly rather
+     than hiding it — two of three dialects get **no pinned golden**, which
+     is weaker and non-reproducible, with a synthetic camera-dialect
+     fixture as the named remedy if M4 finds it too weak. **U2** is
+     scheduled **after g5, before M2**, because it is the only open item
+     that could invalidate a signed §6 shape and therefore U9's
+     just-amended §6.1. **t11's** narrow registry reading — mapping
+     derived, only the two immutable fields stored — is **accepted**; the
+     veto window closes, and the revisit at M3 is to be driven by a
+     measurement of cold `repo_list`, not a preference, per U1's own
+     precedent. Spec work order executed across §4.3, §6, §9, §10 (twice),
+     §14; D7's banner amended and D12 added to `decisions.md` with a
+     sign-off-summary row.
 
 ## 4. Follow-ups
 
@@ -380,12 +412,33 @@ Unowned work. Take the next unused `U` id; never renumber, never reuse.
       tool list is expressible with stable error codes and ordered list
       responses as rmcp schemas; record findings in §6 before M3
       implementation (D5 is signed). Read the rmcp version's source; do
-      not guess from its README.
-- [ ] **U3 · Collect the three sibling board dialects as fixtures.**
+      not guess from its README. **Scheduled 2026-09-29: after g5, before
+      M2.** Not at M3, and the reason is that this is the only open item
+      that could invalidate a *signed* §6 shape — if rmcp cannot carry a
+      stable per-tool error code, §6.1 and U9's just-signed `invalid`/`io`
+      both need revisiting, and M2's query surface would be built on tool
+      signatures M3 cannot honour. An afternoon of reading versus a
+      redesign. Three questions: is each of §6's tools declarable at all;
+      do tool errors carry a branchable code or only a string; are list
+      responses order-preserving through schema generation. Read-only, so
+      it can also be pulled earlier without conflicting with t15/t13.
+- [x] **U3 · Collect the three sibling board dialects as fixtures.**
       Snapshot camera/ikvm-html/dacode `TODO.md` + decisions files into
       the future importer's test fixtures (§9, §10), with a short dialect
       note each — needed before M4; D7 is signed camera-first, so the
-      camera fixture is the critical one.
+      camera fixture is the critical one. **Superseded 2026-09-29 by D12**,
+      which the user signed rather than this item being executed as
+      written: the **dacode** board is the only fixture, because it carries
+      the deeper structure and the more complex references — the hard half
+      of §9's mapping — and because `camera` and `ikvm-html` are other
+      products whose board content is not to be copied into this
+      repository. Those two become **live-test subjects** after conversion,
+      which is a better test and a weaker pin: a live board legitimately
+      changes, so no golden can hold it. §10 records the remedy if that
+      proves too weak at M4 — a *synthetic* fixture hand-written here in
+      the camera dialect, no copied content. Work order executed: §9,
+      §10's fixture bullet, §6's `import_md` row, §14's M4 row, D7's
+      banner, a new D12 dossier, and §2's M4 row below.
 - [x] **U4 · Draft the golden-file and determinism test scaffolding
       shape** (spec §10) so M1 starts with the harness, not after it:
       where fixtures live, how they regenerate, how the byte-compare test
@@ -415,7 +468,7 @@ Unowned work. Take the next unused `U` id; never renumber, never reuse.
       with `#anchor` targets for registered docs. Proposed in the
       sign-off thread 2026-09-25; **approved and landed the same day**
       in §3/§6/§6.1 + the D10 banner.
-- [ ] **U7 · Clarify the "six denied lints" wording.** Spec §10's gate
+- [x] **U7 · Clarify the "six denied lints" wording.** Spec §10's gate
       sentence and AGENTS.md's coding-guidelines item 1 say "the six
       denied lints of `.agents/roles/_rust.md`"; the workspace regime
       declares six panic-family clippy denies (`unwrap_used`,
@@ -426,7 +479,16 @@ Unowned work. Take the next unused `U` id; never renumber, never reuse.
       or keep "six" as the panic-family shorthand and let
       wildcard_imports ride its own rule. Surfaced by the M0 dual
       review; until it is answered, the workspace exceeds the spec
-      floor, which is the safe direction.
+      floor, which is the safe direction. **Resolved 2026-09-29** by a
+      third option neither branch named: **delete the count**. §10's
+      structure was already right — state the principle, delegate the list
+      to `_rust.md` — and only the number was false, so §10 now says "the
+      denied lints of `.agents/roles/_rust.md`" and notes that `_rust.md`
+      is the enumeration. Enumerating nine names in signed text would have
+      made every future lint a spec amendment. AGENTS.md's item 1 states
+      the nine for a reader who needs them there, and says why the prose
+      carries no count. `_rust.md` was already accurate and did not move,
+      so no `agents-sync` regeneration was needed.
 - [x] **U8 · Approve the first external dependencies (M1 store).**
       Revised 2026-09-26 after the user offered their own JSON library:
       `serde` (+derive; the schema layer), **`dacode-json`** as the
@@ -469,7 +531,7 @@ Unowned work. Take the next unused `U` id; never renumber, never reuse.
       doc comments now contradict §6.1 and are tracked as **f22** — the
       `ValueError` module doc rides t15, the `StoreError::Io` one rides
       t13.
-- [ ] **U10 · Decide whether compaction archives the events it drops.**
+- [x] **U10 · Decide whether compaction archives the events it drops.**
       §4.1 signs "periodic snapshot + truncation bounds replay"; §7 signs
       "the history of a repo's locations is part of the audit trail"; and
       §4 makes human auditability a strong preference because "the store
@@ -489,7 +551,30 @@ Unowned work. Take the next unused `U` id; never renumber, never reuse.
       in M1 calls `compact()`** — §6 lists no tool for it and t13's cli
       has not landed — so no history is destroyed by the code as shipped;
       the choice gets expensive the moment a caller exists. Surfaced by
-      the t12 dual review.
+      the t12 dual review. **Resolved 2026-09-29 — option (a), drop as
+      landed, plus "nothing calls it yet".** The reframe that settled it:
+      compaction is not garbage collection of done work and does not
+      necessarily free space — it writes the *entire* current graph, open
+      and closed alike, into the snapshot and rewrites the log as
+      `header + seed`, trading log bytes for snapshot bytes. Its purpose
+      is §4.1's "load is O(log length)", and §4.1's own scale argument
+      (10^3–10^5 nodes, every query a traversal) says replay is already
+      cheap, so (b)'s archive sibling would buy a second retention
+      mechanism plus a rotation policy for a guarantee §4.3 already
+      provides. The reading in `snapshot.rs` is therefore **blessed into
+      §4.3** rather than left as a crate-local argument. f14 was **split**:
+      `deny_unknown_fields` on `LogHeader` lands with t13 — deserialize-
+      only, so **no golden moves**, and the registry and snapshot documents
+      are the precedent — while the persistent **compaction marker is
+      deferred** until something actually compacts, because its only job is
+      making a compacted store distinguishable from a fresh one and a
+      golden-moving compatibility event spent with no beneficiary is the
+      wrong trade. Consequently **t13 ships `dump`, `verify` and `repair`
+      but no `compact` subcommand**; `verify` still reports the reachable
+      divergence (a snapshot whose `log_offset` exceeds its log, the
+      (3)–(4) window, already a named error with a re-base repair) and
+      still cannot detect out-of-band snapshot deletion, which is honest
+      because no compacted store can exist yet.
 - [x] **U11 · Report or fix `dacode-json`'s tuple deserialization.**
       The serializer this project adopted at U8 (path dependency on
       `/Users/mouse/RPM/dacode/rust/json-tiers`) serializes serde tuples
@@ -543,7 +628,7 @@ Newest first. One entry per session, written for someone who was not
 here. The final entry of a session is the handover
 (`.agents/skills/todo-next-imp/SKILL.md` defines the shape).
 
-### 2026-09-29 — U11 fixed upstream; U9 resolved (§6.1 gains `invalid` and `io`)
+### 2026-09-29 — U11 fixed upstream; U7/U9/U10/U3(D12)/U2/t11 settled
 
 The session opened at the t12 handover's fork — t13, t15, or the two open
 board questions — and the user asked what U10 and U11 actually required
@@ -631,6 +716,52 @@ versioned list honest in the first place. Two doc comments now contradict
 is already in the right crate: the domain half with t15, the store half
 with t13.
 
+**Then the rest of the backlog was cleared in one exchange**, and two of
+the five answers were not the ones proposed. **U10** went to (a), but only
+after the premise was corrected: the question had been framed as "how
+should compaction archive what it drops", and compaction does not drop
+*done* work or necessarily free space at all — it writes the whole current
+graph, open and closed alike, into the snapshot and trades log bytes for
+snapshot bytes, its purpose being §4.1's bounded replay. Since §4.1's own
+scale argument says replay is already cheap at 10^3–10^5 nodes, the answer
+became (a) *plus nothing calls it yet*: f14 split so that
+`deny_unknown_fields` rides t13 (deserialize-only, no golden moves) while
+the compaction marker waits for a beneficiary, and **t13 ships no
+`compact` subcommand**. A compatibility event spent with nothing to
+protect is the wrong trade, and (a) forecloses nothing.
+
+**U3 was not executed as written — it was overruled, correctly.** The
+recommendation was to keep D7's camera-first order because a fixture has
+to be stable and the importer's first target needs a pinned golden. The
+user's answer added a constraint that was not on the table: `camera` and
+`ikvm-html` are **other products**, and their board content is not to be
+copied into this repository at all. That makes the live-test route the
+only available one for them, and their technical reasoning is better than
+the familiarity argument D7 was signed on — `dacode`'s board carries the
+deeper structure and the more complex references, which is the hard half
+of §9's mapping (D10's `references`, `#anchor` citations, decision→work
+edges), while `camera`'s more recent *manners* are what the mapping table
+absorbs cheaply. So **D12** reverses D7's order and records the cost
+plainly instead of hiding it: two of three dialects get no pinned golden,
+their correctness argued by a live run a human inspects, which is weaker
+and non-reproducible; the named remedy at M4 is a *synthetic* fixture
+hand-written here in the camera dialect, not committing their boards.
+**Lesson for recommendations: a stability argument is not a rebuttal to a
+boundary argument.** The fixture rationale was sound and irrelevant once
+the content was not ours to copy.
+
+**U7** took a third option neither branch on the board had named — delete
+the count from §10 rather than enumerate nine lint names in signed text,
+because `_rust.md` is already the enumeration and a tenth lint should not
+require a spec amendment. **U2** is scheduled after g5 and before M2,
+which is earlier than "before M3" and deliberate: it is the only open item
+that could invalidate a signed §6 shape, so discovering it after M2's
+query surface is built would be the expensive order. **t11's** narrow
+registry reading is accepted and its veto window closes; the M3 revisit is
+to be driven by a measurement of cold `repo_list` rather than a preference,
+following U1's precedent where D1 was signed without the benchmark and the
+numbers became decision material only if the fallback was proposed.
+
 **Handover.** Workspace: `main` at `a22fced`/`7959281` plus this board
 commit, clean; sibling `/Users/mouse/RPM/dacode/rust/json-tiers` at
 `c4aebe9` with **53 files still dirty** (an uncommitted `cargo fmt` pass,
@@ -646,15 +777,14 @@ or **t15** first if a small independent commit is preferred (it is the
 only M1 work not gated on a user decision, and g5's `cargo doc` gate needs
 it). U10's answer still shapes t13's `repair`; U12 now joins it there.
 
-Blocked on you: **U10** (does compaction archive what it drops? — and
-prior to that, whether anything should call `compact()` at all before M5,
-since §4.1's own scale argument says replay is already cheap at 10^3–10^5
-nodes) and **U12** (keep `relates_from_arrays` for its diagnostic; adopt
-the named-field-struct rule?). Non-blocking: U7, U2, U3, and t11's narrow
-reading of §2's registry metadata, still open to veto. Also yours: whether
-to commit the sibling's 53-file fmt pass — that repo has no fmt gate, so
-committing without adding one just lets it drift — and whether to
-benchmark `c4aebe9` before it goes anywhere near a release.
+Blocked on you: **U12** only, and it is deferred to t13 by design (its
+`repair` output is what consumes the better `corrupt_store` detail). Every
+other open item is either scheduled (U2, after g5) or non-blocking (U7 is
+resolved; U3 is superseded by D12; t11's veto window is closed). Also
+yours, in the sibling repo: whether to commit its 53-file `cargo fmt` pass
+— that repo has no fmt gate, so committing without adding one just lets it
+drift — and whether to benchmark `c4aebe9` before it goes anywhere near a
+release.
 
 Unverified: **throughput of the engine fix** — no benchmark was run, and
 it adds a call and a branch per array close in a crate whose pitch
