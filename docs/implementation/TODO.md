@@ -923,6 +923,110 @@ Newest first. One entry per session, written for someone who was not
 here. The final entry of a session is the handover
 (`.agents/skills/todo-next-imp/SKILL.md` defines the shape).
 
+### 2026-09-29 (second session) — the file budget, t13a, U14's measurement, t22
+
+The session opened at the t15 handover's single next step (t13) and the
+user answered the nine dispatch questions in one message, which changed the
+shape of the work twice. Item 9 turned into a rule change — the file budget
+counts **production lines**, so `graph/state.rs` went from 777 to 460 and
+off the ledger, and over-target became a *recorded* exception rather than a
+silent one (`8787a72`, index backfill `0ab91c2`). Item 7 was not a decision
+but a request to measure, so nine parsers were built against one identical
+surface before recommending any of them; the table is U14, and the two
+traps in it (`argh`'s default features pulling `serde`; clap's
+`global = true` + required panicking at runtime) were found by compiling,
+not by reading docs. Item 3 — "leave it open, due to log backend" — parked
+the diagnostics question as f25 and is the reason t13 grew a store commit:
+§4.3's repair truncates, truncating is a write, and §8's lock and the log's
+line discipline both live in `todo-store`, so a cli that re-derived them
+would be a second implementation of the single-writer protocol. t22 landed
+that primitive (`4c5782b`, hash backfill `a1d2e86`), and its review found
+the session's sharpest defect: the guard standing between "refuse" and §4's
+silent event loss had **no test**, and deleting it left the suite green
+while a store truncated to its header-plus-seed prefix and reopened as a
+different graph. t13a (`ffa4be8`) closed six riders in between.
+
+The recurring failure class was prose, three times running: a board entry
+asserting that both reviewers caught something when one filed it as a low;
+a mutation count that did not match the mutations named beside it; a
+module-doc rationale resting on a half-true premise about where snapshot
+offsets come from (f34, where the implementer corrected the reviewer and
+both confirmed the correction). Each fix was deleting the claim or
+restating it as substance, never re-counting — which is t15's lesson and
+f20's, and why f30 (the rule lives in task specs, not in `_rust.md`) is
+routed to g5 rather than patched mid-commit.
+
+**Handover**
+
+```
+Workspace:    main, clean; the last code commit is a1d2e86 and this
+              handover rides the docs commit after it. Four crates: todo-domain (111 tests),
+              todo-store (106 tests, four goldens, six modules + repair.rs),
+              todo-mcp and todo-cli still M0 shells. rustc 1.98.1, MSRV
+              1.95, 217 workspace tests. Deps: serde, dacode-json + zmij
+              (path dep on /Users/mouse/RPM/dacode/rust/json-tiers — a cold
+              machine needs that checkout beside this repo's parent, at
+              f7f26f8), tempfile dev-only. lexopt is NOT yet in Cargo.lock;
+              it lands with t20. Serena's semantic layer is live. Nothing to
+              install.
+Landed:       six commits — 8787a72 (production-line budget + the
+              named-field-structs house rule + U13/U14 opened), 0ab91c2
+              (index backfill), ffa4be8 (t13a: f14/f17/f18/f22-store/f23,
+              U12(a) recorded in-tree, U13's exception lines), 934745f
+              (U14 resolved: lexopt, --pretty dropped), 4c5782b (t22:
+              DataRoot::repair + RepairOutcome/TornTail), a1d2e86 (hash
+              backfill). Closed: U12, U14, f14, f17, f18, f21, f22, f23,
+              f26-f29, t18, t19, t22. Opened: f25 (parked diagnostics),
+              f30-f35.
+Next step:    t20 — the todo-cli inspector, specced and ready at
+              tmp/t20-spec.md (surface, exit-code table, dump document,
+              verify's report, repair's prompt flow, the fifth golden,
+              seven required test groups, three mutations). Dispatch it the
+              proven way: a short spawn prompt pointing at the spec
+              (P-LIVE-001 — long prompts have killed spawns), retry with a
+              control spawn on Connection reset, verify lines use target
+              selection not name filters (P-LIVE-005), test files carry the
+              inline mod wrapper (P-LIVE-002/004). One open judgment call
+              the spec deliberately leaves: whether the dump mirrors
+              Counters in a cli-local DTO or omits it (Counters is
+              serde-free by t7's rule and must not gain derives). Then t21
+              (f19's order-sensitive compact test, tests-only, independent
+              of t20), then the g5 M1 exit gate. The alternative to t20 is
+              U2 (the rmcp survey), which is scheduled after g5 and before
+              M2 on purpose — it is the only open item that could
+              invalidate a signed §6 shape, and therefore U9's new
+              invalid/io codes.
+Blocked on you: nothing. U2's scheduling, U13's acknowledgement and the
+              three P3 tracker debts are the only attention items left, and
+              f25 carries one veto-able reading (a narrow §4.3 recovery
+              primitive is not the parked diagnostics surface) — if you
+              disagree, 4c5782b is the commit to revert. Two sibling-repo
+              calls also remain yours: whether dacode-json gains a
+              cargo fmt --check gate, and whether to benchmark c4aebe9.
+Unverified:   no induced crash or power loss anywhere — t22's write path is
+              reasoned against crash points and tested against hand-built
+              on-disk states, and compact()'s step order is still not
+              externally observable without a fault seam (f19/t21 names the
+              technique). Nothing has called compact() outside tests, so
+              RepairOutcome::Diverged is reachable only from a fixture.
+              The cli does not exist yet, so D5's "inspect the store before
+              M3" is still unmet and dump's golden is unwritten. MCP smoke
+              awaits M3. Per-crate lint tripwires for todo-mcp/todo-cli have
+              never been fired. Multi-process lock contention is still two
+              handles in one process. The #[cfg(unix)] permission tests
+              vanish rather than pass off-platform. Snapshot durability
+              without a directory fsync is reasoned (f16), not measured.
+              lexopt was measured against a 13-case behaviour table in a
+              gitignored probe (tmp/argprobe), not yet against the real cli.
+Tracker:      tools/tasks.py check exits 0. g3/g4 standing; d1/d2/d3
+              acknowledged with a corrected production-line ledger (log.rs
+              812, event.rs 772, state.rs 460 and off it); f4 (M3), f13
+              (accepted), f20/f24/f30 (g5's pitfalls consolidation), f25
+              (parked), f31-f35 recorded. Doc gates: check-links ok
+              (11 links / 10 files), agents-sync --check and agents-index
+              --check up to date, attention.py --check exit 0.
+```
+
 ### 2026-09-29 — t15 landed; U11 fixed upstream; U7/U9/U10/U3(D12)/U2/t11 settled
 
 The session opened at the t12 handover's fork — t13, t15, or the two open
