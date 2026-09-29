@@ -448,7 +448,7 @@ Oldest first. One line per delivery, with the commit hash once committed.
      that it had been measured, and — sharpest — that this very board entry
      asserted a dual-review sign-off the round record contradicted, which
      is the forged-trailer failure mode caught from inside the diff rather
-     than at the commit.
+     than at the commit. Landed as `0a23350`.
 
 ## 4. Follow-ups
 
@@ -853,7 +853,7 @@ the same lesson as f20 in a different register — an unverified assertion
 embedded in an artifact, trusted because it was written down — and it is
 worth carrying into g5's `.agents/pitfalls.md` consolidation beside it.
 
-**Handover.** Workspace: `main` at `070b317` plus the t15 commit, clean.
+**Handover.** Workspace: `main` at `0a23350`, clean.
 Sibling `/Users/mouse/RPM/dacode/rust/json-tiers` at **`f7f26f8`, clean** —
 the deserializer fix (`c4aebe9`) and then the 53-file `cargo fmt` pass,
 committed separately so the fix stays reviewable on its own. `todo-domain`
@@ -876,10 +876,10 @@ Blocked on you: **U12** only, and it is deferred to t13 by design (its
 `repair` output is what consumes the better `corrupt_store` detail). Every
 other open item is either scheduled (U2, after g5) or non-blocking (U7 is
 resolved; U3 is superseded by D12; t11's veto window is closed). Also
-yours, in the sibling repo: whether to commit its 53-file `cargo fmt` pass
-— that repo has no fmt gate, so committing without adding one just lets it
-drift — and whether to benchmark `c4aebe9` before it goes anywhere near a
-release.
+yours, in the sibling repo: whether to add `cargo fmt --check` to its
+`tools/check-features.sh` — the 53-file pass is now committed as `f7f26f8`,
+but that repo has no fmt gate, so without one it drifts again — and whether
+to benchmark `c4aebe9` before it goes anywhere near a release.
 
 Unverified: **throughput of the engine fix** — no benchmark was run, and
 it adds a call and a branch per array close in a crate whose pitch
