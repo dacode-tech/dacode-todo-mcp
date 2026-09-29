@@ -38,11 +38,12 @@ gate. t13 is decomposed along the crate boundary into three commits:
 **t13a**, the store riders (f14's `LogHeader` `deny_unknown_fields`, f17's
 third `LockTarget` variant, f18, f22's store half, f23, U12(a)'s verdict,
 U13's module-doc exception lines — no new dependency, no golden moves),
-**which has landed**; **t13b**, the cli itself (`dump`/`verify`/`repair`
-plus a fifth golden) — U14 chose `lexopt`, and one more store commit now
-precedes it (t22), because §4.3's repair must truncate under §8's lock and
-the store owns both that protocol and the line discipline; and **t19**, a
-tests-only commit for f19's order-sensitive `compact()` test.
+**which has landed**; **t22**, the store's §4.3 repair primitive, which
+**has landed** — `repair` truncates, truncating is a write, and §8's lock
+plus the log's line discipline both live in the store, so the binary prints
+what the crate decides; **t13b**, the cli itself (`dump`/`verify`/`repair`
+plus a fifth golden), U14 having chosen `lexopt`; and **t19**, a tests-only
+commit for f19's order-sensitive `compact()` test.
 
 | Blocking | What | Action |
 |---|---|---|
@@ -546,6 +547,62 @@ Oldest first. One line per delivery, with the commit hash once committed.
       the round record lives in the session tracker and not here.
       Dual-reviewed to sign-off on the committed tree. Landed as
       `ffa4be8`.
+- 2026-09-29 — **M1 t22: the store's §4.3 repair primitive** — the commit
+      t13b needs and did not have. Repairing a torn tail truncates the
+      log, truncating is a write, and §8's lock plus the log's line
+      discipline both live in `todo-store`; a cli that re-derived them
+      would be a second implementation of the single-writer protocol, so
+      the primitive lands here and the binary prints what the crate
+      decides. `DataRoot::repair(slug, dry_run)` returns
+      `RepairOutcome::{Clean, TornTail { torn, truncated }, Unrepairable
+      { offset, detail }, Diverged { log_offset, log_len }}`, and a
+      *refusal* is an `Ok`, never an `Err` — §6.1's list is closed and has
+      no code for "not repairable". Diagnosis runs the crate's **own**
+      `replay` over the bytes, so repair's classification agrees with
+      `open`'s by construction rather than by parallel logic, and it is
+      structural throughout: a `detail` string is explicitly not the
+      contract, so none is ever matched. The order is the argument — lock,
+      read, replay, then the snapshot divergence **before** the torn-tail
+      test (an out-of-band truncation can present both, and the divergence
+      dominates because truncating would not fix it), then **validate the
+      truncated prefix by replaying it before writing anything, dry run
+      included**, which is §8's atomic-rejected-write discipline applied
+      to a repair and is what makes a dry run's promise identical to a real
+      run's, then temp+`fsync`+atomic rename with no directory `fsync`
+      (f16's closed decision covers this rename too; no append handle is
+      open, and a future `open_log` opens by path, so the rename orphans
+      nothing). `Err` is deliberately wider than the task spec's
+      three-item list and the deviation is pinned by test: an unparseable
+      snapshot document propagates, because `repair`'s `Err` is then
+      byte-identical to `open`'s — the agreement property the primitive
+      exists for — while `Unrepairable.offset` is a *log* position by
+      contract and must never carry a snapshot byte. New `src/repair.rs`,
+      342 production lines; `log.rs` and `event.rs` unchanged beyond
+      visibility keywords, which is the ledger rule U13 now enforces. 106
+      store tests (19 new), the domain's 111 unchanged, no golden moved,
+      `Cargo.lock` unchanged, `cargo doc` clean. Dual-reviewed to sign-off
+      on the committed tree, and the review earned its keep: the primary
+      found that the one guard standing between "refuse" and §4's silent
+      event loss — the check that the fault's offset is the *final* line's
+      — was load-bearing and **unpinned**; deleting it left every test
+      green while a store holding interior damage beside a torn tail
+      truncated to its header-plus-seed prefix, showed the human confirming
+      the repair a torn line that was not at the offset it reported, and
+      then opened to a graph that was not the pre-fault one. The test that
+      pins it now is
+      `interior_damage_beside_a_torn_tail_is_refused_at_the_interior_offset`,
+      and the mutation was re-run after the fix to confirm it fails. Four
+      lows landed with it: a refusal reason that read false for one of the
+      two states it covered (split in two, with the unreachable fallbacks
+      given their own name rather than borrowing a reason), tests for the
+      three arms that had none, a module-doc rationale resting on a
+      half-true premise about where snapshot offsets come from (**f34**:
+      `snapshot.rs`'s `corrupt()` keeps the codec's offset, only
+      `unpositioned()` has none — the reviewer's premise, corrected by the
+      implementer and confirmed by both on re-review), and a doc
+      justification pointing at a constant in a file its own test target
+      does not include. One taste-level wording finding was dispositioned
+      rather than opening a fourth round for one word (**f35**).
 
 ## 4. Follow-ups
 

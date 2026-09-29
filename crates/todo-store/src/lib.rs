@@ -42,12 +42,15 @@
 //! server decide *when*. The serialized bytes are pinned by the golden
 //! files under `tests/golden/` (spec §10,
 //! `.agents/knowledge/workflows/golden-files.md`): `event_log`,
-//! `serialize_nodes`, `registry` and `snapshot`. The cli inspector and
-//! §4.3's repair (t13) read the store back. Through M1 the constructors
-//! return the concrete [`JsonlStore`]; M3's server gets a boxed opener
-//! (`Box<dyn Store>`) if it would otherwise have to name the engine — the
-//! `dyn Store` object-safety pin keeps that available, and it is
-//! deliberately not built now.
+//! `serialize_nodes`, `registry` and `snapshot`. The cli inspector reads
+//! the store back, and §4.3's one recovery operation is landed:
+//! [`DataRoot::repair`] → [`RepairOutcome`]/[`TornTail`], which truncates
+//! a torn last line under §8's lock and refuses — as an outcome, never as
+//! an error, §6.1's list being closed — everything a truncation cannot
+//! fix. Through M1 the constructors return the concrete [`JsonlStore`];
+//! M3's server gets a boxed opener (`Box<dyn Store>`) if it would
+//! otherwise have to name the engine — the `dyn Store` object-safety pin
+//! keeps that available, and it is deliberately not built now.
 
 #![cfg_attr(
     test,
@@ -67,6 +70,7 @@ mod layout;
 mod lock;
 mod log;
 mod registry;
+mod repair;
 mod snapshot;
 mod store;
 
@@ -80,6 +84,7 @@ pub use layout::DataRoot;
 pub use lock::RegistryLock;
 pub use log::JsonlStore;
 pub use registry::{Registry, RegistryEntry};
+pub use repair::{RepairOutcome, TornTail};
 pub use store::{Compaction, Store};
 
 /// The store format version — spec §4: "a format version in the header;

@@ -11,8 +11,8 @@
 //! fault there means something else edited or damaged it. Nothing is
 //! skipped and nothing is repaired (§4.3: "no automatic repair path
 //! exists"); the error carries the offending line's **absolute** byte
-//! offset, which is where t13's repair truncates from, and the engine's
-//! position *within* that line rides in the `detail` text.
+//! offset, which is where [`crate::DataRoot::repair`] truncates from, and
+//! the engine's position *within* that line rides in the `detail` text.
 //!
 //! The engine's own constructors — [`JsonlStore::create_log`] and
 //! [`JsonlStore::open_log`] — take a bare log path, and every store they
@@ -627,7 +627,7 @@ impl Store for JsonlStore {
 /// run before the snapshot is consulted, so a log that is itself
 /// malformed reports its own fault at its own offset even when a
 /// snapshot exists.
-fn replay(path: &Path, bytes: &[u8]) -> Result<Graph, StoreError> {
+pub(crate) fn replay(path: &Path, bytes: &[u8]) -> Result<Graph, StoreError> {
     let mut lines = LineSplit::new(bytes);
 
     let Some(header) = lines.next() else {
@@ -728,14 +728,14 @@ fn parse_line(line: &LogLine<'_>) -> Result<Event, StoreError> {
 
 /// One line of a log: its absolute byte offset, its bytes without the
 /// terminator, and whether the terminator was there.
-struct LogLine<'a> {
+pub(crate) struct LogLine<'a> {
     /// Where the line starts in the file — the offset a repair truncates
     /// from (§4.3).
-    offset: usize,
+    pub(crate) offset: usize,
     /// The line's own bytes, terminator excluded.
-    bytes: &'a [u8],
+    pub(crate) bytes: &'a [u8],
     /// Whether an LF followed them. `false` means the write was torn.
-    terminated: bool,
+    pub(crate) terminated: bool,
 }
 
 /// Splits log bytes into [`LogLine`]s in file order.
@@ -744,7 +744,7 @@ struct LogLine<'a> {
 /// position the splitter itself had consumed when it reached it, so the
 /// offsets in §4.3's errors cannot drift from the split that produced
 /// them.
-struct LineSplit<'a> {
+pub(crate) struct LineSplit<'a> {
     /// The bytes not yet split.
     rest: &'a [u8],
     /// How many bytes of the input the yielded lines accounted for.
@@ -753,7 +753,7 @@ struct LineSplit<'a> {
 
 impl<'a> LineSplit<'a> {
     /// A splitter over a whole log.
-    fn new(bytes: &'a [u8]) -> Self {
+    pub(crate) fn new(bytes: &'a [u8]) -> Self {
         Self {
             rest: bytes,
             consumed: 0,
