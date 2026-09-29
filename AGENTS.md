@@ -164,8 +164,10 @@ reviewers enforce by hand:
    files pinning serialized bytes.
 4. `///` on every public item; comments explain non-obvious rationale or
    nothing.
-5. Files under 1000 lines, target 600; unit tests in-file, integration
-   under `crates/<crate>/tests/`.
+5. Files under 1000 **production** lines, target 600 — a `#[cfg(test)]`
+   block and a test-only file are not counted, and an over-target file is
+   an exception recorded in its module doc and on board §5 (the cap is not
+   waivable). Unit tests in-file, integration under `crates/<crate>/tests/`.
 
 ## Code search: pick the layer
 

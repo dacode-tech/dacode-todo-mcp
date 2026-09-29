@@ -115,6 +115,19 @@ surfaces; the code must not reintroduce the property it removes:
 - The on-disk format is pinned by **golden files**: changing a serialized
   shape means changing its golden in the same commit, and a golden diff
   is a compatibility event — call it out.
+- **Named-field structs, never tuples, in a persisted schema.** A
+  positional shape is unreadable in the file that §4 makes
+  human-auditable — `["camera:U1","camera:U2"]` does not say what either
+  element is, while `{"shape":"task_to_task","from":…,"to":…}` does — and
+  it degrades the repair surface §4.3 exists for, because serde's complaint
+  about a wrong-length tuple is `invalid length 3, expected a tuple of size
+  2` where a named field says which field failed. A field inserted in the
+  middle is a silent reinterpretation of every existing file rather than a
+  `deny_unknown_fields` rejection. The patch DTOs and the snapshot document
+  are the precedent; `relates` is the format's one positional shape and
+  carries a hand-written reader purely to keep its diagnostic (U12). This
+  rule is argued on auditability and outlives the `dacode-json` tuple bug
+  fixed at U11 — it would stand even with a perfect engine.
 
 ### Error handling
 
@@ -128,10 +141,10 @@ surfaces; the code must not reintroduce the property it removes:
 
 ### Async and concurrency
 
-- Whether the server is async at all is the runtime question D1/D6
-  constrain; until signed, keep the domain and store crates sync and
-  runtime-agnostic — the binary may adopt tokio, the libraries must not
-  require it.
+- Settled by the signed D1 engine (spec §2): the JSONL event log and the
+  in-memory graph need no async runtime, so the domain and store crates
+  stay sync and runtime-agnostic — the binary may adopt tokio for rmcp,
+  the libraries must not require it.
 - Do not hold a `std::sync::Mutex` guard across an `.await` (once async
   exists). Prefer message passing over shared locks where the design
   allows.
@@ -154,9 +167,29 @@ surfaces; the code must not reintroduce the property it removes:
 
 ### File size and module shape
 
-- Keep files under 1000 lines; target 600. Split by responsibility, not
+- The budget counts **production lines only**. Test code is not charged
+  against it, in either of its two homes: a `#[cfg(test)] mod tests { … }`
+  block inside a production file does not count, and a file that *is* test
+  code — declared `#[cfg(test)] mod x;` by its parent, or living under
+  `crates/<crate>/tests/` — does not count at all. Measure a production
+  file with:
+
+  ```sh
+  awk '/^#\[cfg\(test\)\]/{exit} {n++} END{print n+0}' <file>
+  ```
+
+  which stops at the first in-file test module. A test-only file reports
+  its whole length here; it is exempt by the rule above, not by the number,
+  so do not "fix" one by splitting it.
+- **Target 600 production lines, cap 1000.** Split by responsibility, not
   by size alone — a 900-line module with one coherent job can pass, a
   300-line grab-bag should not.
+- Over target is an **exception and it is recorded**: one line in the
+  file's module doc saying why it is over and what would split it, plus an
+  entry in `docs/implementation/TODO.md` §5 (Debt). An over-target file
+  with no recorded exception is a review finding; with one, it is
+  acknowledged debt and not a finding. The cap is not waivable — at 1000
+  production lines the file splits, exception or no.
 - Unit tests live in `#[cfg(test)] mod tests` in the same file;
   cross-module/integration tests in `crates/<crate>/tests/`.
 

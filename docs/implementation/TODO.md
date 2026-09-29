@@ -34,15 +34,21 @@ the five store/cli commits are in, and `Store` now carries all five of
 doc links, f22's domain half) has landed since, so `cargo doc --workspace
 --no-deps` — g5's newest gate line — is unconditionally clean; **next is
 t13**, the `todo-cli` inspector, the last M1 code task before the g5 exit
-gate.
+gate. t13 is decomposed along the crate boundary into three commits:
+**t13a**, the store riders (f14's `LogHeader` `deny_unknown_fields`, f17's
+third `LockTarget` variant, f18, f22's store half, f23, U12(a)'s verdict,
+U13's module-doc exception lines — no new dependency, no golden moves);
+**t13b**, the cli itself (`dump`/`verify`/`repair` plus a fifth golden,
+gated on U14's parser choice); and **t19**, a tests-only commit for f19's
+order-sensitive `compact()` test.
 
 | Blocking | What | Action |
 |---|---|---|
-| — | nothing: U10 resolved 2026-09-29, and every other open item is non-blocking | execute t13, then the g5 exit gate |
+| **U14** | `todo-cli`'s argument parser — an Ask-First dependency approval; gates **t13b** only | answer U14 (recommendation: `lexopt`); t13a proceeds meanwhile |
 
-(Open but non-blocking: U12, deferred to t13 by design, and U2 which is
-scheduled after g5. Resolved: U4/U5/U6/U7/U8/U9/U10/U11, and U3 superseded
-by D12.)
+(Open but non-blocking: U2, scheduled after g5 and before M2. Resolved:
+U4/U5/U6/U7/U8/U9/U10/U11/U12, and U3 superseded by D12. U13 is
+acknowledged debt, not an open question.)
 
 ## 2. Milestones
 
@@ -448,7 +454,36 @@ Oldest first. One line per delivery, with the commit hash once committed.
      that it had been measured, and — sharpest — that this very board entry
      asserted a dual-review sign-off the round record contradicted, which
      is the forged-trailer failure mode caught from inside the diff rather
-     than at the commit. Landed as `0a23350`.
+     than       at the commit. Landed as `0a23350`.
+- 2026-09-29 — **instructions: the production-line file budget and the
+      persisted-schema tuple rule** (two user decisions taken while
+      dispatching t13). `_rust.md`'s file-size rule now counts
+      **production lines**: a `#[cfg(test)] mod tests` block inside a
+      production file is not charged, and a file that *is* test code —
+      declared `#[cfg(test)] mod x;` by its parent, or under
+      `crates/<crate>/tests/` — is not charged at all, with the `awk`
+      one-liner that measures it and an explicit warning not to "fix" a
+      test-only file by splitting it. Over-target becomes a **recorded
+      exception** rather than a silent one: a module-doc line saying why
+      the file is over and what would split it, plus a board §5 entry —
+      with one missing it is a review finding, with one it is acknowledged
+      debt. The 1000-line cap stays unwaivable. AGENTS.md item 5 carries
+      the same summary. Measured consequence, now committed as **U13**
+      (previously d2/d3 in the gitignored tracker only): `graph/state.rs`
+      reads 777 under `wc -l` and is **460** production lines, so it comes
+      off the ledger entirely, three test-only files were never
+      chargeable, and the real overage is `log.rs` 793 and `event.rs` 759.
+      `_rust.md`'s determinism section gains U12(b)'s house rule —
+      **named-field structs, never tuples, in a persisted schema** —
+      argued on §4 auditability and §4.3's repair surface and stated to
+      outlive the engine bug U11 fixed, with `relates` named as the
+      format's one positional shape; the same file's stale "whether the
+      server is async is the question D1/D6 constrain, until signed"
+      bullet is corrected to cite §2's settled text. **U12 struck** ((a)
+      `relates_from_arrays` stays for its `corrupt_store` detail, (b) the
+      house rule landed) and **U14 opened** for the cli's argument parser,
+      carrying the nine-variant measurement table so the numbers survive
+      the gitignored probe.
 
 ## 4. Follow-ups
 
@@ -652,7 +687,7 @@ Unowned work. Take the next unused `U` id; never renumber, never reuse.
       in `P-LIVE-006`. No byte moved here: all 197 tests pass and all four
       goldens are unchanged. The store-side narrowing is now optional
       rather than required, which is **U12**.
-- [ ] **U12 · Settle the post-fix `relates` read path and the tuple rule.**
+- [x] **U12 · Settle the post-fix `relates` read path and the tuple rule.**
       Two small choices left behind by U11's fix, neither blocking
       anything. (a) `snapshot.rs`'s `relates_from_arrays` now duplicates
       what the derived impl does — but it is not equivalent: the derived
@@ -667,13 +702,87 @@ Unowned work. Take the next unused `U` id; never renumber, never reuse.
       becomes a house rule in `.agents/roles/_rust.md` — it is now argued
       on §4 auditability grounds rather than as an engine workaround, so
       it survives U11 either way. Best decided with t13, whose `repair`
-      output is the consumer of (a).
+      output is the consumer of (a). **Resolved 2026-09-29**, both halves:
+      (a) `relates_from_arrays` **stays** — t13's `repair` is the consumer
+      of its `corrupt_store` detail, and "a relates entry is a two-element
+      array of task ids" is what makes that output actionable where serde's
+      `invalid length 3, expected a tuple of size 2` is not;
+      `snapshot.v1.golden` does not move and the verdict is recorded in
+      `snapshot.rs`'s doc, which rides t13a. (b) **House rule adopted** —
+      `.agents/roles/_rust.md`'s determinism section now requires
+      named-field structs over tuples in any persisted schema, argued on §4
+      auditability and §4.3's repair surface, explicitly not on the engine
+      bug U11 fixed (so it stands with a perfect engine). `relates` is
+      named there as the format's one positional shape.
+- [ ] **U14 · Approve `todo-cli`'s argument parser (gates t13b only).**
+      The inspector needs three subcommands (`dump`/`verify`/`repair`), two
+      required options (`--root`, `--slug`), three switches (`--pretty`,
+      `--dry-run`, `--yes`) and `--help`/`--version`. Hand-rolling over
+      `std::env::args` holds the dependency count at zero but re-implements
+      the GNU conventions that are easy to get subtly wrong (`--flag=value`,
+      the `--` terminator, short-flag grouping) and leaves every error
+      message ours to write. Ask-First per AGENTS.md, so nine variants of
+      that *same* surface were built and measured on this host (rustc
+      1.98.1, cold `target/` per variant, each passing the same 13-case
+      behaviour check: three happy paths, six error cases, `--help`,
+      `--version`, subcommand `--help`):
+
+      | variant | main.rs LOC | normal deps | tree MSRV | cold build | debug binary |
+      |---|---|---|---|---|---|
+      | hand-rolled `std::env::args` | 147 | 0 | — | 1.0 s | 531 KB |
+      | `clap` 4.6.7 derive, default features | 65 | 17 | 1.85 | 7.7 s | 3.6 MB |
+      | `clap` 4.6.7 derive, minimal features | 65 | 10 | 1.85 | 6.3 s | 3.4 MB |
+      | `clap` 4.6.7 builder API, minimal features | 119 | 4 | 1.85 | 3.1 s | 3.3 MB |
+      | `lexopt` 0.3.2 | 135 | 1 | none declared | 2.0 s | 600 KB |
+      | `pico-args` 0.5.0 | 127 | 1 | none declared | 1.4 s | 573 KB |
+      | `bpaf` 0.9.28 | 123 | 1 | 1.68 | 2.2 s | 1.2 MB |
+      | `argh` 0.1.19, default features | 122 | 10 | 1.71 | 9.0 s | 703 KB |
+      | `argh` 0.1.19, `default-features = false` | 122 | 7 | 1.71 | 5.7 s | 702 KB |
+
+      "normal deps" is `cargo tree -e normal`, unique, transitive, root
+      excluded — so `lexopt`/`pico-args`/`bpaf` are genuinely
+      one-crate trees with no proc macros, while every derive option pays
+      for `syn`. Maintenance, crates.io 2026-09-29: clap 4.6.7 released
+      2026-09-14 (239 M recent downloads), bpaf 0.9.28 2026-09-17, argh
+      0.1.19 2026-03-16, lexopt 0.3.2 2026-02-28, **pico-args 0.5.0
+      2022-06-04**. Two traps found by measuring rather than reading docs:
+      `argh`'s *default* features pull in `serde` + `serde_derive`, so a
+      "optimized for code size" parser costs ten crates unless they are
+      turned off; and clap's `#[arg(global = true)]` on a **required**
+      option panics at runtime (`Global arguments cannot be required`), so
+      shared required options need a flattened `Args` struct repeated per
+      subcommand. **Recommendation: `lexopt`** — one dependency, zero
+      transitive, no proc macros (`Cargo.lock` 26 → 27), pedantic parsing
+      that rejects what it does not understand instead of guessing,
+      maintained, and the ~70 lines it costs against clap-derive are the
+      hand-written `--help` text plus the per-subcommand switch table, both
+      of which this cli wants to own because `verify`/`repair` output is
+      user-facing diagnostics. Runner-up `bpaf` if generated help is worth
+      the combinator API, the 1.2 MB binary and re-declaring shared options
+      inside every subcommand (it has no global-flag concept); `clap`
+      derive is the shortest code and the heaviest tree; `pico-args` is
+      excluded on four years without a release. Gates **t13b only** — t13a
+      (the store riders) needs no dependency and proceeds regardless.
 
 ## 5. Debt
 
 Deliberate shortcuts, acknowledged rather than fixed. Same id rules as §4.
 
-_No debt recorded yet — nothing has been built to take a shortcut in._
+- [ ] **U13 · Two store files are over the 600-line target.** Recorded as
+      d2/d3 in the gitignored session tracker since t10/t12 and promoted
+      here so the ledger is committed. Measured under the production-line
+      rule `_rust.md` now states — a `#[cfg(test)]` block and a test-only
+      file are not counted: `todo-store/src/log.rs` **793**,
+      `todo-store/src/event.rs` **759**. `todo-domain/src/graph/state.rs`
+      reads 777 under `wc -l` and is **460** production lines, so it is
+      under target and comes off the ledger; `graph/tests/mod.rs` (655),
+      `graph/tests/seeded.rs` (602) and `testcodec.rs` (602) are test-only
+      files and were never chargeable. No split proposed: each of the two
+      is one responsibility today (schema + patch application +
+      `replay_step`; append + snapshot-aware replay + `compact`), and M2's
+      query layer is what will show where the seams are. Each carries a
+      module-doc exception line, which rides t13a since it touches both
+      files. Revisit at M2.
 
 ## 6. Session log
 
