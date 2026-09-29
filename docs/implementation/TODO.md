@@ -39,15 +39,17 @@ gate. t13 is decomposed along the crate boundary into three commits:
 third `LockTarget` variant, f18, f22's store half, f23, U12(a)'s verdict,
 U13's module-doc exception lines — no new dependency, no golden moves),
 **which has landed**; **t13b**, the cli itself (`dump`/`verify`/`repair`
-plus a fifth golden), gated on U14's parser choice; and **t19**, a
+plus a fifth golden) — U14 chose `lexopt`, and one more store commit now
+precedes it (t22), because §4.3's repair must truncate under §8's lock and
+the store owns both that protocol and the line discipline; and **t19**, a
 tests-only commit for f19's order-sensitive `compact()` test.
 
 | Blocking | What | Action |
 |---|---|---|
-| **U14** | `todo-cli`'s argument parser — an Ask-First dependency approval; gates **t13b** only | answer U14 (recommendation: `lexopt`); t13b waits on it, t19 does not |
+| — | nothing: U14 resolved 2026-09-29 (`lexopt`), and every other open item is non-blocking | execute t13's remaining commits, then the g5 exit gate |
 
 (Open but non-blocking: U2, scheduled after g5 and before M2. Resolved:
-U4/U5/U6/U7/U8/U9/U10/U11/U12, and U3 superseded by D12. U13 is
+U4/U5/U6/U7/U8/U9/U10/U11/U12/U14, and U3 superseded by D12. U13 is
 acknowledged debt, not an open question.)
 
 ## 2. Milestones
@@ -774,7 +776,7 @@ Unowned work. Take the next unused `U` id; never renumber, never reuse.
       auditability and §4.3's repair surface, explicitly not on the engine
       bug U11 fixed (so it stands with a perfect engine). `relates` is
       named there as the format's one positional shape.
-- [ ] **U14 · Approve `todo-cli`'s argument parser (gates t13b only).**
+- [x] **U14 · Approve `todo-cli`'s argument parser (gates t13b only).**
       The inspector needs three subcommands (`dump`/`verify`/`repair`), two
       required options (`--root`, `--slug`), three switches (`--pretty`,
       `--dry-run`, `--yes`) and `--help`/`--version`. Hand-rolling over
@@ -823,6 +825,18 @@ Unowned work. Take the next unused `U` id; never renumber, never reuse.
       derive is the shortest code and the heaviest tree; `pico-args` is
       excluded on four years without a release. Gates **t13b only** — t13a
       (the store riders) needs no dependency and proceeds regardless.
+      **Resolved 2026-09-29 — `lexopt` 0.3.2**, on the recommendation
+      above. It rides t13b's commit, declared once at the workspace root
+      like every other dependency (U8's precedent), so `Cargo.lock` grows
+      by exactly one package. One surface change came with the pick:
+      **`--pretty` is dropped**. `dump`'s contract is canonical bytes —
+      §8's byte-identity is what its golden pins — `todo_store::to_bytes`
+      exposes no pretty writer (the engine's `to_writer_with` does, but
+      reaching it would mean a second crate depending on the engine, or a
+      new store API for a display concern), and a second output shape is a
+      second shape to pin; `jq .` is one pipe away. The measured surface
+      keeps its three subcommands, both required options and `repair`'s two
+      switches, so the comparison that chose the parser is unaffected.
 
 ## 5. Debt
 
