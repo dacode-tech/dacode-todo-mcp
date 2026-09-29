@@ -37,7 +37,7 @@ M1 code task before the g5 exit gate.
 |---|---|---|
 | U10 | t13's `verify`/`repair` semantics, and f14's log-header marker (a golden-moving format change, cheap only while no store exists outside tests) | decide: drop as landed / archive sibling / persistent header marker |
 
-(U7, U9, U12 and U2/U3 remain open but non-blocking; U5/U8/U11 are
+(U7, U12 and U2/U3 remain open but non-blocking; U5/U8/U9/U11 are
 resolved. t15 is the one M1 task gated on nothing.)
 
 ## 2. Milestones
@@ -350,6 +350,20 @@ Oldest first. One line per delivery, with the commit hash once committed.
      fmt` pass (that repo has no fmt gate, so whether it belongs in
      history is the owner's call), and the pool tier's silent surplus
      truncation. Residual choices are U12.
+- 2026-09-29 — **U9 resolved: §6.1 gains `invalid` and `io`** (spec
+     amended, user-signed). Two codes rather than one because a client
+     retries `io` and must not retry `invalid`; conflating them would cost
+     exactly the distinction a versioned code list exists to give. `io`
+     blesses the spelling `todo-store` already returns from
+     `StoreError::code()`, so it is a contract change with no code change;
+     `invalid` is M3's wire mapping for the domain's `ValueError`, which
+     stays codeless in the crate that raises it — the list being versioned
+     is why the domain could not add it unilaterally in the first place,
+     and `DomainError` remains total over the original eight. Per-case
+     mapping onto existing codes was considered and rejected: none of the
+     eleven describes a malformed slug. Two doc comments now contradict
+     §6.1 and are f22, split by crate boundary — the `ValueError` module
+     doc rides t15, the `StoreError::Io` one rides t13.
 
 ## 4. Follow-ups
 
@@ -434,7 +448,7 @@ Unowned work. Take the next unused `U` id; never renumber, never reuse.
       the serializer stays confined to `todo-store`), `dacode-json` by
       path, `tempfile` dev-only, `rust-version` 1.95. The deps ride the
       first code commits (t6: serde + the bump; t9: `dacode-json`).
-- [ ] **U9 · Decide the wire code for invalid input (M3).** t6's error
+- [x] **U9 · Decide the wire code for invalid input (M3).** t6's error
       model keeps `DomainError` total over exactly the eight §6.1 codes
       and puts malformed-input failures (bad slug/id/timestamp/date/
       reference) in a companion `ValueError` with no code — none of the
@@ -442,7 +456,19 @@ Unowned work. Take the next unused `U` id; never renumber, never reuse.
       extend it unilaterally. At M3 the wire layer needs the decision:
       a new §6.1 code (e.g. `invalid`) or a per-case mapping rule.
       Surfaced by the t6 dual review; record the choice in §6.1 before
-      the MCP surface lands.
+      the MCP surface lands. **Resolved 2026-09-29** (user took the
+      recommended option): §6.1 gains **two** codes, `invalid` and `io`,
+      rather than one — a client retries `io` and must not retry
+      `invalid`, so conflating them would cost the distinction the list
+      exists to give. `io` blesses the spelling `todo-store` already
+      returns from `StoreError::code()`, so it needs no code change;
+      `invalid` is M3's mapping for the domain's `ValueError`, which
+      stays codeless in the crate that raises it (`DomainError` remains
+      total over the original eight). Per-case mapping onto existing codes
+      was rejected: none of the eleven fits a malformed slug. Two stale
+      doc comments now contradict §6.1 and are tracked as **f22** — the
+      `ValueError` module doc rides t15, the `StoreError::Io` one rides
+      t13.
 - [ ] **U10 · Decide whether compaction archives the events it drops.**
       §4.1 signs "periodic snapshot + truncation bounds replay"; §7 signs
       "the history of a repo's locations is part of the audit trail"; and
@@ -517,7 +543,7 @@ Newest first. One entry per session, written for someone who was not
 here. The final entry of a session is the handover
 (`.agents/skills/todo-next-imp/SKILL.md` defines the shape).
 
-### 2026-09-29 — U11: fixing `dacode-json` upstream
+### 2026-09-29 — U11 fixed upstream; U9 resolved (§6.1 gains `invalid` and `io`)
 
 The session opened at the t12 handover's fork — t13, t15, or the two open
 board questions — and the user asked what U10 and U11 actually required
@@ -590,6 +616,21 @@ of the fixed-length ones). U11 is struck; **U12** opens for the two
 residual choices, best made with t13 since its `repair` output is what
 consumes the better diagnostic.
 
+**U9 closed in the same session**, and it is a spec change rather than a
+delivery: §6.1 gains `invalid` and `io`. The reason for two codes instead
+of one is retry semantics — a client may retry a filesystem fault and must
+not retry a malformed slug, so a single `invalid` would have destroyed the
+only distinction that matters to a caller. `io` costs no code because
+`StoreError::code()` already spells it that way, with a doc comment
+protesting that it is *not* a §6.1 code; the amendment blesses the
+spelling the store had already chosen. `invalid` is M3's mapping for
+`ValueError`, which stays codeless in the crate that raises it, because
+`DomainError` remaining total over the original eight is what kept the
+versioned list honest in the first place. Two doc comments now contradict
+§6.1 and are **f22**, split by crate boundary so each rides a commit that
+is already in the right crate: the domain half with t15, the store half
+with t13.
+
 **Handover.** Workspace: `main` at `a22fced`/`7959281` plus this board
 commit, clean; sibling `/Users/mouse/RPM/dacode/rust/json-tiers` at
 `c4aebe9` with **53 files still dirty** (an uncommitted `cargo fmt` pass,
@@ -605,12 +646,15 @@ or **t15** first if a small independent commit is preferred (it is the
 only M1 work not gated on a user decision, and g5's `cargo doc` gate needs
 it). U10's answer still shapes t13's `repair`; U12 now joins it there.
 
-Blocked on you: **U10** (does compaction archive what it drops?) and
-**U12** (keep `relates_from_arrays` for its diagnostic; adopt the
-named-field-struct rule?). Non-blocking: U7, U9, U2, U3, and t11's narrow
+Blocked on you: **U10** (does compaction archive what it drops? — and
+prior to that, whether anything should call `compact()` at all before M5,
+since §4.1's own scale argument says replay is already cheap at 10^3–10^5
+nodes) and **U12** (keep `relates_from_arrays` for its diagnostic; adopt
+the named-field-struct rule?). Non-blocking: U7, U2, U3, and t11's narrow
 reading of §2's registry metadata, still open to veto. Also yours: whether
-to commit the sibling's fmt pass, and whether to benchmark `c4aebe9`
-before it goes anywhere near a release.
+to commit the sibling's 53-file fmt pass — that repo has no fmt gate, so
+committing without adding one just lets it drift — and whether to
+benchmark `c4aebe9` before it goes anywhere near a release.
 
 Unverified: **throughput of the engine fix** — no benchmark was run, and
 it adds a call and a branch per array close in a crate whose pitch

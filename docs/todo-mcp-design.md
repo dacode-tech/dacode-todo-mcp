@@ -344,8 +344,21 @@ Sketch (names are the proposal; rmcp's tool macros will shape schemas):
 Stable codes, versioned like the store format: `unknown_id`,
 `duplicate`, `cycle`, `missing_verify`, `missing_evidence`,
 `missing_note`, `missing_resolution`, `orphan_not_allowed`,
-`corrupt_store`, `version_mismatch`, `locked`. A client may branch on
-a code; it must never parse a message.
+`corrupt_store`, `version_mismatch`, `locked`, `invalid`, `io`. A client
+may branch on a code; it must never parse a message.
+
+`invalid` and `io` were added by U9 (signed 2026-09-29) to cover the two
+failure classes the original eleven left codeless. **`invalid`** is
+malformed *input* — a bad slug, id, timestamp, date or reference, the
+domain's `ValueError` class — which none of the eleven describes and
+which the domain could not add unilaterally, the list being versioned.
+**`io`** is a filesystem fault; `todo-store` already spells its `Io`
+variant `"io"`, and this blesses that spelling as a contract code rather
+than leaving a client to branch on a string the contract did not cover.
+They are deliberately two codes and not one: a client retries `io` and
+must not retry `invalid`. Both are wire identities — the store's `Io`
+already answers `"io"` from `code()`, and `invalid` is M3's mapping for
+`ValueError`, so nothing implements them until the MCP surface lands.
 
 ### 6.2 The graph dump (D11 amendment)
 
