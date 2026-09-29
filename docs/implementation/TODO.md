@@ -44,7 +44,7 @@ tests-only commit for f19's order-sensitive `compact()` test.
 
 | Blocking | What | Action |
 |---|---|---|
-| **U14** | `todo-cli`'s argument parser — an Ask-First dependency approval; gates **t13b** only | answer U14 (recommendation: `lexopt`); t13a proceeds meanwhile |
+| **U14** | `todo-cli`'s argument parser — an Ask-First dependency approval; gates **t13b** only | answer U14 (recommendation: `lexopt`); t13b waits on it, t19 does not |
 
 (Open but non-blocking: U2, scheduled after g5 and before M2. Resolved:
 U4/U5/U6/U7/U8/U9/U10/U11/U12, and U3 superseded by D12. U13 is
@@ -542,7 +542,8 @@ Oldest first. One line per delivery, with the commit hash once committed.
       future *non-layout* caller that this commit's own decision falsified
       — all three in prose that a previous task had reworded, which is why
       the round record lives in the session tracker and not here.
-      Dual-reviewed to sign-off on the committed tree.
+      Dual-reviewed to sign-off on the committed tree. Landed as
+      `ffa4be8`.
 
 ## 4. Follow-ups
 
