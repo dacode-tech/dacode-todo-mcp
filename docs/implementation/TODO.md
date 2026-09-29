@@ -35,9 +35,10 @@ M1 code task before the g5 exit gate.
 
 | Blocking | What | Action |
 |---|---|---|
-| — | nothing: U4/U5/U8 all resolved 2026-09-26 | execute the M1 tree |
+| U10 | t13's `verify`/`repair` semantics, and f14's log-header marker (a golden-moving format change, cheap only while no store exists outside tests) | decide: drop as landed / archive sibling / persistent header marker |
 
-(U7 remains open but non-blocking.)
+(U7, U9, U12 and U2/U3 remain open but non-blocking; U5/U8/U11 are
+resolved. t15 is the one M1 task gated on nothing.)
 
 ## 2. Milestones
 
@@ -318,6 +319,37 @@ Oldest first. One line per delivery, with the commit hash once committed.
      §4.1's truncation) and U11 (`dacode-json` cannot deserialize serde
      tuples — P-LIVE-006, worked around without moving a wire byte).
      Landed as `a22fced`.
+- 2026-09-29 — **U11: `dacode-json`'s deserializer fixed upstream** (in
+     the sibling checkout, not this repo — landed there as `c4aebe9`).
+     The cause was not tuples: `serde::de::SeqAccess` has no `end()`, and
+     serde_json splits container framing so that `next_element_seed`
+     *peeks* `]` while `Deserializer::end_seq` eats it after `visit_seq`
+     returns. Both byte-cursor tiers here had that inverted, so a
+     fixed-length visitor — tuple, tuple struct, tuple enum variant,
+     `[T; N]`, the only serde shapes that stop reading a container early —
+     handed control back with the closer pending and the *enclosing*
+     container consumed it as its own. The same fix closed two defects
+     worse than the reported one: a **truncated array parsed clean**
+     (`[1,2` → `Ok((1, 2))`, the exact property §4.3's torn-tail
+     detection rests on), and `stream` rejected **every enum object
+     variant** because `Payload::close` advanced the structural index
+     without moving `vend`, the offset its trailing-whitespace check is
+     measured from. Nothing in that crate's suite caught any of it: its
+     serde_json differential ran the pool tier (unaffected — it
+     pre-parses) and `JValue` only, which is a collection all the way
+     down. `tests/serde_fixed_len.rs` is the missing column and fails
+     8 of 12 on the parent commit. Verified there: fmt, clippy, 22 test
+     binaries with zero failures including the 300+-file corpus
+     differential, the full `check-features.sh` matrix down to
+     `thumbv7em-none-eabihf` with no allocator, and `size.sh` on both
+     trees (`direct` +488 B linked, +1.1 %); throughput **not** measured.
+     Verified here: 197 tests pass, tree clean, all four goldens
+     byte-identical — no byte moved, because t12 kept the canonical wire
+     shape and narrowed only the read side. Deliberately **not** done:
+     committing the checkout's pre-existing 53-file uncommitted `cargo
+     fmt` pass (that repo has no fmt gate, so whether it belongs in
+     history is the owner's call), and the pool tier's silent surplus
+     truncation. Residual choices are U12.
 
 ## 4. Follow-ups
 
@@ -432,7 +464,7 @@ Unowned work. Take the next unused `U` id; never renumber, never reuse.
       has not landed — so no history is destroyed by the code as shipped;
       the choice gets expensive the moment a caller exists. Surfaced by
       the t12 dual review.
-- [ ] **U11 · Report or fix `dacode-json`'s tuple deserialization.**
+- [x] **U11 · Report or fix `dacode-json`'s tuple deserialization.**
       The serializer this project adopted at U8 (path dependency on
       `/Users/mouse/RPM/dacode/rust/json-tiers`) serializes serde tuples
       correctly but cannot read them back: it consumes the first element
@@ -447,6 +479,31 @@ Unowned work. Take the next unused `U` id; never renumber, never reuse.
       a "no tuples in a persisted schema" house rule. Either way, prefer
       named-field structs over tuples in new schemas — they dodge the bug
       and read better in an editor, which is §4's auditability point.
+      **Fixed upstream 2026-09-29** at `dacode-json` `c4aebe9`, under U8's
+      diff-proposal path: the real cause was not tuples but the array
+      closer being consumed by `SeqAccess` instead of by the
+      `Deserializer`, and the same fix closed two worse defects (a
+      truncated array parsing clean; `stream` rejecting every enum object
+      variant). Mechanism, measurements and the residual upstream gaps are
+      in `P-LIVE-006`. No byte moved here: all 197 tests pass and all four
+      goldens are unchanged. The store-side narrowing is now optional
+      rather than required, which is **U12**.
+- [ ] **U12 · Settle the post-fix `relates` read path and the tuple rule.**
+      Two small choices left behind by U11's fix, neither blocking
+      anything. (a) `snapshot.rs`'s `relates_from_arrays` now duplicates
+      what the derived impl does — but it is not equivalent: the derived
+      impl rejects a 3-element entry as serde's `invalid length 3,
+      expected a tuple of size 2`, where the helper says *"a relates entry
+      is a two-element array of task ids"*, which is the better
+      `corrupt_store` detail for whoever is repairing a store with t13's
+      `repair`. Keep it for the diagnostic, or drop it for one less
+      hand-written deserializer? Either way `snapshot.v1.golden` must not
+      move, and dropping it is a store change needing dual review.
+      (b) Whether "named-field structs over tuples in a persisted schema"
+      becomes a house rule in `.agents/roles/_rust.md` — it is now argued
+      on §4 auditability grounds rather than as an engine workaround, so
+      it survives U11 either way. Best decided with t13, whose `repair`
+      output is the consumer of (a).
 
 ## 5. Debt
 
@@ -459,6 +516,117 @@ _No debt recorded yet — nothing has been built to take a shortcut in._
 Newest first. One entry per session, written for someone who was not
 here. The final entry of a session is the handover
 (`.agents/skills/todo-next-imp/SKILL.md` defines the shape).
+
+### 2026-09-29 — U11: fixing `dacode-json` upstream
+
+The session opened at the t12 handover's fork — t13, t15, or the two open
+board questions — and the user asked what U10 and U11 actually required
+deciding. Explaining them properly meant reading the engine, and reading
+the engine turned U11 from "report a bug in someone else's crate" into
+"the bug is three lines from being diagnosed, go diagnose it". The user
+chose the fix.
+
+**The first diagnosis was wrong, and a compile error caught it.** I had
+told the user the cause was a missing `SeqAccess::end()` override, and
+wrote one. `serde::de::SeqAccess` has no `end` method — E0407, twice. The
+real mechanism, read out of serde_json 1.0.151 rather than recalled:
+`next_element_seed` *peeks* `]` and returns `None` without eating it, and
+`Deserializer::end_seq` eats it **after** `visit_seq` returns. Framing is
+the Deserializer's job, not the access adaptor's. Both of `dacode-json`'s
+byte-cursor tiers had that inverted, which is why the symptom presented as
+"trailing characters" instead of as a tuple problem: a fixed-length
+visitor handed control back with the closer still pending and the
+*enclosing* container consumed it as its own terminator. Same class as f20
+— a claim stated from memory and treated as ground truth — except here the
+compiler, not a reviewer, was the falsifier, and the reverted edits had to
+be undone by hand because `git checkout` would have destroyed the
+checkout's uncommitted work.
+
+**Two worse defects fell out of measuring instead of reasoning.** A
+scratch crate over both tiers plus serde_json as oracle, run against
+pristine `HEAD` extracted with `git archive` (no `.git` mutation, no
+stash), showed that `[1,2` deserialized as `Ok((1, 2))` — a **truncated
+array parsed clean**, because the closer was never required. That is
+precisely the property §4.3's torn-tail detection rests on, in the engine
+§4.3 is written against. And `stream` rejected *every* enum object
+variant, including ones with no array near them: `Payload::close` advanced
+the structural index with `bump` instead of `Cursor::close`, leaving
+`vend` — the offset `from_slice` measures its trailing check from —
+pointing just past the payload. Neither was reachable from this project's
+schema; both were found because the probe was written to falsify a
+diagnosis rather than to confirm one.
+
+Why that crate's own suite missed all three: its serde_json differential
+runs the **pool** tier (`tests/serde_de.rs`), which pre-parses and so is
+unaffected, and holds `direct`/`stream` to serde_json only through
+`JValue` (`tests/stream.rs`) — a collection all the way down, which never
+visits a fixed length. `tests/serde_fixed_len.rs` is the missing column,
+and copied onto the parent commit it fails 8 of 12; the 4 that pass are
+the rejection-side guards, which already rejected correctly and only
+changed message. That non-vacuity run is the reason to trust the fix.
+
+**The checkout was not mine to commit into.** 55 dirty files,
++1281/−658, which I verified is exactly `cargo fmt` on `HEAD` (reproduced
+in a scratch tree; four untouched files byte-identical; green suite before
+any edit). Two of them were files I needed. So the fix is committed as
+`c4aebe9` with those two files' reflow staged alongside it and the mixing
+disclosed in the commit body, and the **other 53 were left untouched**:
+that repo has no CI, no `rustfmt.toml` and no fmt gate anywhere, so
+`HEAD` has never been formatted and whether a 1 281-line reformat belongs
+in its history is the owner's call, not a guest's. The commit body also
+records what was measured and left alone — the pool tier's silent surplus
+truncation, `MapAccess`'s latent identical inversion, `flat::typed::de`
+being a binary reader rather than JSON — and that **throughput was not
+measured**, only size (`direct` +488 B linked for bare-metal ARM32,
++1.1 %, attributed `dacode_json` +248 / `entry` +164 / `serde_core` +48).
+
+Nothing changed here, which is the point of t12 having kept the canonical
+wire shape and narrowed only the read side: 197 tests pass, tree clean,
+all four goldens byte-identical. `P-LIVE-006` is rewritten from
+"workaround" to "resolved", carrying the generalizable lesson (a serde
+engine's framing contract lives in the `Deserializer`; and a differential
+suite is only as wide as the shapes it exercises — `Value` exercises none
+of the fixed-length ones). U11 is struck; **U12** opens for the two
+residual choices, best made with t13 since its `repair` output is what
+consumes the better diagnostic.
+
+**Handover.** Workspace: `main` at `a22fced`/`7959281` plus this board
+commit, clean; sibling `/Users/mouse/RPM/dacode/rust/json-tiers` at
+`c4aebe9` with **53 files still dirty** (an uncommitted `cargo fmt` pass,
+owner's call). Crates and test counts unchanged from the t12 handover:
+`todo-domain` 111, `todo-store` 86 and four goldens, mcp/cli still
+documented M0 shells; rustc 1.98.1, MSRV 1.95. A cold machine still needs
+the sibling checkout beside this repo's parent, and now needs it at
+`c4aebe9` or later only if U12 drops the narrowing — the wire bytes are
+identical either way.
+
+Next step: unchanged by this session — **t13**, the `todo-cli` inspector,
+or **t15** first if a small independent commit is preferred (it is the
+only M1 work not gated on a user decision, and g5's `cargo doc` gate needs
+it). U10's answer still shapes t13's `repair`; U12 now joins it there.
+
+Blocked on you: **U10** (does compaction archive what it drops?) and
+**U12** (keep `relates_from_arrays` for its diagnostic; adopt the
+named-field-struct rule?). Non-blocking: U7, U9, U2, U3, and t11's narrow
+reading of §2's registry metadata, still open to veto. Also yours: whether
+to commit the sibling's fmt pass, and whether to benchmark `c4aebe9`
+before it goes anywhere near a release.
+
+Unverified: **throughput of the engine fix** — no benchmark was run, and
+it adds a call and a branch per array close in a crate whose pitch
+includes speed. Everything else carries over from the t12 handover: no
+real crash or power loss anywhere, `compact()`'s step order is not
+externally observable without a fault-injection seam (f19), MCP smoke
+awaits M3, per-crate lint tripwires for mcp/cli, multi-process lock
+contention is two handles in one process, the `#[cfg(unix)]` permission
+tests vanish rather than pass off-platform, snapshot durability without a
+directory fsync is reasoned (f16) not measured, and nothing has called
+`compact()` outside tests. New and smaller: the engine fix has had **no
+independent review** — it was verified by measurement (non-vacuity against
+`HEAD`, the full feature matrix down to a no-allocator target, the
+300+-file corpus differential, size on both trees, 197 downstream tests),
+which is stronger than a read-through but is not a second pair of eyes on
+the `stream` tier's `vend` seeding, the subtlest hunk in the diff.
 
 ### 2026-09-28 — t12: snapshots + compaction
 

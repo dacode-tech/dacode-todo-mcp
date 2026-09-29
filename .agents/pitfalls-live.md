@@ -172,7 +172,7 @@
   discipline for verify lines; consolidate into `pitfalls.md` at the M1
   gate with P-LIVE-002.
 - **Source**: struggle
-### P-LIVE-006: `dacode-json` serializes serde tuples but cannot deserialize them
+### P-LIVE-006: `dacode-json` could not deserialize serde tuples — RESOLVED upstream 2026-09-29
 - **Scope**: `todo-store`'s persisted documents (the snapshot's `relates`
   array, t12) and any future schema that uses a serde tuple or a
   tuple-shaped newtype; the engine is the sibling path dependency at
@@ -185,9 +185,23 @@
   at top level). Reproduced by both the implementer and the primary
   reviewer, in this tree and in a scratch crate over plain
   `Vec<(u64, u64)>`.
-- **Root cause**: unconfirmed inside the engine; consistent with the
-  deserializer not driving a tuple visitor past its first element. Not a
-  serde derive issue — the same types serialize correctly.
+- **Root cause** (confirmed 2026-09-29, and not what the symptom
+  suggested): `serde::de::SeqAccess` has **no `end()` method**. serde
+  drives two protocols through it — a collection (`Vec`, `Value`) calls
+  `next_element_seed` until `None`, while a *fixed-length* visitor (a
+  tuple, tuple struct, tuple enum variant, `[T; N]`) calls it exactly
+  `len` times and returns. `serde_json` therefore splits the work:
+  `next_element_seed` **peeks** `]` and `Deserializer::end_seq` eats it
+  after `visit_seq` returns. Both of `dacode-json`'s byte-cursor tiers had
+  that inverted — `next_element_seed` ate the closer, so a fixed-length
+  visitor handed control back with `]` still pending and the *enclosing*
+  container consumed it as its own terminator. That is why the failure
+  surfaced as "trailing characters" rather than as a tuple problem. The
+  pool tier (`de::from_slice`) was never affected: it pre-parses, so its
+  framing is already settled. Generalizable lesson: **a serde engine's
+  container-framing contract lives in the `Deserializer`, not in the
+  `SeqAccess`/`MapAccess` impl** — check `end_seq`/`end_map` before
+  blaming the visitor.
 - **Workaround**: keep the canonical wire shape (Decision 4's two-element
   arrays, pinned by `snapshot.v1.golden`) and narrow on the read side —
   deserialize as `Vec<Vec<TaskId>>` and reject any inner array whose
@@ -197,9 +211,34 @@
   `snapshot::corrupt::a_relates_entry_that_is_not_a_pair_is_rejected`).
   Prefer a named-field struct over a tuple in any *new* schema: it avoids
   the bug entirely and reads better in an editor (§4's auditability).
-- **Obsoleted by**: a fix upstream in `dacode-json`, at which point the
-  narrowing reduces to the derived impl with **zero byte movement** (the
-  wire shape never changed). Board follow-up U11 tracks proposing that
-  diff; U8's resolution allows modifications proposed as a diff, with
-  that repo's commits staying with its owner.
+- **Resolved**: fixed upstream in `dacode-json` at `c4aebe9` (sibling
+  checkout `/Users/mouse/RPM/dacode/rust/json-tiers`, U8's "modifications
+  proposed as a diff" path; that repo's commits stay with its owner).
+  `next_element_seed` now peeks and a new `end_seq`, run by the single
+  `visit_seq` site in each byte-cursor tier, consumes — so the derived
+  impl round-trips `Vec<(TaskId, TaskId)>` byte-identically to `serde_json`
+  and the narrowing in `relates_from_arrays` is now **optional**, not
+  required. It is also not dead weight: the derived impl rejects a
+  3-element entry as serde's `invalid length 3, expected a tuple of size
+  2`, where the helper says *"a relates entry is a two-element array of
+  task ids"* — the better `corrupt_store` detail for a human repairing a
+  store. Whether to keep it for that reason is board U12.
+- **Two further defects the same fix closed**, both found by measurement
+  and both worse than the tuple bug: a **truncated array parsed clean**
+  (`[1,2` → `Ok((1, 2))` on both tiers, because the closer was never
+  required), which is precisely the property §4.3's torn-tail detection
+  rests on; and `stream` rejected **every enum object variant**
+  (`Payload::close` bumped the structural index without moving `vend`,
+  the offset `from_slice` measures its trailing-whitespace check from).
+  Neither was reachable from this project's schema, and neither was
+  caught by that crate's own suite — its serde_json differential ran the
+  pool tier (`tests/serde_de.rs`) and `JValue` only (`tests/stream.rs`),
+  and `JValue` is a collection all the way down. **Lesson: a differential
+  test suite is only as wide as the shapes it exercises, and `Value`
+  exercises none of the fixed-length ones.**
+- **Still open upstream** (measured, deliberately not changed): the pool
+  tier silently truncates a surplus element rather than rejecting it, and
+  `MapAccess` has the same closer inversion — latent, because serde's
+  derived struct visitors always drain. Throughput was **not** measured;
+  the fix costs `direct` +488 B linked for bare-metal ARM32 (+1.1 %).
 - **Source**: struggle
