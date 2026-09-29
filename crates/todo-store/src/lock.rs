@@ -82,13 +82,12 @@ impl FileLock {
     /// The lazy shape exists for [`crate::JsonlStore::open_log`], whose
     /// bare path must yield the target's slug from the store directory it
     /// sits in: a D4 path always derives cleanly, and a path outside the
-    /// layout (the corruption fixtures') never derives at all — but since
+    /// layout (the corruption fixtures') derives [`LockTarget::Unnamed`]
+    /// — §7 gives it no slug to be named by (f17, t13's decision). Since
     /// derivation runs only when the lock is contended, such a path still
     /// opens, replays and reports its engine faults exactly as before,
-    /// and only a *contended* open of a non-layout path reports the
-    /// derivation's own error instead of a `Locked` it could not name.
-    /// Deriving eagerly would make every bare-path open of a non-layout
-    /// directory an error, which the engine's contract does not have.
+    /// and only a *contended* open ever produces a target — the honest
+    /// `locked` refusal, naming the repo where a slug exists.
     pub(crate) fn acquire_reporting(
         path: &Path,
         context: &str,
@@ -107,7 +106,9 @@ impl FileLock {
 /// where.
 fn context_of(target: &LockTarget) -> &'static str {
     match target {
-        LockTarget::Repo(_) => CONTEXT_STORE,
+        // An unnamed store is still a store lock; only the registry has
+        // a context of its own.
+        LockTarget::Repo(_) | LockTarget::Unnamed => CONTEXT_STORE,
         LockTarget::Registry => CONTEXT_REGISTRY,
     }
 }

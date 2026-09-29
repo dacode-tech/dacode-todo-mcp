@@ -339,25 +339,34 @@ pub(crate) fn store_dir_missing(path: &Path) -> bool {
     }
 }
 
-/// The [`LockTarget`] of a log living at `path` inside the D4 layout:
+/// The [`LockTarget`] of a log living at `path`: inside the D4 layout,
 /// the store directory's name *is* the slug (`repos/<slug>/…`), so a
 /// contended bare-path lock reports which repo it refused without ever
 /// carrying a path.
 ///
 /// A path outside the layout — a corruption fixture's temp file — has no
-/// directory that parses as a slug; the report is this crate's io shape
-/// with a fixed detail. The case is only reachable when such a path is
-/// *contended* (see [`crate::lock`]'s lazy-target note): every other
-/// fault on a bare path keeps t10's exact report.
+/// directory that parses as a slug, and none may be invented (§7: the
+/// slug is the key, and this store was not opened by one). The target is
+/// [`LockTarget::Unnamed`] (f17, t13's decision), so the contended
+/// report is §6.1's `locked` — honest, because nothing was opened, read
+/// or written — rather than the `io` this arm used to degrade to. §6.1's
+/// code list is untouched: `locked` was already on it. The case is only
+/// reachable when such a path is *contended* (see [`crate::lock`]'s
+/// lazy-target note): every other fault on a bare path keeps t10's exact
+/// report.
 ///
 /// The derivation trusts the parent directory's name, so a contended
 /// bare-path open of a log whose parent happens to be a valid slug names
 /// *that* slug — which need not be a repo involved in the call. Through
 /// [`DataRoot`] this cannot happen (the parent always is the store's own
-/// slug); the only future non-layout caller is t13's inspector, so whether
-/// [`LockTarget`] grows a variant for "a store outside the layout" is
-/// t13's decision, not this function's. §6.1's list is closed and Decision
-/// 5 pins the two variants, so none is added here.
+/// slug), so [`LockTarget::Unnamed`] is unreachable for layout callers —
+/// including t13's inspector, which opens by slug. The non-layout callers
+/// are the bare-path [`JsonlStore::open_log`] uses, which are all test
+/// fixtures today.
+///
+/// The `Result` is vestigial: both arms now produce a target, and the
+/// shape survives only because the lock layer's `acquire_reporting` takes
+/// a fallible closure.
 pub(crate) fn store_target_from_log_path(path: &Path) -> Result<LockTarget, StoreError> {
     let dir_name = path
         .parent()
@@ -368,15 +377,9 @@ pub(crate) fn store_target_from_log_path(path: &Path) -> Result<LockTarget, Stor
         .and_then(|name| RepoSlug::new(name.to_owned()).ok())
     {
         Some(slug) => Ok(LockTarget::Repo(slug)),
-        None => Err(StoreError::Io {
-            detail: DETAIL_NO_SLUG.to_owned(),
-        }),
+        None => Ok(LockTarget::Unnamed),
     }
 }
-
-/// The fixed detail of a contended lock whose file does not sit in a
-/// store directory.
-const DETAIL_NO_SLUG: &str = "name the contended store: its directory is not a slug";
 
 #[cfg(test)]
 mod tests {
@@ -384,24 +387,21 @@ mod tests {
 
     use todo_domain::RepoSlug;
 
-    use super::{DETAIL_NO_SLUG, store_target_from_log_path};
+    use super::store_target_from_log_path;
     use crate::error::{LockTarget, StoreError};
 
     #[test]
     fn a_non_layout_path_names_no_slug() {
         // A log whose parent directory is not a valid slug — the shape a
-        // corruption fixture's temp file has — cannot name a repo, so the
-        // contended-lock report is this crate's io shape with the fixed
-        // detail, never a `Locked` with a made-up target.
+        // corruption fixture's temp file has — cannot name a repo (§7), so
+        // the target is `Unnamed`: the contended report is §6.1's
+        // `locked`, never a slug invented from the path and never the
+        // `io` this arm used to degrade to (f17).
         let path = Path::new("/tmp/Not A Slug/event-log.jsonl");
-        let error = store_target_from_log_path(path).unwrap_err();
-        assert_eq!(
-            error,
-            StoreError::Io {
-                detail: DETAIL_NO_SLUG.to_owned()
-            }
-        );
-        assert_eq!(error.code(), "io");
+        let target = store_target_from_log_path(path).unwrap();
+        assert_eq!(target, LockTarget::Unnamed);
+        let error = StoreError::Locked { target };
+        assert_eq!(error.code(), "locked");
         assert!(!error.to_string().contains('/'), "{error} carries no path");
     }
 

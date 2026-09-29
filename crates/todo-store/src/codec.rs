@@ -13,8 +13,8 @@
 //! it is the same contract — round-trip equality, twice-run byte
 //! identity — in the real format the golden files pin (spec §10).
 
-use serde::Serialize;
 use serde::de::DeserializeOwned;
+use serde::{Deserialize, Serialize};
 
 use crate::error::StoreError;
 
@@ -48,4 +48,22 @@ pub fn from_bytes<T: DeserializeOwned>(bytes: &[u8]) -> Result<T, StoreError> {
         offset: engine.offset(),
         detail: engine.to_string(),
     })
+}
+
+/// The lenient first pass over a versioned document: the declared
+/// `format_version` alone, every other field ignored.
+///
+/// The ordering rule of §4's versioning requirement, stated once for the
+/// three documents this crate reads (the log header, the registry, the
+/// snapshot): parse through this probe **first**, check the version, and
+/// only then read the strict shape. A document from a newer build is
+/// [`StoreError::VersionMismatch`] — a migration question — even when the
+/// rest of it uses fields this build has never seen; the strict shapes
+/// carry `deny_unknown_fields`, so an unknown field at the *current*
+/// version is the damage it can only be. Reading strictly first would
+/// misreport the newer-format case as `corrupt_store`.
+#[derive(Deserialize)]
+pub(crate) struct VersionProbe {
+    /// The declared format version.
+    pub(crate) format_version: u32,
 }

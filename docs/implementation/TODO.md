@@ -37,10 +37,10 @@ t13**, the `todo-cli` inspector, the last M1 code task before the g5 exit
 gate. t13 is decomposed along the crate boundary into three commits:
 **t13a**, the store riders (f14's `LogHeader` `deny_unknown_fields`, f17's
 third `LockTarget` variant, f18, f22's store half, f23, U12(a)'s verdict,
-U13's module-doc exception lines — no new dependency, no golden moves);
-**t13b**, the cli itself (`dump`/`verify`/`repair` plus a fifth golden,
-gated on U14's parser choice); and **t19**, a tests-only commit for f19's
-order-sensitive `compact()` test.
+U13's module-doc exception lines — no new dependency, no golden moves),
+**which has landed**; **t13b**, the cli itself (`dump`/`verify`/`repair`
+plus a fifth golden), gated on U14's parser choice; and **t19**, a
+tests-only commit for f19's order-sensitive `compact()` test.
 
 | Blocking | What | Action |
 |---|---|---|
@@ -484,6 +484,65 @@ Oldest first. One line per delivery, with the commit hash once committed.
       house rule landed) and **U14 opened** for the cli's argument parser,
       carrying the nine-variant measurement table so the numbers survive
       the gitignored probe.
+- 2026-09-29 — **M1 t13a: the store riders** — the store half of t13,
+      split along the crate boundary so the cli (t13b) can wait on U14. No
+      new dependency, no golden moved, no file split. **f14**: `LogHeader`
+      gains `deny_unknown_fields`, and `check_header` becomes probe-first
+      — a lenient `VersionProbe` parse, then the version check, then the
+      strict parse, then the torn check — so a header from a *newer* format
+      carrying fields this build has never seen still reports
+      `version_mismatch` (a migration question, §4) while an unknown field
+      at the *current* version is `corrupt_store` at offset 0. The registry
+      and the snapshot already ordered it that way; the log header was the
+      one document that did not, and the third private copy of
+      `VersionProbe` became one `pub(crate)` struct in `codec.rs` stating
+      the rule once. **f17**: `LockTarget` gains `Unnamed`, so a
+      *contended* bare-path open reports §6.1's `locked` — what actually
+      happened — instead of degrading to `io` with a fixed detail;
+      `DETAIL_NO_SLUG` is gone, §6.1's code list is untouched, and the
+      variant is unreachable through `DataRoot`, t13b's inspector included
+      (it opens by slug). **f18**: the no-directory-fsync paragraph's
+      enumeration is corrected to the two states a lost rename can
+      actually leave — the "missing new file, a `corrupt_store`/`io`
+      report" state it had inherited does not exist, since a missing
+      registry loads empty and a missing first snapshot replays the whole
+      log, both correct opens — and keeps the amended `compact()` order's
+      one real window (a lost step-(4) re-base: `log_offset` past the
+      log's end, recoverable by re-basing).
+      **f22's store half**: the three sites in `error.rs` claiming `Io`
+      carries no §6.1 code now say `io` *is* one (U9, with its retry
+      semantics), and the module doc's "delegates the first three here by
+      name", which undercounts what the domain's own module doc names —
+      all four — says so. **f23**: `snapshot.rs`'s "open question above
+      this crate — a board follow-up for the user" now states U10's signed
+      answer and the split f14 outcome (`deny_unknown_fields` here, the
+      persistent compaction marker deferred until something compacts);
+      `store.rs`'s `compact()` pointer no longer implies the question is
+      open. **U12(a)**: `relates_from_arrays`'s doc drops the two sentences
+      U11 falsified — "the JSON engine cannot drive serde's tuple
+      deserializer" and "if the engine grows tuple support, this helper
+      reduces to the derived impl" — and records that it now stays *by
+      choice*, for the `corrupt_store` detail t13b's `repair` shows a
+      human, with `_rust.md`'s new house rule cited and `relates` named as
+      the format's one positional shape. **U13**: `event.rs` and `log.rs`
+      carry their module-doc exception lines — why each is one
+      responsibility and what would split it — with **no line count in
+      either**, per t15's lesson that a figure in a source comment is a
+      claim nobody re-measures; the ledger is U13's and was re-measured at
+      commit. 87 store tests (one new: the contended bare-path
+      `Locked { Unnamed }`), the domain's 111 unchanged, `Cargo.lock` and
+      all four goldens untouched, `cargo doc` still warning-free. Both new
+      header guards are proven non-vacuous by mutation, run and reverted:
+      deleting `deny_unknown_fields` makes the unknown-field-at-v1 fixture
+      open clean instead of failing, and deleting the probe makes the v2
+      fixture report `corrupt_store` where `version_mismatch` is owed.
+      Three sentences this commit *corrects* are review findings rather
+      than spec items — the undercounted module doc, the nonexistent
+      "missing new file" state, and a clause naming t13's inspector as a
+      future *non-layout* caller that this commit's own decision falsified
+      — all three in prose that a previous task had reworded, which is why
+      the round record lives in the session tracker and not here.
+      Dual-reviewed to sign-off on the committed tree.
 
 ## 4. Follow-ups
 
@@ -772,17 +831,18 @@ Deliberate shortcuts, acknowledged rather than fixed. Same id rules as §4.
       d2/d3 in the gitignored session tracker since t10/t12 and promoted
       here so the ledger is committed. Measured under the production-line
       rule `_rust.md` now states — a `#[cfg(test)]` block and a test-only
-      file are not counted: `todo-store/src/log.rs` **793**,
-      `todo-store/src/event.rs` **759**. `todo-domain/src/graph/state.rs`
-      reads 777 under `wc -l` and is **460** production lines, so it is
-      under target and comes off the ledger; `graph/tests/mod.rs` (655),
+      file are not counted: `todo-store/src/log.rs` **812**,
+      `todo-store/src/event.rs` **772** (they read 793 and 759 before
+      t13a; their own U13 exception lines are part of the growth, and the
+      cap of 1000 still holds). `todo-domain/src/graph/state.rs` reads 777
+      under `wc -l` and is **460** production lines, so it is under target
+      and comes off the ledger; `graph/tests/mod.rs` (655),
       `graph/tests/seeded.rs` (602) and `testcodec.rs` (602) are test-only
       files and were never chargeable. No split proposed: each of the two
       is one responsibility today (schema + patch application +
       `replay_step`; append + snapshot-aware replay + `compact`), and M2's
-      query layer is what will show where the seams are. Each carries a
-      module-doc exception line, which rides t13a since it touches both
-      files. Revisit at M2.
+      query layer is what will show where the seams are. Both now carry
+      their module-doc exception line, landed with t13a. Revisit at M2.
 
 ## 6. Session log
 

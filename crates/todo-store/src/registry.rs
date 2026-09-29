@@ -34,10 +34,11 @@
 //! absolute; a wrong `format_version` is
 //! [`StoreError::VersionMismatch`], reported before the document is read
 //! strictly, so a registry written by a newer build is the migration
-//! question it is and not damage. `deny_unknown_fields` is deliberate
-//! here while the log's header still lacks it (t13's call): the registry
-//! is whole-file rewritten and version-gated, so an unknown field at the
-//! *current* version can only be damage — the precedent t13 inherits.
+//! question it is and not damage. `deny_unknown_fields` is deliberate,
+//! and this document is the precedent for it: the registry is whole-file
+//! rewritten and version-gated, so an unknown field at the *current*
+//! version can only be damage — the reading t13's f14 landing extended
+//! to the log header, which the snapshot document shares.
 
 use std::fs::{self, OpenOptions};
 use std::io::{self, Write};
@@ -47,7 +48,7 @@ use serde::{Deserialize, Serialize};
 use todo_domain::{Repo, RepoSlug, Timestamp};
 
 use crate::FORMAT_VERSION;
-use crate::codec::{from_bytes, to_bytes};
+use crate::codec::{VersionProbe, from_bytes, to_bytes};
 use crate::error::{StoreError, io_error};
 use crate::layout::DataRoot;
 
@@ -64,16 +65,6 @@ struct RegistryDocument {
     /// invariant of [`Registry`], re-established on every load and
     /// write.
     repos: Vec<RegistryEntry>,
-}
-
-/// The lenient first pass over the bytes: the version alone, so a
-/// document from a newer build reports [`StoreError::VersionMismatch`]
-/// even when the rest of it uses fields this build has never seen — the
-/// ordering `log.rs`'s header check established, for the same reason.
-#[derive(Deserialize)]
-struct VersionProbe {
-    /// The declared format version.
-    format_version: u32,
 }
 
 /// One registered repository's immutable half (§3): the slug key and the

@@ -29,6 +29,13 @@
 //! window with the crash replaced by an io error. That state is
 //! session-fatal by design — the caller reopens, and replay from disk
 //! drops the unpersisted mutation (see [`crate::Store`]).
+//!
+//! Over the file-size target by recorded exception (`_rust.md`, board
+//! §5/U13): append, snapshot-aware replay and compaction are one engine
+//! today — `compact`'s step order and the replay that trusts it are one
+//! crash-safety argument. The split, when M2's query layer shows the
+//! seam, is the snapshot-aware replay (`replay`,
+//! `replay_from_snapshot`) plus [`Store::compact`] moving out.
 
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Read, Write};
@@ -41,7 +48,7 @@ use todo_domain::{
 use todo_domain::{DecisionDraft, DocDraft, EpicDraft, TaskDraft};
 
 use crate::FORMAT_VERSION;
-use crate::codec::{from_bytes, to_bytes};
+use crate::codec::{VersionProbe, from_bytes, to_bytes};
 use crate::error::{LockTarget, StoreError, io_error, io_error_kind};
 use crate::event::{
     BlocksEdgeDto, DecisionPatch, DocPatch, EpicPatch, Event, LogHeader, TaskPatch,
@@ -611,13 +618,15 @@ impl Store for JsonlStore {
 /// narrows what has to be *applied*, not what has to be read: the offset
 /// checks below need the covered bytes to prove the boundary.
 ///
-/// The order of the header's own checks is deliberate — parse, version,
-/// terminator — so a log written by a newer build reports
+/// The order of the header's own checks is deliberate — probe, version,
+/// strict parse, terminator (see [`VersionProbe`], and `check_header`) —
+/// so a log written by a newer build reports
 /// [`StoreError::VersionMismatch`] even when its header line is the only
-/// thing in the file: that is a migration question (§4), not corruption.
-/// The log's checks all run before the snapshot is consulted, so a log
-/// that is itself malformed reports its own fault at its own offset even
-/// when a snapshot exists.
+/// thing in the file or carries fields this build has never seen: that
+/// is a migration question (§4), not corruption. The log's checks all
+/// run before the snapshot is consulted, so a log that is itself
+/// malformed reports its own fault at its own offset even when a
+/// snapshot exists.
 fn replay(path: &Path, bytes: &[u8]) -> Result<Graph, StoreError> {
     let mut lines = LineSplit::new(bytes);
 
@@ -681,16 +690,26 @@ fn replay_from_snapshot(
     Ok(graph)
 }
 
-/// Checks the header line: parseable, current, and committed (terminated).
+/// Checks the header line: probe, version, strict parse, committed
+/// (terminated) — [`VersionProbe`]'s ordering, the registry's and the
+/// snapshot's own. The lenient probe is what lets a header from a
+/// *newer* format report [`StoreError::VersionMismatch`] even when it
+/// carries fields this build has never seen: that is a migration
+/// question (§4), not corruption. The strict [`LogHeader`] parse then
+/// rejects an unknown field at the *current* version, which is f14's
+/// damage — `deny_unknown_fields` with the registry and snapshot
+/// documents as the precedent.
 fn check_header(line: &LogLine<'_>) -> Result<(), StoreError> {
-    let header: LogHeader = from_bytes(line.bytes)
+    let probe: VersionProbe = from_bytes(line.bytes)
         .map_err(|error| corrupt(line.offset, prefixed(DETAIL_BAD_HEADER, &error)))?;
-    if header.format_version != FORMAT_VERSION {
+    if probe.format_version != FORMAT_VERSION {
         return Err(StoreError::VersionMismatch {
-            found: header.format_version,
+            found: probe.format_version,
             expected: FORMAT_VERSION,
         });
     }
+    let _: LogHeader = from_bytes(line.bytes)
+        .map_err(|error| corrupt(line.offset, prefixed(DETAIL_BAD_HEADER, &error)))?;
     if !line.terminated {
         return Err(corrupt(line.offset, DETAIL_TORN_LINE));
     }

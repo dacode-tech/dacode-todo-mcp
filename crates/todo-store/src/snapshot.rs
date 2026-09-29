@@ -47,11 +47,18 @@
 //! audited `repo_set_path` line, rather than silently overwriting a
 //! field, which the event log does; §4.1's truncation then bounds how
 //! long the **live** log retains any event, and §4.3's backup is the
-//! archive. Whether compaction should *archive* the events it drops
-//! rather than drop them is an open question above this crate — a board
-//! follow-up for the user. The signed text does not settle it here, and
-//! nothing in M1 calls `compact`, so no history is destroyed by the code
-//! as landed.
+//! archive. That reading is signed, not crate-local: §4.3 (U10, resolved
+//! 2026-09-29) states it as the contract — compaction drops as landed
+//! and the backup is therefore the archive — and nothing in v1 calls
+//! `compact` (§6 lists no tool for it and t13 ships no `compact`
+//! subcommand), so no history is destroyed by the code as landed. The
+//! same resolution split f14: the `deny_unknown_fields` this document
+//! and the registry carry has landed on the log header too
+//! (deserialize-only, so no golden moves), while the persistent
+//! compaction marker stays deferred until something actually compacts —
+//! its only job is making a compacted store distinguishable from a fresh
+//! one, and a golden-moving format change spent with no beneficiary is
+//! the wrong trade (§4.3).
 //!
 //! # After a compaction the pair is the unit
 //!
@@ -86,9 +93,17 @@
 //! directory-fd `fsync` does not actually give metadata durability (that
 //! is `F_FULLFSYNC`, a heavier and platform-specific commitment this
 //! project has not made); and the failure mode is bounded and named — a
-//! lost rename leaves either the previous file, which replays, or a
-//! missing new file, which is a `corrupt_store`/`io` report, never a
-//! silent wrong graph.
+//! lost rename leaves one of two states. Either the previous file
+//! survives, which is a correct open: the old registry or old snapshot
+//! loads, and where there was no previous file at all the document is
+//! simply absent, which each reader already handles (a missing registry
+//! loads empty, a missing first snapshot replays the whole log). Or the
+//! rename landed and its *pair* did not — the state the amended
+//! `compact()` order added, where a lost step-(4) re-base leaves the
+//! *previous* covering snapshot beside the *new short* log, which is the
+//! named (3)–(4) window: `log_offset` beyond the log's end, a
+//! `corrupt_store` recoverable by re-basing the snapshot (see
+//! [`crate::Store::compact`]'s table). Never a silent wrong graph.
 
 use std::fs::{self, OpenOptions};
 use std::io::{self, Write};
@@ -101,7 +116,7 @@ use todo_domain::{
 };
 
 use crate::FORMAT_VERSION;
-use crate::codec::{from_bytes, to_bytes};
+use crate::codec::{VersionProbe, from_bytes, to_bytes};
 use crate::error::{StoreError, io_error};
 use crate::event::BlocksEdgeDto;
 
@@ -143,9 +158,9 @@ pub(crate) struct SnapshotDocument {
     /// Every `relates` annotation in [`Graph::relates_pairs`]' ascending
     /// canonical (lower, higher) order. A pair serializes as a
     /// two-element array of id strings: `[["camera:U1","camera:U2"]]`.
-    /// The read side goes through [`relates_from_arrays`], because the
-    /// JSON engine cannot drive serde's tuple deserializer (see that
-    /// function); the bytes are the same either way.
+    /// The read side goes through [`relates_from_arrays`] by choice, not
+    /// necessity (U12): the bytes are the derived impl's, but the
+    /// rejection detail is better (see that function).
     #[serde(deserialize_with = "relates_from_arrays")]
     pub(crate) relates: Vec<(TaskId, TaskId)>,
 }
@@ -153,15 +168,18 @@ pub(crate) struct SnapshotDocument {
 /// Reads the `relates` wire shape: an array of two-element arrays of id
 /// strings.
 ///
-/// The JSON engine (D1's `dacode-json`) serializes serde tuples
-/// correctly but cannot *deserialize* them: it stops after the first
-/// element and reports the rest of the document as trailing characters.
-/// Reading the same bytes as `Vec<Vec<TaskId>>` — plain nested seqs,
-/// which the engine handles — and narrowing here keeps the wire shape
-/// the format specifies while an inner array that is not a pair is
-/// rejected as the corrupt document it is. If the engine grows tuple
-/// support, this helper reduces to the derived impl and the bytes do not
-/// move.
+/// Once an engine workaround, now a choice (U12): `dacode-json` grew
+/// tuple support at U11 (`c4aebe9`), so the derived impl reads these
+/// bytes — but it rejects a 3-element entry as serde's `invalid length
+/// 3, expected a tuple of size 2`, where this helper says "a relates
+/// entry is a two-element array of task ids", which is what t13's
+/// `repair` shows a human. Reading the same bytes as `Vec<Vec<TaskId>>`
+/// and narrowing here keeps the wire shape the format specifies, an
+/// inner array that is not a pair rejected as the corrupt document it
+/// is, and the diagnostic actionable. The house rule (`_rust.md`:
+/// named-field structs, never tuples, in a persisted schema) names
+/// `relates` as the format's one positional shape, kept for byte
+/// compatibility — `snapshot.v1.golden` does not move.
 fn relates_from_arrays<'de, D>(deserializer: D) -> Result<Vec<(TaskId, TaskId)>, D::Error>
 where
     D: Deserializer<'de>,
@@ -208,16 +226,6 @@ impl From<Counters> for CountersDto {
             doc: counters.doc(),
         }
     }
-}
-
-/// The lenient first pass over the bytes: the version alone, so a
-/// document from a newer build reports [`StoreError::VersionMismatch`]
-/// even when the rest of it uses fields this build has never seen — the
-/// ordering t11's registry established, for the same reason.
-#[derive(Deserialize)]
-struct VersionProbe {
-    /// The declared format version.
-    format_version: u32,
 }
 
 impl SnapshotDocument {

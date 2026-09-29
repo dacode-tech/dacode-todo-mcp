@@ -50,6 +50,12 @@
 //! `null` that *is* there reads back as `Some(None)`. Serde's derived
 //! `Option<Option<T>>` collapses the two, and a patch that silently loses a
 //! clear is a replay that ends somewhere other than the session did.
+//!
+//! Over the file-size target by recorded exception (`_rust.md`, board
+//! §5/U13): the persisted schema, its patch application and its replay
+//! are one responsibility today — a format change reads as one diff. The
+//! split, when M2's query layer shows the seam, is the replay half
+//! ([`replay_step`] + [`ReplayFault`]).
 
 use std::fmt;
 
@@ -65,7 +71,14 @@ use crate::FORMAT_VERSION;
 /// The log's first line: the format version every reader checks before it
 /// replays anything (§4's versioning requirement — a format change is a
 /// migration with a version header, never an in-place edit of meaning).
+///
+/// `deny_unknown_fields` is f14's landing (U10's split): deserialize-only,
+/// so no golden moves, and the registry and snapshot documents are the
+/// precedent — an unknown field at the *current* version can only be
+/// damage, while a header from a newer version is the migration question
+/// [`crate::codec::VersionProbe`]'s ordering reports it as.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub(crate) struct LogHeader {
     /// The [`FORMAT_VERSION`] this log was written with.
     pub(crate) format_version: u32,

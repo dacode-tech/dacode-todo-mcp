@@ -62,6 +62,45 @@ fn a_second_writer_is_refused_with_locked_and_the_first_keeps_writing() {
 }
 
 // =================================================================
+// The contended bare-path open (f17): `locked`, nameless but honest.
+// =================================================================
+
+#[test]
+fn a_contended_bare_path_open_reports_locked_without_a_name() {
+    // `LockTarget::Unnamed`'s one reachable shape: a log whose parent
+    // directory parses as no slug — a corruption fixture's temp-file
+    // shape — and an open that is *contended*, since the target derives
+    // only on refusal (the `lock` module's lazy derivation). This corner
+    // used to degrade to `io`; it now reports the honest code, because
+    // nothing was opened, read or written. Unreachable through
+    // `DataRoot`, whose every open derives a slug.
+    let dir = TempDir::new().unwrap();
+    let store_dir = dir.path().join("Not A Slug");
+    fs::create_dir_all(&store_dir).unwrap();
+    let path = store_dir.join("event-log.jsonl");
+    let held = JsonlStore::create_log(&path, camera()).unwrap();
+
+    let error = JsonlStore::open_log(&path).unwrap_err();
+    assert_eq!(
+        error,
+        StoreError::Locked {
+            target: LockTarget::Unnamed
+        }
+    );
+    assert_eq!(error.code(), "locked");
+    assert_eq!(
+        error.to_string(),
+        "store is locked: an unnamed store (opened by path, not by slug)"
+    );
+    assert!(!error.to_string().contains('/'), "{error} carries no path");
+
+    // The refusal cost the holder nothing and left no stale lock: the
+    // same bare path opens once the holder drops.
+    drop(held);
+    assert!(JsonlStore::open_log(&path).is_ok());
+}
+
+// =================================================================
 // The lock is released by Drop (required test 5).
 // =================================================================
 

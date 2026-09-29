@@ -1,15 +1,17 @@
 //! The store-level error codes of spec §6.1: `corrupt_store`,
-//! `version_mismatch`, `locked`. The domain's error module delegates
-//! these three here by name.
+//! `version_mismatch`, `locked`, `io`. The domain's error module names
+//! all four as this crate's and produces none of them.
 //!
-//! [`StoreError`] carries the codes plus the two faults that have none of
-//! their own: [`StoreError::Io`], the file machinery's, and
-//! [`StoreError::Domain`], which wraps the domain's shared vocabulary
-//! rather than translating it — a rejected mutation reports the same
-//! error the graph would have, because that is what happened. §6.1's list
-//! is closed and versioned like the format, and this crate now emits every
-//! code on it: `locked` — §8's single-writer refusal — landed with the D4
-//! layout's advisory locks, so nothing else joins it.
+//! [`StoreError`] carries those codes plus [`StoreError::Domain`], which
+//! wraps the domain's shared vocabulary rather than translating it — a
+//! rejected mutation reports the same error the graph would have, because
+//! that is what happened. §6.1's list is closed and versioned like the
+//! format: `locked` — §8's single-writer refusal — landed with the D4
+//! layout's advisory locks, and `io` joined at U9 (signed 2026-09-29),
+//! which blessed the spelling this crate's file-fault variant already
+//! returned as a contract code. A client may retry `io` — and must not
+//! retry `invalid`, §6.1's other U9 code, which is malformed input and
+//! M3's mapping of the domain's value faults, not this crate's.
 //!
 //! No foreign type appears in a variant: the engine's error does not
 //! cross this crate's boundary (§2), so engine and `std::io` messages are
@@ -29,6 +31,12 @@ pub enum LockTarget {
     Repo(RepoSlug),
     /// The shared registry file.
     Registry,
+    /// A store handed to this crate as a bare path outside the D4
+    /// layout, which therefore has no slug to be named by (spec §7 —
+    /// the slug is the key, and this store was not opened by one;
+    /// f17's third variant, t13's decision). Unreachable through
+    /// [`crate::DataRoot`], whose every open derives a slug.
+    Unnamed,
 }
 
 /// An error raised by the store. Codes are stable machine-readable
@@ -76,9 +84,11 @@ pub enum StoreError {
     },
     /// The filesystem refused a read, a write or an `fsync`.
     ///
-    /// Carries no §6.1 code: the list is closed, and how a client sees a
-    /// filesystem fault is M3's wire mapping (U9). `io` is this crate's
-    /// own spelling of the variant, not a code to branch on.
+    /// Carries §6.1's `io` code (U9, signed 2026-09-29): the spelling
+    /// this crate already returned was blessed as a contract code, so a
+    /// client may branch on it — and may retry it, the filesystem being
+    /// the fault, not the request. That is the distinction from
+    /// `invalid`, malformed input, which must not be retried.
     Io {
         /// What was attempted and the [`std::io::ErrorKind`] it failed
         /// with. Never the `io::Error` itself, and never a host path.
@@ -92,8 +102,8 @@ pub enum StoreError {
 
 impl StoreError {
     /// The stable §6.1 code of this error — total, one code per variant.
-    /// [`StoreError::Io`] reports `"io"`, which is *not* one of §6.1's
-    /// codes; see that variant.
+    /// [`StoreError::Io`] reports `"io"`, one of §6.1's codes since U9;
+    /// see that variant.
     pub fn code(&self) -> &'static str {
         match self {
             Self::CorruptStore { .. } => "corrupt_store",
@@ -134,6 +144,14 @@ impl fmt::Display for StoreError {
             Self::Locked {
                 target: LockTarget::Registry,
             } => write!(f, "store is locked: the registry"),
+            // No slug, no path (§7): the store was opened by bare path,
+            // so the honest report says that and names nobody.
+            Self::Locked {
+                target: LockTarget::Unnamed,
+            } => write!(
+                f,
+                "store is locked: an unnamed store (opened by path, not by slug)"
+            ),
             Self::Io { detail } => write!(f, "io: {detail}"),
             Self::Domain(error) => write!(f, "{error}"),
         }
@@ -239,7 +257,7 @@ mod tests {
     }
 
     #[test]
-    fn io_carries_its_context_without_a_code_of_its_own() {
+    fn io_carries_its_context_and_its_section_6_1_code() {
         let err = StoreError::Io {
             detail: "open the event log: NotFound".to_owned(),
         };

@@ -125,9 +125,10 @@ pub trait Store {
     /// The covered events **leave the live log** (retention is §4.1's
     /// truncation; the archive story is §4.3's backup — copy the store
     /// directory under the lock); the `snapshot` module docs state the
-    /// reading. Like [`Store::snapshot`], this is an explicit call with no
-    /// policy and no clock behind it. The report is [`Compaction`]: what
-    /// t13's cli prints, never a decision this crate makes.
+    /// reading, signed into §4.3 itself (U10). Like [`Store::snapshot`],
+    /// this is an explicit call with no policy and no clock behind it.
+    /// The report is [`Compaction`]: what t13's cli prints, never a
+    /// decision this crate makes.
     ///
     /// Every interruption is a correct open or a *named* error, never a
     /// silent wrong graph — the table is the correctness argument (steps
