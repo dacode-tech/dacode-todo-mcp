@@ -63,6 +63,7 @@ impl Rng {
 #[test]
 fn graph_seeded_mutations_never_yield_a_cycle_or_an_orphan() {
     let mut seen_codes: BTreeSet<String> = BTreeSet::new();
+    let mut forged: BTreeSet<String> = BTreeSet::new();
     for seed in SEEDS {
         let (log, graph) = run_sequence(seed, STEPS);
         // The sequence built a real graph, so the invariants it passed
@@ -85,8 +86,25 @@ fn graph_seeded_mutations_never_yield_a_cycle_or_an_orphan() {
         assert_eq!(graph.counters(), replayed.counters());
 
         for line in &log {
-            if let Some((_, code)) = line.rsplit_once(" -> ") {
+            if let Some((head, code)) = line.rsplit_once(" -> ") {
                 seen_codes.insert(code.to_owned());
+                // Both halves of the scope check are only guards while the
+                // generator keeps forging them, for every kind. A seed or
+                // `STEPS` change that quietly dropped one would leave the
+                // scan's matching assertion passing forever with nothing
+                // able to violate it — f9's failure mode, one level up.
+                let half = if head.contains("forged=id") {
+                    Some("id")
+                } else if head.contains("forged=repo") {
+                    Some("repo")
+                } else {
+                    None
+                };
+                if let Some(half) = half {
+                    // `head` is `"{op} {number} forged={label} {extra}"`.
+                    let (op, _) = head.split_once(' ').unwrap_or((head, ""));
+                    forged.insert(format!("{op} {half}"));
+                }
             }
         }
     }
@@ -106,6 +124,26 @@ fn graph_seeded_mutations_never_yield_a_cycle_or_an_orphan() {
         assert!(
             seen_codes.contains(code),
             "no seed produced a {code} rejection"
+        );
+    }
+    // And every kind really did have **both** halves of the scope check
+    // forged against it. The id's slug is the half f9 found unchecked;
+    // pinning only that one would leave the `repo`-field half exposed to
+    // the same silent drift, so the pin is symmetric.
+    for attack in [
+        "insert_epic id",
+        "insert_epic repo",
+        "insert_task id",
+        "insert_task repo",
+        "insert_decision id",
+        "insert_decision repo",
+        "insert_doc id",
+        "insert_doc repo",
+    ] {
+        assert!(
+            forged.contains(attack),
+            "no seed forged {attack}, so the scan's scope assertion for \
+             that kind and half has nothing that can violate it"
         );
     }
 }
@@ -344,26 +382,27 @@ fn apply(graph: &mut Graph, rng: &mut Rng, op: usize, step: u64, issued: &mut Is
 fn explicit_insert(graph: &mut Graph, rng: &mut Rng, step: u64) -> String {
     // Reach above the counters often enough that the raise path runs.
     let number = 1 + rng.below(graph.counters().task().max(4) as usize + 3) as u64;
-    let foreign = rng.below(10) == 0;
+    let forge = Forge::draw(rng);
     match rng.below(4) {
         0 => {
             let mut epic = epic_node(number);
-            if foreign {
-                epic.repo = other_slug();
+            match forge {
+                Forge::Repo => epic.repo = other_slug(),
+                Forge::Id => epic.id = other_epic_id(number),
+                Forge::None => {}
             }
+            let half = scope_half(&epic.repo, epic.id.repo(), graph);
             let result = graph.insert_epic(epic);
-            line(
-                "insert_epic",
-                &insert_detail(number, foreign, step),
-                &result,
-            )
+            line("insert_epic", &insert_detail(number, half, step), &result)
         }
         1 => {
             let epic = some_epic(graph, rng).number();
             let status = random_status(rng);
             let mut task = task_node(number, epic, status);
-            if foreign {
-                task.repo = other_slug();
+            match forge {
+                Forge::Repo => task.repo = other_slug(),
+                Forge::Id => task.id = other_task_id(number),
+                Forge::None => {}
             }
             // Half the time the closure fields are stripped, so the
             // replay path exercises the discipline too.
@@ -371,36 +410,83 @@ fn explicit_insert(graph: &mut Graph, rng: &mut Rng, step: u64) -> String {
                 task.evidence = None;
                 task.note = None;
             }
+            let half = scope_half(&task.repo, task.id.repo(), graph);
             let result = graph.insert_task(task);
-            line(
-                "insert_task",
-                &insert_detail(number, foreign, epic),
-                &result,
-            )
+            line("insert_task", &insert_detail(number, half, epic), &result)
         }
         2 => {
             let status = random_decision_status(rng);
             let mut decision = decision_node(number, status);
-            if foreign {
-                decision.repo = other_slug();
+            match forge {
+                Forge::Repo => decision.repo = other_slug(),
+                Forge::Id => decision.id = other_decision_id(number),
+                Forge::None => {}
             }
             if rng.coin() {
                 decision.resolution = None;
             }
+            let half = scope_half(&decision.repo, decision.id.repo(), graph);
             let result = graph.insert_decision(decision);
             line(
                 "insert_decision",
-                &insert_detail(number, foreign, step),
+                &insert_detail(number, half, step),
                 &result,
             )
         }
         _ => {
             let mut doc = doc_node(number);
-            if foreign {
-                doc.repo = other_slug();
+            match forge {
+                Forge::Repo => doc.repo = other_slug(),
+                Forge::Id => doc.id = other_doc_id(number),
+                Forge::None => {}
             }
+            let half = scope_half(&doc.repo, doc.id.repo(), graph);
             let result = graph.insert_doc(doc);
-            line("insert_doc", &insert_detail(number, foreign, step), &result)
+            line("insert_doc", &insert_detail(number, half, step), &result)
+        }
+    }
+}
+
+/// Which half of the scope check an explicit insert attacks.
+///
+/// Every `insert_*` calls [`Graph::in_scope`] with **two** arguments — the
+/// node's `repo` field *and* its id's slug — and [`assert_invariants`]
+/// asserts both for all four kinds. A generator that forges only `.repo`,
+/// as this one did, leaves the id half of the check with nothing that can
+/// ever violate it: the assertion passes, and would keep passing if
+/// `in_scope` stopped looking at the id altogether. So the draw covers both
+/// halves separately, and one in five inserts is out of scope on exactly
+/// one of them.
+#[derive(Debug, Clone, Copy)]
+enum Forge {
+    /// In scope on both halves; the insert should succeed unless some other
+    /// check rejects it.
+    None,
+    /// The node's `repo` field is foreign, the id is not.
+    Repo,
+    /// The id's slug is foreign, the node's `repo` field is not.
+    Id,
+}
+
+impl Forge {
+    /// One draw in ten for each foreign half, off a single `below(10)` in
+    /// the same stream position the old `foreign` coin occupied, so a
+    /// seed's operation mix is unchanged and only *which* half of
+    /// `in_scope` is attacked differs. Scope rejections rise, because
+    /// `in_scope` is the first check in every `insert_*`: an insert
+    /// rejected there never reaches the duplicate and closure checks, so
+    /// some rejections change category rather than being added. That rise
+    /// is the point, not a side effect —
+    /// the id half had no coverage at all before. How much coverage this
+    /// buys is pinned per kind and per half at the end of
+    /// `graph_seeded_mutations_never_yield_a_cycle_or_an_orphan`; no rate
+    /// is recorded here, because a number in a comment is a claim nobody
+    /// re-measures.
+    fn draw(rng: &mut Rng) -> Self {
+        match rng.below(10) {
+            0 => Self::Repo,
+            1 => Self::Id,
+            _ => Self::None,
         }
     }
 }
@@ -471,14 +557,35 @@ fn random_priority(rng: &mut Rng) -> Priority {
     }
 }
 
+/// Which half of `in_scope` a built node actually violates, read off the
+/// node rather than off the [`Forge`] draw that built it.
+///
+/// Deriving the traced half from the draw would let label and effect
+/// decouple: an arm whose `Forge::Repo` branch stopped assigning anything,
+/// or assigned the *id*, would keep tracing `forged=repo` while the scan's
+/// field-half assertion lost its only attacker — and the coverage pin would
+/// stay green, which is precisely the silent-vacuity failure the pin
+/// exists to prevent. Four such mutations survive the suite when the label
+/// comes from the draw; none survive when it comes from the node.
+fn scope_half(repo: &RepoSlug, id_repo: &RepoSlug, graph: &Graph) -> &'static str {
+    let slug = graph.slug();
+    if id_repo != slug {
+        "id"
+    } else if repo != slug {
+        "repo"
+    } else {
+        "none"
+    }
+}
+
 /// One log line: the operation, the arguments it was given, and what the
 /// graph answered.
 fn line<T>(name: &str, detail: &str, result: &Result<T, DomainError>) -> String {
     format!("{name} {detail} -> {}", outcome(result))
 }
 
-fn insert_detail(number: u64, foreign: bool, extra: u64) -> String {
-    format!("{number} foreign={foreign} {extra}")
+fn insert_detail(number: u64, half: &str, extra: u64) -> String {
+    format!("{number} forged={half} {extra}")
 }
 
 /// Notes an allocated number, and fails the test if the allocator ever

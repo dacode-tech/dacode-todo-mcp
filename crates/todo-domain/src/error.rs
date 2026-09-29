@@ -4,16 +4,24 @@
 //!
 //! - [`DomainError`] is the error of domain *operations*. Its variants
 //!   carry exactly the eight §6.1 codes the domain can produce — never
-//!   the store-level `corrupt_store`/`version_mismatch`/`locked`, which
-//!   live in `todo-store`. Codes are stable machine-readable identities
-//!   a client may branch on; messages are context for a human reader and
-//!   never the contract.
+//!   the store-level `corrupt_store`/`version_mismatch`/`locked`/`io`,
+//!   which live in `todo-store`, and never `invalid`, which is the wire
+//!   identity of [`ValueError`] below. Codes are stable machine-readable
+//!   identities a client may branch on; messages are context for a human
+//!   reader and never the contract.
 //! - [`ValueError`] is the error of value *construction*: a malformed
 //!   slug, id, timestamp, date or reference handed in by a caller. It
-//!   deliberately carries no §6.1 code — the code list is versioned like
-//!   the store format and closed to extension by this crate. The server
-//!   layer presents a `ValueError` as invalid input; the store maps one
-//!   raised while replaying a log to `corrupt_store`.
+//!   carries no code **in this crate**: the §6.1 list is versioned like
+//!   the store format and closed to extension by the domain, which is
+//!   exactly why giving it a wire identity was U9, a user decision, and
+//!   not a variant added here. Since that decision §6.1 names the mapping
+//!   — the server *will* present a `ValueError` as **`invalid`** once M3
+//!   lands the wire, while the store already maps one raised while
+//!   replaying a log to `corrupt_store`,
+//!   because a log that will not parse is damage and not a bad argument,
+//!   and neither is retryable. §6.1 keeps `invalid` separate from `io` for
+//!   the caller's sake: a filesystem fault may be transient and worth
+//!   retrying, a malformed argument never is.
 
 use std::fmt;
 
@@ -155,9 +163,11 @@ impl std::error::Error for DomainError {}
 /// An error raised while constructing or parsing a value: the input was
 /// malformed, so no valid value exists to return.
 ///
-/// Carries no §6.1 code — see the module docs for the contract. The
-/// `input` payload is the offending string as received, so a human can
-/// see what failed; branching stays on the variant.
+/// Carries no code of its own, in this crate: §6.1's `invalid` is the
+/// server's mapping for it, and the store maps one raised during replay to
+/// `corrupt_store` instead — see the module docs for why neither belongs
+/// here. The `input` payload is the offending string as received, so a
+/// human can see what failed; branching stays on the variant.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ValueError {

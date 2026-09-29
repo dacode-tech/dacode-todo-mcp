@@ -30,16 +30,19 @@ t9 (canonical serialization + golden harness), t10 (the JSONL event
 log + `Store` trait, §4), t11 (the D4 layout + registry + advisory
 locking, §2/§7/§8) and t12 (snapshots + compaction, §4.1/§4.3) — four of
 the five store/cli commits are in, and `Store` now carries all five of
-§4.2's responsibilities; next is t13, the `todo-cli` inspector, the last
-M1 code task before the g5 exit gate.
+§4.2's responsibilities. t15 (the domain cleanup: f9's scan scope, f10's
+doc links, f22's domain half) has landed since, so `cargo doc --workspace
+--no-deps` — g5's newest gate line — is unconditionally clean; **next is
+t13**, the `todo-cli` inspector, the last M1 code task before the g5 exit
+gate.
 
 | Blocking | What | Action |
 |---|---|---|
-| — | nothing: U10 resolved 2026-09-29, and every other open item is non-blocking | execute t15, then t13, then the g5 exit gate |
+| — | nothing: U10 resolved 2026-09-29, and every other open item is non-blocking | execute t13, then the g5 exit gate |
 
-(Open but non-blocking: U12, and U2 which is scheduled after g5.
-Resolved: U4/U5/U6/U7/U8/U9/U10/U11/U3-superseded-by-D12. t15 is gated on
-nothing.)
+(Open but non-blocking: U12, deferred to t13 by design, and U2 which is
+scheduled after g5. Resolved: U4/U5/U6/U7/U8/U9/U10/U11, and U3 superseded
+by D12.)
 
 ## 2. Milestones
 
@@ -396,6 +399,56 @@ Oldest first. One line per delivery, with the commit hash once committed.
      precedent. Spec work order executed across §4.3, §6, §9, §10 (twice),
      §14; D7's banner amended and D12 added to `decisions.md` with a
      sign-off-summary row.
+- 2026-09-29 — **M1 t15: domain cleanup** — f9, f10 and f22's domain half
+     in one commit. **f9**: `assert_invariants`, the whole-graph scan run
+     after every step of the seeded property tests, checked `id.repo()`
+     against the graph slug for epics and tasks but only `.repo` for
+     decisions and docs, while `Graph::in_scope` is called at every
+     explicit insert with **both** — so a regression that stopped checking
+     the id half would have slipped the scan for those two kinds. The
+     second `for epic` loop (counter check only) folded into the first.
+     **Extending the assertions was not enough, and the two assertions it
+     took are the least of it**: the generator only ever
+     forged `.repo`, so the new assertions were unreachable and the guard
+     would have been vacuous. `explicit_insert`'s `foreign: bool` became a
+     `Forge` enum drawing `None`/`Repo`/`Id` off the same single
+     `below(10)` in the same stream position, and three `other_*_id`
+     helpers joined the pre-existing `other_task_id`. Then a **coverage
+     pin** in the 5-seed test asserts all four insert kinds × both halves
+     actually occur, so a seed or `STEPS` change cannot silently vacate
+     the scan — and the traced half is read off the **built node**
+     (`scope_half`), not off the draw, because label and effect can
+     otherwise decouple. Non-vacuity was proven by mutation throughout,
+     not asserted: making `in_scope` ignore the id's slug fails both seeded
+     tests; starving either draw arm fails the pin naming kind and half;
+     and `Forge::Repo => epic.id = other_epic_id(..)` — the sharpest
+     mutation, which leaves the epic repo-half uncovered while its label
+     stays green — is caught only by the node-derived form. **f10**: the
+     four unresolved intra-doc links in `graph/drafts.rs` now use the
+     workspace's single link convention (`[`crate::Epic`]`, 39 existing
+     uses, and the `](crate::` form is now absent from the workspace), and
+     `testcodec.rs`'s stale "before the canonical serializer lands" line is
+     replaced with why the codec *stays* — §2 bars a domain→store
+     dependency, and the two answer different questions. **f22 domain
+     half**: `error.rs`'s module *and* type docs, both of which said
+     `ValueError` "carries no §6.1 code", realigned to the amended §6.1;
+     the store half rides t13. Gates: fmt, check, clippy clean; 111 domain
+     tests (count unchanged — f9 extended a shared helper and a generator,
+     it added no test); 197 workspace-wide; and **`cargo doc --workspace
+     --no-deps` is warning-free for the first time**, which is g5's gate
+     line and was the reason t15 existed. No golden touched.
+     Dual-reviewed to sign-off, both reviewers `ok` on the committed tree.
+     The findings that shaped it: the primary found the vacuous-generator
+     gap, the omitted `ValueError` *type* doc, a measurement restated
+     three times and wrong differently each time before the numbers were
+     deleted rather than corrected again, and the label/effect decoupling
+     in the coverage pin;
+     the secondary found a present tense for an unimplemented M3 mapping,
+     the convention drifts, an off-by-one in a size ledger whose point was
+     that it had been measured, and — sharpest — that this very board entry
+     asserted a dual-review sign-off the round record contradicted, which
+     is the forged-trailer failure mode caught from inside the diff rather
+     than at the commit.
 
 ## 4. Follow-ups
 
@@ -628,7 +681,7 @@ Newest first. One entry per session, written for someone who was not
 here. The final entry of a session is the handover
 (`.agents/skills/todo-next-imp/SKILL.md` defines the shape).
 
-### 2026-09-29 — U11 fixed upstream; U7/U9/U10/U3(D12)/U2/t11 settled
+### 2026-09-29 — t15 landed; U11 fixed upstream; U7/U9/U10/U3(D12)/U2/t11 settled
 
 The session opened at the t12 handover's fork — t13, t15, or the two open
 board questions — and the user asked what U10 and U11 actually required
@@ -762,20 +815,62 @@ to be driven by a measurement of cold `repo_list` rather than a preference,
 following U1's precedent where D1 was signed without the benchmark and the
 numbers became decision material only if the fallback was proposed.
 
-**Handover.** Workspace: `main` at `a22fced`/`7959281` plus this board
-commit, clean; sibling `/Users/mouse/RPM/dacode/rust/json-tiers` at
-`c4aebe9` with **53 files still dirty** (an uncommitted `cargo fmt` pass,
-owner's call). Crates and test counts unchanged from the t12 handover:
-`todo-domain` 111, `todo-store` 86 and four goldens, mcp/cli still
-documented M0 shells; rustc 1.98.1, MSRV 1.95. A cold machine still needs
-the sibling checkout beside this repo's parent, and now needs it at
-`c4aebe9` or later only if U12 drops the narrowing — the wire bytes are
-identical either way.
+**With the backlog cleared, t15 ran** — and it is the clearest case yet
+that a review gate earns its cost on a *small* change. It was scoped as a
+doc-and-test tidy-up: extend the seeded invariant scan to decisions and
+docs (f9), fix four unresolved intra-doc links and a stale module-doc line
+(f10), and realign `error.rs` to the amended §6.1 (f22's domain half).
+Extending `assert_invariants` took two assertions. **Those two assertions
+would have been a vacuous guard**: the generator only ever forged a node's
+`.repo` field, never its id's slug, so nothing the scan could reach ever
+violated the new assertions. The fix was to widen the generator — a `Forge`
+enum drawing `None`/`Repo`/`Id` off the same single `below(10)` in the same
+stream position — and then to pin the coverage it buys, because a pin
+nobody checks is the same mistake one level up: all four insert kinds ×
+both halves must actually occur across the seeds.
 
-Next step: unchanged by this session — **t13**, the `todo-cli` inspector,
-or **t15** first if a small independent commit is preferred (it is the
-only M1 work not gated on a user decision, and g5's `cargo doc` gate needs
-it). U10's answer still shapes t13's `repair`; U12 now joins it there.
+The primary reviewer then found the hole in *that*: the pin keyed on the
+trace label, which came from the same `Forge` value that drove the arm, so
+label and effect could decouple. `Forge::Repo => epic.id =
+other_epic_id(number)` leaves the epic repo-half with no attacker at all
+while its cell stays green. Deriving the traced half from the **built
+node** (`scope_half`) closes it, and that mutation now fails naming exactly
+the coverage it lost. Every claim in this paragraph was established by
+mutation rather than by reading: making `in_scope` ignore the id's slug
+fails both seeded tests, starving either draw arm fails the pin, and the
+four decoupling mutations the reviewer named all die under the
+node-derived form.
+
+The recurring defect was mine rather than the code's, and it took three
+attempts to stop making it: **three successive versions of one doc
+comment stated a measurement that did not reproduce** — first the wrong ratio, then figures
+scoped to the wrong runs, then a total that was one run's. The primary
+re-derived each with instrumented worktree pairs to check me. The fix was
+not a fourth attempt at the number but deleting the numbers: the comment
+now states the mechanism and points at the pin that enforces the property,
+because a figure in a source comment is a claim nobody re-measures. That is
+the same lesson as f20 in a different register — an unverified assertion
+embedded in an artifact, trusted because it was written down — and it is
+worth carrying into g5's `.agents/pitfalls.md` consolidation beside it.
+
+**Handover.** Workspace: `main` at `070b317` plus the t15 commit, clean.
+Sibling `/Users/mouse/RPM/dacode/rust/json-tiers` at **`f7f26f8`, clean** —
+the deserializer fix (`c4aebe9`) and then the 53-file `cargo fmt` pass,
+committed separately so the fix stays reviewable on its own. `todo-domain`
+111 tests and now warning-free under `cargo doc`; `todo-store` 86 and four
+goldens; mcp/cli still documented M0 shells; rustc 1.98.1, MSRV 1.95; 197
+workspace tests. A cold machine needs the sibling checkout beside this
+repo's parent; it needs `c4aebe9` or later only if U12 drops the
+narrowing, since the wire bytes are identical either way.
+
+Next step: **t13**, the `todo-cli` inspector — the last M1 code task before
+g5, and no longer waiting on anything. U10's resolution *shrank* its scope:
+`dump`, `verify`, `repair`, **no `compact` subcommand**; f14 split so
+`LogHeader` gains `deny_unknown_fields` (deserialize-only, no golden moves)
+while the compaction marker stays deferred. It carries f17, f18, f19, f21
+(=U12), f22's store half, f23, and the d2/d3 split conversation. Then g5,
+whose `cargo doc --workspace --no-deps` line t15 just made unconditionally
+clean. U2 is scheduled immediately after g5.
 
 Blocked on you: **U12** only, and it is deferred to t13 by design (its
 `repair` output is what consumes the better `corrupt_store` detail). Every

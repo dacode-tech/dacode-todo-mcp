@@ -14,7 +14,7 @@ use crate::reference::References;
 use crate::status::{DecisionStatus, Priority, Status, TaskKind};
 use crate::time::Date;
 
-/// The fields an `epic_add` supplies (§6): everything an [`Epic`] holds
+/// The fields an `epic_add` supplies (§6): everything [`crate::Epic`] holds
 /// except the identity the graph allocates. An epic carries no
 /// timestamps (§3), so adding one takes none.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -29,7 +29,7 @@ pub struct EpicDraft {
     pub references: References,
 }
 
-/// The fields a `task_add` supplies (§6): everything a [`Task`] holds
+/// The fields a `task_add` supplies (§6): everything [`crate::Task`] holds
 /// except the identity the graph allocates and the timestamps the caller
 /// passes separately.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -62,7 +62,7 @@ pub struct TaskDraft {
 }
 
 /// The fields a `decision_add` supplies (§6, D10): everything a
-/// [`Decision`] holds except the identity the graph allocates and the
+/// [`crate::Decision`] holds except the identity the graph allocates and the
 /// timestamps the caller passes separately.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DecisionDraft {
@@ -82,7 +82,7 @@ pub struct DecisionDraft {
     pub references: References,
 }
 
-/// The fields a `doc_register` supplies (§6, D10): everything a [`Doc`]
+/// The fields a `doc_register` supplies (§6, D10): everything [`crate::Doc`]
 /// holds except the identity the graph allocates and the timestamps the
 /// caller passes separately.
 #[derive(Debug, Clone, PartialEq, Eq)]

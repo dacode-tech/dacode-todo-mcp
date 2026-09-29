@@ -71,8 +71,23 @@ pub(super) fn doc_id(number: u64) -> DocId {
     DocId::from_str(&format!("{SLUG}:S{number}")).unwrap()
 }
 
+/// Foreign-slug ids, so the generator can attack the id half of
+/// [`Graph::in_scope`] as well as the `repo`-field half (see `Forge` in
+/// `seeded.rs`).
 pub(super) fn other_task_id(number: u64) -> TaskId {
     TaskId::from_str(&format!("{OTHER}:U{number}")).unwrap()
+}
+
+pub(super) fn other_epic_id(number: u64) -> EpicId {
+    EpicId::from_str(&format!("{OTHER}:E{number}")).unwrap()
+}
+
+pub(super) fn other_decision_id(number: u64) -> DecisionId {
+    DecisionId::from_str(&format!("{OTHER}:D{number}")).unwrap()
+}
+
+pub(super) fn other_doc_id(number: u64) -> DocId {
+    DocId::from_str(&format!("{OTHER}:S{number}")).unwrap()
 }
 
 /// A graph holding only its repo node.
@@ -273,6 +288,7 @@ pub(super) fn assert_invariants(graph: &Graph) {
     for epic in graph.epics() {
         assert_eq!(&epic.repo, slug, "epic {} out of scope", epic.id);
         assert_eq!(epic.id.repo(), slug, "epic id {} out of scope", epic.id);
+        assert!(epic.id.number() <= graph.counters().epic());
     }
     for task in graph.tasks() {
         assert_eq!(&task.repo, slug, "task {} out of scope", task.id);
@@ -300,6 +316,12 @@ pub(super) fn assert_invariants(graph: &Graph) {
             "decision {} out of scope",
             decision.id
         );
+        assert_eq!(
+            decision.id.repo(),
+            slug,
+            "decision id {} out of scope",
+            decision.id
+        );
         assert!(
             decision.validate().is_ok(),
             "decision {} breaks the closure discipline",
@@ -309,10 +331,8 @@ pub(super) fn assert_invariants(graph: &Graph) {
     }
     for doc in graph.docs() {
         assert_eq!(&doc.repo, slug, "doc {} out of scope", doc.id);
+        assert_eq!(doc.id.repo(), slug, "doc id {} out of scope", doc.id);
         assert!(doc.id.number() <= graph.counters().doc());
-    }
-    for epic in graph.epics() {
-        assert!(epic.id.number() <= graph.counters().epic());
     }
 
     // Every stored edge touches existing nodes, is one of the three

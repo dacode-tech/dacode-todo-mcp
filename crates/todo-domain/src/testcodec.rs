@@ -1,8 +1,15 @@
 //! A deterministic test-only serde codec, so the serde contract
 //! (round-trip equality, twice-run byte identity, wire spellings, field
-//! order) is testable before the canonical serializer (`dacode-json`)
-//! lands with the store's golden harness — the only approved dependency
-//! of this crate is `serde`, which ships no data format.
+//! order) is testable **inside this crate**.
+//!
+//! The canonical serializer (`dacode-json`) landed with the store's golden
+//! harness at t9, and this codec deliberately did not go away with it: §2
+//! bars a domain→store dependency, so the domain's only instrument for its
+//! own serde contract is one it owns. The two answer different questions —
+//! this one asks whether the derives say what the crate believes, the
+//! goldens ask whether the persisted bytes are the signed bytes — and only
+//! the second needs the real engine. The sole approved dependency here is
+//! `serde`, which ships no data format.
 //!
 //! Tokens: strings are length-prefixed (`9:camera:U7` — no escaping to
 //! get wrong), integers `i42e`, `None` is `z`, sequences `l…e`, structs
