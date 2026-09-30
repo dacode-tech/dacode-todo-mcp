@@ -2,6 +2,10 @@
 target/
 tmp/
 
+# ── Python tooling bytecode: tools/ is imported as well as run ──────────
+__pycache__/
+*.pyc
+
 # ── Agent cache: renderings of committed state, never a source of it ────
 .agents/cache/
 

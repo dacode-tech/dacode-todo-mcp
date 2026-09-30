@@ -740,8 +740,13 @@ Oldest first. One line per delivery, with the commit hash once committed.
       nothing** (a missing or empty tracker, or a board with no milestone
       rows, is an error rather than an empty page) and **it cannot drop a
       relationship silently** (a declared edge whose endpoint has no lane
-      exits non-zero naming it, and every open tracker node that is not drawn
-      is reported by id). The lanes are a drawing order and a judgment; the
+      exits non-zero naming it, an unparsable board item exits non-zero
+      quoting it, and every open tracker node that is not drawn is reported
+      by id). Both guards fired while it was landing: the edge guard on five
+      gating edges whose endpoints had no lane, and the board parser on two
+      items whose bold titles wrap onto a second line (**f43**), which had
+      been rendering four open board items where the board holds six. The
+      lanes are a drawing order and a judgment; the
       edges carry a citation each, surfaced on hover. Every percentage
       travels with its denominator, on the page and in the JSON, because
       "progress" is not one number: milestones measure the roadmap, tasks
@@ -754,7 +759,7 @@ Oldest first. One line per delivery, with the commit hash once committed.
       block was dead config that read like live config (`fmt_check` is absent
       from the parsed file). Renamed to `build_commands`, with the reason in
       a comment; `version.custom` 7→8. The tool is harness, so it is
-      review-exempt and carries no trailer.
+      review-exempt and carries no trailer. Landed as `d542065`.
 
 ## 4. Follow-ups
 
