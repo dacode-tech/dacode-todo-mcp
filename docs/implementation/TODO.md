@@ -830,8 +830,8 @@ Oldest first. One line per delivery, with the commit hash once committed.
        workspace's 1.95 floor, and a 15 s cold build on this host with a warm
        registry cache. Spec §6/§6.3/§12 moved, `decisions.md` gained two
        dossiers plus their summary rows and action lines, and board §1/§2/§4
-       moved with them. No Rust moved; every code gate is `skipped` by
-       construction.
+       moved with them (U2 struck). No Rust moved; every code gate is
+       `skipped` by construction. Landed as `8135d06`.
 
 ## 4. Follow-ups
 
@@ -1342,11 +1342,12 @@ confirmed both ways.
 **Handover** — supersedes the one in the sweep entry below.
 
 ```
-Workspace:    main, clean at this commit; **M1 CLOSED**, phase M2-next. No
-              Rust has moved since 7563fff (t21) — everything after it is
-              harness, board and spec: 1581007, 6f96e01, bf34068, d542065,
-              5c23f5f, 95a83eb + 02475d0 (the f41 sweep) and this commit
-              (spec §6/§6.3/§12, decisions.md D14/D15, this board). Four
+Workspace:    main, clean at 8135d06 plus its hash backfill; **M1 CLOSED**,
+              phase M2-next. No Rust has moved since 7563fff (t21) —
+              everything after it is harness, board and spec: 1581007,
+              6f96e01, bf34068, d542065, 5c23f5f, 95a83eb + 02475d0 (the
+              f41 sweep) and 8135d06 (spec §6/§6.3/§12, decisions.md
+              D14/D15, this board). Four
               crates: todo-domain 111 tests, todo-store 107 (four goldens),
               todo-cli 35 (one golden), todo-mcp an M0 shell. rustc 1.98.1,
               MSRV 1.95, Cargo.lock UNTOUCHED by the survey. Deps unchanged
