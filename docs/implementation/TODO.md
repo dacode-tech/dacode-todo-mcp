@@ -862,7 +862,7 @@ Oldest first. One line per delivery, with the commit hash once committed.
        banners and their action lines retired, and board §1/§2/§4 moved with
        them. No Rust moved: the feature flag, the wire goldens and the
        carrier are M3's to implement, and this commit is what makes them
-       normative.
+       normative. Landed as `5dfba51`.
 
 ## 4. Follow-ups
 
@@ -1346,12 +1346,14 @@ deny unknown fields.
 **Handover** — this session's, superseding the two above it.
 
 ```
-Workspace:    main, clean at this commit plus its hash backfill; **M1
+Workspace:    main, clean at 5dfba51 plus its backfills; **M1
               CLOSED**, phase M2-next. No Rust has moved since 7563fff
               (t21) — everything after it is harness, board and spec:
               1581007, 6f96e01, bf34068, d542065, 5c23f5f, 95a83eb +
               02475d0 (the f41 sweep), 8135d06 + cc80cc3 + f8ca08a (the U2
-              survey), and this commit (the D14/D15 sign-off). Four crates:
+              survey), 5dfba51 (the D14/D15 sign-off) and 13a2e9d
+              (progress.py's exec bit, f46) plus this index backfill. Four
+              crates:
               todo-domain 111 tests, todo-store 107 (four goldens),
               todo-cli 35 (one golden), todo-mcp an M0 shell. rustc
               1.98.1, MSRV 1.95, 253 workspace tests, Cargo.lock
