@@ -1010,10 +1010,11 @@ routed to g5 rather than patched mid-commit.
 **Handover**
 
 ```
-Workspace:    main, clean; the last code commit is a1d2e86 and this
-              handover rides the docs commit after it. Four crates: todo-domain (111 tests),
+Workspace:    main, clean; the last code commit is e5a9955 (t20, the cli)
+              and this handover's lines were refreshed after it landed. Four crates: todo-domain (111 tests),
               todo-store (106 tests, four goldens, six modules + repair.rs),
-              todo-mcp and todo-cli still M0 shells. rustc 1.98.1, MSRV
+              todo-cli (35 tests, dump/verify/repair) and todo-mcp still
+              an M0 shell. rustc 1.98.1, MSRV
               1.95, 217 workspace tests. Deps: serde, dacode-json + zmij
               (path dep on /Users/mouse/RPM/dacode/rust/json-tiers — a cold
               machine needs that checkout beside this repo's parent, at
@@ -1029,20 +1030,19 @@ Landed:       six commits — 8787a72 (production-line budget + the
               backfill). Closed: U12, U14, f14, f17, f18, f21, f22, f23,
               f26-f29, t18, t19, t22. Opened: f25 (parked diagnostics),
               f30-f35.
-Next step:    t20 — the todo-cli inspector, specced and ready at
-              tmp/t20-spec.md (surface, exit-code table, dump document,
-              verify's report, repair's prompt flow, the fifth golden,
-              seven required test groups, three mutations). Dispatch it the
-              proven way: a short spawn prompt pointing at the spec
-              (P-LIVE-001 — long prompts have killed spawns), retry with a
-              control spawn on Connection reset, verify lines use target
-              selection not name filters (P-LIVE-005), test files carry the
-              inline mod wrapper (P-LIVE-002/004). One open judgment call
-              the spec deliberately leaves: whether the dump mirrors
-              Counters in a cli-local DTO or omits it (Counters is
-              serde-free by t7's rule and must not gain derives). Then t21
-              (f19's order-sensitive compact test, tests-only, independent
-              of t20), then the g5 M1 exit gate. The alternative to t20 is
+Next step:    t20 LANDED (e5a9955), so M1 has one code task left: t21 —
+              f19's order-sensitive compact() test, tests-only, no spec
+              needed beyond its tracker verify line (park a DIRECTORY at
+              <log>.snapshot so step (1)'s rename fails; assert compact()
+              errors with the log byte-unchanged; non-vacuity by reversing
+              the step order). Dispatch it the proven way: short spawn
+              prompt (P-LIVE-001), control-spawn retry on Connection reset,
+              target selection not name filters (P-LIVE-005), inline mod
+              wrapper (P-LIVE-002/004). Then the g5 M1 exit gate, whose
+              verify line now includes cargo doc --workspace --no-deps and
+              FIVE goldens regenerating byte-identical under
+              UPDATE_GOLDEN=1 (the cli's included), and which consolidates
+              f20/f24/f30 into .agents/pitfalls.md. The alternative to t20 is
               U2 (the rmcp survey), which is scheduled after g5 and before
               M2 on purpose — it is the only open item that could
               invalidate a signed §6 shape, and therefore U9's new
@@ -1060,8 +1060,8 @@ Unverified:   no induced crash or power loss anywhere — t22's write path is
               externally observable without a fault seam (f19/t21 names the
               technique). Nothing has called compact() outside tests, so
               RepairOutcome::Diverged is reachable only from a fixture.
-              The cli does not exist yet, so D5's "inspect the store before
-              M3" is still unmet and dump's golden is unwritten. MCP smoke
+              The cli exists and its golden is pinned, but no human has run
+              dump/verify/repair against a real store yet — 35 tests do. MCP smoke
               awaits M3. Per-crate lint tripwires for todo-mcp/todo-cli have
               never been fired. Multi-process lock contention is still two
               handles in one process. The #[cfg(unix)] permission tests
