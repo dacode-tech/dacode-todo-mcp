@@ -704,7 +704,7 @@ Oldest first. One line per delivery, with the commit hash once committed.
       recorded and promoted to **U15** — `store.rs`'s "a failed snapshot
       changes nothing on disk" is falsified by the debris this test pins,
       and both remedies are `src` changes, so neither belongs in a
-      tests-only commit.
+      tests-only commit. Landed as `7563fff`.
 
 ## 4. Follow-ups
 
@@ -1092,8 +1092,9 @@ inspector. 253 workspace tests, five goldens, `cargo doc --workspace
 **Handover**
 
 ```
-Workspace:    main, clean; the last code commit is t21's (tests-only) and
-              this board moved in the same commit. Four crates: todo-domain
+Workspace:    main, clean; the last code commit is 7563fff (t21,
+              tests-only) and this board moved in the same commit, with the
+              hash backfilled after it. Four crates: todo-domain
               (111 tests), todo-store (107, four goldens), todo-cli (35,
               one golden) and todo-mcp still an M0 shell. rustc 1.98.1,
               MSRV 1.95, 253 workspace tests. Deps unchanged: serde,
