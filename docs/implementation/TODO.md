@@ -1018,9 +1018,10 @@ Workspace:    main, clean; the last code commit is e5a9955 (t20, the cli)
               1.95, 217 workspace tests. Deps: serde, dacode-json + zmij
               (path dep on /Users/mouse/RPM/dacode/rust/json-tiers — a cold
               machine needs that checkout beside this repo's parent, at
-              f7f26f8), tempfile dev-only. lexopt is NOT yet in Cargo.lock;
-              it lands with t20. Serena's semantic layer is live. Nothing to
-              install.
+              f7f26f8), tempfile dev-only, lexopt 0.3.2 (U14, in
+              `Cargo.lock` since e5a9955). Five goldens now: the store's
+              four plus `cli_dump.v1`. Serena's semantic layer is live.
+              Nothing to install.
 Landed:       six commits — 8787a72 (production-line budget + the
               named-field-structs house rule + U13/U14 opened), 0ab91c2
               (index backfill), ffa4be8 (t13a: f14/f17/f18/f22-store/f23,
