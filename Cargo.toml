@@ -19,6 +19,11 @@ todo-store = { path = "crates/todo-store" }
 # compatible bytes, sealed inside todo-store (spec §2). Path dependencies
 # appear once, here, like the lint regime.
 dacode-json = { path = "../rust/json-tiers" }
+# The cli's argument parser (U14, resolved 2026-09-29): one dependency,
+# zero transitive, no proc macros, pedantic parsing — declared once at
+# the root like every other (U8's precedent), consumed as
+# `lexopt = { workspace = true }`.
+lexopt = "0.3"
 
 # The lint regime is declared once, here, and inherited per crate via
 # `[lints] workspace = true` (see .agents/roles/_rust.md): a new crate

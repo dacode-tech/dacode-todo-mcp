@@ -32,9 +32,9 @@ locking, §2/§7/§8) and t12 (snapshots + compaction, §4.1/§4.3) — four of
 the five store/cli commits are in, and `Store` now carries all five of
 §4.2's responsibilities. t15 (the domain cleanup: f9's scan scope, f10's
 doc links, f22's domain half) has landed since, so `cargo doc --workspace
---no-deps` — g5's newest gate line — is unconditionally clean; **next is
-t13**, the `todo-cli` inspector, the last M1 code task before the g5 exit
-gate. t13 is decomposed along the crate boundary into three commits:
+--no-deps` — g5's newest gate line — is unconditionally clean; t13, the
+`todo-cli` inspector and the last M1 code task before the g5 exit gate, is
+decomposed along the crate boundary into three commits:
 **t13a**, the store riders (f14's `LogHeader` `deny_unknown_fields`, f17's
 third `LockTarget` variant, f18, f22's store half, f23, U12(a)'s verdict,
 U13's module-doc exception lines — no new dependency, no golden moves),
@@ -42,12 +42,13 @@ U13's module-doc exception lines — no new dependency, no golden moves),
 **has landed** — `repair` truncates, truncating is a write, and §8's lock
 plus the log's line discipline both live in the store, so the binary prints
 what the crate decides; **t13b**, the cli itself (`dump`/`verify`/`repair`
-plus a fifth golden), U14 having chosen `lexopt`; and **t19**, a tests-only
-commit for f19's order-sensitive `compact()` test.
+plus a fifth golden), U14 having chosen `lexopt`. **All three have
+landed**, so the only M1 work left is **t19**, a tests-only commit for
+f19's order-sensitive `compact()` test, and the g5 exit gate.
 
 | Blocking | What | Action |
 |---|---|---|
-| — | nothing: U14 resolved 2026-09-29 (`lexopt`), and every other open item is non-blocking | execute t13's remaining commits, then the g5 exit gate |
+| — | nothing: U14 resolved 2026-09-29 (`lexopt`), and every other open item is non-blocking | execute t13's last commit (f19's tests-only order test), then the g5 exit gate |
 
 (Open but non-blocking: U2, scheduled after g5 and before M2. Resolved:
 U4/U5/U6/U7/U8/U9/U10/U11/U12/U14, and U3 superseded by D12. U13 is
@@ -604,6 +605,56 @@ Oldest first. One line per delivery, with the commit hash once committed.
       does not include. One taste-level wording finding was dispositioned
       rather than opening a fourth round for one word (**f35**). Landed as
       `4c5782b`.
+- 2026-09-29 — **M1 t13b/t20: `todo-cli`, the store inspector** — D5's
+      rationale met: the store can now be dumped, verified and repaired
+      without an MCP client, which is what made M3 safe to build on. A lib
+      target plus a 36-line `main.rs`, so the pieces worth testing are
+      testable without spawning a process and the binary only translates
+      (§2): `args.rs` parses with `lexopt` (U14) into a typed invocation,
+      `dump.rs`/`verify.rs`/`repair.rs` format what `todo-store` decided.
+      No `dacode-json` dependency — §2 permits this crate to name the
+      engine and it deliberately does not, so the engine stays sealed in
+      one crate and `--pretty` stays impossible (U14). `dump` serializes a
+      cli-local document (`repo`, `counters`, the four node kinds, `blocks`
+      in the log's own `BlocksEdgeDto` spelling, `relates` in the format's
+      positional shape) with `to_bytes`, in the graph accessors' own total
+      orders, so determinism is structural and the fifth golden
+      (`cli_dump.v1`, 2539 bytes) pins it. **`Counters` stays serde-free**
+      (t7's rule) and is mirrored in a named-field `CountersDto` rather
+      than omitted, because a burned number is unreconstructable from
+      graph state: the golden's cascade gaps read like damage without
+      counters proving the numbers were issued and burned (§3). `verify`
+      reports counts and file sizes — **no line count**, since counting
+      lines would be a second notion of "line" beside the log's own
+      `LineSplit` (f25's parked boundary) — and on a `corrupt_store` fault
+      asks the store to classify it via `repair(slug, dry_run=true)` rather
+      than guessing, printing t22's outcome verbatim (f33: a refusal reason
+      is cli-facing contract text) with f31's caveat that a snapshot
+      document's offset is not a log byte. `repair` prompts with the
+      offset, byte count and bounded preview; EOF or garbage aborts,
+      `--dry-run` never prompts and never writes, and `--dry-run` beats
+      `--yes`. Exit codes are one pinned table — 0 worked (including "clean"
+      and "nothing to repair"), 1 ran and reported a fault it will not act
+      on, 2 usage, 3 the store refused — with §6.1's code printed on its own
+      line as the machine-readable identity. The spec contradicted itself
+      on one row (a corrupt snapshot document: table row 3 said exit 3,
+      step 4 said every `CorruptStore` exits 1) and the resolution is the
+      honest one, ruled correct on review: `verify` exits 1 with
+      `classification: unavailable` because it *did* inspect and found a
+      fault, while `dump`/`repair` exit 3 because they could not do their
+      job — the exit code encodes the command↔store relation, not the store
+      state. 35 cli tests, 252 workspace-wide, the store's 106 and the
+      domain's 111 unchanged, store goldens untouched, `Cargo.lock` up by
+      exactly one package. Dual-reviewed to sign-off on the committed tree,
+      and again the review found the load-bearing gap: "`--dry-run` wins
+      over `--yes`" was pinned only at the parse level, so swapping the two
+      guards left all 34 tests green while the combination truncated — a
+      write the operator had explicitly disclaimed. One test pins it now
+      (`dry_run_wins_over_yes_and_writes_nothing`), mutation-proven in both
+      directions by the implementer and re-run by the reviewer, with
+      `src/repair.rs` sha-verified unchanged by the fix. Three spec errors
+      were reported rather than worked around silently (f36–f39), one of
+      them the exit-table contradiction above.
 
 ## 4. Follow-ups
 
