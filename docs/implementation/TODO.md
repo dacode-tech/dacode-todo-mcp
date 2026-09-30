@@ -791,7 +791,8 @@ Oldest first. One line per delivery, with the commit hash once committed.
        boundary), f40 (= U15) and d1 (M2's queries) stay open, each with a
        note naming the consumer it waits on so the next sweep can tell a
        deliberate open from a forgotten one. Harness and board only; no Rust
-       moved, so every code gate is `skipped` by construction.
+       moved, so every code gate is `skipped` by construction. Landed as
+       `95a83eb`.
 
 ## 4. Follow-ups
 
@@ -1250,10 +1251,10 @@ reproduce.
 **Handover**
 
 ```
-Workspace:    main, clean at this commit; **M1 CLOSED**, phase M2-next. No
+Workspace:    main, clean; **M1 CLOSED**, phase M2-next. No
               Rust has moved since 7563fff (t21) — everything after it is
               harness and board: 1581007, 6f96e01, bf34068, d542065,
-              5c23f5f and this commit (SKILL.md's exit-gate step 2,
+              5c23f5f and 95a83eb (SKILL.md's exit-gate step 2,
               task-tracking.md, progress.py's lane/edge/wait tables, this
               board). Four crates: todo-domain 111
               tests, todo-store 107 (four goldens), todo-cli 35 (one
