@@ -17,13 +17,18 @@ If `MYAGENTS.md` exists at the repo root, it is untracked, personal, and
 
 ## Project State
 
-**Phase: M2 next — M1 closed 2026-09-30.** An MCP server that replaces
+**Phase: M2 decomposed 2026-09-30 — M1 closed, nothing dispatched yet.**
+An MCP server that replaces
 markdown TODO boards with a deterministic task graph: tasks are typed
 nodes, dependencies are typed edges, everything lives in local
 per-repo non-relational stores (D4), and "what is next in repo X under
 epic Y" is a query, not a prose parse. Rust, rmcp, stdio transport.
 
-§12 is closed — all eleven decisions signed 2026-09-25, D12 added
+§12 holds **one open item — D16**, the progress roll-up (a new tool, a
+field on an existing one, or a client-side concern), drafted 2026-09-30
+out of the M2 decomposition's answer to U17; it gates no dispatched task,
+and a signed (a) or (b) adds one domain aggregation task to M2.
+Everything else is signed: all eleven decisions on 2026-09-25, D12 added
 2026-09-29, and D14/D15 on 2026-09-30 out of U2's rmcp survey (the
 wire's canonical key order and §6.1's error carrier)
 (`docs/implementation/decisions.md`); the spec is normative

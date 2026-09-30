@@ -10,10 +10,10 @@ same change — most orders delete the §12 item, so the spec moves too.
 and the meta block below; keep the shapes it parses.
 
 <!-- attention-meta — machine-readable; read by tools/attention.py.
-     No open decisions: D1–D12 resolved 2026-09-25/2026-09-29, D14 and D15
-     resolved 2026-09-30. D13 is reserved for the transport question board
-     U18 defers, and is not drafted, so it has no action line either. A new
-     entry declares its action here (e.g. `action: D16=vote`).
+     D1–D12 resolved 2026-09-25/2026-09-29, D14 and D15 resolved 2026-09-30.
+     D13 is reserved for the transport question board U18 defers, and is not
+     drafted, so it has no action line either.
+action: D16=vote
 -->
 
 ## Sign-off summary
@@ -34,6 +34,7 @@ and the meta block below; keep the shapes it parses.
 | ~~**D12**~~ | Importer fixture scope (amends D7) | dacode dialect first; camera and ikvm-html are live-test subjects only, never checked in here | high | M4 | resolved 2026-09-29 — user decision, reversing D7's order |
 | ~~**D14**~~ | The wire's canonical JSON key order | (a) enable `serde_json/preserve_order` here, with a golden pinning the wire bytes | medium | M3 | resolved (a) 2026-09-30 — user decision, with the wire golden named as part of it |
 | ~~**D15**~~ | Where a §6.1 code lives on the wire | (a) `structuredContent.code` via `structured_error`, §6.1 naming the carrier | medium | M3 | resolved (a) 2026-09-30 — user decision |
+| **D16** | The progress roll-up: a tool, a field, or a client concern | (a) a `status_summary(repo?, epic?)` tool, plus `blocked_by` on `task_list` rows whichever option wins | medium | M2 | drafted 2026-09-30 — awaiting the user's vote |
 
 ---
 
@@ -765,3 +766,92 @@ schema-conformance exemption; §6's error principle ("Errors are structured
 data with stable codes, never panics and never bare strings") gains a
 pointer to §6.3's table; delete §12 item 15; strike this row; TODO.md §2's
 M3 row, §3 and §6.
+
+---
+
+### D16 — The progress roll-up: a tool, a field, or a client concern
+
+**Gates** M2 · **Action** vote · drafted 2026-09-30 from the M2
+decomposition answering board U17 · **Confidence: medium**
+
+**Current (before this decision).** §6's signed list contains no
+aggregate. Its two nearest pieces point in different directions:
+`next_items` carries D9's `deferred: {total, ready}` summary for the
+queried scope — a summary riding a query's response, not a tool of its
+own — while `graph_show` (§6.2) dumps the *complete* graph, every node
+with its `blocked_by`/`blocks` ids, status, kind, priority and
+references, and signs "Size is the caller's problem: the dump is complete
+and deterministic; clients slice." §11 signs "No web UI, no TUI of its
+own; clients render." So the spec already contains both the precedent for
+a small derived summary and the precedent for handing a client everything
+and letting it compute.
+
+**What U17 asked, and what the decomposition settled without a vote.**
+U17's intent, stated by the user 2026-09-30: the tooling this repo uses
+for todo handling belongs inside the server, so another project's agents
+get it over the wire instead of each repository growing its own scripts.
+Most of that mapping needs no decision, because it is already signed —
+`attention.py`'s "what is next and what is blocked" is `next_task` and
+`next_items` with D11's derived weight and D9's deferred summary;
+`progress.py`'s graph is §6.2's `graph_show`; `tasks.py` stays this
+repo's session tracker, since §9 bars dogfooding the server here before
+M3; and the HTML/browser rendering is a client-side concern over
+`graph_show`, which §11 already decides. The one piece §6 does not carry
+is the roll-up this board page renders: totals by kind and status, and
+per open item what it waits on.
+
+**Why it is a decision rather than an implementation detail.** Adding it
+amends D5's signed tool list, and §12's rule is that a change to a signed
+shape is a new decision, never an edit. D11's `next_items` is the worked
+example of doing this properly: a new surface, brought to the user, signed
+before it was built.
+
+**Options.**
+
+- **(a) A `status_summary(repo?, epic?)` tool**, returning counts by kind
+  and status for the scope plus D9's deferred `{total, ready}` so the two
+  summaries cannot disagree about what "ready" means; and `task_list` rows
+  gain their `blocked_by` ids with each blocker's status, so "what waits
+  on what" needs no second round trip. The aggregation is a pure function
+  of one graph, so it lands in `todo-domain` per §2, and the all-repos
+  case is M3 composing per-graph summaries over handles it already holds
+  — the domain stays single-repo. Cost: one more tool in a signed list,
+  one more `outputSchema` for §10's byte-golden rule to pin, and a name to
+  choose (§6's names are a proposal; the shape is the decision).
+- **(b) No new tool — a `counts` block on §6.2's `graph_show` dump**, plus
+  the same `task_list` annotation. Cost: `graph_show`'s bytes are
+  golden-pinned, so the dump moves — a compatibility event, cheap before
+  M3 ships a client and expensive after; and a caller that wants four
+  counts pulls the whole graph, which at the top of §4.1's scale (10^5
+  nodes) is the expensive way to answer the cheap question.
+- **(c) Leave it client-side over `graph_show`**, per §11's "clients
+  render": the dump is complete and deterministic, so any roll-up is a
+  pure function of it. Cost: every consumer re-implements counting, and
+  counting is where the determinism bugs live — which statuses are "open",
+  whether a `deferred` item whose until-targets are all finished counts as
+  ready, whether a `signed` decision still gates the work it blocked.
+  Three clients, three answers, none of them pinned by a golden. That is
+  the markdown-board failure mode this project exists to remove, in a
+  smaller register.
+
+**Recommendation: (a)**, with the `task_list` annotation whichever option
+wins. The roll-up is a query; §2 puts a query the domain can host in the
+domain; and (a) is the only shape whose cost is O(nodes) with an
+O(1)-sized response, which is the property that makes it usable as the
+call a session opens with — what `attention.py` is used for here. (b) is
+rejected on the size argument and on spending a golden-moving diff on an
+aggregate; (c) is rejected because "which statuses count as open" is
+precisely the kind of question the server exists to answer once. The
+annotation half is separable and cheap: per-node `blocked_by` ids already
+exist in §6.2's dump, so `task_list` is the only listing that does not
+carry them. No option needs a §6.1 code beyond the closed list — an
+unknown repo or epic is `unknown_id`.
+
+**On sign-off:** amend §6's tool table with the chosen shape (and §6.2 if
+the dump carries it); state in §6 what the summary counts — which
+statuses are open, what makes a deferred item ready — so the arithmetic
+is signed text rather than an implementation's opinion; delete §12 item
+16; strike this row; TODO.md §2's M2 and M3 rows, §4's U17, §3 and §6. If
+(a) or (b) is signed, the M2 tracker gains a domain aggregation task
+under g6; if (c) is signed, U17's resolution records that the roll-up
+stays a script and no task is added.

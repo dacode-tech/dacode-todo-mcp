@@ -15,9 +15,14 @@ blocking. Rules, which `tools/attention.py` and the reviewers enforce:
 
 ## 1. Current state
 
-**Phase: M1 done 2026-09-30 — M2 next.** The domain layer (§3's value
-types and closure discipline, §5.1's graph, §5.2's canonical order), the
-storage engine (the signed D1 JSONL event log behind the `Store` trait
+**Phase: M2 decomposed 2026-09-30 — nothing dispatched yet.** The query
+layer is five tasks under tracker **g6** (t27–t29 domain selection,
+t30/t31 store), each one commit with its own file, plus the **g7** exit
+gate; §2's M2 row names them. One decision is open out of the
+decomposition — **D16**, the progress roll-up — and no task waits on it.
+M1 is closed. The domain layer (§3's value types and closure discipline,
+§5.1's graph, §5.2's canonical order), the storage engine (the signed D1
+JSONL event log behind the `Store` trait
 carrying all five of §4.2's responsibilities, the D4 layout with its
 registry and advisory locking, snapshots + compaction, §4.3's repair
 primitive) and the `todo-cli` inspector are all in, and the **g5** exit
@@ -32,19 +37,19 @@ shell, which is M3's business.
 
 | Blocking | What | Action |
 |---|---|---|
-| — | nothing blocks M2: **U2**'s survey ran and left §6's signed shapes intact, and **D14**/**D15** — the two wire shapes it forced a choice on — were signed the same day | decompose M2's query layer, answering **U17** inside the decomposition |
+| **D16** | the progress roll-up — totals by kind and status, and per open item what it waits on — is a §6 amendment, drafted out of **U17** with recommendation (a): a `status_summary(repo?, epic?)` tool plus `blocked_by` on `task_list` rows. It gates M2 only in the sense that a signed (a) or (b) adds one domain aggregation task to g6; **t27–t29 do not wait on it** and no task may implement a roll-up before it is signed | vote |
 | — | M3's remaining gate is the **rmcp dependency ask** itself (Ask-First): the survey measured its weight (spec §6.3) and D14 now names `serde_json` as a wire serializer, but nothing has entered the workspace | ask, then build the wire |
 
-(Open but non-blocking: **U15** and **U19**, two one-sentence store doc
-fixes that ride the next store touch; and three recorded 2026-09-30 —
-**U16** (ship base instructions with the server and gate the client's
-native todo off, M3 — its mechanism is now measured rather than assumed,
-spec §6.3), **U17** (which harness tools become MCP tools, answered with
-M2's decomposition) and **U18** (a live view for progress and whether the
+(Open but non-blocking: **U15** and **U19**, the two one-sentence store
+doc fixes, are now owned by **t30** rather than waiting on an incidental
+touch; **U16** (ship base instructions with the server and gate the
+client's native todo off, M3 — its mechanism is measured rather than
+assumed, spec §6.3) and **U18** (a live view for progress and whether the
 server is shared per user, deferred until after M4's importer check, and
-holding the **D13** reservation). Resolved: U2/U4/U5/U6/U7/U8/U9/U10/U11/
-U12/U14, and U3 superseded by D12. U13 is acknowledged debt, not an open
-question.)
+holding the **D13** reservation) are unchanged. Resolved: U2/U4/U5/U6/U7/
+U8/U9/U10/U11/U12/U14 and now **U17**, whose mapping is settled and whose
+one open piece is D16; U3 superseded by D12. U13 is acknowledged debt,
+re-measured at this decomposition and unchanged.)
 
 ## 2. Milestones
 
@@ -56,7 +61,7 @@ exit criteria: spec §14. Priority is derived from the Gated-on column by
 |---|---|---|---|
 | M0 | spec settled: §12 items 1–3 signed (done 2026-09-25); Cargo workspace skeleton with the lint regime; all gates green | — | done 2026-09-25 |
 | M1 | domain model + storage engine: graph, statuses, persistence behind the `Store` trait, golden files | — | done 2026-09-30 — g5 ran green: every code gate, five goldens byte-identical, `cargo doc` clean, pitfalls consolidated |
-| M2 | queries: repo/epic selection, dependency resolution, deterministic `next_task`; registry with path updates | — | next — U2's survey ran 2026-09-30 (spec §6.3), so the decomposition is unobstructed; it answers U17 and re-measures d1 and U13 |
+| M2 | queries: repo/epic selection, dependency resolution, deterministic `next_task`; registry with path updates | **D16** adds one task if signed; no dispatched task waits on it | decomposed 2026-09-30 — **t27** domain `graph/select.rs` (the actionability predicate, `next_task`, the until-target `ready` predicate, D9's deferred `{total, ready}`); **t28** `graph/items.rs` (`next_items`' batch: annotations, derived weight, task scope); **t29** `graph/list.rs` (`task_list`'s epic/status/kind/`ready` filters); **t30** the store doc riders (**U15** + **U19**); **t31** the registry query side (`repo_list`/`repo_show` + t11's cold-open measurement). Dispatch t27→t28→t29, then t30→t31; **g7** is the exit gate. U17 answered, d1 closed by measurement, U13 re-measured and unchanged |
 | M3 | MCP server: the full §6 tool list over the wire, protocol-level tests, default-repo slug config (D8), smoke against a real client | the **rmcp dependency ask** (Ask-First) — **D14**/**D15** signed 2026-09-30, so the wire's key order and §6.1's error carrier are settled | not started |
 | M4 | adoption: the dacode-dialect importer first (**D12**, amending D7), its board the only fixture checked in per §10; camera and ikvm-html imported from their live boards and never copied into this repo; the three repos tracked for real | — | not started |
 | M5 | packaging, docs, cwd auto-detection (deferred by D8), polish | — | not started |
@@ -857,12 +862,50 @@ Oldest first. One line per delivery, with the commit hash once committed.
        answers those with unstructured text before the tool body runs — and
        every params struct denies unknown fields, because an unrecognised
        argument is otherwise silently dropped rather than reported. Spec
-       §6/§6.1/§6.2/§6.3/§8/§10 moved, §12 items 14 and 15 deleted so the
-       list is closed again, both `decisions.md` rows struck with resolution
-       banners and their action lines retired, and board §1/§2/§4 moved with
-       them. No Rust moved: the feature flag, the wire goldens and the
-       carrier are M3's to implement, and this commit is what makes them
-       normative. Landed as `5dfba51`.
+        §6/§6.1/§6.2/§6.3/§8/§10 moved, §12 items 14 and 15 deleted so the
+        list is closed again, both `decisions.md` rows struck with resolution
+        banners and their action lines retired, and board §1/§2/§4 moved with
+        them. No Rust moved: the feature flag, the wire goldens and the
+        carrier are M3's to implement, and this commit is what makes them
+        normative. Landed as `5dfba51`.
+- 2026-09-30 — **M2 decomposed: five tasks, one open decision, two debts
+       measured.** The query layer is now a tracker tree (**g6**, with **g7**
+       as its exit gate) rather than a milestone row: **t27** the domain's
+       `graph/select.rs` — §5.2's actionability predicate (status
+       `open`/`in_work`, no unfinished `blocks` predecessor, a task
+       predecessor finished at `closed`/`wontfix` and a decision predecessor
+       at `signed`/`superseded`, `blocked`/`deferred` never actionable
+       whatever their edges say), `next_task` as the first actionable node in
+       t8's canonical order, the until-target `ready` predicate and D9's
+       deferred `{total, ready}` summary; **t28** `graph/items.rs` —
+       `next_items`' batch with its blocked-by/blocks annotations, derived
+       weight (transitive dependents) and task-scoped dependents; **t29**
+       `graph/list.rs` — `task_list`'s epic/status/kind/`ready` filters;
+       **t30** the store doc riders **U15** and **U19**; **t31** the registry
+       query side (`repo_list`/`repo_show` over t11's registry, reading §7's
+       mutable `name`/`path` off each store's `Repo` node, plus the cold-open
+       measurement t11 handed forward as decision material for M3). The split
+       is §2's, not convenience: selection is a pure function of graph state
+       and lives in `todo-domain`, one new module per task so no two tasks
+       write one file, with t28/t29 depending on t27's predicate rather than
+       rederiving it; the *repo* dimension is not a domain concern at all,
+       since t7's graph is single-repo, so repo selection is t31's and M3's.
+       **U17 is answered**: everything in its mapping is already signed
+       (`attention.py` → `next_task`/`next_items`, `progress.py` → §6.2's
+       `graph_show`, `tasks.py` stays this repo's session tracker per §9, the
+       HTML rendering stays a client concern per §11), and the one piece §6
+       does not carry — the totals/open-items roll-up — is drafted as **D16**
+       rather than settled, because adding it amends D5's signed tool list,
+       which is how D11's `next_items` happened. **d1 is closed by
+       measurement, not by preference**: `tasks_of_epic` has exactly one
+       production caller (`delete_epic`'s cascade), `order.rs`'s judgment
+       call (d) already records that the derivation builds its own maps and
+       never calls it, and selection's per-candidate read is `blocked_by` —
+       an indexed lookup into `blocks_in`, not a scan — so nothing in g6 puts
+       the epic scan on a derivation or selection path; what remains is a
+       listing consumer at §4.1's scale, the case the debt itself called
+       fine. **U13 re-measured and unchanged.** No Rust moved, so every code
+       gate is `skipped` by construction.
 
 ## 4. Follow-ups
 
@@ -1229,7 +1272,7 @@ Unowned work. Take the next unused `U` id; never renumber, never reuse.
       papering over it: for a client we do not configure, two todo systems are
       visible and the only discriminator is the instruction text. §9's
       no-dogfooding-before-M3 rule still governs this repo's own tracking.
-- [ ] **U17 · Decide which harness tools become MCP tools.** The intent,
+- [x] **U17 · Decide which harness tools become MCP tools.** The intent,
       stated 2026-09-30: the tooling we use for todo handling belongs inside
       the server, so another project's agents get it over the wire instead of
       each repo growing its own scripts. Most of the mapping is already
@@ -1246,7 +1289,22 @@ Unowned work. Take the next unused `U` id; never renumber, never reuse.
       HTML/browser rendering is a client-side concern over `graph_show`, not a
       server feature. Answer with M2's decomposition, before the query
       surface is built — a tool that should exist is cheaper to add before
-      the wire does.
+      the wire does. **Answered 2026-09-30 by the M2 decomposition**, in the
+      two halves this item separates. The **mapping** needs no decision,
+      because it is already signed: `attention.py`'s "what is next and what
+      is blocked" is `next_task`/`next_items` with D11's derived weight and
+      D9's deferred summary (t27/t28), `progress.py`'s graph is §6.2's
+      `graph_show`, `tasks.py` stays this repo's session tracker (§9 bars
+      dogfooding before M3), and the HTML/browser rendering stays a
+      client-side concern (§11: "clients render"). The **roll-up** — totals by
+      kind and status, and per open item what it waits on — is the one piece
+      §6's list does not carry, and adding it amends D5's signed list, so it
+      is drafted as **D16** with recommendation (a): a
+      `status_summary(repo?, epic?)` tool plus `blocked_by` on `task_list`
+      rows, whichever option wins. Its `On sign-off:` work order adds a
+      domain aggregation task under g6 if (a) or (b) is signed, and records
+      that the roll-up stays a script if (c) is. No task may implement a
+      roll-up before then.
 - [ ] **U18 · A live view for progress, and whether the server is shared per
       user.** Deferred by the user 2026-09-30 until after the primary part is
       implemented and checked against the existing markdown boards (M4's
@@ -1301,15 +1359,169 @@ Deliberate shortcuts, acknowledged rather than fixed. Same id rules as §4.
       `graph/tests/seeded.rs` (602) and `testcodec.rs` (602) are test-only
       files and were never chargeable. No split proposed: each of the two
       is one responsibility today (schema + patch application +
-      `replay_step`; append + snapshot-aware replay + `compact`), and M2's
-      query layer is what will show where the seams are. Both now carry
-      their module-doc exception line, landed with t13a. Revisit at M2.
+      `replay_step`; append + snapshot-aware replay + `compact`). Both now
+      carry their module-doc exception line, landed with t13a.
+      **Re-measured at the M2 decomposition (2026-09-30): unchanged**, 812
+      and 772 under the same awk measure, and still no split. M2 will not
+      show these two's seams either — its query layer lands in new
+      `todo-domain` modules (`select.rs`, `items.rs`, `list.rs`) and its one
+      store task (t31) touches the registry, not the log or the event
+      schema. Revisit at M3, whose wire mapping touches the store's error
+      surface, or at the next commit that grows either file — whichever
+      comes first.
 
 ## 6. Session log
 
 Newest first. One entry per session, written for someone who was not
 here. The final entry of a session is the handover
 (`.agents/skills/todo-next-imp/SKILL.md` defines the shape).
+
+### 2026-09-30 (third session) — M2 decomposed, D16 drafted
+
+The session opened on `/todo-next-imp` and took the handover's named step:
+decompose M2. Nothing gated it — U2's survey had run, D14/D15 were signed,
+and §12 was closed — so the decomposition is a planning change and no Rust
+moved. Five tasks under **g6**, one commit each, with **g7** as the exit
+gate.
+
+**The split is §2's, and one consequence is worth stating because it is
+easy to get backwards.** Selection is a pure function of graph state, so
+`next_task`, `next_items` and `task_list`'s filters all land in
+`todo-domain`, one new module per task (`select.rs`, `items.rs`, `list.rs`)
+so that no two tasks ever write one file — t28 and t29 *depend* on t27's
+actionability and until-target predicates rather than rederiving them,
+which is a dispatch order, not a shared file. The **repo** dimension is not
+a domain concern at all: t7's graph is single-repo, so §6's "every tool
+takes a repository parameter" is discharged by t31's registry queries and
+M3's handle table, and a domain task that grew a `repo` parameter would be
+a boundary defect. t30 rides along as the store touch **U15** and **U19**
+have been waiting on, which is why they are now owned rather than
+incidental.
+
+**U17 was answered by splitting it, and only one half needed a decision.**
+The mapping half is already signed — `attention.py` is `next_task`/
+`next_items`, `progress.py` is §6.2's `graph_show`, `tasks.py` stays a
+script because §9 bars dogfooding before M3, and the HTML rendering stays a
+client concern because §11 says clients render. The roll-up half is not:
+totals by kind and status are an aggregate §6's list does not carry, and
+adding one amends D5, which is how D11's `next_items` happened. So it is
+drafted as **D16** with recommendation (a) and every task is barred from
+implementing a roll-up until it is signed — the "never write past an
+unsigned decision" rule, honored by drafting rather than by stopping.
+
+**Both measurements the decomposition owed were taken, not assumed.** d1
+closed as wontfix on its own stated criterion: `tasks_of_epic` has exactly
+one production caller (`delete_epic`'s cascade), `order.rs`'s judgment call
+(d) already records that the derivation builds its own maps and never calls
+it, and selection's per-candidate read is `blocked_by` — an indexed lookup
+into `blocks_in`, not a scan — so nothing in g6 puts the epic scan on a
+derivation or selection path. U13 re-measured under the same awk and
+unchanged, with its next revisit moved from "M2" to M3-or-next-growth and
+the reason recorded: M2's code lands in new files, so it cannot show these
+two's seams.
+
+`progress.py`'s hand-maintained tables were refreshed in the same commit,
+per the t23 and f41 precedent — a new lane for the M2 nodes, seven gating
+edges with their citations, three retargeted onto t30/M3 now that the waits
+are named, and the stale rows for closed items dropped. That refresh is
+also what made **f45** concrete: D16 is drawn as a graph node because it
+was added by hand, but the open-items table has no concept of a
+decisions.md entry, so the highest-priority open thing in the project has
+no row and no "waits on" cell. Drawing it properly is the user's call, not
+this commit's.
+
+**Handover**
+
+```
+Workspace:    main, clean at the decomposition commit; M2 DECOMPOSED,
+              nothing dispatched. No Rust has moved since 7563fff (t21):
+              this session changed the spec (§12 item 16), decisions.md
+              (D16), this board, AGENTS.md and tools/progress.py's data
+              tables. Four crates: todo-domain 111 tests, todo-store 107
+              (four goldens), todo-cli 35 (one golden), todo-mcp an M0
+              shell. rustc 1.98.1, MSRV 1.95, 253 workspace tests,
+              Cargo.lock UNTOUCHED — no rmcp, no serde_json. Deps
+              unchanged (serde, dacode-json + zmij by path on
+              ../rust/json-tiers at f7f26f8, tempfile dev-only, lexopt
+              0.3.2); tools/ need Python 3 + PyYAML. Serena live. Nothing
+              to install.
+Landed:       the M2 decomposition — tracker g6 with t27 (domain
+              graph/select.rs: actionability, next_task, the until-target
+              ready predicate, D9's deferred {total, ready}), t28
+              (graph/items.rs: the next_items batch, annotations, derived
+              weight, task scope), t29 (graph/list.rs: task_list's
+              epic/status/kind/ready filters), t30 (the store doc riders
+              U15 + U19), t31 (the registry query side: repo_list/
+              repo_show plus t11's cold-open measurement) and the g7 exit
+              gate, every task with a runnable verify line and disjoint
+              file ownership. D16 drafted out of U17 (spec §12 item 16,
+              decisions.md row + dossier + action line, recommendation (a),
+              gates M2). Board §1/§2/§3/§4(U17 struck)/§5(U13
+              re-measured)/§6 moved; AGENTS.md's Project State names D16 as
+              the one open §12 item; progress.py's LANES/GATING/EXTRA/WAITS
+              refreshed. Closed: t26, d1 (wontfix on measurement), U17.
+              Open and live: D16, U15/U19 (owned by t30), U13, U16, U18,
+              f4, f25, f35(=U19), f40(=U15), f44, f45.
+Next step:    dispatch t27 — the domain's graph/select.rs, first in g6's
+              order and the task everything else in M2 reuses. It needs a
+              task spec written first (the tmp/t11-spec.md /
+              tmp/t12-spec.md pattern: decisions, judgment calls, required
+              tests), and pitfalls 5.1 binds that spec: any safety or
+              determinism argument in it must name the state space it was
+              checked against, and the reviewer prompt must ask for
+              falsification rather than conformance. The alternative is
+              t30, the two-sentence store doc riders — smaller, unblocks
+              two board items, and independent of the domain chain, so it
+              is the right second front if a session wants a cheap win
+              first. D16 does not gate either.
+Blocked on you: D16 — the progress roll-up: (a) a status_summary(repo?,
+              epic?) tool plus blocked_by on task_list rows, (b) a counts
+              block on §6.2's graph_show dump plus the same annotation,
+              (c) leave it client-side per §11; recommendation (a) with the
+              annotation whichever wins. It gates M2 only in that a signed
+              (a) or (b) adds one domain aggregation task under g6. Also
+              open, none gating anything: f44 (land a duplicate-key check
+              in agents-sync.py, or promote it), f45 (draw open D-entries
+              on the progress page, or disclaim them in the footer — now
+              concrete, since D16 has no row there), U13's acknowledgement,
+              and the carried f25 reading (4c5782b is the commit to revert)
+              plus two sibling-repo calls (a cargo fmt --check gate for
+              dacode-json; whether to benchmark c4aebe9). D13 stays
+              reserved for U18's transport question.
+Unverified:   the decomposition is a plan, so nothing in it is verified by
+              execution — no selection code exists, and §5.2's
+              actionability rules have never been run against a graph. The
+              two measurements it does claim are re-runnable: rg -n
+              'tasks_of_epic' crates/ returns three hits (definition,
+              delete_epic's cascade, order.rs's doc), and _rust.md's awk
+              returns 812 and 772 for log.rs and event.rs. Carried forward
+              and still true: the signed wire contract (D14/D15) is
+              normative text with no code behind it — nothing enables
+              serde_json/preserve_order, no wire golden exists, no
+              structuredContent.code has been emitted, no MCP client has
+              been pointed at anything; no induced crash or power loss
+              anywhere; nothing calls compact() outside tests; no human has
+              run dump/verify/repair against a real store; multi-process
+              lock contention is still two handles in one process; the f41
+              sweep line has never been exercised by a milestone gate;
+              tools/progress.py has no test of its own, so this session's
+              table refresh is verified only by running it.
+Tracker:      tools/tasks.py check exits 1 on exactly one line — OPEN g6,
+              the in-flight milestone goal, which closes at g7 (the g4/g5
+              precedent, reported rather than papered over with
+              --status standing). Everything else clean: g3 standing until
+              M5, t26 done with evidence, d1 wontfix with its measurement,
+              no debt left open. Open findings f4, f25, f35(=U19),
+              f40(=U15), f44, f45. .agents/pitfalls-live.md is still EMPTY
+              — the next entry is P-LIVE-007 and a promoted id is never
+              reused. Doc gates green: check-links (11 links / 10 files),
+              agents-sync --check, attention --check exit 0 at 184 checks
+              with D16 rendering as the one P1 vote; agents-index --check
+              is stale by construction because AGENTS.md moved in this
+              commit, and is backfilled by the next one (pitfalls 5.3).
+              Code gates skipped by construction: git diff over '*.rs',
+              Cargo.lock and Cargo.toml is empty.
+```
 
 ### 2026-09-30 (second session, closing) — D14 and D15 signed
 

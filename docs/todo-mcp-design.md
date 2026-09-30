@@ -706,20 +706,41 @@ shapes this project is judged by:
 
 ## 12. Open Decisions
 
-**None — the list is closed.** Each item is mirrored by a `D`-numbered
-entry in `docs/implementation/decisions.md` with options, a
-recommendation, a confidence and an `On sign-off:` work order. Agents
-propose; the user decides. An item is deleted from this list when its
-decision is signed: items 1–11 on 2026-09-25, D12 on 2026-09-29, and
-D14/D15 on 2026-09-30 — the two that came out of U2's rmcp survey
-(§6.3), settling the wire's canonical key order and the carrier a §6.1
-code travels in. The sections they settled are normative above, and a
-future change to a signed shape is a new decision, not an edit (the
-D6/D11 priority boundary is the worked example). Numbers are never
-reused, and **D13 is reserved** for the transport question board U18
-defers — a shared per-user server instance against the signed D5 stdio —
-which is not drafted because nothing there starts before M4's importer
-check.
+Each item is mirrored by a `D`-numbered entry in
+`docs/implementation/decisions.md` with options, a recommendation, a
+confidence and an `On sign-off:` work order. Agents propose; the user
+decides. An item is deleted from this list when its decision is signed:
+items 1–11 on 2026-09-25, D12 on 2026-09-29, and D14/D15 on 2026-09-30 —
+the two that came out of U2's rmcp survey (§6.3), settling the wire's
+canonical key order and the carrier a §6.1 code travels in. The sections
+they settled are normative above, and a future change to a signed shape
+is a new decision, not an edit (the D6/D11 priority boundary is the
+worked example). Numbers are never reused, and **D13 is reserved** for
+the transport question board U18 defers — a shared per-user server
+instance against the signed D5 stdio — which is not drafted because
+nothing there starts before M4's importer check.
+
+One item is open. It came out of the M2 decomposition answering board
+U17 (2026-09-30): every other harness tool the server should absorb is
+already signed, and the one piece that is not is an aggregate §6's list
+does not carry.
+
+16. **The progress roll-up: a tool, a field, or a client concern** — §6
+    signs a tool list with no aggregate in it, and board U17 asks whether
+    the roll-up this project's own harness renders (totals by kind and
+    status; per open item, what it waits on) belongs behind the wire, so
+    another project's agents get it instead of each repo growing its own
+    script. It is a query over the same graph, so the server answers it
+    cheaply and every client otherwise re-implements it — but adding it
+    amends D5's signed list, which is how D11's `next_items` happened.
+    (a) a `status_summary(repo?, epic?)` tool returning counts by kind
+    and status plus D9's deferred `{total, ready}`, with `task_list` rows
+    gaining their `blocked_by` ids so "what waits on what" needs no
+    second round trip; (b) no new tool — a `counts` block on §6.2's
+    `graph_show` dump, plus the same `task_list` annotation; (c) leave it
+    client-side over `graph_show`, per §11's "clients render". No option
+    needs a §6.1 code beyond the closed list. Gates M2. See decisions.md
+    D16.
 
 ## 13. Packaging and Distribution
 
