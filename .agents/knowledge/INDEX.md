@@ -12,7 +12,7 @@
 
 | Doc | Covers | rev | lag | open |
 |---|---|---|---|---|
-| [`(repo root)`](../../AGENTS.md) | Repository-wide instructions. opencode appends this to every agent's | `8787a72` | — | — |
+| [`(repo root)`](../../AGENTS.md) | Repository-wide instructions. opencode appends this to every agent's | `6f96e01` | — | — |
 
 ## Topics
 
@@ -26,5 +26,5 @@
 
 <!-- hashes drive --check -->
 ```
-66055fc6  8787a72       294L  AGENTS.md
+733d6bd0  6f96e01       300L  AGENTS.md
 ```
