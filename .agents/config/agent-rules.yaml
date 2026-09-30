@@ -10,7 +10,7 @@
 # ─── Template Versioning ───────────────────────────────────────────────
 version:
   template: "0.1"          # Inherited from the dacode agent-rules layout
-  custom: 7                # Local adjustment counter
+  custom: 8                # Local adjustment counter
 
 # ─── Project Identity ──────────────────────────────────────────────────
 project:
@@ -24,14 +24,21 @@ project:
 paths:
   project_root: "."
   docs_dir: "docs"                   # docs/todo-mcp-design.md is the spec
-  tools_dir: "tools"                 # agents-sync.py, tasks.py, agents-index.py, check-links.py, attention.py
+  tools_dir: "tools"                 # agents-sync.py, tasks.py, agents-index.py, check-links.py, attention.py, progress.py
   tmp_dir: "tmp"                     # Scratch directory (gitignored)
   crates_dir: "crates"               # Cargo workspace members (created at M0)
 
 # ─── Build, Test, Debug ────────────────────────────────────────────────
 # Everything builds and runs on the host (macOS, Apple Silicon). Scope to a
 # crate while iterating; workspace-wide is the final gate.
-commands:
+#
+# This block is `build_commands`, NOT `commands`: the slash-command map below
+# owns that key, and a duplicate top-level YAML key is silently shadowed (a
+# parser keeps the last one), so a block named `commands` here would be dead
+# config that reads like live config. Nothing generates from this block — it
+# is the enumeration agents quote, and `verification:` below is the ordered
+# gate list. f42.
+build_commands:
   fmt_check: "cargo fmt --check"
   check: "cargo check --workspace --all-targets 2>&1 | tail -c 5000"
   check_crate: "cargo check -p <crate> --all-targets 2>&1 | tail -c 5000"
@@ -47,6 +54,7 @@ commands:
   links_check: "tools/check-links.py"
   index_check: "tools/agents-index.py --check"
   attention: "tools/attention.py"
+  progress: "tools/progress.py       # renders the graph + totals to .agents/cache/progress.{html,json}"
 
 # Verification steps run after each task (ordered).
 verification:

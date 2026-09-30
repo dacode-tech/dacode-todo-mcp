@@ -36,10 +36,14 @@ shell, which is M3's business.
 
 (Open but non-blocking: **U2**, the only open item that could invalidate a
 signed §6 shape and therefore U9's `invalid`/`io`, which is why it runs
-before M2 rather than before M3; and **U15**, a one-sentence store doc fix
-that rides the next store touch. Resolved: U4/U5/U6/U7/U8/U9/U10/U11/U12/
-U14, and U3 superseded by D12. U13 is acknowledged debt, not an open
-question.)
+before M2 rather than before M3; **U15**, a one-sentence store doc fix that
+rides the next store touch; and three recorded 2026-09-30 — **U16** (ship
+base instructions with the server and gate the client's native todo off, M3),
+**U17** (which harness tools become MCP tools, answered with M2's
+decomposition) and **U18** (a live view for progress and whether the server
+is shared per user, deferred until after M4's importer check). Resolved:
+U4/U5/U6/U7/U8/U9/U10/U11/U12/U14, and U3 superseded by D12. U13 is
+acknowledged debt, not an open question.)
 
 ## 2. Milestones
 
@@ -723,6 +727,34 @@ Oldest first. One line per delivery, with the commit hash once committed.
       lint tripwires for `todo-mcp` and `todo-cli` have never been fired.
       The harness consolidation landed as `1581007`; this board movement
       rides the gate's own commit.
+- 2026-09-30 — **`tools/progress.py`: the total-progress view, promoted from
+      scratch.** The page answering "what is the shape of the work" existed
+      for one session as `tmp/gen-progress.py` and now has a home beside
+      `attention.py`, which answers the other question ("what needs the
+      user"). It renders the tracker and board §2/§4/§5 as a dependency graph
+      plus totals, to `.agents/cache/progress.{html,json}` — the established
+      home for a rendering of committed state, gitignored, never a source of
+      it. House CLI (`--open`, `--json`, `--out`, `--no-write`), and two
+      self-rules that a renderer needs because quietly showing less than
+      everything is worse than showing nothing: **it cannot pass by reading
+      nothing** (a missing or empty tracker, or a board with no milestone
+      rows, is an error rather than an empty page) and **it cannot drop a
+      relationship silently** (a declared edge whose endpoint has no lane
+      exits non-zero naming it, and every open tracker node that is not drawn
+      is reported by id). The lanes are a drawing order and a judgment; the
+      edges carry a citation each, surfaced on hover. Every percentage
+      travels with its denominator, on the page and in the JSON, because
+      "progress" is not one number: milestones measure the roadmap, tasks
+      measure the work *decomposed so far* — a figure that falls as M2–M5 are
+      decomposed, which the footer says out loud — and findings and debt are
+      records rather than deliverables. Two runs at one HEAD are
+      byte-identical. It also found a defect on the way in, recorded as
+      **f42**: `agent-rules.yaml` had two top-level `commands:` keys, and a
+      duplicate YAML key is silently shadowed, so the entire build-command
+      block was dead config that read like live config (`fmt_check` is absent
+      from the parsed file). Renamed to `build_commands`, with the reason in
+      a comment; `version.custom` 7→8. The tool is harness, so it is
+      review-exempt and carries no trailer.
 
 ## 4. Follow-ups
 
@@ -745,10 +777,16 @@ Unowned work. Take the next unused `U` id; never renumber, never reuse.
       stable per-tool error code, §6.1 and U9's just-signed `invalid`/`io`
       both need revisiting, and M2's query surface would be built on tool
       signatures M3 cannot honour. An afternoon of reading versus a
-      redesign. Three questions: is each of §6's tools declarable at all;
+      redesign. Four questions: is each of §6's tools declarable at all;
       do tool errors carry a branchable code or only a string; are list
-      responses order-preserving through schema generation. Read-only, so
-      it can also be pulled earlier without conflicting with t15/t13.
+      responses order-preserving through schema generation; and — added
+      2026-09-30 with U16 — can the server set the `instructions` field of
+      its `initialize` result through rmcp, with a per-tool `description`
+      as the only other text an agent is guaranteed to read? U16's whole
+      mechanism rests on that answer and it is the same kind of question as
+      the other three: a shape §6 signs, resting on what rmcp can express.
+      Read-only, so it can also be pulled earlier without conflicting with
+      t15/t13.
 - [x] **U3 · Collect the three sibling board dialects as fixtures.**
       Snapshot camera/ikvm-html/dacode `TODO.md` + decisions files into
       the future importer's test fixtures (§9, §10), with a short dialect
@@ -1031,6 +1069,64 @@ Unowned work. Take the next unused `U` id; never renumber, never reuse.
       next store touch; the debris assertion in
       `tests/snapshot/compact.rs::a_refused_covering_snapshot_leaves_the_log_untouched`
       is the measurement to re-read first.
+- [ ] **U16 · Ship base instructions with the server, and stop the harness
+      using its own todo handling.** Stated by the user 2026-09-30; lands
+      with M3 and needs U2's fourth question answered first. Two halves, and
+      the second is the one that decides whether the server gets used at all.
+      **(a) The server arrives with its own instructions.** MCP's
+      `initialize` result carries an `instructions` field that clients surface
+      to the model, and every tool carries a `description`; between them they
+      must tell an agent that has never seen this repository how to track work
+      in it — what a task/epic/decision/doc node is, which tool answers "what
+      is next", that closure demands `verify` + `evidence`, that ids are stable
+      and never reused, and that a blocked item needs a reason. §6 signs the
+      tool list and not this text, so it is an M3 deliverable to *add*, not a
+      signed shape to reinterpret. **(b) The client's native todo handling
+      must be off.** A server cannot disable a client's built-in tools — it can
+      only ask — so the suppression is harness-side configuration: opencode
+      gates tools per agent in `.opencode/opencode.json`, which this repo
+      already generates from `agent-rules.yaml`, so the native todo pair gets
+      gated off for every role here. Record the limit honestly rather than
+      papering over it: for a client we do not configure, two todo systems are
+      visible and the only discriminator is the instruction text. §9's
+      no-dogfooding-before-M3 rule still governs this repo's own tracking.
+- [ ] **U17 · Decide which harness tools become MCP tools.** The intent,
+      stated 2026-09-30: the tooling we use for todo handling belongs inside
+      the server, so another project's agents get it over the wire instead of
+      each repo growing its own scripts. Most of the mapping is already
+      signed — `attention.py`'s "what is next and what is blocked" is §6's
+      `next_task`/`next_items` with D9/D11's derived weight and deferred
+      summary, and `progress.py`'s graph is §6.2's `graph_show` over the
+      canonical serialization. What §6 does **not** carry today is the
+      roll-up this page renders: totals by kind and status, and the
+      open-items table with its "waits on" column. Those are queries over the
+      same graph, so they are a new tool or a field on an existing one — a §6
+      amendment, which is a user decision and not an implementation detail.
+      Decide also what stays a script: `tasks.py` is this repo's session
+      tracker (§9 bars dogfooding the server for it before M3), and the
+      HTML/browser rendering is a client-side concern over `graph_show`, not a
+      server feature. Answer with M2's decomposition, before the query
+      surface is built — a tool that should exist is cheaper to add before
+      the wire does.
+- [ ] **U18 · A live view for progress, and whether the server is shared per
+      user.** Deferred by the user 2026-09-30 until after the primary part is
+      implemented and checked against the existing markdown boards (M4's
+      importer), so it is recorded with a recommendation rather than left
+      vague. Two shapes were proposed. **A local HTTP server for the page**:
+      do not scan a port range — bind `127.0.0.1:0`, read the assigned port
+      back, and publish it to a per-user runtime file so a second session
+      attaches instead of starting another (scanning above 22000 races
+      whatever else is listening, serena's own dashboard included).
+      `progress.py --serve` over the file it already writes is the whole
+      feature, and the default stays a static file with no listener at all.
+      **A shared per-user server instance**: the right long-term shape for
+      §8's single-writer model, since one process holding the store lock for
+      many clients removes the multi-process contention this project has never
+      actually tested — but it collides with the signed D5 stdio transport, so
+      it needs either a listening transport or a thin stdio proxy in front of
+      the shared instance. That is a new decision (**D13** when it is taken),
+      not an implementation choice, and it belongs at M3/M5 when there is a
+      wire to put in front of. Nothing here starts before M4's check.
 
 ## 5. Debt
 
@@ -1131,63 +1227,110 @@ comment", and `_search.md`'s Serena specifics carry the impl-node name path
 this gate measured the hard way — `/Graph/raise_counters_to` resolves to
 nothing, while the bare name resolves as `impl Graph/raise_counters_to`.
 
+**Then the user asked for the shape of the work as a page**, which is how
+`tools/progress.py` came to exist: a dependency graph over the tracker and
+board, totals with their denominators, and an open-items table saying what
+each row waits on. It was written as a generator rather than typed out,
+because a hand-written count in a report is the same defect class 5.2
+describes — and it earned its place immediately, twice over. Reading the
+tracker closely enough to draw it surfaced two statuses that were stale in
+the direction that *hides* work: t13 still `pending` after all three of its
+commits had landed, and t17 still `blocked` on a dependency the user had
+resolved two days earlier and t20 had consumed. `tasks.py check` cannot see
+either, because it flags a `done` item with no evidence and a `blocked` item
+with no reason — not a `pending` item whose work is already in git history.
+Both corrected; **f41** records the class, along with the nine
+undispositioned t20/t22 spec-error records whose consumers have landed.
+Promoting the scratch script into a tool then found **f42**: two top-level
+`commands:` keys in `agent-rules.yaml`, the first silently shadowed by the
+second, so the entire build-command block was dead config that read like live
+config.
+
+**Three requirements arrived with that request and are recorded rather than
+implemented**, because two belong to M3 and one is a decision. **U16**: the
+server ships its own base instructions — MCP's `instructions` field plus the
+tool descriptions — and the harness stops using its client's native todo
+handling, with the honest limit stated rather than papered over: a server
+cannot disable a client's built-in tools, it can only ask, so the suppression
+is *our* configuration and every other client gets the instruction text.
+**U17**: which of the harness's Python tools become MCP tools, the intent
+being that the todo tooling lives inside the server; most of that mapping is
+already signed (`attention.py` → `next_task`/`next_items`, `progress.py`'s
+graph → §6.2's `graph_show`) and what is not is a §6 amendment, i.e. a user
+decision. **U18**: the live view — a local HTTP server for the page, or a
+shared per-user server instance that sessions attach to — deferred by the
+user until after M4's importer check, and recorded with its recommendation
+(bind port 0 and publish it rather than scanning a range; `--serve` over the
+file already written; the shared-instance shape is a new decision because it
+collides with the signed D5 stdio transport). U2 gained the fourth question
+U16 depends on.
+
 **Handover**
 
 ```
-Workspace:    main, clean; **M1 CLOSED** (board §2). The last code commit is
-              7563fff (t21, tests-only); since then only harness and board
-              commits — 673a49f (a hash backfill), 1581007 (the pitfalls
-              consolidation plus two role rules, version.custom 7, five
-              agents regenerated) and this gate's own board movement, whose
-              hash is backfilled after it because AGENTS.md moved and f24's
-              mechanism says a doc-touching commit cannot carry its own
-              fresh index. Four crates: todo-domain (111 tests), todo-store
-              (107, four goldens), todo-cli (35, one golden) and todo-mcp
-              still an M0 shell. rustc 1.98.1, MSRV 1.95, 253 workspace
-              tests. Deps unchanged: serde, dacode-json + zmij (path dep on
+Workspace:    main, clean; **M1 CLOSED** (board §2), phase M2-next. The last
+              code commit is 7563fff (t21, tests-only); everything after it
+              is harness and board — 673a49f (hash backfill), 1581007 (the
+              pitfalls consolidation plus two role rules, version.custom 7),
+              6f96e01 (board: close M1), bf34068 (index backfill) and this
+              commit, which adds tools/progress.py, fixes f42 and carries
+              version.custom 8. Four crates: todo-domain (111 tests),
+              todo-store (107, four goldens), todo-cli (35, one golden) and
+              todo-mcp still an M0 shell. rustc 1.98.1, MSRV 1.95, 253
+              workspace tests, and no Rust has moved since the g5 gate ran
+              (`git diff 7563fff..HEAD -- '*.rs'` is empty). Deps unchanged:
+              serde, dacode-json + zmij (path dep on
               /Users/mouse/RPM/dacode/rust/json-tiers — a cold machine needs
               that checkout beside this repo's parent, at f7f26f8), tempfile
-              dev-only, lexopt 0.3.2. Serena's semantic layer is live.
-              Nothing to install.
-Landed:       t21 (7563fff) — one test,
-              `snapshot::compact::a_refused_covering_snapshot_leaves_the_log_untouched`,
-              +95/−1 in crates/todo-store/tests/snapshot/compact.rs, no src
-              change (src/log.rs sha256 c236755c… verified identical across
-              both mutation runs; the signed-off test file's sha256 is
-              e1cb21c6…). Then **g5, the M1 exit gate**, whose whole verify
-              line ran green on that tree: fmt clean; check --workspace
-              --all-targets 0 warnings; test --workspace 253 summed over
-              every result line (domain 111, store 107, cli 35); clippy
-              --workspace --all-targets 0 warnings; cargo doc --workspace
-              --no-deps 0 warnings; all FIVE goldens byte-identical under
-              UPDATE_GOLDEN=1 (twelve store writers plus cli_dump.v1);
-              Serena resolving impl Graph/raise_counters_to in todo-domain;
-              check-links ok (11 links / 10 files), agents-sync --check and
-              agents-index --check up to date, attention.py --check exit 0,
-              tasks.py check exit 0. The consolidation is 1581007. Closed:
-              f19, f20, f24, f30, t21, g5 and g4 (M1). Opened: f40/U15.
+              dev-only, lexopt 0.3.2. Serena's semantic layer is live; tools/
+              need Python 3 + PyYAML. Nothing to install.
+Landed:       t21 (7563fff), the g5 M1 exit gate (1581007 consolidation,
+              6f96e01 board, bf34068 backfill), and tools/progress.py with
+              the f42 config fix. g5's whole verify line ran green on the
+              code tree: fmt clean; check --workspace --all-targets
+              0 warnings; test --workspace 253 summed over every result line
+              (domain 111, store 107, cli 35); clippy --workspace
+              --all-targets 0 warnings; cargo doc --workspace --no-deps
+              0 warnings; all FIVE goldens byte-identical under
+              UPDATE_GOLDEN=1 (twelve store writers plus cli_dump.v1); Serena
+              resolving impl Graph/raise_counters_to in todo-domain; the four
+              doc gates green. Closed: f19, f20, f24, f30, t13 and t17 (both
+              stale statuses), t21, t23, g5 and g4 (M1). Opened: f40/U15,
+              f41, f42, U16, U17, U18. `tools/progress.py --open` renders
+              the picture; its machine-readable twin is
+              .agents/cache/progress.json.
 Next step:    **U2 — survey rmcp's tool macros against §6**, reading the
               version's source rather than its README, then decompose M2.
               U2 sits here by decision and not before M3: it is the only
               open item that could invalidate a *signed* §6 shape, and
               therefore U9's invalid/io codes, so finding that after M2's
-              query surface is built would be the expensive order. Its three
+              query surface is built would be the expensive order. Its FOUR
               questions: is each of §6's tools declarable at all; do tool
               errors carry a branchable code or only a string; are list
-              responses order-preserving through schema generation. It is
-              read-only and adds no dependency, so it moves no gate. The
-              alternative — decomposing M2 first — is exactly what U2 exists
-              to make safe; M2's own first task is the obvious one, since
-              §5.2's order is already a derivation and next_task/next_items
-              are the selection over it, both signed (D9/D11).
-Blocked on you: nothing. The attention items are U2's scheduling, U13's
-              acknowledgement, U15's deferral and the three P3 tracker
-              debts. f25 still carries one veto-able reading (a narrow §4.3
-              recovery primitive is not the parked diagnostics surface) —
-              4c5782b is the commit to revert if you disagree. Two
-              sibling-repo calls also remain yours: whether dacode-json
-              gains a cargo fmt --check gate, and whether to benchmark
-              c4aebe9.
+              responses order-preserving through schema generation; and can
+              the server set the initialize result's `instructions` field,
+              which is what U16 rests on. Probe in a scratch crate under
+              tmp/ (the U14 argprobe pattern) so no dependency lands in the
+              workspace without an Ask-First. Record the findings in §6 and
+              strike U2; if a signed shape turns out not to be honourable
+              that is a new D-entry for the user, not an edit. Then
+              decompose M2 and answer U17 inside that decomposition — a tool
+              that should exist is cheaper to add before the wire does. M2's
+              own first task is the obvious one, since §5.2's order is
+              already a derivation and next_task/next_items are the selection
+              over it, both signed (D9/D11).
+Blocked on you: nothing right now. Three decisions are coming and are
+              recorded so they are not a surprise: **U17**'s §6 amendment
+              (the totals/open-items roll-up as a new tool or a field on an
+              existing one), **U18/D13**'s transport question (a shared
+              per-user server instance versus the signed D5 stdio), and
+              **U16**'s instruction text at M3. Still open from before:
+              U13's acknowledgement, U15's deferral, the three P3 tracker
+              debts, and f25's veto-able reading (a narrow §4.3 recovery
+              primitive is not the parked diagnostics surface — 4c5782b is
+              the commit to revert if you disagree). Two sibling-repo calls
+              also remain yours: whether dacode-json gains a
+              cargo fmt --check gate, and whether to benchmark c4aebe9.
 Unverified:   **still no induced crash or power loss anywhere.** t21 injects
               the first fault from outside the crate's own logic — a rename
               refusal — but it is not a crash: no process has been killed
@@ -1196,26 +1339,36 @@ Unverified:   **still no induced crash or power loss anywhere.** t21 injects
               interrupted run. Nothing has called compact() outside tests, so
               RepairOutcome::Diverged is reachable only from a fixture. No
               human has run dump/verify/repair against a real store — 35
-              tests have. MCP smoke awaits M3. Per-crate lint tripwires for
-              todo-mcp and todo-cli have never been fired. Multi-process
-              lock contention is still two handles in one process. The
-              #[cfg(unix)] permission tests vanish rather than pass
-              off-platform; t21's fault carries no such guard, and while
-              EISDIR for a file-over-directory rename is POSIX, its Windows
-              spelling is unproven — which is why the test pins the crate's
-              context string and deliberately not the ErrorKind. Snapshot
-              durability without a directory fsync is reasoned (f16), not
-              measured.
-Tracker:      tools/tasks.py check exits 0. g3 standing; **g4 (M1) CLOSED at
-              this gate** with the evidence above; d1/d2/d3 acknowledged
+              tests have. MCP smoke awaits M3, and so does every claim in
+              U16: there is no wire yet, so no client has ever read an
+              `instructions` field from this server, and the native-todo
+              suppression is unexercised config rather than behaviour.
+              Per-crate lint tripwires for todo-mcp and todo-cli have never
+              been fired. Multi-process lock contention is still two handles
+              in one process — exactly the gap U18's shared-instance shape
+              would close. The #[cfg(unix)] permission tests vanish rather
+              than pass off-platform; t21's fault carries no such guard, and
+              while EISDIR for a file-over-directory rename is POSIX, its
+              Windows spelling is unproven — which is why the test pins the
+              crate's context string and deliberately not the ErrorKind.
+              Snapshot durability without a directory fsync is reasoned
+              (f16), not measured. **tools/progress.py has no test of its
+              own**: it is harness Python verified by running it (two runs at
+              one HEAD byte-identical, its totals cross-checked against
+              `tasks.py show`, `--json` parsed, `--out` exercised outside the
+              repo), and its empty-source and dropped-edge guards are
+              invariants it enforces on itself, not tests someone runs.
+Tracker:      tools/tasks.py check exits 0. g3 standing (the project goal,
+              open until M5); g1/g2/g4/g5 closed; d1/d2/d3 acknowledged
               against the production-line ledger (log.rs 812, event.rs 772,
               state.rs 460 and off it); f4 (M3's wire rejection), f13
-              (accepted), f25 (parked diagnostics) and f31–f40 recorded;
+              (accepted), f25 (parked diagnostics), f31–f39 (awaiting f41's
+              disposition pass), f40 (= U15), f41 and f42 recorded;
               f19/f20/f24/f30 closed. `.agents/pitfalls-live.md` is EMPTY —
-              the next entry is P-LIVE-007 and a promoted id is never
-              reused. Doc gates all green: check-links ok (11 links /
-              10 files), agents-sync --check and agents-index --check up to
-              date, attention.py --check exit 0.
+              the next entry is P-LIVE-007 and a promoted id is never reused.
+              Doc gates green except `agents-index --check`, which is stale
+              inside the delivery commit by construction (AGENTS.md moved)
+              and is backfilled by the next one — pitfalls.md 5.3.
 ```
 
 ### 2026-09-29 (second session) — the file budget, t13a, U14's measurement, t22

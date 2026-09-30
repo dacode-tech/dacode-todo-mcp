@@ -74,6 +74,11 @@ harness status) into the prompt, so neither costs a round of exploration.
 tools/attention.py
 tools/attention.py --check
 
+# Total progress: the dependency graph, the totals, the open items
+tools/progress.py            # writes .agents/cache/progress.{html,json}
+tools/progress.py --open     # ...and opens the page in a browser
+tools/progress.py --json     # machine-readable, for other tools
+
 # Session task tree (gitignored, branch-keyed).
 # Convention: .agents/knowledge/workflows/task-tracking.md
 tools/tasks.py show -v
@@ -140,7 +145,7 @@ spec moves only by user decision.
 │       ├── README.md               # plan index: which file holds Truth / Reasoning / State
 │       ├── TODO.md                 # the committed board
 │       └── decisions.md            # sign-off record for §12
-├── tools/                          # agents-sync, tasks, agents-index, check-links, attention
+├── tools/                          # agents-sync, tasks, agents-index, check-links, attention, progress
 ├── crates/                         # the Cargo workspace — created at M0, not before
 └── tmp/                            # scratch, gitignored
 ```
@@ -290,6 +295,7 @@ session**; a fix does not take effect mid-session.
 | What has landed and what is next | `docs/implementation/TODO.md` |
 | Sign-off record for open decisions | `docs/implementation/decisions.md` |
 | Prioritized "what needs you" | `tools/attention.py` → `.agents/cache/ATTENTION.md` |
+| Total progress: graph, totals, open items | `tools/progress.py` → `.agents/cache/progress.{html,json}` |
 | Roles, models, commands, gates, prohibitions | `.agents/config/agent-rules.yaml` |
 | The three trackers and their conventions | `.agents/knowledge/workflows/task-tracking.md` |
 | Rust conventions, architecture rules, determinism | `.agents/roles/_rust.md` |
