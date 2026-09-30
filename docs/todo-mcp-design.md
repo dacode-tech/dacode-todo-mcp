@@ -311,8 +311,9 @@ automatically. An agent that decides to look queries
 
 Normative (D5 signed 2026-09-25, extended by D10/D11 the same day;
 rmcp 3.5.0 surveyed 2026-09-30 — §6.3 records what its macros can and
-cannot express, and the two wire shapes that need a decision are §12's
-items 14 and 15). Principles that are not up for grabs:
+cannot express, and the two wire shapes that survey forced a choice on
+are signed as **D14** and **D15** the same day). Principles that are not
+up for grabs:
 
 - Every tool takes a repository parameter. A server instance may be
   configured with a default repo slug (D8 amendment: a startup flag or
@@ -325,7 +326,10 @@ items 14 and 15). Principles that are not up for grabs:
 - Every returned list carries the documented total order of §5.2 —
   a tool that returns an unordered list is a bug.
 - Errors are structured data with stable codes (§6.1), never panics and
-  never bare strings.
+  never bare strings. The carrier is part of the contract, not an
+  implementation detail (§6.1, **D15**): rmcp's *default* tool-error path
+  is a bare string, so the obvious implementation is the forbidden one —
+  §6.3's table is the measured set of carriers.
 - Writes return the new state of the object written, so a client never
   needs a read-after-write round trip.
 - **The closure discipline is enforced by the server, not by habit**:
@@ -373,6 +377,27 @@ must not retry `invalid`. Both are wire identities — the store's `Io`
 already answers `"io"` from `code()`, and `invalid` is M3's mapping for
 `ValueError`, so nothing implements them until the MCP surface lands.
 
+**The carrier is part of the contract** (**D15**, signed 2026-09-30). A
+code travels as `structuredContent.code` on a *tool-level* error result:
+`isError: true`, with the same JSON mirrored into a text block, so a
+client branches on the code and a model still reads the message. Every
+tool declares its `outputSchema` explicitly, and **an error payload is not
+required to conform to it** — the schema describes a success, and rmcp
+does not validate that field (§6.3). Protocol-level JSON-RPC errors are
+reserved for what the protocol itself rejects, an unknown tool or a
+malformed request, because clients render those opaquely and the model
+never sees the code; a §6.1 code placed there would be a code no caller
+can act on.
+
+Two consequences for M3 follow from where the carrier sits. `invalid`
+covers malformed *values this server parses* — a bad slug, id, timestamp,
+date or reference inside a string parameter — and not malformed *argument
+shapes*: a wrong type or a missing required field is turned into rmcp's
+own unstructured text error before the tool body runs (§6.3), so it
+arrives codeless and M3 must not claim otherwise. And every params struct
+denies unknown fields, because an unrecognised argument is otherwise
+silently dropped rather than reported.
+
 ### 6.2 The graph dump (D11 amendment)
 
 `graph_show(repo?, epic?)` is the function that hands an agent the
@@ -388,6 +413,15 @@ determinism surface. A YAML or Mermaid rendering, if wanted later, is
 a pure function of this structure behind a `format` parameter — never
 a second source of truth. Size is the caller's problem: the dump is
 complete and deterministic; clients slice.
+
+"Fixed field order" means **declaration order**, and it reaches a client
+only because the workspace enables `serde_json/preserve_order` (**D14**,
+signed 2026-09-30): rmcp serializes structured tool output with its own
+`serde_json`, whose map is a `BTreeMap` without that feature, so the same
+struct would otherwise arrive with its keys re-sorted alphabetically — a
+different byte stream from a build that still compiles (§6.3 measures both
+spellings). §10's wire golden is what turns losing the flag into a test
+failure.
 
 ### 6.3 rmcp survey findings (U2, 2026-09-30)
 
@@ -447,13 +481,14 @@ The protocol level is the wrong home, and rmcp says so itself: clients
 to internal error*) — the caller does **not** see your message"
 (`model.rs:4100-4105`). A §6.1 code the model never sees is not a code a
 client can act on, so the carrier must be tool-level. Which tool-level
-carrier is **D15**: `structuredContent.code` alongside an explicit
-`outputSchema` puts a payload in that field which does *not* conform to
-the schema (rmcp does not validate — "since rust is a strong type
-language, we don't need to do json schema validation here",
-`model.rs:4201-4204` — but a strict client might), and the conforming
-alternative, a tagged-union output type, comes back with
-`"isError":false`, which is the flag clients actually read.
+carrier is **D15**, signed 2026-09-30 as option (a): `structuredContent.code`
+alongside an explicitly declared `outputSchema`, which puts a payload in
+that field that does *not* conform to the schema (rmcp does not validate —
+"since rust is a strong type language, we don't need to do json schema
+validation here", `model.rs:4201-4204` — but a strict client might), where
+the conforming alternative, a tagged-union output type, comes back with
+`"isError":false`, which is the flag clients actually read. §6.1 now names
+the carrier and the conformance exemption.
 
 **Argument faults are rmcp's, not ours.** A wrong type or a missing
 required field never reaches the tool body: `Parameters<P>`'s extractor
@@ -482,8 +517,12 @@ features, where `Map` is a `BTreeMap`: a struct declaring
 Building the same probe with `serde_json/preserve_order` enabled produced
 `{"zebra":…,"middle":…,"alpha":…}` — declaration order, matching this
 project's own codec. §6.2's "fixed field order" is therefore not what the
-wire carries by default, and which of the three ways out to take is
-**D14**. `tools/list` is unaffected and deterministic for a different
+wire carries by default. **D14**, signed 2026-09-30, took option (a): the
+workspace enables `serde_json/preserve_order`, so declaration order reaches
+the wire and §6.2 holds as written, and §10's protocol-level tests pin the
+bytes — the flag is only safe if losing it fails a test rather than
+silently re-sorting every key. `tools/list` is unaffected and deterministic
+for a different
 reason: the router holds a `HashMap` but `list_all()` sorts by tool name
 (`handler/server/router/tool.rs:581-589`), so the tool list is
 alphabetical regardless of declaration order.
@@ -560,7 +599,15 @@ Determinism is the product property; everything else is a feature:
 
 - **Canonical serialization**: fixed field order, sorted keys
   (`BTreeMap`/`BTreeSet` for anything reaching disk or wire), RFC 3339
-  UTC timestamps, no floats in persisted state.
+  UTC timestamps, no floats in persisted state. Two serializers produce
+  those bytes and both are pinned: this project's own codec for the store
+  (§4), and — on the wire — rmcp's `serde_json` with
+  **`serde_json/preserve_order` enabled workspace-wide** (**D14**, signed
+  2026-09-30). That feature is a determinism dependency, not a preference:
+  without it `serde_json`'s map is a `BTreeMap`, every struct's
+  declaration order is silently re-sorted into alphabetical keys, and the
+  build still compiles. §10's wire golden is the pin that makes losing it
+  a test failure instead of a different byte stream.
 - **Total orders everywhere**: every list a tool returns is ordered by a
   documented, total rule (§5.2).
 - **Pure selection**: `next_task` derives from graph state alone — no
@@ -623,7 +670,11 @@ shapes this project is judged by:
   produce a `blocks` cycle, an orphaned task, or two different
   `next_task` answers from one state.
 - **Protocol-level tests**: every MCP tool tested request-in/response-out
-  over the wire, never by calling the handler around it.
+  over the wire, never by calling the handler around it. Those responses
+  are **golden-pinned bytes**, not merely parsed values (**D14**): the
+  golden is what proves `serde_json/preserve_order` is still on and that
+  §6.1's error carrier is still `structuredContent.code`, since a build
+  that lost either would still compile and still parse.
 - **Determinism tests**: run twice, compare bytes (§8).
 - **Importer fixtures** (D12): the real committed `TODO.md` snapshot of
   the **dacode** sibling board, checked into
@@ -655,40 +706,20 @@ shapes this project is judged by:
 
 ## 12. Open Decisions
 
-Each item is mirrored by a `D`-numbered entry in
-`docs/implementation/decisions.md` with options, a recommendation, a
-confidence and an `On sign-off:` work order. Agents propose; the user
-decides. An item is deleted from this list when its decision is signed.
-Items 1–11 were signed 2026-09-25 and D12 on 2026-09-29; the sections
-they settled are normative above, and a future change to a signed shape
-is a new decision, not an edit (the D6/D11 priority boundary is the
-worked example). Numbers are never reused, and **D13 is reserved** for
-the transport question board U18 defers — a shared per-user server
-instance against the signed D5 stdio — which is not drafted because
-nothing there starts before M4's importer check.
-
-The two open items came out of U2's rmcp survey (§6.3, 2026-09-30). Both
-gate M3 and neither touches a domain shape: they decide what the wire
-bytes of an already-signed contract look like.
-
-14. **The wire's canonical JSON key order** — §6.2 signs canonical JSON
-    with a fixed field order, but rmcp routes structured tool output
-    through `serde_json::to_value`, whose map sorts keys unless the
-    `preserve_order` feature is enabled (measured, §6.3). Arrays keep
-    their order, so §5.2's total order survives; struct field order does
-    not. (a) enable that feature in this workspace, (b) carry the dump as
-    a text content block produced by this project's own codec, (c) accept
-    sorted keys on the wire and name two canonical orders. Gates M3. See
-    decisions.md D14.
-15. **Where a §6.1 code lives on the wire** — §6.1 signs twelve stable
-    codes and says a client may branch on one, but not where the code
-    sits, and rmcp offers five carriers (§6.3's table). The protocol-level
-    carrier is out by rmcp's own account: clients render those opaquely,
-    so the model never sees the code. (a) `structuredContent.code` via
-    `structured_error` plus an explicitly declared `outputSchema`, (b) a
-    tagged-union output type that both outcomes conform to, (c) the code
-    in `_meta` with the message as content. Gates M3. See decisions.md
-    D15.
+**None — the list is closed.** Each item is mirrored by a `D`-numbered
+entry in `docs/implementation/decisions.md` with options, a
+recommendation, a confidence and an `On sign-off:` work order. Agents
+propose; the user decides. An item is deleted from this list when its
+decision is signed: items 1–11 on 2026-09-25, D12 on 2026-09-29, and
+D14/D15 on 2026-09-30 — the two that came out of U2's rmcp survey
+(§6.3), settling the wire's canonical key order and the carrier a §6.1
+code travels in. The sections they settled are normative above, and a
+future change to a signed shape is a new decision, not an edit (the
+D6/D11 priority boundary is the worked example). Numbers are never
+reused, and **D13 is reserved** for the transport question board U18
+defers — a shared per-user server instance against the signed D5 stdio —
+which is not drafted because nothing there starts before M4's importer
+check.
 
 ## 13. Packaging and Distribution
 

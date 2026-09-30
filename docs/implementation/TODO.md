@@ -32,8 +32,8 @@ shell, which is M3's business.
 
 | Blocking | What | Action |
 |---|---|---|
-| — | nothing blocks M2: **U2**'s survey ran and left §6's signed shapes intact | decompose M2's query layer, answering **U17** inside the decomposition |
-| **D14**, **D15** | the wire's canonical JSON key order, and where a §6.1 code lives on the wire — both out of U2's rmcp survey (spec §6.3), both gating M3, neither touching a domain shape | **vote** on each; M2 does not wait for them |
+| — | nothing blocks M2: **U2**'s survey ran and left §6's signed shapes intact, and **D14**/**D15** — the two wire shapes it forced a choice on — were signed the same day | decompose M2's query layer, answering **U17** inside the decomposition |
+| — | M3's remaining gate is the **rmcp dependency ask** itself (Ask-First): the survey measured its weight (spec §6.3) and D14 now names `serde_json` as a wire serializer, but nothing has entered the workspace | ask, then build the wire |
 
 (Open but non-blocking: **U15** and **U19**, two one-sentence store doc
 fixes that ride the next store touch; and three recorded 2026-09-30 —
@@ -57,7 +57,7 @@ exit criteria: spec §14. Priority is derived from the Gated-on column by
 | M0 | spec settled: §12 items 1–3 signed (done 2026-09-25); Cargo workspace skeleton with the lint regime; all gates green | — | done 2026-09-25 |
 | M1 | domain model + storage engine: graph, statuses, persistence behind the `Store` trait, golden files | — | done 2026-09-30 — g5 ran green: every code gate, five goldens byte-identical, `cargo doc` clean, pitfalls consolidated |
 | M2 | queries: repo/epic selection, dependency resolution, deterministic `next_task`; registry with path updates | — | next — U2's survey ran 2026-09-30 (spec §6.3), so the decomposition is unobstructed; it answers U17 and re-measures d1 and U13 |
-| M3 | MCP server: the full §6 tool list over the wire, protocol-level tests, default-repo slug config (D8), smoke against a real client | **D14**, **D15** — the wire's canonical key order and §6.1's error carrier, both from U2's survey; plus the rmcp dependency ask itself (Ask-First) | not started |
+| M3 | MCP server: the full §6 tool list over the wire, protocol-level tests, default-repo slug config (D8), smoke against a real client | the **rmcp dependency ask** (Ask-First) — **D14**/**D15** signed 2026-09-30, so the wire's key order and §6.1's error carrier are settled | not started |
 | M4 | adoption: the dacode-dialect importer first (**D12**, amending D7), its board the only fixture checked in per §10; camera and ikvm-html imported from their live boards and never copied into this repo; the three repos tracked for real | — | not started |
 | M5 | packaging, docs, cwd auto-detection (deferred by D8), polish | — | not started |
 
@@ -832,6 +832,37 @@ Oldest first. One line per delivery, with the commit hash once committed.
        dossiers plus their summary rows and action lines, and board §1/§2/§4
        moved with them (U2 struck). No Rust moved; every code gate is
        `skipped` by construction. Landed as `8135d06`.
+- 2026-09-30 — **D14 and D15 signed, both (a): the wire's canonical key
+       order and §6.1's error carrier.** The two decisions U2's survey
+       forced are settled and their work orders executed in the same
+       change. **D14(a)**: this workspace enables
+       `serde_json/preserve_order`, so a struct's declaration order reaches
+       a client and §6.2's "fixed field order" holds as written — with the
+       recommendation's second half signed along with it, because the flag
+       is a *determinism dependency* that a build losing it would not fail
+       on its own (it would re-sort every key and still compile): §10's
+       protocol-level tests now pin response **bytes** as goldens, and §8
+       names both serializers — this project's codec for the store, rmcp's
+       `serde_json` for the wire. **D15(a)**: a §6.1 code travels as
+       `structuredContent.code` on a tool-level error result (`isError:
+       true`, the same JSON mirrored into a text block so a model reads the
+       message), each tool declares its `outputSchema` explicitly, and an
+       error payload is **not** required to conform to it, the schema
+       describing a success. Protocol-level JSON-RPC errors stay reserved
+       for what the protocol itself rejects, because clients render those
+       opaquely and a code placed there is a code no caller can act on.
+       §6.1 also states the two consequences for M3 that follow from where
+       the carrier sits: `invalid` covers malformed *values this server
+       parses*, not malformed argument shapes — rmcp's own deserializer
+       answers those with unstructured text before the tool body runs — and
+       every params struct denies unknown fields, because an unrecognised
+       argument is otherwise silently dropped rather than reported. Spec
+       §6/§6.1/§6.2/§6.3/§8/§10 moved, §12 items 14 and 15 deleted so the
+       list is closed again, both `decisions.md` rows struck with resolution
+       banners and their action lines retired, and board §1/§2/§4 moved with
+       them. No Rust moved: the feature flag, the wire goldens and the
+       carrier are M3's to implement, and this commit is what makes them
+       normative.
 
 ## 4. Follow-ups
 
@@ -884,7 +915,9 @@ Unowned work. Take the next unused `U` id; never renumber, never reuse.
       consequences are decisions rather than findings and are drafted as
       **D14** (the wire's canonical key order) and **D15** (where a §6.1
       code lives) — both gate M3, neither gates M2, which is the scheduling
-      answer this item was placed here for. Three facts M3 must design
+      answer this item was placed here for. **Both were signed (a) the same
+      day**, so §6.1/§6.2/§8/§10 now carry the carrier and the key order as
+      normative text and §12 is closed again. Three facts M3 must design
       around are also in §6.3: `serverInfo` defaults to `rmcp/3.5.0` unless
       we set our own; requests are dispatched **concurrently** (each in its
       own `tokio::spawn`, responses observed out of order), so §8's
@@ -1277,6 +1310,136 @@ Deliberate shortcuts, acknowledged rather than fixed. Same id rules as §4.
 Newest first. One entry per session, written for someone who was not
 here. The final entry of a session is the handover
 (`.agents/skills/todo-next-imp/SKILL.md` defines the shape).
+
+### 2026-09-30 (second session, closing) — D14 and D15 signed
+
+The user signed both recommendations as drafted, in the same message, so
+the session's last act was executing two work orders rather than opening
+anything. Both are wire-contract decisions out of U2's survey, and both
+landed as normative spec text with no code behind them yet — which is the
+right order here, because M3 would otherwise have discovered the shapes
+while implementing them.
+
+**One half of D14's signature is worth calling out.** The recommendation
+was "(a), with a golden over the wire bytes whichever option wins", and the
+user signed the recommendation, so the golden is part of the decision and
+not a nice-to-have: `serde_json/preserve_order` is a cargo feature unified
+across the whole dependency tree, and a build that lost it would re-sort
+every key on the wire while still compiling and still passing any test that
+merely *parses* a response. §10's protocol-level bullet now requires the
+responses to be golden-pinned bytes, and §8 names the feature as a
+determinism dependency rather than a preference. That is the difference
+between a determinism property and a determinism hope.
+
+**D15 closes a defect that had not happened yet.** rmcp's default
+tool-error path is `Err(String)`, which reaches a client as `isError` plus
+a text block and nothing else — so the obvious M3 implementation would have
+satisfied "return an error" while violating §6's "never bare strings", and
+no test in this repository would have caught it, because nothing here
+speaks MCP yet. §6.1 now names the carrier (`structuredContent.code`),
+states that an error payload need not conform to the tool's `outputSchema`,
+reserves protocol-level errors for what the protocol itself rejects, and
+carries the two consequences for M3 that fall out of it: `invalid` covers
+values this server parses rather than argument shapes, and params structs
+deny unknown fields.
+
+**Handover** — this session's, superseding the two above it.
+
+```
+Workspace:    main, clean at this commit plus its hash backfill; **M1
+              CLOSED**, phase M2-next. No Rust has moved since 7563fff
+              (t21) — everything after it is harness, board and spec:
+              1581007, 6f96e01, bf34068, d542065, 5c23f5f, 95a83eb +
+              02475d0 (the f41 sweep), 8135d06 + cc80cc3 + f8ca08a (the U2
+              survey), and this commit (the D14/D15 sign-off). Four crates:
+              todo-domain 111 tests, todo-store 107 (four goldens),
+              todo-cli 35 (one golden), todo-mcp an M0 shell. rustc
+              1.98.1, MSRV 1.95, 253 workspace tests, Cargo.lock
+              UNTOUCHED — no rmcp, no serde_json. Deps unchanged (serde,
+              dacode-json + zmij by path on ../rust/json-tiers at f7f26f8,
+              tempfile dev-only, lexopt 0.3.2); tools/ need Python 3 +
+              PyYAML. Serena live. Nothing to install.
+Landed:       **D14 and D15 signed, both (a)** — spec §6 (error
+              principle), §6.1 (the carrier paragraph, the conformance
+              exemption, and `invalid`'s scope), §6.2 (declaration order
+              plus the flag that carries it), §6.3 (both findings marked
+              resolved), §8 (two named serializers, the feature called a
+              determinism dependency), §10 (protocol-level responses are
+              golden-pinned bytes); §12 items 14/15 deleted, so the list is
+              closed again; decisions.md rows struck with resolution
+              banners and their action lines retired. Earlier this session:
+              the f41 sweep and the sweep rule in the exit gate, and the U2
+              rmcp 3.5.0 survey as spec §6.3. Closed: t24, t25, f41 (with
+              f31–f34, f36–f39, f42, f13, d2, d3), U2, D14, D15. Opened:
+              U19 (= f35), f44, f45. Probe artifacts stay in gitignored
+              tmp/rmcpprobe — vendored rmcp source, the probe crate,
+              drive.py, six captures — and are NOT committed.
+Next step:    **Decompose M2**, the query layer: repo/epic selection,
+              dependency resolution, deterministic next_task, registry with
+              path updates (board §2's M2 row; spec §5.2 + §6). Nothing
+              gates it: U2 ran, and D14/D15 gate M3 only. Answer **U17**
+              inside the decomposition — the totals/open-items roll-up as a
+              new tool or a field on an existing one, which is a §6
+              amendment and therefore a user decision, so raise it as one
+              rather than settling it — and re-measure **d1**
+              (Graph::tasks_of_epic's linear scan) and **U13** (the
+              file-size ledger) there, since M2's queries are what would
+              make either hot. M2's first task is the obvious one: §5.2's
+              order is already a derivation, and next_task/next_items are
+              the signed selection over it (D9/D11, including the deferred
+              {total, ready} summary and task-scoped next_items). The
+              alternative — making M3's rmcp dependency ask early — is
+              legitimate but out of roadmap order and M2 needs no
+              dependency at all.
+Blocked on you: nothing. Four small calls are open and none gates M2:
+              **f44** (land a duplicate-key check in agents-sync.py, or
+              promote it), **f45** (progress.py has no concept of a
+              decision, so an open D-entry is invisible on that page —
+              draw them or disclaim them in the footer), **U13**'s
+              acknowledgement, and **U15**/**U19**, two one-sentence store
+              doc fixes riding the next store touch. Still yours from
+              before: f25's veto-able reading (4c5782b is the commit to
+              revert) and two sibling-repo calls (a cargo fmt --check gate
+              for dacode-json; whether to benchmark c4aebe9). D13 stays
+              reserved for U18's transport question, deliberately not
+              drafted.
+Unverified:   **the signed wire contract is normative text with no code
+              behind it.** Nothing in the workspace enables
+              serde_json/preserve_order, no wire golden exists, no
+              structuredContent.code has ever been emitted by this project,
+              and no MCP client has been pointed at anything — so U16's
+              claims about a client surfacing `instructions`, and D15's
+              claim that a client branches on isError plus a code, are both
+              unexercised. D14's flag behaviour is measured on a probe
+              crate, not in this tree: cargo features are additive, so a
+              dependency cannot *disable* preserve_order once we enable it,
+              but that reasoning has not been tested against a real M3
+              dependency graph. D15's conformance exemption is accepted
+              risk, not verified safety — rmcp does not validate
+              structuredContent, and whether any real client's validator
+              rejects a non-conforming error payload is unknown. The
+              concurrency finding is two out-of-order captures plus a spawn
+              site in source, with no stress test and no measurement of how
+              much serialization M3 needs. Carried forward and still true:
+              no induced crash or power loss anywhere; nothing calls
+              compact() outside tests, so RepairOutcome::Diverged is
+              reachable only from a fixture; no human has run
+              dump/verify/repair against a real store; multi-process lock
+              contention is still two handles in one process (U18's gap);
+              the sweep line landed this session and has never been
+              exercised by a milestone gate; tools/progress.py has no test
+              of its own.
+Tracker:      tools/tasks.py check exits 0 — g3 standing (until M5); t25
+              done with evidence; one debt open (d1, its note names M2's
+              queries); open findings f4 (M3's wire), f25 (parked
+              diagnostics), f35 (= U19), f40 (= U15), f44, f45.
+              .agents/pitfalls-live.md is still EMPTY — the next entry is
+              P-LIVE-007 and a promoted id is never reused. Doc gates
+              green: check-links, agents-sync --check, agents-index
+              --check, attention --check (and with §12 closed again there
+              are no P0/P1 vote items). Code gates skipped by
+              construction: no Rust moved.
+```
 
 ### 2026-09-30 (second session, continued) — U2: the rmcp survey
 

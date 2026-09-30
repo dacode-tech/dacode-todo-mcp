@@ -24,7 +24,9 @@ per-repo non-relational stores (D4), and "what is next in repo X under
 epic Y" is a query, not a prose parse. Rust, rmcp, stdio transport.
 
 §12 is closed — all eleven decisions signed 2026-09-25, D12 added
-2026-09-29 (`docs/implementation/decisions.md`); the spec is normative
+2026-09-29, and D14/D15 on 2026-09-30 out of U2's rmcp survey (the
+wire's canonical key order and §6.1's error carrier)
+(`docs/implementation/decisions.md`); the spec is normative
 throughout, and signed shapes move only by a new user decision (new
 D-entries), never by edit. M0 landed 2026-09-25: four crates, the
 workspace lint regime, all code gates green. M1 landed 2026-09-30: the
@@ -33,7 +35,8 @@ canonical order), the signed D1 JSONL store behind the `Store` trait with
 the D4 layout, advisory locking, snapshots, compaction and §4.3's repair
 primitive, and the `todo-cli` inspector — 253 tests, five goldens, every
 gate green at the g5 exit. `todo-mcp` is still an M0 shell: the wire is
-M3's, and U2's rmcp survey runs before M2 by decision. Run
+M3's, whose shapes spec §6.3 measured against rmcp 3.5.0 and whose only
+remaining gate is the dependency ask itself. Run
 `tools/attention.py` for the current picture rather than trusting this
 paragraph.
 

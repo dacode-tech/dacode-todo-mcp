@@ -10,11 +10,10 @@ same change — most orders delete the §12 item, so the spec moves too.
 and the meta block below; keep the shapes it parses.
 
 <!-- attention-meta — machine-readable; read by tools/attention.py.
-     D1–D12 are resolved and their action lines went with them. D13 is
-     reserved for the transport question board U18 defers, and is not
-     drafted, so it has no action line either.
-action: D14=vote
-action: D15=vote
+     No open decisions: D1–D12 resolved 2026-09-25/2026-09-29, D14 and D15
+     resolved 2026-09-30. D13 is reserved for the transport question board
+     U18 defers, and is not drafted, so it has no action line either. A new
+     entry declares its action here (e.g. `action: D16=vote`).
 -->
 
 ## Sign-off summary
@@ -33,8 +32,8 @@ action: D15=vote
 | ~~**D10**~~ | References, specs and decisions as server entities | (b) layered: references list; decision nodes that can block; registered docs, prose stays in git | medium | M1 | resolved (b) 2026-09-25 |
 | ~~**D11**~~ | Next-items surface and derived weight | (a) next_items batch with blocks annotations + derived weight, display-only | medium | M2 | resolved (a) 2026-09-25 — plus agent-set priority field, display-only |
 | ~~**D12**~~ | Importer fixture scope (amends D7) | dacode dialect first; camera and ikvm-html are live-test subjects only, never checked in here | high | M4 | resolved 2026-09-29 — user decision, reversing D7's order |
-| **D14** | The wire's canonical JSON key order | (a) enable `serde_json/preserve_order` here, with a golden pinning the wire bytes | medium | M3 | open — drafted 2026-09-30 from U2's rmcp survey (spec §6.3) |
-| **D15** | Where a §6.1 code lives on the wire | (a) `structuredContent.code` via `structured_error`, §6.1 naming the carrier | medium | M3 | open — drafted 2026-09-30 from U2's rmcp survey (spec §6.3) |
+| ~~**D14**~~ | The wire's canonical JSON key order | (a) enable `serde_json/preserve_order` here, with a golden pinning the wire bytes | medium | M3 | resolved (a) 2026-09-30 — user decision, with the wire golden named as part of it |
+| ~~**D15**~~ | Where a §6.1 code lives on the wire | (a) `structuredContent.code` via `structured_error`, §6.1 naming the carrier | medium | M3 | resolved (a) 2026-09-30 — user decision |
 
 ---
 
@@ -619,8 +618,20 @@ TODO.md §2's M4 row, §4's U3, §3 and §6.
 
 ### D14 — The wire's canonical JSON key order
 
-**Open — drafted 2026-09-30** from U2's rmcp survey. **Gates** M3 ·
-**Action** vote · **Confidence: medium**
+**Resolved 2026-09-30 — option (a), signed by the user.** This workspace
+enables `serde_json/preserve_order`, so a struct's declaration order
+reaches the wire and §6.2's "fixed field order" holds as written. The
+recommendation's second half is signed with it: §10's protocol-level tests
+pin the response **bytes** as goldens, because the feature is a determinism
+dependency that a build losing it would not fail on its own — it would
+re-sort every key and still compile. Work order executed in the same
+change: §6.2 states the chosen order and its pin, §8 names both
+serializers and calls the feature a determinism dependency, §10's
+protocol-level bullet gains the wire golden, §6.3's finding records the
+outcome, §12 item 14 deleted, this row struck.
+
+**Gates** M3 · **Resolved** 2026-09-30 · drafted from U2's rmcp survey
+(spec §6.3) · **Confidence: medium**
 
 **Current (before this decision).** §6.2 signs `graph_show`'s output as
 "canonical JSON (§8: fixed field order, sorted keys, golden-pinned)", and
@@ -676,8 +687,21 @@ TODO.md §2's M3 row, §3 and §6.
 
 ### D15 — Where a §6.1 code lives on the wire
 
-**Open — drafted 2026-09-30** from U2's rmcp survey. **Gates** M3 ·
-**Action** vote · **Confidence: medium**
+**Resolved 2026-09-30 — option (a), signed by the user.** A §6.1 code
+travels as `structuredContent.code` on a tool-level error result
+(`isError: true`, the same JSON mirrored into a text block so a model reads
+the message too), each tool declares its `outputSchema` explicitly, and an
+error payload is **not** required to conform to it — the schema describes a
+success. Protocol-level JSON-RPC errors stay reserved for what the protocol
+itself rejects, since clients render those opaquely. Work order executed in
+the same change: §6.1 gained the carrier paragraph and the conformance
+exemption (plus the two consequences for M3 — `invalid` covers values this
+server parses, not argument shapes; params structs deny unknown fields),
+§6's error principle points at §6.3's table, §6.3's finding records the
+outcome, §12 item 15 deleted, this row struck.
+
+**Gates** M3 · **Resolved** 2026-09-30 · drafted from U2's rmcp survey
+(spec §6.3) · **Confidence: medium**
 
 **Current (before this decision).** §6.1 signs twelve stable codes and one
 rule about them: "a client may branch on a code; it must never parse a
