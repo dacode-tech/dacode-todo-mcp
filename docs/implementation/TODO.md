@@ -904,8 +904,8 @@ Oldest first. One line per delivery, with the commit hash once committed.
        an indexed lookup into `blocks_in`, not a scan — so nothing in g6 puts
        the epic scan on a derivation or selection path; what remains is a
        listing consumer at §4.1's scale, the case the debt itself called
-       fine. **U13 re-measured and unchanged.** No Rust moved, so every code
-       gate is `skipped` by construction.
+        fine. **U13 re-measured and unchanged.** No Rust moved, so every code
+        gate is `skipped` by construction. Landed as `c088ba9`.
 
 ## 4. Follow-ups
 
@@ -1433,8 +1433,8 @@ this commit's.
 **Handover**
 
 ```
-Workspace:    main, clean at the decomposition commit; M2 DECOMPOSED,
-              nothing dispatched. No Rust has moved since 7563fff (t21):
+Workspace:    main, clean at c088ba9 plus its index/hash backfill; M2
+              DECOMPOSED, nothing dispatched. No Rust has moved since 7563fff (t21):
               this session changed the spec (§12 item 16), decisions.md
               (D16), this board, AGENTS.md and tools/progress.py's data
               tables. Four crates: todo-domain 111 tests, todo-store 107
