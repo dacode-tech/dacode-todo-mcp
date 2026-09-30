@@ -310,8 +310,9 @@ automatically. An agent that decides to look queries
 ## 6. MCP Tool Surface
 
 Normative (D5 signed 2026-09-25, extended by D10/D11 the same day;
-JSON schemas firm up against rmcp's macros in M3). Principles that are
-not up for grabs:
+rmcp 3.5.0 surveyed 2026-09-30 — §6.3 records what its macros can and
+cannot express, and the two wire shapes that need a decision are §12's
+items 14 and 15). Principles that are not up for grabs:
 
 - Every tool takes a repository parameter. A server instance may be
   configured with a default repo slug (D8 amendment: a startup flag or
@@ -387,6 +388,154 @@ determinism surface. A YAML or Mermaid rendering, if wanted later, is
 a pure function of this structure behind a `format` parameter — never
 a second source of truth. Size is the caller's problem: the dump is
 complete and deterministic; clients slice.
+
+### 6.3 rmcp survey findings (U2, 2026-09-30)
+
+Facts, measured before M3 rather than assumed in it. Surveyed **rmcp
+3.5.0** (with `rmcp-macros` 3.5.0) two ways: by reading the published
+source, and by driving a probe server over raw stdio — newline-delimited
+JSON-RPC written to the process's stdin and captured byte-for-byte from
+its stdout, against a server declaring `#[tool]` methods shaped like the
+table above. The probe is **not committed**: adding rmcp to this workspace
+is an Ask-First that belongs to M3, so the wire bytes that decide anything
+are quoted here and every source citation is to the crates.io 3.5.0 tree,
+which is re-downloadable. Its direct dependencies were `rmcp` (features
+`server`, `macros`, `transport-io`), `tokio`, `serde`, `serde_json` and
+`schemars`: 81 `Cargo.lock` packages, 56 unique normal dependencies, a
+tree MSRV of 1.88 (below this workspace's 1.95 floor) and a 15 s cold build
+on the surveying host with a warm registry cache.
+
+**Every tool shape in §6's table is declarable.** A tool is an inherent
+method carrying `#[tool(name = …)]` inside an impl block carrying
+`#[tool_router]`, wired to the protocol by `#[tool_handler]` on the
+`impl ServerHandler` block. Parameters arrive as one
+`Parameters<T>` wrapper over a named-field struct — never as separate
+function arguments — because `schema_for_input` rejects anything whose
+generated schema is not root `type: "object"`
+(`handler/server/common.rs:55-73`). That is not a style preference: one
+params struct per tool is the only shape the macro accepts, and it is the
+same shape `_rust.md`'s persisted-schema rule already requires. Doc
+comments become the tool's `description` and each field's
+(`rmcp-macros/src/tool.rs:258-261`), which is the mechanism U16's
+instruction text depends on beside `instructions`. `Option<T>` renders as
+`"type": ["string", "null"]` and stays out of `required`; `required`
+preserves declaration order while `properties` is alphabetical.
+`annotations(read_only_hint, destructive_hint, idempotent_hint,
+open_world_hint, title)` are available, so §6's read/write split is
+expressible. An `outputSchema` is generated from the return type when it
+is `Json<T>` (or `Result<Json<T>, _>`), and can be declared explicitly
+with `output_schema = schema_for_type::<T>()`.
+
+**Tool errors have five carriers, and only some can hold a §6.1 code.**
+Measured wire shapes, all from `tools/call`:
+
+| Rust side | Wire | Branchable code |
+|---|---|---|
+| `Err("cycle: …".to_owned())` | `{"isError":true,"content":[{"type":"text","text":"cycle: …"}]}` | no — text only |
+| `Ok(CallToolResult::error(vec![text]))` | same shape | only by parsing the text |
+| `Ok(CallToolResult::structured_error(json!({"code":"cycle",…})))` | `{"isError":true,"content":[…mirror…],"structuredContent":{"code":"cycle",…}}` | **yes** — `structuredContent.code` |
+| the same plus `output_schema = …` | as above, and `tools/list` carries an `outputSchema` | **yes**, with a declared schema |
+| `.with_meta(Some(MetaObject(…)))` | `{"isError":true,"content":[…],"_meta":{"todo.code":"locked"}}` | yes, in `_meta` |
+| `Err(ErrorData::invalid_params(msg, data))` | `{"error":{"code":-32602,"message":…,"data":{"code":"cycle"}}}` | yes, but at protocol level |
+
+Five carriers, six rows: the fourth is the third with an explicitly
+declared `outputSchema`, which changes what `tools/list` advertises and not
+where the code travels.
+
+The protocol level is the wrong home, and rmcp says so itself: clients
+"typically render protocol errors opaquely (e.g. *Tool result missing due
+to internal error*) — the caller does **not** see your message"
+(`model.rs:4100-4105`). A §6.1 code the model never sees is not a code a
+client can act on, so the carrier must be tool-level. Which tool-level
+carrier is **D15**: `structuredContent.code` alongside an explicit
+`outputSchema` puts a payload in that field which does *not* conform to
+the schema (rmcp does not validate — "since rust is a strong type
+language, we don't need to do json schema validation here",
+`model.rs:4201-4204` — but a strict client might), and the conforming
+alternative, a tagged-union output type, comes back with
+`"isError":false`, which is the flag clients actually read.
+
+**Argument faults are rmcp's, not ours.** A wrong type or a missing
+required field never reaches the tool body: `Parameters<P>`'s extractor
+deserializes first (`handler/server/tool.rs:235-250`) and
+`into_tool_argument_error` turns that specific `INVALID_PARAMS` into a
+tool-level `isError` whose text is `failed to deserialize parameters: …`
+(`handler/server/router/tool.rs:146-156`) — no code, no
+`structuredContent`. So §6.1's `invalid` covers malformed *values this
+server parses itself* (a bad slug, id, timestamp or reference inside a
+`String` parameter) and cannot cover a malformed *argument shape*.
+Unknown argument fields are silently ignored unless the params struct
+carries `#[serde(deny_unknown_fields)]`; with it, a typo comes back as
+``unknown field `epik`, expected one of `repo`, `epic`, `status`, `ready` ``.
+M3's params structs deny unknown fields, which is the
+discipline the store's patch DTOs already apply. An unknown *tool* is a
+protocol error: `{"error":{"code":-32602,"message":"tool not found"}}`.
+
+**Order: arrays are preserved, object keys are not.** A `Vec` comes back
+in exactly the order it was built (five deliberately unsorted rows
+returned unsorted), so §5.2's total order survives the wire — but a
+struct's field order does not. `Json<T>` reaches the wire through
+`serde_json::to_value` (`handler/server/wrapper/json.rs`) into
+`structured_content`, and rmcp depends on `serde_json` with default
+features, where `Map` is a `BTreeMap`: a struct declaring
+`zebra, middle, alpha` serialized as `{"alpha":…,"middle":…,"zebra":…}`.
+Building the same probe with `serde_json/preserve_order` enabled produced
+`{"zebra":…,"middle":…,"alpha":…}` — declaration order, matching this
+project's own codec. §6.2's "fixed field order" is therefore not what the
+wire carries by default, and which of the three ways out to take is
+**D14**. `tools/list` is unaffected and deterministic for a different
+reason: the router holds a `HashMap` but `list_all()` sorts by tool name
+(`handler/server/router/tool.rs:581-589`), so the tool list is
+alphabetical regardless of declaration order.
+
+**`instructions` is honourable, in both handshakes** — which is what U16
+rests on. `InitializeResult.instructions` (`model.rs:1118-1146`) is set
+from `ServerHandler::get_info` and arrived on the wire verbatim; the
+newer discovery flow's `DiscoverResult.instructions` (`model.rs:1312-1330`)
+carried the same text. `#[tool_handler(instructions = "…")]`
+(`rmcp-macros/src/tool_handler.rs:15`) is the declarative form.
+
+**Protocol versions.** rmcp knows `2024-11-05` through `2026-07-28`, with
+`LATEST = 2026-07-28` and `LATEST_WITH_INITIALIZE = 2025-11-25`
+(`model.rs:170-205`): the newest revision has **no `initialize`
+handshake**. Sending `initialize` with `protocolVersion: "2026-07-28"`
+negotiated *down* and answered `"protocolVersion":"2025-11-25"`. The
+2026-07-28 flow instead opens with `server/discover` and requires every
+request to carry `_meta` with
+`io.modelcontextprotocol/protocolVersion` and
+`io.modelcontextprotocol/clientCapabilities` (`model/meta.rs:394-402`);
+without them the server answers
+`{"error":{"code":-32602,"message":"request _meta is missing or has
+malformed required fields: …"}}`. Responses in that flow gain
+`resultType`, `ttlMs` and `cacheScope`, and `serverInfo` moves into
+`_meta["io.modelcontextprotocol/serverInfo"]`. M3 picks which flows to
+serve; both work over one `serve(stdio())`.
+
+**Two facts M3 must design around.** (1) `serverInfo` defaults to
+`Implementation::from_build_env()`, so an unmodified server identifies
+itself to every client as `{"name":"rmcp","version":"3.5.0"}` — observed
+in all three handshakes. `get_info` must set our own name and version.
+(2) **Requests are dispatched concurrently**: each one is handled in its
+own `spawn_service_task`, which is `tokio::spawn` without the `local`
+feature (`service.rs:1319-1327`, spawn site `service.rs:1603`), and the
+probe's responses arrived out of request order in two separate runs. §8's
+single-writer guarantee is a *process*-boundary property, so inside one
+server process concurrent tool calls reach one store handle at the same
+time and M3 must serialize them itself — a mutex or an actor task owning
+the handle. The store's advisory lock will not do it: it is per file
+descriptor, and one process holds one.
+
+**Prompts are exposed** (the question U16 added): `ServerCapabilities`
+has a prompts member and a builder enable, `#[prompt_router]` /
+`#[prompt]` / `#[prompt_handler]` mirror the tool macros, and both
+`prompts/list` and `prompts/get` answered on the wire. One asymmetry
+cost a compile cycle and is worth knowing before M3: `tool_router`'s
+`router` argument is an *identifier* (`rmcp-macros/src/tool_router.rs:15`)
+while `prompt_router`'s is a *string*
+(`rmcp-macros/src/prompt_router.rs:9`), so
+`#[prompt_router(router = prompt_router)]` fails with ``Unexpected type
+`path` `` and the working form is
+`#[prompt_router(router = "prompt_router")]`.
 
 ## 7. Multi-Repo Registry and Path Handling
 
@@ -506,14 +655,40 @@ shapes this project is judged by:
 
 ## 12. Open Decisions
 
-**None — the list is closed.** Items 1–11 were signed by the user on
-2026-09-25 and deleted per their work orders; the resolutions and
-dossiers live in `docs/implementation/decisions.md`, and the sections
-they settled are normative above. Agents propose; the user decides. A
-new decision gets a new number (D12 onward) mirrored by a new item
-here — numbers are never reused, and a future change to a signed shape
+Each item is mirrored by a `D`-numbered entry in
+`docs/implementation/decisions.md` with options, a recommendation, a
+confidence and an `On sign-off:` work order. Agents propose; the user
+decides. An item is deleted from this list when its decision is signed.
+Items 1–11 were signed 2026-09-25 and D12 on 2026-09-29; the sections
+they settled are normative above, and a future change to a signed shape
 is a new decision, not an edit (the D6/D11 priority boundary is the
-worked example).
+worked example). Numbers are never reused, and **D13 is reserved** for
+the transport question board U18 defers — a shared per-user server
+instance against the signed D5 stdio — which is not drafted because
+nothing there starts before M4's importer check.
+
+The two open items came out of U2's rmcp survey (§6.3, 2026-09-30). Both
+gate M3 and neither touches a domain shape: they decide what the wire
+bytes of an already-signed contract look like.
+
+14. **The wire's canonical JSON key order** — §6.2 signs canonical JSON
+    with a fixed field order, but rmcp routes structured tool output
+    through `serde_json::to_value`, whose map sorts keys unless the
+    `preserve_order` feature is enabled (measured, §6.3). Arrays keep
+    their order, so §5.2's total order survives; struct field order does
+    not. (a) enable that feature in this workspace, (b) carry the dump as
+    a text content block produced by this project's own codec, (c) accept
+    sorted keys on the wire and name two canonical orders. Gates M3. See
+    decisions.md D14.
+15. **Where a §6.1 code lives on the wire** — §6.1 signs twelve stable
+    codes and says a client may branch on one, but not where the code
+    sits, and rmcp offers five carriers (§6.3's table). The protocol-level
+    carrier is out by rmcp's own account: clients render those opaquely,
+    so the model never sees the code. (a) `structuredContent.code` via
+    `structured_error` plus an explicitly declared `outputSchema`, (b) a
+    tagged-union output type that both outcomes conform to, (c) the code
+    in `_meta` with the message as content. Gates M3. See decisions.md
+    D15.
 
 ## 13. Packaging and Distribution
 

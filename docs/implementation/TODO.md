@@ -32,18 +32,19 @@ shell, which is M3's business.
 
 | Blocking | What | Action |
 |---|---|---|
-| — | nothing | **U2** — the rmcp survey against §6, scheduled here on purpose — then decompose M2's query layer |
+| — | nothing blocks M2: **U2**'s survey ran and left §6's signed shapes intact | decompose M2's query layer, answering **U17** inside the decomposition |
+| **D14**, **D15** | the wire's canonical JSON key order, and where a §6.1 code lives on the wire — both out of U2's rmcp survey (spec §6.3), both gating M3, neither touching a domain shape | **vote** on each; M2 does not wait for them |
 
-(Open but non-blocking: **U2**, the only open item that could invalidate a
-signed §6 shape and therefore U9's `invalid`/`io`, which is why it runs
-before M2 rather than before M3; **U15** and **U19**, two one-sentence
-store doc fixes that ride the next store touch; and three recorded
-2026-09-30 — **U16** (ship base instructions with the server and gate the
-client's native todo off, M3), **U17** (which harness tools become MCP
-tools, answered with M2's decomposition) and **U18** (a live view for
-progress and whether the server is shared per user, deferred until after
-M4's importer check). Resolved: U4/U5/U6/U7/U8/U9/U10/U11/U12/U14, and U3
-superseded by D12. U13 is acknowledged debt, not an open question.)
+(Open but non-blocking: **U15** and **U19**, two one-sentence store doc
+fixes that ride the next store touch; and three recorded 2026-09-30 —
+**U16** (ship base instructions with the server and gate the client's
+native todo off, M3 — its mechanism is now measured rather than assumed,
+spec §6.3), **U17** (which harness tools become MCP tools, answered with
+M2's decomposition) and **U18** (a live view for progress and whether the
+server is shared per user, deferred until after M4's importer check, and
+holding the **D13** reservation). Resolved: U2/U4/U5/U6/U7/U8/U9/U10/U11/
+U12/U14, and U3 superseded by D12. U13 is acknowledged debt, not an open
+question.)
 
 ## 2. Milestones
 
@@ -55,8 +56,8 @@ exit criteria: spec §14. Priority is derived from the Gated-on column by
 |---|---|---|---|
 | M0 | spec settled: §12 items 1–3 signed (done 2026-09-25); Cargo workspace skeleton with the lint regime; all gates green | — | done 2026-09-25 |
 | M1 | domain model + storage engine: graph, statuses, persistence behind the `Store` trait, golden files | — | done 2026-09-30 — g5 ran green: every code gate, five goldens byte-identical, `cargo doc` clean, pitfalls consolidated |
-| M2 | queries: repo/epic selection, dependency resolution, deterministic `next_task`; registry with path updates | — | next — U2 (the rmcp survey) first, by its own scheduling |
-| M3 | MCP server: the full §6 tool list over the wire, protocol-level tests, default-repo slug config (D8), smoke against a real client | — | not started |
+| M2 | queries: repo/epic selection, dependency resolution, deterministic `next_task`; registry with path updates | — | next — U2's survey ran 2026-09-30 (spec §6.3), so the decomposition is unobstructed; it answers U17 and re-measures d1 and U13 |
+| M3 | MCP server: the full §6 tool list over the wire, protocol-level tests, default-repo slug config (D8), smoke against a real client | **D14**, **D15** — the wire's canonical key order and §6.1's error carrier, both from U2's survey; plus the rmcp dependency ask itself (Ask-First) | not started |
 | M4 | adoption: the dacode-dialect importer first (**D12**, amending D7), its board the only fixture checked in per §10; camera and ikvm-html imported from their live boards and never copied into this repo; the three repos tracked for real | — | not started |
 | M5 | packaging, docs, cwd auto-detection (deferred by D8), polish | — | not started |
 
@@ -793,6 +794,44 @@ Oldest first. One line per delivery, with the commit hash once committed.
        deliberate open from a forgotten one. Harness and board only; no Rust
        moved, so every code gate is `skipped` by construction. Landed as
        `95a83eb`.
+- 2026-09-30 — **U2: the rmcp survey against §6 (spec §6.3), and two
+       decisions drafted out of it.** rmcp **3.5.0** — the version M3 would
+       adopt — was read in the crates.io source *and* driven over raw stdio
+       from a probe server under gitignored `tmp/rmcpprobe`, so the answers
+       are captured wire bytes rather than a README reading, and no
+       dependency entered the workspace: M3's Ask-First is untouched. **§6's
+       signed shapes hold.** Every tool in the table is declarable, and one
+       `Parameters<struct>` per tool is the only shape the macros accept
+       (`schema_for_input` rejects a non-`object` root), which makes §6's
+       per-tool params a requirement rather than a style; `instructions` is
+       settable in **both** handshakes — `initialize` and 2026-07-28's
+       `server/discover` — so U16's mechanism is measured rather than
+       assumed; prompts are exposed; and array order, which is what §5.2's
+       total order actually is, survives the wire intact. **Two facts force a
+       choice and are drafted as D14/D15 rather than settled here.** Object
+       key order does *not* survive: structured output is serialized by
+       rmcp's own `serde_json` into a `BTreeMap` unless `preserve_order` is
+       enabled, and both spellings were measured from the same probe source,
+       so §6.2's "fixed field order" needs either that flag, a text-carried
+       canonical dump, or an amendment naming two canonical orders. And
+       §6.1's twelve codes have five possible carriers, of which the
+       protocol-level one is unusable because rmcp documents that clients
+       render those errors opaquely — the model never sees the code. Three
+       facts M3 must design around are recorded in §6.3 with their citations:
+       `serverInfo` defaults to the SDK's own `rmcp/3.5.0` identity; requests
+       are dispatched **concurrently** (each in its own `tokio::spawn`,
+       responses observed out of order twice), so §8's single writer needs a
+       mutex or an actor *inside* the process, the store's advisory lock
+       being per file descriptor; and argument-shape faults arrive as rmcp's
+       own unstructured text, so `invalid` covers only values this server
+       parses itself, and M3's params structs deny unknown fields. Dependency
+       weight measured for the eventual ask: 81 `Cargo.lock` packages, 56
+       unique normal dependencies, a tree MSRV of 1.88 against this
+       workspace's 1.95 floor, and a 15 s cold build on this host with a warm
+       registry cache. Spec §6/§6.3/§12 moved, `decisions.md` gained two
+       dossiers plus their summary rows and action lines, and board §1/§2/§4
+       moved with them. No Rust moved; every code gate is `skipped` by
+       construction.
 
 ## 4. Follow-ups
 
@@ -805,7 +844,7 @@ Unowned work. Take the next unused `U` id; never renumber, never reuse.
       vote. **Superseded 2026-09-25**: D1 signed without the
       measurement; these numbers become decision material only if the
       redb fallback (D1's banner) is ever proposed.
-- [ ] **U2 · Survey rmcp's tool macros against §6.** Confirm the signed
+- [x] **U2 · Survey rmcp's tool macros against §6.** Confirm the signed
       tool list is expressible with stable error codes and ordered list
       responses as rmcp schemas; record findings in §6 before M3
       implementation (D5 is signed). Read the rmcp version's source; do
@@ -824,7 +863,36 @@ Unowned work. Take the next unused `U` id; never renumber, never reuse.
       mechanism rests on that answer and it is the same kind of question as
       the other three: a shape §6 signs, resting on what rmcp can express.
       Read-only, so it can also be pulled earlier without conflicting with
-      t15/t13.
+      t15/t13. **Resolved 2026-09-30 — surveyed, and §6's signed shapes
+      hold.** rmcp **3.5.0** was read in the published source *and* driven
+      over raw stdio from a probe server under `tmp/rmcpprobe` (gitignored;
+      no dependency entered the workspace, so M3's Ask-First is untouched).
+      The findings live in spec **§6.3**, not here, because they are facts
+      about the wire that M3 implements against: every §6 tool shape is
+      declarable — one `Parameters<struct>` per tool, since
+      `schema_for_input` requires a root `object`, which makes §6's
+      per-tool params struct the only available shape rather than a style
+      choice; **five** error carriers were measured, and
+      `structuredContent.code` via `CallToolResult::structured_error` is the
+      one that is both branchable and visible to the model, because rmcp
+      documents that clients render protocol-level errors *opaquely*;
+      **array order survives the wire but object key order does not**, since
+      structured output goes through `serde_json::to_value` and rmcp does
+      not enable `preserve_order`; `instructions` is settable in *both*
+      handshakes (`initialize` and 2026-07-28's `server/discover`), which
+      is the answer U16 rests on; and prompts are exposed. Two
+      consequences are decisions rather than findings and are drafted as
+      **D14** (the wire's canonical key order) and **D15** (where a §6.1
+      code lives) — both gate M3, neither gates M2, which is the scheduling
+      answer this item was placed here for. Three facts M3 must design
+      around are also in §6.3: `serverInfo` defaults to `rmcp/3.5.0` unless
+      we set our own; requests are dispatched **concurrently** (each in its
+      own `tokio::spawn`, responses observed out of order), so §8's
+      single-writer property needs a mutex or an actor *inside* the server
+      process — the store's advisory lock is per file descriptor and one
+      process holds one; and argument-shape faults arrive as rmcp's own
+      unstructured text, so `invalid` covers only values we parse
+      ourselves, and M3's params structs deny unknown fields.
 - [x] **U3 · Collect the three sibling board dialects as fixtures.**
       Snapshot camera/ikvm-html/dacode `TODO.md` + decisions files into
       the future importer's test fixtures (§9, §10), with a short dialect
@@ -1209,6 +1277,152 @@ Deliberate shortcuts, acknowledged rather than fixed. Same id rules as §4.
 Newest first. One entry per session, written for someone who was not
 here. The final entry of a session is the handover
 (`.agents/skills/todo-next-imp/SKILL.md` defines the shape).
+
+### 2026-09-30 (second session, continued) — U2: the rmcp survey
+
+The sweep closed f41 and left the handover's named step unobstructed, so
+the session continued into **U2** in the same sitting. It was scheduled
+here on purpose — after g5, before M2 — because it is the only open item
+that could invalidate a *signed* §6 shape, and the survey is exactly that:
+an afternoon of reading instead of a redesign. It ran as a measurement, not
+a literature review. rmcp 3.5.0 was unpacked from crates.io and read, and a
+probe server declaring `#[tool]` methods shaped like §6's was built under
+gitignored `tmp/rmcpprobe` and driven over raw stdio, so every answer below
+is a captured wire byte or a `file:line` in the published source. Nothing
+entered the workspace: `Cargo.lock` is untouched and M3's dependency
+Ask-First is still M3's to make.
+
+**§6's shapes hold, and one of them is now a requirement rather than a
+preference.** The macros take parameters only as a single
+`Parameters<struct>` wrapper, because `schema_for_input` rejects any
+generated schema whose root is not `type: "object"` — so §6's "every tool
+takes a repository parameter, epic is an optional filter" lands as one
+named-field params struct per tool, which is also what `_rust.md`'s
+persisted-schema rule already asks for. Doc comments become the tool
+description *and* each field's, which is the second half of U16's
+mechanism. `instructions` came back on the wire from `get_info()` in the
+`initialize` result, and again in the 2026-07-28 flow's `server/discover`
+result — so U16 rests on something measured now rather than hoped for.
+Prompts are exposed. Arrays keep their order exactly, which is the property
+§5.2's total order actually depends on.
+
+**Two answers are decisions, and they are drafted rather than taken.**
+Object *key* order does not survive: `Json<T>` is serialized by rmcp's own
+`serde_json` into `structured_content`, and serde_json's `Map` is a
+`BTreeMap` without the `preserve_order` feature. The same probe source
+built two ways produced `{"alpha":…,"middle":…,"zebra":…}` and
+`{"zebra":…,"middle":…,"alpha":…}` from a struct declaring
+`zebra, middle, alpha`. §6.2 signs "fixed field order", so either the flag
+is enabled here, the dump travels as a text block from our own codec, or
+§6.2/§8 are amended to name two canonical orders — **D14**. The second is
+sharper, because it is the one that would have shipped a defect: rmcp's
+*default* tool-error path is `Err(String)`, which reaches the client as
+`isError` plus a text block and nothing else. An M3 built the obvious way
+would have satisfied "return an error" while violating §6's "never bare
+strings", and no test in this repo would have caught it. Five carriers were
+measured; `structuredContent.code` via `structured_error` is the one that
+is both branchable and visible to the model, since rmcp documents that
+protocol-level errors are rendered opaquely — **D15**.
+
+**Three facts M3 has to design around are in §6.3 with their citations**,
+and two were surprises: `serverInfo` defaults to the SDK's own
+`rmcp/3.5.0` identity unless we set one, and requests are dispatched
+concurrently — each in its own `tokio::spawn`, with responses arriving out
+of request order in two separate captures. §8's single writer is a
+*process*-boundary property, so inside one server process concurrent tool
+calls reach one store handle simultaneously and M3 must serialize them
+itself; the store's advisory lock cannot, because it is per file descriptor
+and one process holds one. The third is that argument-shape faults (a wrong
+type, a missing required field) are turned into rmcp's own unstructured
+text error before our code runs, so §6.1's `invalid` covers malformed
+*values* we parse ourselves and nothing else — and unknown argument fields
+are silently ignored unless the params struct denies them, which the probe
+confirmed both ways.
+
+**Handover** — supersedes the one in the sweep entry below.
+
+```
+Workspace:    main, clean at this commit; **M1 CLOSED**, phase M2-next. No
+              Rust has moved since 7563fff (t21) — everything after it is
+              harness, board and spec: 1581007, 6f96e01, bf34068, d542065,
+              5c23f5f, 95a83eb + 02475d0 (the f41 sweep) and this commit
+              (spec §6/§6.3/§12, decisions.md D14/D15, this board). Four
+              crates: todo-domain 111 tests, todo-store 107 (four goldens),
+              todo-cli 35 (one golden), todo-mcp an M0 shell. rustc 1.98.1,
+              MSRV 1.95, Cargo.lock UNTOUCHED by the survey. Deps unchanged
+              (serde, dacode-json + zmij by path on ../rust/json-tiers at
+              f7f26f8, tempfile dev-only, lexopt 0.3.2); tools/ need Python 3
+              + PyYAML. Serena live. Nothing to install.
+Landed:       **U2** — the rmcp 3.5.0 survey as spec §6.3 (facts, with
+              source citations and the measured wire shapes), §12 items 14
+              and 15, and the D14/D15 dossiers in decisions.md with their
+              summary rows and action lines. Board §1/§2/§3/§4(U2 struck)
+              moved in the same commit. Earlier this session: f41's sweep
+              (95a83eb), which closed f31–f34, f36–f39, f42, f13, d2, d3 and
+              f41, promoted f35 to U19, opened f44, and landed the sweep line
+              in the exit gate. Probe artifacts live in gitignored
+              tmp/rmcpprobe (vendored rmcp 3.5.0 source, the probe crate,
+              drive.py, six captures) and are NOT committed — the Ask-First
+              for rmcp is M3's.
+Next step:    **Decompose M2**, the query layer: repo/epic selection,
+              dependency resolution, deterministic next_task, registry with
+              path updates (§2's M2 row, spec §5.2 + §6). U2 no longer
+              obstructs it and D14/D15 gate M3, not M2 — the survey's whole
+              scheduling point. Answer **U17** inside the decomposition (the
+              totals/open-items roll-up as a new tool or a field: a §6
+              amendment, so a user decision), and re-measure **d1**
+              (Graph::tasks_of_epic's linear scan) and **U13** (the file-size
+              ledger) there, since M2's queries are what would make either
+              hot. M2's own first task is the obvious one: §5.2's order is
+              already a derivation, and next_task/next_items are the signed
+              selection over it (D9/D11). Alternative if you prefer to clear
+              the deck first: vote D14/D15, which are short and both carry a
+              recommendation.
+Blocked on you: **D14** (the wire's canonical JSON key order — (a) enable
+              serde_json/preserve_order here, (b) a text-carried canonical
+              dump, (c) amend §6.2/§8 to name two orders; recommendation (a)
+              plus a wire golden whichever wins) and **D15** (§6.1's code
+              carrier — (a) structuredContent.code with an explicit
+              outputSchema, (b) a tagged-union output type, (c) _meta;
+              recommendation (a)). Both gate M3 only. **f44** is the smaller
+              call: land a duplicate-key check in agents-sync.py or promote
+              it. Still yours from before: U13's acknowledgement, U15/U19's
+              deferral to the next store touch, f25's veto-able reading
+              (4c5782b is the commit to revert), and two sibling-repo calls
+              (a cargo fmt --check gate for dacode-json; whether to benchmark
+              c4aebe9). D13 stays reserved for U18's transport question and
+              is deliberately not drafted.
+Unverified:   **the survey's probe is not a smoke test of our server** — it
+              proves what rmcp 3.5.0 does with hand-written tools, not what
+              todo-mcp will do; no MCP client (opencode included) has been
+              pointed at anything, so U16's claims about a client surfacing
+              `instructions` and about gating the native todo tools off are
+              still unexercised config. D14's key-order claim is measured on
+              a probe struct, not on a real graph_show payload, and the
+              preserve_order build proves the mechanism but not that no other
+              dependency in a real M3 tree would disable or re-unify it.
+              The concurrency finding is two out-of-order captures plus the
+              spawn site in source — no stress test, no measurement of how
+              much serialization M3 needs. Nothing in §6.3 pins a version
+              range: the crates.io index lists 60 non-yanked stable versions
+              of rmcp up to 3.5.0 and no release dates were checked, so
+              "current" here means current on 2026-09-30, and a later
+              version could change any of it.
+              Carried forward and still true: no induced crash or power loss
+              anywhere; nothing calls compact() outside tests; no human has
+              run dump/verify/repair against a real store; multi-process lock
+              contention is still two handles in one process; the sweep line
+              landed this session and has never been exercised by a
+              milestone gate; tools/progress.py has no test of its own.
+Tracker:      tools/tasks.py check exits 0 — g3 standing; t24 (U2) done with
+              evidence; open findings f4 (M3's wire), f25 (parked
+              diagnostics), f35 (= U19), f40 (= U15), f44; one debt, d1,
+              with M2 named as its consumer. pitfalls-live.md is still EMPTY
+              — next entry P-LIVE-007. Doc gates green: check-links,
+              agents-sync --check, agents-index --check, attention --check
+              (183 checks, and D14/D15 rendering as the two P1 vote items).
+              Code gates skipped by construction: no Rust moved.
+```
 
 ### 2026-09-30 (second session) — the tracker sweep (f41)
 

@@ -10,8 +10,11 @@ same change — most orders delete the §12 item, so the spec moves too.
 and the meta block below; keep the shapes it parses.
 
 <!-- attention-meta — machine-readable; read by tools/attention.py.
-     No open decisions: D1–D11 all resolved 2026-09-25. A new entry
-     declares its action here (e.g. `action: D12=vote`).
+     D1–D12 are resolved and their action lines went with them. D13 is
+     reserved for the transport question board U18 defers, and is not
+     drafted, so it has no action line either.
+action: D14=vote
+action: D15=vote
 -->
 
 ## Sign-off summary
@@ -30,6 +33,8 @@ and the meta block below; keep the shapes it parses.
 | ~~**D10**~~ | References, specs and decisions as server entities | (b) layered: references list; decision nodes that can block; registered docs, prose stays in git | medium | M1 | resolved (b) 2026-09-25 |
 | ~~**D11**~~ | Next-items surface and derived weight | (a) next_items batch with blocks annotations + derived weight, display-only | medium | M2 | resolved (a) 2026-09-25 — plus agent-set priority field, display-only |
 | ~~**D12**~~ | Importer fixture scope (amends D7) | dacode dialect first; camera and ikvm-html are live-test subjects only, never checked in here | high | M4 | resolved 2026-09-29 — user decision, reversing D7's order |
+| **D14** | The wire's canonical JSON key order | (a) enable `serde_json/preserve_order` here, with a golden pinning the wire bytes | medium | M3 | open — drafted 2026-09-30 from U2's rmcp survey (spec §6.3) |
+| **D15** | Where a §6.1 code lives on the wire | (a) `structuredContent.code` via `structured_error`, §6.1 naming the carrier | medium | M3 | open — drafted 2026-09-30 from U2's rmcp survey (spec §6.3) |
 
 ---
 
@@ -609,3 +614,130 @@ here.
 "Importer fixtures" bullet (one sibling snapshot, plus the synthetic-
 fixture remedy); §6's `import_md` row; §14's M4 row; D7's banner above;
 TODO.md §2's M4 row, §4's U3, §3 and §6.
+
+---
+
+### D14 — The wire's canonical JSON key order
+
+**Open — drafted 2026-09-30** from U2's rmcp survey. **Gates** M3 ·
+**Action** vote · **Confidence: medium**
+
+**Current (before this decision).** §6.2 signs `graph_show`'s output as
+"canonical JSON (§8: fixed field order, sorted keys, golden-pinned)", and
+§8's argument is that one canonical serializer is one determinism surface.
+The store's codec does exactly that — `dacode-json` emits struct fields in
+declaration order and map keys sorted, and five goldens pin the bytes.
+
+**What the survey measured.** A tool's structured output does not go
+through that codec. rmcp serializes `Json<T>` with `serde_json::to_value`
+(`handler/server/wrapper/json.rs`) into `structuredContent`, and it depends
+on `serde_json` with default features, where `Map` is a `BTreeMap`. A probe
+struct declaring `zebra, middle, alpha` reached the client as
+`{"alpha":…,"middle":…,"zebra":…}`; the identical probe built with
+`serde_json/preserve_order` reached it as `{"zebra":…,"middle":…,"alpha":…}`.
+Arrays are unaffected — five deliberately unsorted rows came back unsorted
+— so §5.2's total order, which is an order over a *list*, survives either
+way. What does not survive by default is field order: half of §8's
+canonical form.
+
+**Options.**
+
+- **(a) Enable `serde_json/preserve_order` in this workspace.** Declaration
+  order reaches the wire and §6.2 holds as written. Cost: the wire bytes
+  then depend on a cargo feature unified across the whole dependency tree,
+  and nothing in our own code states that dependency — a build which lost
+  the flag would re-sort every key, still compile, and differ only in
+  bytes. `serde_json` also becomes a direct workspace dependency (rmcp
+  brings it either way).
+- **(b) Carry the dump as a text content block** produced by our own codec.
+  Exact bytes, one serializer, no flag, and the wire golden is the store's
+  own shape. Cost: no `structuredContent`, so a client that wants to branch
+  on a field parses a JSON string out of a text block — and §6.2's "MCP
+  results are JSON anyway" argument is spent on a string inside JSON.
+- **(c) Accept sorted keys on the wire** and amend §6.2/§8 to name two
+  canonical orders: the store's (declaration order, golden-pinned) and the
+  wire's (sorted keys). No flag, still deterministic, and "sorted keys" is
+  already half of §8's sentence. Cost: one project with two canonical
+  orders, and a wire golden that differs from a store golden for the same
+  data.
+
+**Recommendation: (a)** — and whichever option is signed, a golden over the
+wire bytes. The flag is only safe if losing it fails a test instead of
+silently re-sorting, and M3's protocol-level tests (§10) are that golden's
+natural home; naming the pin is the part of this recommendation that does
+not depend on which option wins.
+
+**On sign-off:** amend §6.2's wire-format sentence to state the chosen key
+order and where it is pinned; §8 names the serializer the wire uses; §10's
+server bullet gains the wire golden; delete §12 item 14; strike this row;
+TODO.md §2's M3 row, §3 and §6.
+
+---
+
+### D15 — Where a §6.1 code lives on the wire
+
+**Open — drafted 2026-09-30** from U2's rmcp survey. **Gates** M3 ·
+**Action** vote · **Confidence: medium**
+
+**Current (before this decision).** §6.1 signs twelve stable codes and one
+rule about them: "a client may branch on a code; it must never parse a
+message." The spec does not say where on the wire the code sits, because
+until U2 there was no measured answer.
+
+**What the survey measured.** Five carriers exist (spec §6.3's table), and
+they differ in what a client can actually do with them:
+
+- `Err(String)` and `CallToolResult::error(text)` both produce
+  `{"isError":true,"content":[{"type":"text","text":"…"}]}` — a message and
+  nothing else. The first is rmcp's default tool-error path, so the obvious
+  implementation of §6.1 would ship exactly the bare strings §6 forbids.
+- `CallToolResult::structured_error(json!({"code":…}))` produces
+  `isError:true` **and** a `structuredContent` carrying our code, with the
+  same JSON mirrored into a text block, so a model reads it too.
+- Adding `output_schema = schema_for_type::<T>()` keeps a declared
+  `outputSchema` in `tools/list`, which returning `Result<CallToolResult, _>`
+  otherwise loses.
+- A tagged-union output type makes the error payload *conform* to the
+  declared schema, but it is returned as `Ok`, so the wire says
+  `"isError":false`.
+- `Err(ErrorData)` produces a JSON-RPC error object with an i32 `code` and
+  an optional `data` payload. Branchable by a JSON-RPC-aware client, but
+  rmcp documents that clients "typically render protocol errors opaquely
+  (e.g. *Tool result missing due to internal error*) — the caller does
+  **not** see your message" (`model.rs:4100-4105`), so the model never sees
+  the code. Protocol-level carriers are therefore out for §6.1's purpose,
+  and remain right for what rmcp itself uses them for: an unknown tool, a
+  malformed request.
+
+**Options.**
+
+- **(a) `structuredContent.code`, with an explicitly declared
+  `outputSchema`.** One error struct shared by every tool
+  (`{code, message, …}`), `isError:true`, branchable, and the tool keeps its
+  schema. Cost: the error payload does not conform to that schema — rmcp
+  does not validate ("since rust is a strong type language, we don't need to
+  do json schema validation here", `model.rs:4201-4204`), but a strict
+  client could reject the result.
+- **(b) A tagged-union output type per tool.** Everything conforms to the
+  declared schema. Cost: failures carry `isError:false`, which is the flag
+  clients and models read first, and one union type per tool instead of one
+  shared error struct.
+- **(c) The code in `_meta`, message as content.** Schema untouched,
+  `isError:true`, branchable by a client that looks there. Cost: `_meta` is
+  protocol furniture — rmcp uses it for trace context and server identity —
+  and a client may strip or ignore it, so this is the least guaranteed of
+  the three.
+
+**Recommendation: (a)**, with §6.1 amended to name the carrier
+(`structuredContent.code`) and to state that an error payload is not
+required to conform to the tool's `outputSchema`. (b) is rejected because a
+contract whose failures advertise success is worse than one whose error
+payload is off-schema, and `isError` is what a client branches on first;
+(c) is rejected because it puts a contract field in the one place the
+protocol does not promise to deliver.
+
+**On sign-off:** amend §6.1 with the carrier sentence and the
+schema-conformance exemption; §6's error principle ("Errors are structured
+data with stable codes, never panics and never bare strings") gains a
+pointer to §6.3's table; delete §12 item 15; strike this row; TODO.md §2's
+M3 row, §3 and §6.
