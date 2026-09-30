@@ -7,7 +7,7 @@ use std::fs;
 
 use tempfile::TempDir;
 use todo_domain::Graph;
-use todo_store::{Event, JsonlStore, Store, to_bytes};
+use todo_store::{Event, JsonlStore, Store, StoreError, to_bytes};
 
 use super::fixtures::{
     SnapshotMirror, build_burned_number_store, build_golden_store, dir_entries,
@@ -424,4 +424,98 @@ fn a_crash_between_the_renames_is_named_with_a_prior_snapshot_and_appends() {
     let repaired = JsonlStore::open_log(&path).unwrap();
     assert_eq!(repaired.graph(), &graph);
     assert_eq!(repaired.graph().counters().task(), 5);
+}
+
+// =================================================================
+// The step order itself, *induced* rather than constructed (f19).
+//
+// The two corner tests above build the (3)–(4) window's on-disk state
+// from real bytes, so they pin what the window leaves and cannot see the
+// order that produced it: reversing the steps in `compact` keeps both
+// green. This one makes step (1) fail instead — a directory parked at
+// `<log>.snapshot` is a rename target `rename(2)` refuses — and asserts
+// the file-level consequences of the covering snapshot being written
+// first: the log was never shortened and the append handle was never
+// orphaned. Under the pre-amendment truncate-then-re-base order the
+// log's rename had already landed, so both assertions fail.
+// =================================================================
+
+#[test]
+fn a_refused_covering_snapshot_leaves_the_log_untouched() {
+    let dir = TempDir::new().unwrap();
+    let path = log_path(&dir);
+    let mut store = build_golden_store(&path);
+    let before = fs::read(&path).unwrap();
+
+    // The fault seam. A snapshot has no lock of its own (Decision 2), so
+    // nothing but the rename itself notices this.
+    fs::create_dir(snapshot_path(&path)).unwrap();
+
+    let error = store.compact().unwrap_err();
+    // §6.1's `io`, and the context says which rename refused — the
+    // snapshot's, not step (3)'s "the compacted log". The context is this
+    // crate's own contract text, so it is pinned; the `ErrorKind` spelling
+    // beside it is the platform's, so it is not. Steps (1) and (4) rename
+    // the same subject and are therefore indistinguishable here: what
+    // places this refusal before step (3) is the untouched log below.
+    assert_eq!(error.code(), "io");
+    match &error {
+        StoreError::Io { detail } => {
+            assert!(
+                detail.contains("rename the snapshot into place"),
+                "the snapshot's rename refused, not the log's: {error}"
+            );
+            assert!(!detail.contains('/'), "a detail carries no path: {error}");
+        }
+        other => panic!("expected an io fault, got {other:?}"),
+    }
+
+    // Step (3) never ran: the log is byte-for-byte the pre-compaction one
+    // and the parked directory is still a directory, so nothing landed in
+    // place. What the refused rename does leave is §4.3's temp file —
+    // accepted debris of a failed attempt, pinned here so this test's
+    // "untouched" is precise about what it claims. The pid-suffixed name
+    // is what this process's next `write_temp` truncates.
+    assert_eq!(fs::read(&path).unwrap(), before);
+    assert!(snapshot_path(&path).is_dir());
+    assert_eq!(
+        dir_entries(dir.path())
+            .iter()
+            .filter(|name| name.ends_with(".tmp"))
+            .count(),
+        1,
+        "the refused rename leaves exactly one temporary"
+    );
+
+    // Nor is the failed compaction session-fatal, which is the promise
+    // `Store::snapshot`'s doc makes and step (1) is a snapshot: the log's
+    // inode has not been replaced underneath the append handle, so this
+    // append lands in the log at `path`. No other test covers an append
+    // after a refused compaction.
+    let task = store
+        .add_task(
+            task_draft(&epic_id(1), "one after the refused compaction"),
+            at("2026-09-25T19:00:00Z"),
+        )
+        .unwrap();
+    let grown = fs::read(&path).unwrap();
+    assert!(grown.starts_with(&before), "the append landed in this log");
+    assert!(grown.len() > before.len());
+    let graph_after = store.graph().clone();
+    drop(store);
+
+    // The parked directory is a named fault on the read side too, not a
+    // silent "no snapshot": reading a directory fails, so replay reports
+    // `io` rather than opening the log as an un-snapshotted store.
+    let with_fault = JsonlStore::open_log(&path).unwrap_err();
+    assert_eq!(with_fault.code(), "io");
+
+    // With the injected fault removed the pair is the pre-compaction one
+    // plus the append, burned numbers included: §4's "never silent
+    // truncation", observable from the files alone.
+    fs::remove_dir(snapshot_path(&path)).unwrap();
+    let reopened = JsonlStore::open_log(&path).unwrap();
+    assert_eq!(reopened.graph(), &graph_after);
+    assert_eq!(reopened.graph().counters(), graph_after.counters());
+    assert_eq!(reopened.graph().task(&task.id), Some(&task));
 }

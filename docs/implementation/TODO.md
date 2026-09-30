@@ -43,14 +43,17 @@ U13's module-doc exception lines — no new dependency, no golden moves),
 plus the log's line discipline both live in the store, so the binary prints
 what the crate decides; **t13b**, the cli itself (`dump`/`verify`/`repair`
 plus a fifth golden), U14 having chosen `lexopt`. **All three have
-landed**, so the only M1 work left is **t19**, a tests-only commit for
-f19's order-sensitive `compact()` test, and the g5 exit gate.
+landed**, and so has **t21** — the tests-only commit that pins f19's
+order-sensitive `compact()` test by *inducing* the failure rather than
+constructing its aftermath. Every M1 code task is now in, and the only M1
+work left is the **g5** exit gate.
 
 | Blocking | What | Action |
 |---|---|---|
-| — | nothing: U14 resolved 2026-09-29 (`lexopt`), and every other open item is non-blocking | execute t13's last commit (f19's tests-only order test), then the g5 exit gate |
+| — | nothing: U14 resolved 2026-09-29 (`lexopt`), t21 landed, and every other open item is non-blocking | run the g5 M1 exit gate — every code gate on the final tree, the five goldens regenerating byte-identical, `cargo doc --workspace --no-deps`, and f20/f24/f30 consolidated into `.agents/pitfalls.md` |
 
-(Open but non-blocking: U2, scheduled after g5 and before M2. Resolved:
+(Open but non-blocking: U2, scheduled after g5 and before M2, and U15, a
+one-sentence store doc fix that rides the next store touch. Resolved:
 U4/U5/U6/U7/U8/U9/U10/U11/U12/U14, and U3 superseded by D12. U13 is
 acknowledged debt, not an open question.)
 
@@ -63,7 +66,7 @@ exit criteria: spec §14. Priority is derived from the Gated-on column by
 | Milestone | Deliverable | Gated on | State |
 |---|---|---|---|
 | M0 | spec settled: §12 items 1–3 signed (done 2026-09-25); Cargo workspace skeleton with the lint regime; all gates green | — | done 2026-09-25 |
-| M1 | domain model + storage engine: graph, statuses, persistence behind the `Store` trait, golden files | — | in progress — tree open; U4/U5/U8 resolved 2026-09-26, dispatch started |
+| M1 | domain model + storage engine: graph, statuses, persistence behind the `Store` trait, golden files | — | in progress — every code task landed (t6–t15, t20, t21, t22); only the g5 exit gate remains |
 | M2 | queries: repo/epic selection, dependency resolution, deterministic `next_task`; registry with path updates | — | not started |
 | M3 | MCP server: the full §6 tool list over the wire, protocol-level tests, default-repo slug config (D8), smoke against a real client | — | not started |
 | M4 | adoption: the dacode-dialect importer first (**D12**, amending D7), its board the only fixture checked in per §10; camera and ikvm-html imported from their live boards and never copied into this repo; the three repos tracked for real | — | not started |
@@ -655,6 +658,53 @@ Oldest first. One line per delivery, with the commit hash once committed.
       `src/repair.rs` sha-verified unchanged by the fix. Three spec errors
       were reported rather than worked around silently (f36–f39), one of
       them the exit-table contradiction above. Landed as `e5a9955`.
+- 2026-09-30 — **M1 t21: the order-sensitive `compact()` test (f19)** —
+      the last M1 code task: tests-only, one new test in
+      `tests/snapshot/compact.rs`, no `src/` change. The two existing
+      (3)–(4) window tests *construct* the crash's on-disk state from real
+      bytes, so they pin what the window leaves and cannot see the order
+      that produced it — reversing `compact()`'s five steps left the whole
+      suite green, which is exactly what f19 recorded. This one *induces*
+      the failure instead: a directory parked at `<log>.snapshot` is a
+      rename target `rename(2)` refuses, so step (1)'s covering snapshot
+      cannot land, and the test asserts the file-level consequences of the
+      covering write coming first — §6.1's `io` naming the snapshot's
+      rename rather than step (3)'s, the log byte-for-byte unchanged, the
+      parked directory still a directory, exactly one §4.3 temp file left
+      behind, an append on the *same handle* still landing in the log at
+      that path (`Store::snapshot`'s "not session-fatal" promise, which no
+      other test covers), the parked directory being a named `io` fault on
+      the read side rather than a silent "no snapshot", and — with the
+      injected fault removed — a reopen to the pre-compaction graph plus
+      that append, burned numbers included. Non-vacuity by two mutations,
+      both run and reverted with `src/log.rs`'s sha verified identical:
+      reversing the step order (truncate, then cover) fails exactly this
+      test at the byte assertion while both corner tests stay green, and
+      changing the debris expectation to zero fails with `left: 1`, so the
+      temp file's presence is measured rather than assumed. The platform's
+      `ErrorKind` spelling is deliberately unpinned — the context string is
+      this crate's contract text, the kind is the platform's. 32 tests in
+      the `snapshot` target (was 31, 0 filtered out), 107 in `todo-store`,
+      253 workspace-wide; `cargo doc --workspace --no-deps` clean; all five
+      goldens byte-identical, including under `UPDATE_GOLDEN=1`;
+      `Cargo.lock` untouched. Dual-reviewed to sign-off on the committed
+      tree over three rounds. Round one found the load-bearing comment
+      claim that did not reproduce: the `io` context was said to
+      distinguish step (1)'s rename from step (4)'s, and both pass the same
+      subject `"the snapshot"`, so they are indistinguishable there — it is
+      the untouched log that places the refusal before step (3). With it
+      went an over-generalized pid-truncation claim (the name is
+      process-scoped, so a later session's debris is inert, not
+      self-cleaning) and an unpinned debris sentence that sat in tension
+      with the test's name, resolved by the rename to
+      `a_refused_covering_snapshot_leaves_the_log_untouched` plus the new
+      assertion. Round two found the same defect class one level up: the
+      review briefing claimed a tracker finding (**f40**) existed when it
+      did not, so the deferral it justified was unrecorded. f40 is now
+      recorded and promoted to **U15** — `store.rs`'s "a failed snapshot
+      changes nothing on disk" is falsified by the debris this test pins,
+      and both remedies are `src` changes, so neither belongs in a
+      tests-only commit.
 
 ## 4. Follow-ups
 
@@ -946,6 +996,23 @@ Unowned work. Take the next unused `U` id; never renumber, never reuse.
       second shape to pin; `jq .` is one pipe away. The measured surface
       keeps its three subcommands, both required options and `repair`'s two
       switches, so the comparison that chose the parser is unaffected.
+- [ ] **U15 · Scope or fix `Store::snapshot`'s "changes nothing on disk".**
+      `crates/todo-store/src/store.rs`'s `snapshot` doc promises that "a
+      failed snapshot changes nothing on disk and is **not** session-fatal".
+      The second half is now pinned by t21's test; the first is falsified by
+      §4.3's own discipline, which the same test measures — a rename that
+      refuses leaves its pid-suffixed temp file beside the snapshot, so
+      something *is* on disk that was not there before. Nothing is corrupted
+      and no reader can observe it (the temp is never the snapshot path, and
+      this process's next `write_temp` truncates it), so this is a doc claim
+      outrunning its mechanism rather than a defect: either scope the
+      sentence to "nothing in place" and name the debris, or add
+      cleanup-on-failure to `write_snapshot_atomic`/`write_temp`. Both are
+      `src` changes, which is why t21 — tests-only by its own acceptance
+      criterion — recorded it as tracker f40 instead of fixing it. Rides the
+      next store touch; the debris assertion in
+      `tests/snapshot/compact.rs::a_refused_covering_snapshot_leaves_the_log_untouched`
+      is the measurement to re-read first.
 
 ## 5. Debt
 
@@ -973,6 +1040,130 @@ Deliberate shortcuts, acknowledged rather than fixed. Same id rules as §4.
 Newest first. One entry per session, written for someone who was not
 here. The final entry of a session is the handover
 (`.agents/skills/todo-next-imp/SKILL.md` defines the shape).
+
+### 2026-09-30 — t21: `compact()`'s step order, induced; M1's code complete
+
+The session opened at the t20 handover's named next step and needed no
+dispatch questions: t21 is one test in one file, so it was written here
+rather than spawned — but it was still dual-reviewed, because the trailers
+are conditional on a review of these exact bytes and not on the size of the
+diff.
+
+**The fault seam worked, and the step order is externally observable for the
+first time.** f19's technique is a directory parked at `<log>.snapshot`:
+`rename(2)` refuses to replace a directory with a file, so `compact()`'s step
+(1) fails on demand, with no production seam and no `src` change. What that
+buys is the property the two window tests could not reach — they build the
+(3)–(4) state from real bytes and therefore pin what the window *leaves*,
+not the order that produced it; reversing the five steps left all 31 of them
+green, which is precisely f19's complaint. The new test pins the order twice
+over: the log is byte-for-byte unchanged, and an append on the *same handle*
+still lands in it — `Store::snapshot`'s "not session-fatal" promise extended
+to the compaction path and covered nowhere else. Both halves were proven
+live by mutation rather than asserted: reversing the order fails the first,
+and with the first deleted the reversal fails the second. A third mutation,
+the debris expectation changed to zero, fails with `left: 1` and turns "a
+refused rename leaves its temp file" from prose into a measurement.
+
+**The recurring defect class appeared twice more, once in the diff and once
+in the narrative about it.** Round one: the comment beside the `io`
+assertion claimed the error's context distinguishes step (1)'s rename from
+step (4)'s. It does not — both pass the subject `"the snapshot"`, so the two
+details are byte-identical, and the reviewers' own mutation run falsified the
+claim empirically (the detail assertions passed under the reversal; only the
+byte assertion caught it). The fix was not a re-wording of the claim but a
+statement of what the detail *can* discriminate — the snapshot's rename
+versus step (3)'s `"the compacted log"` — and of what places the refusal
+before step (3) instead, which is the untouched log. Round two: the
+re-review briefing said an out-of-scope observation had been "recorded as
+tracker finding f40" when no f40 existed. Same class, one level up, in the
+text describing the artifact rather than in the artifact; both reviewers
+refused to take it on word and blocked on it, which is the gate working. f40
+now exists and is promoted here to **U15**, because the tracker is
+gitignored and branch-keyed, so a deferral recorded only there does not
+outlive the branch.
+
+With t21 in, **M1's code is complete**: the domain's value types, graph and
+canonical order; the store's serialization, event log, layout and locking,
+snapshots and compaction, and §4.3's repair primitive; and the `todo-cli`
+inspector. 253 workspace tests, five goldens, `cargo doc --workspace
+--no-deps` clean. What remains is g5, which is a gate and not a task.
+
+**Handover**
+
+```
+Workspace:    main, clean; the last code commit is t21's (tests-only) and
+              this board moved in the same commit. Four crates: todo-domain
+              (111 tests), todo-store (107, four goldens), todo-cli (35,
+              one golden) and todo-mcp still an M0 shell. rustc 1.98.1,
+              MSRV 1.95, 253 workspace tests. Deps unchanged: serde,
+              dacode-json + zmij (path dep on
+              /Users/mouse/RPM/dacode/rust/json-tiers — a cold machine needs
+              that checkout beside this repo's parent, at f7f26f8), tempfile
+              dev-only, lexopt 0.3.2. Serena's semantic layer is live.
+              Nothing to install.
+Landed:       t21 — one test,
+              `snapshot::compact::a_refused_covering_snapshot_leaves_the_log_untouched`,
+              +95/−1 in crates/todo-store/tests/snapshot/compact.rs, no src
+              change (src/log.rs sha256 c236755c… verified identical across
+              both mutation runs; the test file's signed-off sha256 is
+              e1cb21c6…). Gates on the final tree: fmt clean, check
+              --workspace --all-targets 0 warnings, todo-store 107 with
+              --test snapshot 32 and 0 filtered out, workspace 253 summed,
+              clippy --workspace --all-targets 0 warnings, cargo doc
+              --workspace --no-deps 0 warnings, all five goldens
+              byte-identical including under UPDATE_GOLDEN=1 (12 writers),
+              Cargo.lock sha unchanged. Closed: f19, t21. Opened: f40/U15.
+Next step:    **g5, the M1 exit gate** — a gate, not a task, so there is
+              nothing to decompose: run its verify line on the final tree
+              (fmt, check --workspace --all-targets, test --workspace,
+              clippy --workspace --all-targets, cargo doc --workspace
+              --no-deps, tasks.py check, attention.py --check, one Serena
+              find_symbol over todo-domain, and all FIVE goldens
+              regenerating byte-identical under UPDATE_GOLDEN=1, the cli's
+              included), then consolidate f20/f24/f30 into
+              .agents/pitfalls.md and close g4 with that evidence. cargo doc
+              is unconditionally clean already (t15 cleared the four f10
+              links), so the gate line that used to be conditional is not.
+              The alternative is U2 (the rmcp survey), scheduled after g5
+              and before M2 on purpose — it is the only open item that could
+              invalidate a signed §6 shape, and therefore U9's invalid/io
+              codes.
+Blocked on you: nothing. The attention items are U2's scheduling, U13's
+              acknowledgement, U15's deferral and the three P3 tracker
+              debts. f25 still carries one veto-able reading (a narrow §4.3
+              recovery primitive is not the parked diagnostics surface) —
+              4c5782b is the commit to revert if you disagree. Two
+              sibling-repo calls also remain yours: whether dacode-json
+              gains a cargo fmt --check gate, and whether to benchmark
+              c4aebe9.
+Unverified:   **still no induced crash or power loss anywhere.** t21 injects
+              the first fault from outside the crate's own logic — a rename
+              refusal — but it is not a crash: no process has been killed
+              mid-write, so the (3)–(4) window and the two corner states are
+              still constructed from real bytes rather than produced by an
+              interrupted run. Nothing has called compact() outside tests, so
+              RepairOutcome::Diverged is reachable only from a fixture. No
+              human has run dump/verify/repair against a real store — 35
+              tests have. MCP smoke awaits M3. Per-crate lint tripwires for
+              todo-mcp and todo-cli have never been fired. Multi-process
+              lock contention is still two handles in one process. The
+              #[cfg(unix)] permission tests vanish rather than pass
+              off-platform; t21's fault carries no such guard, and while
+              EISDIR for a file-over-directory rename is POSIX, its Windows
+              spelling is unproven — which is why the test pins the crate's
+              context string and deliberately not the ErrorKind. Snapshot
+              durability without a directory fsync is reasoned (f16), not
+              measured.
+Tracker:      tools/tasks.py check exits 0. g3/g4 standing (g4 closes at
+              g5); d1/d2/d3 acknowledged against the production-line ledger
+              (log.rs 812, event.rs 772, state.rs 460 and off it); f4 (M3),
+              f13 (accepted), f20/f24/f30 (g5's pitfalls consolidation), f25
+              (parked), f31–f40 recorded. Doc gates all green: check-links
+              ok (11 links / 10 files), agents-sync --check and
+              agents-index --check up to date, attention.py --check exit 0
+              at 155 checks.
+```
 
 ### 2026-09-29 (second session) — the file budget, t13a, U14's measurement, t22
 
