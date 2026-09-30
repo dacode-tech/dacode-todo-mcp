@@ -654,7 +654,7 @@ Oldest first. One line per delivery, with the commit hash once committed.
       directions by the implementer and re-run by the reviewer, with
       `src/repair.rs` sha-verified unchanged by the fix. Three spec errors
       were reported rather than worked around silently (f36–f39), one of
-      them the exit-table contradiction above.
+      them the exit-table contradiction above. Landed as `e5a9955`.
 
 ## 4. Follow-ups
 
