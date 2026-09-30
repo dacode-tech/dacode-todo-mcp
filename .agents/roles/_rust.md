@@ -75,6 +75,14 @@
   three lines does not.
 - Length is a signal. Three lines explaining three lines usually means
   either the comment is redundant or the code needs restructuring.
+- **No measurement in a source doc comment.** A line count, a test count,
+  a ratio, a byte size or a duration written into a comment is a claim
+  nobody re-measures, and it goes stale the moment the file moves — one
+  such comment was restated three times and each version was wrong
+  differently (`.agents/pitfalls.md` 5.2). State the mechanism and name
+  the test or golden that enforces the property. Anything that genuinely
+  must be counted has a ledger outside the source: file sizes are board
+  §5's, test counts are the gate run's.
 - `// SAFETY:` is mandatory on every `unsafe` block and must state the
   invariant that makes it sound — `unsafe` should be vanishingly rare in
   this workspace and each occurrence is a review event.

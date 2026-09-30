@@ -10,7 +10,7 @@
 # ─── Template Versioning ───────────────────────────────────────────────
 version:
   template: "0.1"          # Inherited from the dacode agent-rules layout
-  custom: 6                # Local adjustment counter
+  custom: 7                # Local adjustment counter
 
 # ─── Project Identity ──────────────────────────────────────────────────
 project:

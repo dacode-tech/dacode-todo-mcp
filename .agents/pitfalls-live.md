@@ -52,193 +52,21 @@
 
 ## Entries
 
-### P-LIVE-001: subagent spawn dies "Connection reset by server" on the implementer binding
-- **Scope**: harness / subagent dispatch (the task tool), observed on
-  the implementer binding; 2026-09-26 (M1 t6), recurred 2026-09-27
-  (M1 t7)
-- **Discovered**: t6 dispatch, 2026-09-26
-- **Symptom**: implementer spawns fail instantly with "Connection reset
-  by server". t6: two failures on a ~7 KB inline prompt, control spawn
-  (explore, tiny prompt) fine, third attempt with spec-file + short
-  prompt succeeded first try. t7: **the short-prompt protocol itself
-  failed twice (~1.3 KB and ~0.4 KB prompts), the same control spawn
-  succeeded in between, and the third identical attempt succeeded** —
-  so prompt size is not the (only) trigger.
-- **Root cause**: unconfirmed. Instant failure isolated to the
-  implementer binding while other roles spawn fine in the same window;
-  consistent with transient provider/relay trouble on the heavy-model
-  binding rather than payload content.
-- **Workaround**: unchanged — spec in a scratch file, short spawn
-  prompt — plus the retry loop the t7 run confirmed: on failure, fire
-  a control spawn (explore, tiny prompt) to isolate binding vs
-  infrastructure, then retry the identical prompt; both incidents
-  succeeded on attempt 3.
-- **Obsoleted by**: a confirmed root cause. If transient: nothing. If
-  binding-related: a provider/model change in `agent-rules.yaml`.
-- **Source**: struggle
+_Empty — reset at the M1 exit gate (g5), 2026-09-30._
 
-### P-LIVE-002: cargo's post-`--` test argument is a libtest NAME filter, not a target selector
-- **Scope**: workspace test layout — every verify line of the form
-  `cargo test -p <crate> -- <filter>`, in particular t10–t13's
-  `todo-store`/`todo-cli` integration test files
-- **Discovered**: t9, 2026-09-27
-- **Symptom**: `cargo test -p todo-store -- golden` selects only tests
-  whose *names* contain `golden`. Tests sitting flat in
-  `tests/golden.rs` are named after their functions, so the filter can
-  match zero tests and a verify line passes vacuously.
-- **Root cause**: libtest treats the positional argument after `--` as
-  a substring filter over full test paths; an integration file's name
-  is not part of its tests' names unless the tests are nested in a
-  module.
-- **Workaround**: nest every test in the file in a `mod` whose name
-  matches the verify filter (t9: `mod golden` → names become
-  `golden::…`), or select the target with `--test <name>`. Treat
-  `0 filtered out` plus the expected passed-count in the *right*
-  target as the only proof a filter-selected run actually ran.
-- **Obsoleted by**: nothing planned — this is libtest behavior. It is a
-  standing layout discipline for new store/cli test files; consolidate
-  into `pitfalls.md` at the M1 gate.
-- **Source**: review
+`P-LIVE-001` … `P-LIVE-006` were promoted to `.agents/pitfalls.md` at
+that gate and their ids are carried in the promoted entries' **Promoted
+from** lines, because test-file module docs across `crates/todo-store/tests/`
+and `crates/todo-cli/tests/` cite `P-LIVE-002`, `P-LIVE-004` and
+`P-LIVE-005` by id. Where they now live:
 
-### P-LIVE-003: serde collapses absent vs null on plain `Option` patch fields
-- **Scope**: patch/partial-update schemas — `todo-store`'s event patch
-  DTOs (t10) and M3's wire patch schemas (`task_update` & co.)
-- **Discovered**: t10, 2026-09-27
-- **Symptom**: with a plain `Option<T>` patch field, "clear this field"
-  and "leave this field alone" are the same bytes: `{"note":null}` and
-  an absent `note` both deserialize to `None`, so a clearing patch
-  replays as a no-op.
-- **Root cause**: serde's derived `Deserialize` maps both an absent
-  field (under `#[serde(default)]`) and an explicit JSON `null` to
-  `None`. RFC 7386-style three-state patch semantics (absent = keep,
-  null = clear, value = replace) need `Option<Option<T>>`, whose derived
-  `Serialize` in turn needs help to keep the states apart on the way out.
-- **Workaround**: `Option<Option<T>>` with
-  `#[serde(default, deserialize_with = "double_option",
-  skip_serializing_if = "Option::is_none")]` — the pattern in
-  `crates/todo-store/src/event.rs`; pinned by a test that cannot even
-  compile under the naive `Option`
-  (`a_patch_keeps_untouched_cleared_and_replaced_apart`).
-- **Obsoleted by**: nothing planned — M3's wire patch schemas should
-  reuse the pattern (or the store DTOs directly); consolidate into
-  `pitfalls.md` at the M1 gate.
-- **Source**: struggle
+| Former id | Promoted to |
+|---|---|
+| `P-LIVE-001` (spawn deaths, "Connection reset by server") | pitfalls.md 5.4 |
+| `P-LIVE-002` (libtest name filter, not a target selector) | pitfalls.md 4.1 |
+| `P-LIVE-003` (serde collapses absent vs null on `Option`) | pitfalls.md 2.3 |
+| `P-LIVE-004` (E0761: `tests/<name>.rs` + `tests/<name>/mod.rs`) | pitfalls.md 4.2 |
+| `P-LIVE-005` (a filtered verify line can pass vacuously; zsh word-splitting) | pitfalls.md 4.1 |
+| `P-LIVE-006` (`dacode-json` tuple deserialization; resolved upstream) | pitfalls.md 2.5 |
 
-### P-LIVE-004: a `tests/<name>.rs` crate root cannot pair with `tests/<name>/mod.rs` (E0761)
-- **Scope**: workspace integration-test layout — `todo-store`'s
-  `tests/log.rs` + `tests/log/` (t10) and t11–t13's test files under
-  the P-LIVE-002 mod-wrapper discipline
-- **Discovered**: t10, 2026-09-27
-- **Symptom**: `mod log;` inside `tests/log.rs` fails with E0761: file
-  for module `log` found at both `tests/log.rs` and `tests/log/mod.rs`.
-- **Root cause**: rustc module resolution — for a `mod log;` declared in
-  the crate root `tests/log.rs`, both `tests/log/mod.rs` and the root
-  file itself are candidate paths, which is ambiguous.
-- **Workaround**: declare the wrapper inline in the crate root —
-  `mod log { mod fixtures; mod replay; mod corrupt; }` — with the
-  submodules as `tests/log/<file>.rs` and no `mod.rs` in the directory.
-  Test names still come out `log::…`, so the P-LIVE-002 verify-line
-  filter keeps working.
-- **Obsoleted by**: nothing planned — rustc module resolution; standing
-  layout rule for new test targets. Consolidate into `pitfalls.md` at
-  the M1 gate.
-- **Source**: struggle
-### P-LIVE-005: a filtered `cargo test` verify line can pass vacuously — filters OR, a no-match exits 0, and zsh does not word-split
-- **Scope**: every verify line of the form `cargo test -p <crate> -- <a>
-  <b> …`, and any script/loop that builds one from a variable; measured on
-  rustc 1.98.1 / cargo on darwin, zsh (this harness's shell)
-- **Discovered**: t11 spec, 2026-09-28
-- **Symptom**: two independent ways a green run proves nothing. (1) A
-  filter that matches no test prints `running 0 tests` / `test result:
-  ok. 0 passed` and **exits 0** —
-  `cargo test -p todo-store -- zzznomatch; echo $?` → `0`. (2) A loop
-  variable holding several tokens is passed as ONE filter under zsh:
-  `for f in "log golden"; do cargo test -p todo-store -- $f; done` selects
-  0 tests, because zsh does not word-split an unquoted parameter and
-  libtest then substring-matches the literal `"log golden"`. The first
-  measurement of this looked like "multiple filters are ANDed"; it was the
-  shell, not libtest.
-- **Root cause**: libtest reports success for an empty selection (a filter
-  is a convenience, not an assertion), and zsh's default is
-  `SH_WORD_SPLIT` off — unlike bash, where `$f` would have split.
-- **Workaround**: write verify commands literally in tracker/spec text, or
-  use `${=f}` in zsh when splitting is intended. Treat **the passed count
-  plus `0 filtered out` in the expected target** as the only proof a
-  filtered run ran (P-LIVE-002), never the exit code. Established for
-  real: multiple positional filters are **ORed** —
-  `cargo test -p todo-store -- zzznomatch golden` runs 8 in `golden.rs`
-  and 2 in `log.rs`, so the second filter alone decided the union.
-- **Obsoleted by**: nothing planned — libtest and zsh behavior. Standing
-  discipline for verify lines; consolidate into `pitfalls.md` at the M1
-  gate with P-LIVE-002.
-- **Source**: struggle
-### P-LIVE-006: `dacode-json` could not deserialize serde tuples — RESOLVED upstream 2026-09-29
-- **Scope**: `todo-store`'s persisted documents (the snapshot's `relates`
-  array, t12) and any future schema that uses a serde tuple or a
-  tuple-shaped newtype; the engine is the sibling path dependency at
-  `/Users/mouse/RPM/dacode/rust/json-tiers` (U8), outside this repo
-- **Discovered**: t12, 2026-09-28
-- **Symptom**: `to_bytes` over `Vec<(A, B)>` emits the expected
-  `[[a,b],…]`, but `from_bytes` over those same bytes fails — it consumes
-  the first element and reports the rest as trailing characters
-  (`expected , or } at byte 21` nested, `trailing characters at byte 8`
-  at top level). Reproduced by both the implementer and the primary
-  reviewer, in this tree and in a scratch crate over plain
-  `Vec<(u64, u64)>`.
-- **Root cause** (confirmed 2026-09-29, and not what the symptom
-  suggested): `serde::de::SeqAccess` has **no `end()` method**. serde
-  drives two protocols through it — a collection (`Vec`, `Value`) calls
-  `next_element_seed` until `None`, while a *fixed-length* visitor (a
-  tuple, tuple struct, tuple enum variant, `[T; N]`) calls it exactly
-  `len` times and returns. `serde_json` therefore splits the work:
-  `next_element_seed` **peeks** `]` and `Deserializer::end_seq` eats it
-  after `visit_seq` returns. Both of `dacode-json`'s byte-cursor tiers had
-  that inverted — `next_element_seed` ate the closer, so a fixed-length
-  visitor handed control back with `]` still pending and the *enclosing*
-  container consumed it as its own terminator. That is why the failure
-  surfaced as "trailing characters" rather than as a tuple problem. The
-  pool tier (`de::from_slice`) was never affected: it pre-parses, so its
-  framing is already settled. Generalizable lesson: **a serde engine's
-  container-framing contract lives in the `Deserializer`, not in the
-  `SeqAccess`/`MapAccess` impl** — check `end_seq`/`end_map` before
-  blaming the visitor.
-- **Workaround**: keep the canonical wire shape (Decision 4's two-element
-  arrays, pinned by `snapshot.v1.golden`) and narrow on the read side —
-  deserialize as `Vec<Vec<TaskId>>` and reject any inner array whose
-  length is not 2 as `corrupt_store`
-  (`crates/todo-store/src/snapshot.rs`, `relates_from_arrays`; the reject
-  path is pinned by
-  `snapshot::corrupt::a_relates_entry_that_is_not_a_pair_is_rejected`).
-  Prefer a named-field struct over a tuple in any *new* schema: it avoids
-  the bug entirely and reads better in an editor (§4's auditability).
-- **Resolved**: fixed upstream in `dacode-json` at `c4aebe9` (sibling
-  checkout `/Users/mouse/RPM/dacode/rust/json-tiers`, U8's "modifications
-  proposed as a diff" path; that repo's commits stay with its owner).
-  `next_element_seed` now peeks and a new `end_seq`, run by the single
-  `visit_seq` site in each byte-cursor tier, consumes — so the derived
-  impl round-trips `Vec<(TaskId, TaskId)>` byte-identically to `serde_json`
-  and the narrowing in `relates_from_arrays` is now **optional**, not
-  required. It is also not dead weight: the derived impl rejects a
-  3-element entry as serde's `invalid length 3, expected a tuple of size
-  2`, where the helper says *"a relates entry is a two-element array of
-  task ids"* — the better `corrupt_store` detail for a human repairing a
-  store. Whether to keep it for that reason is board U12.
-- **Two further defects the same fix closed**, both found by measurement
-  and both worse than the tuple bug: a **truncated array parsed clean**
-  (`[1,2` → `Ok((1, 2))` on both tiers, because the closer was never
-  required), which is precisely the property §4.3's torn-tail detection
-  rests on; and `stream` rejected **every enum object variant**
-  (`Payload::close` bumped the structural index without moving `vend`,
-  the offset `from_slice` measures its trailing-whitespace check from).
-  Neither was reachable from this project's schema, and neither was
-  caught by that crate's own suite — its serde_json differential ran the
-  pool tier (`tests/serde_de.rs`) and `JValue` only (`tests/stream.rs`),
-  and `JValue` is a collection all the way down. **Lesson: a differential
-  test suite is only as wide as the shapes it exercises, and `Value`
-  exercises none of the fixed-length ones.**
-- **Still open upstream** (measured, deliberately not changed): the pool
-  tier silently truncates a surplus element rather than rejecting it, and
-  `MapAccess` has the same closer inversion — latent, because serde's
-  derived struct visitors always drain. Throughput was **not** measured;
-  the fix costs `direct` +488 B linked for bare-metal ARM32 (+1.1 %).
-- **Source**: struggle
+The next entry is `P-LIVE-007`. Do not reuse a promoted id.

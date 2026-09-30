@@ -213,6 +213,13 @@ exceed the tool timeout.
 Serena reports `body_location.start_line` **0-based**; grep and editors
 are 1-based. Add one when quoting `path:line`.
 
+Methods hang off the `impl` node, not the type: the absolute name path
+`/Graph/raise_counters_to` resolves to nothing, while the bare
+`raise_counters_to` scoped to the file resolves as
+`impl Graph/raise_counters_to`. When an absolute name path returns empty,
+run `get_symbols_overview` on the file before concluding the symbol is
+missing.
+
 `search_for_pattern`, `replace_content` and `replace_in_files` are
 disabled — use the harness's own grep and edit tools. Serena ships an
 `initial_instructions` tool that asks to be called first in the strongest

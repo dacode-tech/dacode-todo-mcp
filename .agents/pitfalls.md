@@ -15,35 +15,346 @@ discipline, commit format, no AI attribution — live in
 `.agents/config/agent-rules.yaml`, not here. This file is for
 **discovered** mistakes.
 
-This file starts empty. Do not seed it with guesses — an invented
-pitfall is worse than an empty file, because workers trust everything
-written here.
+Entries below were promoted at the **M1 exit gate (g5, 2026-09-30)**.
+Each names what it was promoted from, because `P-LIVE-NNN` ids are cited
+in test-file module docs across `crates/todo-store/tests/` and
+`crates/todo-cli/tests/` and those citations must keep resolving.
 
 ---
 
 ## Category 1: The domain model and graph
 
-_No entries yet._
+### 1.1 A counter cannot be reconstructed from the live nodes
+- **Scope**: `todo-domain`'s `Counters`, `todo-store`'s snapshot restore
+  and log replay; anything in M2/M3 that derives state from nodes rather
+  than from the log
+- **What happened**: §3's allocation never re-issues a number, and an epic
+  cascade burns the deleted tasks' numbers. A restore that re-derived
+  counters from the highest *live* id would therefore re-issue a burned
+  number on the next allocation. `Counters` had read accessors only, so
+  there was no way to restore one.
+- **Do instead**: the write entry point is `Counters::from_highest` +
+  `Graph::raise_counters_to` — a per-kind max, so it can never lower a
+  counter. A snapshot restore calls it *after* inserting its nodes (the
+  inserts raise-to-max themselves; only numbers burned above the highest
+  live id are left), and replay separately requires an add-event's id to
+  be the next sequential number of its kind, so a burned-by-cascade number
+  and a skipped number are each `corrupt_store` naming the id.
+- **Promoted from**: f5, f8 (t7/t12)
 
 ## Category 2: Storage and serialization
 
-_No entries yet._
+### 2.1 A multi-file write sequence's *order* is the safety argument, and a test that builds the aftermath cannot see it
+- **Scope**: `todo-store`'s `compact()` (five steps) and any future
+  sequence that writes more than one file; the task specs that describe
+  them
+- **What happened**: the first `compact()` order staged both temps and
+  renamed log-then-snapshot. Two crash-reachable corners lost events
+  **silently**: a first-ever compaction crashing between the renames left
+  `header + seed` with no snapshot at all, which the no-snapshot branch
+  opens clean as a bare repo graph; a repeat compaction could leave a
+  prior re-based `log_offset` exactly *equal* to the new short length, so
+  every offset check passed and the reopen yielded the previous
+  compaction's state. The tests passed, because they constructed the
+  window's on-disk state from real bytes — which pins what a crash
+  *leaves*, never the order that produced it. Reversing the five steps
+  left all 31 of them green.
+- **Do instead**: enumerate the crash point between every pair of steps
+  and ask which of them is silent; a silent one is a spec defect, not a
+  documented limitation. Then pin the order by **inducing** a step
+  failure. The seam that works here: a directory parked at
+  `<log>.snapshot`, which `rename(2)` refuses, so step (1) fails on demand
+  with no injection API and no `src` change. Assert the file-level
+  consequences of the order (the log byte-unchanged; an append on the same
+  handle still landing in it), and prove the assertions live by mutation.
+- **Promoted from**: f19, f20, t12's amended Decision 8, t21
+
+### 2.2 An advisory lock follows the inode, not the path
+- **Scope**: `todo-store`'s layout and locking (§8), `compact()`,
+  `repair()`, any future atomically-rewritten file
+- **What happened**: measured on this host — std `File::try_lock` returns
+  `std::fs::TryLockError{WouldBlock, Error(io::Error)}`, **not** an
+  `io::ErrorKind`; two fds in one process genuinely conflict; `Drop`
+  releases; and renaming a locked file **defeats** the lock, because the
+  lock is on the inode the handle holds.
+- **Do instead**: dedicated `<protected file>.lock` files (never a
+  dir-level name, so two logs in one directory cannot share one); no
+  atomically-rewritten file is ever its own lock target — the store's
+  existing `.lock` covers its snapshot; and any operation that renames the
+  log must **reopen the append handle** afterwards, or every later append
+  lands on the orphaned inode. Lock order is total: registry first, then
+  sorted slugs — safe only because the registry stores immutable fields.
+- **Promoted from**: t11's measurements, t12 step (5)
+
+### 2.3 Absent vs null collapse on a plain `Option` patch field
+- **Scope**: patch/partial-update schemas — `todo-store`'s event patch
+  DTOs and M3's wire patch schemas (`task_update` & co.)
+- **What happened**: with a plain `Option<T>`, "clear this field" and
+  "leave it alone" are the same bytes — `{"note":null}` and an absent
+  `note` both deserialize to `None`, so a clearing patch replays as a
+  no-op.
+- **Do instead**: `Option<Option<T>>` with `#[serde(default,
+  deserialize_with = "double_option", skip_serializing_if =
+  "Option::is_none")]` — the pattern in `crates/todo-store/src/event.rs`,
+  pinned by a test that cannot even compile under the naive `Option`
+  (`a_patch_keeps_untouched_cleared_and_replaced_apart`). Patch DTOs also
+  carry no `id`/`repo`/`created` and deny unknown fields, so node history
+  is unreachable through the persisted surface.
+- **Promoted from**: P-LIVE-003 (t10)
+
+### 2.4 A refused atomic rename leaves its temp file behind
+- **Scope**: `todo-store`'s §4.3 write path (`write_temp` +
+  `rename_into_place`), `snapshot()`, `compact()`, `repair()`
+- **What happened**: `Store::snapshot`'s doc promises "a failed snapshot
+  changes nothing on disk". A rename that refuses leaves the pid-suffixed
+  temp file beside its target, so something *is* on disk that was not
+  there before — measured, not reasoned: exactly one `.tmp` survives a
+  refused `compact()`.
+- **Do instead**: read the promise as "nothing **in place** changed",
+  which is what actually holds and what the log-untouched assertion pins.
+  The debris is inert, not self-cleaning across sessions: the name embeds
+  `std::process::id()`, so the same process's next `write_temp` truncates
+  it and a later session's is simply left. Do not assert cleanliness on a
+  failure path, and do not add cleanup without deciding it for every
+  §4.3 writer at once.
+- **Promoted from**: f40 / board U15 (t21)
+
+### 2.5 A serde engine's container-framing contract lives in the `Deserializer`, not in the access impl
+- **Scope**: the `dacode-json` engine (sibling path dependency, U8) and
+  any schema that uses a fixed-length serde shape
+- **What happened**: `serde::de::SeqAccess` has **no** `end()` method.
+  serde drives two protocols through it: a collection calls
+  `next_element_seed` until `None`, while a *fixed-length* visitor (a
+  tuple, tuple struct, tuple enum variant, `[T; N]`) calls it exactly
+  `len` times and returns. `serde_json` splits the work accordingly —
+  `next_element_seed` **peeks** `]` and `Deserializer::end_seq` eats it
+  after `visit_seq` returns. The engine had that inverted, so the symptom
+  presented as "trailing characters" rather than as a tuple problem, and
+  two worse defects rode along: a **truncated array parsed clean** (`[1,2`
+  → `Ok((1, 2))`, precisely the property §4.3's torn-tail detection rests
+  on) and `stream` rejected **every enum object variant**.
+- **Do instead**: check `end_seq`/`end_map` before blaming the visitor.
+  And distrust a differential suite's coverage rather than its result:
+  this one compared against `serde_json` over `JValue` only, which is a
+  collection all the way down and exercises none of the fixed-length
+  shapes. A differential suite is only as wide as the shapes it exercises.
+- **Promoted from**: P-LIVE-006 (t12, resolved upstream at `c4aebe9`)
 
 ## Category 3: The MCP wire and clients
 
-_No entries yet._
+### 3.1 §6.1's code list is closed, and two rejections have no code in it
+- **Scope**: M3's server, mapping `todo-domain`/`todo-store` errors onto
+  the wire
+- **What happened**: the domain may not extend the versioned list
+  unilaterally, which is why `ValueError` (a malformed slug/id/timestamp/
+  reference) stayed codeless in the crate that raises it until U9 signed
+  `invalid` and `io` into §6.1. Two graph-write rejections still have no
+  code: a **forbidden `blocks` endpoint pair**, which `BlocksEdge`'s three
+  variants make unrepresentable by type, and an **exhausted per-kind id
+  space**, unreachable at §4.1's 10^5 scale and currently mapped to
+  `duplicate`.
+- **Do instead**: M3 must reject an untyped `task_link` at the wire via
+  `BlocksEdge::from_ends(..) == None` — the type cannot carry the
+  illegality, so the wire layer has to, and inventing a code for it is a
+  spec amendment, not an implementation detail.
+- **Promoted from**: f4 (t7), U9's resolution
+
+### 3.2 A reason string handed to a caller is contract text, not a comment
+- **Scope**: `todo-store`'s `RepairOutcome::Unrepairable.detail` and
+  everything `todo-cli` prints from it; M3's tool-error messages
+- **What happened**: one `REASON_*` constant covered two states — an
+  interior fault, and a fault in a *terminated* final line, which replay
+  positions at that line — and read false for the second. The cli prints
+  that string as the rationale a human confirms a truncation against, so a
+  false reason invites a destructive confirmation.
+- **Do instead**: every state a reason can be reported for must read true
+  of it; split constants rather than sharing one, give unreachable
+  fallbacks their own name instead of borrowing another case's text, and
+  remember the test needle is the only pin. Same discipline for the
+  context half of an `io` detail: it is crate contract text and is pinned,
+  while the platform's `ErrorKind` spelling beside it is not.
+- **Promoted from**: f33 (t22), f31, t21's round-1 finding
 
 ## Category 4: Build, toolchain and macOS host
 
-_No entries yet._
+### 4.1 A filtered `cargo test` verify line can pass vacuously — three separate ways
+- **Scope**: every verify line of the form `cargo test -p <crate> -- <filter>`,
+  and any script or loop that builds one; rustc 1.98.1 / cargo / zsh on darwin
+- **What happened**: (1) the positional after `--` is a libtest **name**
+  substring filter, not a target selector, so tests sitting flat in
+  `tests/golden.rs` are not selected by `-- golden`; (2) a filter matching
+  nothing prints `0 passed` and **exits 0**; (3) zsh does not word-split an
+  unquoted `$f`, so a loop variable holding `"log golden"` is passed as one
+  literal filter — which is how "multiple filters are ANDed" got measured
+  once and wrongly. They are **ORed**.
+- **Do instead**: select the target (`--test <name>`), or nest every test
+  in a `mod` whose name matches the filter so names come out `golden::…`.
+  Treat the passed count **plus `0 filtered out` in the expected target**
+  as the only proof a filtered run ran — never the exit code. Write verify
+  commands literally in tracker and spec text; use `${=f}` in zsh when
+  splitting is intended.
+- **Promoted from**: P-LIVE-002 (t9), P-LIVE-005 (t11)
+
+### 4.2 `tests/<name>.rs` cannot pair with `tests/<name>/mod.rs` (E0761)
+- **Scope**: every integration-test target with submodules — all of
+  `todo-store`'s and `todo-cli`'s
+- **What happened**: `mod log;` declared in the crate root `tests/log.rs`
+  is ambiguous: both `tests/log/mod.rs` and the root file itself are
+  candidate paths.
+- **Do instead**: declare the wrapper **inline** in the crate root —
+  `mod log { mod fixtures; mod replay; mod corrupt; }` — with the
+  submodules as `tests/log/<file>.rs` and no `mod.rs` in the directory.
+  Names still come out `log::…`, so 4.1's filter discipline keeps working.
+- **Promoted from**: P-LIVE-004 (t10)
+
+### 4.3 Permission- and platform-corner tests must detect whether they fired
+- **Scope**: `#[cfg(unix)]` tests, mode-based fault injection, any test
+  whose premise the host can override
+- **What happened**: a 0444/0555 permission test is uid-dependent — at
+  502 it fires, under root the mode is overridden and it silently tests
+  nothing. Off-platform, `#[cfg(unix)]` tests **vanish** rather than pass.
+  And a fault induced by POSIX semantics (t21's EISDIR on renaming a file
+  onto a directory) carries no `#[cfg(unix)]` guard, so its Windows
+  spelling is unproven.
+- **Do instead**: probe whether the premise is enforced (write a `.probe`
+  file, restore permissions before asserting) and branch, printing a NOTE
+  when the corner is not exercised — a test that cannot fail is worse than
+  no test, because it is counted. Pin the crate's own contract text rather
+  than the platform's spelling where the two can diverge.
+- **Promoted from**: t11's permission corners, t21
+
+### 4.4 `cargo doc` is not part of any default gate
+- **Scope**: workspace gates; g5's verify line now names it
+- **What happened**: four unresolved intra-doc links sat in
+  `graph/drafts.rs` for two tasks because nothing ran `cargo doc`; they
+  were found by hand.
+- **Do instead**: `cargo doc --workspace --no-deps` is a gate line, and
+  there is **one** link convention in this workspace: `[`crate::Epic`]`.
+  The `](crate::` form is absent from the tree and must stay absent.
+- **Promoted from**: f10 (t8/t15)
+
+### 4.5 Fault seams that need no production code
+- **Scope**: any test that must make a write, a rename or a read fail
+- **What happened**: the obvious way to test a failure path is an injection
+  API in `src`, which is a production seam nobody wants and which f25
+  explicitly parks for the store's diagnostics surface.
+- **Do instead**: the filesystem provides deterministic ones — park a
+  **directory** where a file is expected (`rename(2)` refuses, EISDIR);
+  set a mode the uid enforces (probe first, 4.3); remove a file the reader
+  needs; splice real serialized bytes to build a torn or malformed
+  document. Never hand-write JSON for a fixture: build it through the
+  crate's own codec over real values, so drift fails loudly.
+- **Promoted from**: f19/t21, t10's f8 splice discipline, t11
 
 ## Category 5: The harness itself (tools/, agents, docs)
 
-_No entries yet._
+### 5.1 A task spec's safety argument is a claim to falsify, not ground truth to instance-check
+- **Scope**: every task spec the orchestrator writes, and every reviewer
+  prompt spawned against one
+- **What happened**: t12's Decision 8 prescribed `compact()`'s step order
+  with a crash-safety rationale attached. The rationale silently
+  presupposed that a prior snapshot existed and that its offset was large;
+  both were false, and the two resulting corners lost events silently
+  (2.1). The secondary verified that the code matched the spec and that the
+  spec's stated consequence held in the case the spec's own reasoning
+  instantiated — and returned `ok`. The primary re-derived the state space
+  a round later, found both, and retracted its own earlier clearance of the
+  same area. t8's spec inverted the signed D6 tiebreaker inside a test
+  description: the second M1 task whose *spec* was wrong and whose review
+  caught it.
+- **Do instead**: a spec author states the **state space** a safety
+  argument was checked against, not just its conclusion; a reviewer prompt
+  asks for falsification ("which reachable state makes this argument
+  false?") and not for conformance ("does the code match the spec?"). When
+  a reviewer finds the spec wrong, amend the spec — do not qualify the
+  docs around it.
+- **Promoted from**: f20 (t12, both reviewers), t8
+
+### 5.2 Prose claims are artifacts: a number or a meta-claim nobody re-measures is a defect waiting to be rediscovered
+- **Scope**: source doc comments, board entries, tracker evidence, review
+  briefings, commit messages
+- **What happened**: the same class, five times in M1 — three successive
+  versions of one doc comment stated a measurement that did not reproduce
+  (fixed by deleting the numbers and pointing at the pin); a board entry
+  asserted both reviewers caught something one of them filed as a low; a
+  mutation count did not match the mutations named beside it; an
+  implementer's report said three tests failed where four assert that exit
+  code; and a re-review briefing claimed a tracker finding existed when it
+  did not, which both reviewers blocked on.
+- **Do instead**: no measurement in a source doc comment — state the
+  mechanism and name the test that enforces the property (the rule is in
+  `.agents/roles/_rust.md`'s comment section, which is where a coding agent
+  will see it at write time). Never assert a fact about the review process
+  inside the artifact under review: the fix to the previous finding
+  falsifies it. Attribute findings to the role that filed them, at the
+  severity it filed them at. If a claim cannot be re-derived by a reader,
+  delete it rather than restating it more carefully — that was tried three
+  times and each restatement was wrong differently.
+- **Promoted from**: f30, t15's process finding, t19, t20's correction,
+  t21 round 2
+
+### 5.3 A commit that touches an indexed doc cannot carry its own regenerated index
+- **Scope**: `tools/agents-index.py`, `.agents/knowledge/INDEX.md`, any
+  commit touching an indexed `AGENTS.md`
+- **What happened**: the index records `ver` = `git log -1 -- <doc>`, the
+  doc's last-touching commit. Regenerating the index *inside* that commit
+  records a commit that does not exist yet, so `--check` reports stale
+  until a backfill regenerates it. (The original report of this was itself
+  wrong and was refuted by reading the tool: an *empty* commit touches no
+  doc and leaves `--check` green — staleness follows doc-touching commits
+  only.)
+- **Do instead**: commit the doc, then backfill the index (or the hash) in
+  a follow-up — the `7959281`/`3606578`/`7282d28`/`673a49f` pattern. Do
+  not "fix" it by hand-editing `INDEX.md`; it is generated. **Future
+  defect, unhit**: crate-level `AGENTS.md` files would put `lag` in the
+  output, and then *every* crate commit fails `--check`. The preferred fix
+  is exempting `ver` from `--check` rather than dropping the column, since
+  `ver` is also `--stale`'s lag input.
+- **Promoted from**: f24 (t15, corrected in the same tracker)
+
+### 5.4 Subagent spawn can die instantly with "Connection reset by server"
+- **Scope**: harness dispatch via the task tool, observed on the
+  implementer binding; M1 t6 and t7
+- **What happened**: spawns failed instantly, twice on a ~7 KB inline
+  prompt and then twice more on ~1.3 KB and ~0.4 KB prompts, while a
+  control spawn (explore, tiny prompt) succeeded in between and the third
+  identical attempt landed. So prompt size is not the trigger; the root
+  cause is unconfirmed and looks like transient provider/relay trouble on
+  the heavy-model binding.
+- **Do instead**: keep the dispatch protocol — decisions settled into a
+  scratch spec file (`tmp/<task>-spec.md`) plus a short spawn prompt
+  pointing at it. On failure, fire a control spawn to isolate binding vs
+  infrastructure, then retry the **identical** prompt; both incidents
+  succeeded on attempt 3. Escalate only past that (agent-rules.yaml →
+  `escalation`).
+- **Promoted from**: P-LIVE-001 (t6, recurred t7)
 
 ---
 
 ## Quick Reference: Top Rules
 
-_None yet — this list is distilled from the entries above at each
-milestone gate, once there are entries to distil._
+Distilled from the entries above at the M1 gate.
+
+1. **Select the test target, never a name filter** — `--test <name>`, and
+   the only proof a filtered run ran is the passed count plus
+   `0 filtered out` (4.1, 4.2).
+2. **Induce the fault; do not construct its aftermath** — a directory
+   parked where a file is expected, a probed mode, spliced real bytes
+   (4.5, 2.1).
+3. **For any multi-file write sequence, name the crash point between every
+   pair of steps and ask which is silent** (2.1).
+4. **Prove an assertion live by mutation, then revert and verify the sha** —
+   a test that cannot fail is worse than no test (2.1, 4.3).
+5. **No measurement in a source doc comment; no review-process claim in the
+   artifact under review** (5.2).
+6. **A spec's safety argument states the state space it was checked
+   against; a reviewer is asked to falsify it, not to confirm conformance**
+   (5.1).
+7. **Counters and other allocation state come from the log, never from the
+   live nodes** (1.1).
+8. **The lock is on the inode: renaming a locked file defeats it, and a
+   rename of the log means reopening the append handle** (2.2).
+9. **Caller-facing strings are contract text and are pinned by a needle**
+   (3.2).
+10. **A doc-touching commit backfills its own index and its own hash in a
+    follow-up** (5.3).
