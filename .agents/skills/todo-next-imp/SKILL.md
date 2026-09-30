@@ -148,7 +148,14 @@ Before reporting any unit of work as done, in this order:
    and if it is not obvious, ask rather than inventing one.
 2. **`tools/tasks.py check`** exits 0. If it does not, say so in the same
    message and name what it flagged. Never report success over a failing
-   gate.
+   gate. **`check` is not the sweep**: it flags a `done` item with no
+   evidence and a `blocked` item with no reason, and is blind to a
+   `pending` item whose work already landed or a `blocked` item whose
+   blocker is gone. So read the open list against `git log` and disposition
+   what you find — `done` with evidence, `wontfix` with a note, or a `U` id
+   on the board where the deferral must outlive this branch. Every delivery
+   sweeps the items it consumed; a milestone gate sweeps the whole open
+   list, which is the sweep M1 closed without.
 3. **`docs/implementation/TODO.md` updated in the same change.** A status
    change is a one-line edit; new debt, findings and newly-discovered
    follow-ups get new `U` ids in §4/§5 (next unused number, never a

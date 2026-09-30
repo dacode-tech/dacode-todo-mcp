@@ -116,6 +116,17 @@ It exits non-zero on a `done` item with no evidence, a `done` item whose
 saying so in the same message and naming what it flagged. Reporting
 success over a failing gate spends the user's trust to hide a gap.
 
+What `check` **cannot** see is the failure that actually happened at M1's
+gate: a `pending` item whose work is already in git history, a `blocked`
+item whose blocker was resolved days earlier, a finding whose consumer
+shipped. Each reads as "still to do" and hides the truth, which is that
+nothing is. So the open list needs a sweep against `git log` — every
+delivery disposes of the items it consumed, a milestone gate disposes of
+all of them. An item that is deliberately never going to be fixed is
+`wontfix` with a note, not `pending` forever, and a deferral that must
+outlive the branch gets a `U` id on the board, because this tracker is
+gitignored and branch-keyed.
+
 ## `docs/implementation/TODO.md` — the convention
 
 - **§4 is unowned follow-ups. §5 is debt.** Those two are the only

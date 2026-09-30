@@ -36,14 +36,14 @@ shell, which is M3's business.
 
 (Open but non-blocking: **U2**, the only open item that could invalidate a
 signed §6 shape and therefore U9's `invalid`/`io`, which is why it runs
-before M2 rather than before M3; **U15**, a one-sentence store doc fix that
-rides the next store touch; and three recorded 2026-09-30 — **U16** (ship
-base instructions with the server and gate the client's native todo off, M3),
-**U17** (which harness tools become MCP tools, answered with M2's
-decomposition) and **U18** (a live view for progress and whether the server
-is shared per user, deferred until after M4's importer check). Resolved:
-U4/U5/U6/U7/U8/U9/U10/U11/U12/U14, and U3 superseded by D12. U13 is
-acknowledged debt, not an open question.)
+before M2 rather than before M3; **U15** and **U19**, two one-sentence
+store doc fixes that ride the next store touch; and three recorded
+2026-09-30 — **U16** (ship base instructions with the server and gate the
+client's native todo off, M3), **U17** (which harness tools become MCP
+tools, answered with M2's decomposition) and **U18** (a live view for
+progress and whether the server is shared per user, deferred until after
+M4's importer check). Resolved: U4/U5/U6/U7/U8/U9/U10/U11/U12/U14, and U3
+superseded by D12. U13 is acknowledged debt, not an open question.)
 
 ## 2. Milestones
 
@@ -760,6 +760,38 @@ Oldest first. One line per delivery, with the commit hash once committed.
       from the parsed file). Renamed to `build_commands`, with the reason in
       a comment; `version.custom` 7→8. The tool is harness, so it is
       review-exempt and carries no trailer. Landed as `d542065`.
+- 2026-09-30 — **tracker sweep (f41): the exit gate now sweeps statuses.**
+       M1's gate closed with items whose work was already in git history still
+       marked `pending`, and `tools/tasks.py check` could not see them — it
+       flags a `done` item with no evidence and a `blocked` item with no
+       reason, never a stale `pending`. The rule now lives in two homes, the
+       binding one and the explanatory one: `todo-next-imp`'s exit-gate step 2
+       says **`check` is not the sweep**, names what it is blind to, and
+       requires reading the open list against `git log` — every delivery
+       disposes of the items it consumed, a milestone gate of all of them;
+       `task-tracking.md`'s "`check` is the gate" section carries the
+       mechanism plus the two dispositions a sweep produces (`wontfix` with a
+       note for what will never be fixed, a board `U` id for a deferral that
+       must outlive the branch). Running it closed the nine t20/t22
+       spec-error records whose consumers had landed, each with evidence
+       measured on `5c23f5f` rather than inferred — a `file:line` for every
+       claim, and the pins re-run (`todo-store --test repair` and the whole
+       `todo-cli` suite green, plus f38's own two filters each selecting
+       exactly one test) — and found four stale items the finding had not
+       named: **f42** (its duplicate-key verify re-run green; the fix landed
+       in `d542065`), **f13** (`wontfix`, because its own text already read
+       "accepted, not fixed", so `pending` contradicted the recorded
+       decision), and the two size-ledger debts, whose verify moment *was*
+       t13's closure and which are retired against **U13** instead of being
+       carried in two places that had already drifted apart. One finding is
+       deliberately **not** closed: **U19**, promoted from f35, is a one-word
+       tightening of `repair.rs`'s module doc whose remedy has not landed, and
+       closing it to shorten the open list would be the silent-omission class
+       running in reverse. f4 (M3's wire), f25 (the parked diagnostics
+       boundary), f40 (= U15) and d1 (M2's queries) stay open, each with a
+       note naming the consumer it waits on so the next sweep can tell a
+       deliberate open from a forgotten one. Harness and board only; no Rust
+       moved, so every code gate is `skipped` by construction.
 
 ## 4. Follow-ups
 
@@ -1132,6 +1164,20 @@ Unowned work. Take the next unused `U` id; never renumber, never reuse.
       the shared instance. That is a new decision (**D13** when it is taken),
       not an implementation choice, and it belongs at M3/M5 when there is a
       wire to put in front of. Nothing here starts before M4's check.
+- [ ] **U19 · One word in `repair.rs`'s module doc.** Its `Err` rationale
+      closes with "so a snapshot fault is never reported through it" — true of
+      the parse fault that sentence follows, false read broadly, since the
+      foreign-snapshot case *does* report a snapshot-origin reconcile fault
+      through `Unrepairable { offset: None }`, and
+      `tests/repair/refusals.rs::an_unpositioned_fault_is_refused_for_want_of_a_truncation_point`
+      pins that it does. Tighten to "so **that** fault is never reported
+      through it". Found by t22's primary reviewer, classified as taste and
+      dispositioned under t15's stopping rule rather than opening a fourth
+      review round for one word; promoted here by the 2026-09-30 sweep,
+      because a deferral recorded only in a gitignored branch-keyed tracker
+      does not outlive the branch. Rides the next touch of
+      `crates/todo-store/src/` — the same touch **U15** waits on, so whoever
+      takes one takes both.
 
 ## 5. Debt
 
@@ -1139,9 +1185,12 @@ Deliberate shortcuts, acknowledged rather than fixed. Same id rules as §4.
 
 - [ ] **U13 · Two store files are over the 600-line target.** Recorded as
       d2/d3 in the gitignored session tracker since t10/t12 and promoted
-      here so the ledger is committed. Measured under the production-line
+      here so the ledger is committed; the sweep of 2026-09-30 retired both
+      tracker duplicates against this entry, so the ledger has one home and
+      the two cannot drift apart again. Measured under the production-line
       rule `_rust.md` now states — a `#[cfg(test)]` block and a test-only
-      file are not counted: `todo-store/src/log.rs` **812**,
+      file are not counted — and re-measured on `5c23f5f`:
+      `todo-store/src/log.rs` **812**,
       `todo-store/src/event.rs` **772** (they read 793 and 759 before
       t13a; their own U13 exception lines are part of the growth, and the
       cap of 1000 still holds). `todo-domain/src/graph/state.rs` reads 777
@@ -1159,6 +1208,138 @@ Deliberate shortcuts, acknowledged rather than fixed. Same id rules as §4.
 Newest first. One entry per session, written for someone who was not
 here. The final entry of a session is the handover
 (`.agents/skills/todo-next-imp/SKILL.md` defines the shape).
+
+### 2026-09-30 (second session) — the tracker sweep (f41)
+
+The session opened on the `/todo-next-imp` report and one question from the
+user: why was t13 still open. It was not — the previous session had
+corrected it to `done` with evidence naming all three of its commits — but
+the question was the right one, because the item that *was* still open is
+the finding that explains it. **f41** recorded that M1's gate closed without
+a status sweep, and that `tasks.py check` is blind to the class: it flags a
+`done` item with no evidence and a `blocked` item with no reason, and cannot
+see a `pending` item whose work is already in git history. Its second half
+had never landed, so the exit gate still carried no sweep line.
+
+Both halves ran. The rule landed in the binding home (`todo-next-imp`'s
+exit-gate step 2) and the explanatory one (`task-tracking.md`'s "`check` is
+the gate" section), and the sweep was then applied to the **whole** open list
+rather than only to the nine findings f41 names — which is how it earned its
+keep in the same session it was written: it found four more items whose
+status did not match reality, among them a config fix that had landed in the
+previous commit (`d542065`) and was still recorded as pending.
+
+**The judgment worth recording is what the sweep did *not* close.** f41's
+verify offers two dispositions — `done` with evidence, or `wontfix` with a
+note — and neither is honest for a finding whose remedy has not landed: f35
+is a one-word tightening of `repair.rs`'s module doc still waiting for the
+next touch of that file. Shortening the open list is precisely the temptation
+a sweep exists to resist, so f35 is promoted to **U19** instead (the
+f40→U15 precedent — a deferral recorded only in a gitignored branch-keyed
+tracker does not outlive the branch) and stays open. The same reasoning left
+f4, f25, f40 and d1 open with notes naming the consumer each waits on, so a
+future sweep can tell a deliberate open from a forgotten one. The two
+size-ledger debts went the other way and were *closed*: their verify moment
+was t13's closure, it has passed, and their figures were re-measured on the
+committed tree before being retired against **U13**, which is now the
+ledger's only home. Every close is measured rather than inferred — a
+`file:line` per claim and the pins re-run — because the alternative is the
+defect class this project keeps meeting: a prose claim that does not
+reproduce.
+
+**Handover**
+
+```
+Workspace:    main, clean at this commit; **M1 CLOSED**, phase M2-next. No
+              Rust has moved since 7563fff (t21) — everything after it is
+              harness and board: 1581007, 6f96e01, bf34068, d542065,
+              5c23f5f and this commit (SKILL.md's exit-gate step 2,
+              task-tracking.md, progress.py's lane/edge/wait tables, this
+              board). Four crates: todo-domain 111
+              tests, todo-store 107 (four goldens), todo-cli 35 (one
+              golden), todo-mcp an M0 shell. rustc 1.98.1, MSRV 1.95. Deps
+              unchanged (serde, dacode-json + zmij by path on
+              ../rust/json-tiers at f7f26f8, tempfile dev-only, lexopt
+              0.3.2); tools/ need Python 3 + PyYAML. Serena live. Nothing
+              to install.
+Landed:       f41 — the tracker sweep and the rule that binds it. Closed:
+              f31, f32, f33, f34, f36, f37, f38, f39 (each with evidence
+              measured on 5c23f5f: file:line plus the pins re-run —
+              todo-store --test repair green, todo-cli green, f38's two
+              filters each selecting exactly one test), f42 (its
+              duplicate-key verify re-run: no duplicate key anywhere in
+              agent-rules.yaml, commands and build_commands both resolve,
+              agents-sync --check exit 0), f13 (wontfix — its own text
+              already said "accepted, not fixed"), d2 and d3 (their verify
+              moment was t13's closure; re-measured with _rust.md's awk on
+              this tree and retired against board U13), and f41 itself.
+              Opened: U19 (promoted from f35, the one finding whose remedy
+              has not landed) and f44 in the tracker. Notes added, statuses
+              unchanged: f4 (M3's wire), f25 (the parked diagnostics
+              boundary), f40 (= U15), d1 (M2's queries). progress.py's data
+              tables were refreshed in the same commit, because the sweep
+              moved the state that page renders — U19 and f44 drawn, the
+              f31–f39 group no longer labelled "undispositioned", the WAITS
+              rows of now-closed items removed; re-run twice byte-identical
+              with no NOT DRAWN advisory and its totals cross-checked against
+              tasks.py show.
+Next step:    **U2 — survey rmcp against §6**, unchanged by this session and
+              now unobstructed: it is the handover's named step, scheduled
+              after g5 and before M2 by user decision, because it is the only
+              open item that could invalidate a *signed* §6 shape and
+              therefore U9's invalid/io codes. Read the version's source, not
+              its README, and probe in a scratch crate under tmp/ (the U14
+              argprobe pattern) so no dependency lands without an Ask-First.
+              FOUR questions: is each §6 tool declarable; do tool errors carry
+              a branchable code or only a string; are list responses
+              order-preserving through schema generation; can the server set
+              the initialize result's `instructions` (U16 rests on it) — and
+              whether it exposes `prompts` is worth a fifth. Record findings
+              in §6 and strike U2; a shape that turns out not to be
+              honourable is a new D-entry, not an edit. Then decompose M2 and
+              answer U17 inside that decomposition, where d1 and U13 both
+              want a re-measurement.
+Blocked on you: nothing. f44 is the one new proposal: f42's generalisation
+              ("any config this harness calls a single source of truth needs
+              a duplicate-key check") is still preventive work nobody has
+              landed — agents-sync.py loads agent-rules.yaml with plain
+              yaml.safe_load, so a second top-level key would silently shadow
+              the first again. Either land the check in agents-sync.py or
+              promote f44 to a U id; it is recorded in the tracker either
+              way. Still yours from before: U13's acknowledgement, U15/U19's
+              deferral to the next store touch, f25's veto-able reading
+              (4c5782b is the commit to revert), and two sibling-repo calls
+              (a cargo fmt --check gate for dacode-json; whether to benchmark
+              c4aebe9).
+Unverified:   **the sweep line has never been exercised by a milestone
+              gate** — it landed in this session and M2's gate is the first
+              one that will run under it, so whether it prevents the class or
+              merely documents it is unproven. No independent review of this
+              diff: harness and board are review-exempt, so the only checks
+              are the ones named here. Every code gate is `skipped` by
+              construction (no Rust moved); the test runs cited above are
+              verification of claims about the committed tree, not a gate on
+              a change. Carried forward and still true: no induced crash or
+              power loss anywhere; nothing calls compact() outside tests, so
+              RepairOutcome::Diverged is reachable only from a fixture; no
+              human has run dump/verify/repair against a real store (35 tests
+              have); MCP smoke awaits M3, and so does every claim in U16;
+              multi-process lock contention is still two handles in one
+              process (U18's gap); #[cfg(unix)] permission tests vanish
+              rather than pass off-platform and t21's EISDIR fault has an
+              unproven Windows spelling; snapshot durability without a
+              directory fsync is reasoned (f16), not measured;
+              tools/progress.py has no test of its own.
+Tracker:      tools/tasks.py check exits 0 — g3 standing; one debt open (d1,
+              whose note names M2's queries as its consumer) after d2/d3 were
+              retired against board U13. Open findings: f4, f25, f35 (= U19),
+              f40 (= U15), f44.
+              .agents/pitfalls-live.md is still EMPTY — the next entry is
+              P-LIVE-007 and a promoted id is never reused. Doc gates green:
+              check-links, agents-sync --check, agents-index --check
+              (AGENTS.md untouched, so no backfill is owed), attention
+              --check.
+```
 
 ### 2026-09-30 — t21 induced the step order; then g5 closed M1
 

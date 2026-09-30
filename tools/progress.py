@@ -146,8 +146,8 @@ LANES: list[tuple[str, list[str]]] = [
     ("M1 · riders + cli", ["t18", "t19", "t17", "t22", "t13", "t20", "t21"]),
     ("M1 exit", ["g5"]),
     ("carried forward", ["f4", "f13", "f25", "f40", "f41", "d1", "d2", "d3",
-                         "f31-39", "U13", "U15"]),
-    ("harness (post-M1)", ["t23", "f42", "f43"]),
+                         "f31-39", "U13", "U15", "U19"]),
+    ("harness (post-M1)", ["t23", "f42", "f43", "f44"]),
     ("next", ["U2", "U17", "M2"]),
     ("later", ["U16", "M3", "M4", "U18", "M5"]),
 ]
@@ -182,6 +182,8 @@ GATING: list[tuple[str, str, str]] = [
     ("g5", "g4", "g4's note: M1 stays open until g5 passes"),
     ("g5", "f41", "the gate closed M1 without a tracker status sweep"),
     ("f40", "U15", "f40 promoted to the board so it outlives the branch"),
+    ("f31-39", "U19", "f35 promoted to the board so the deferral outlives the branch"),
+    ("U19", "M2", "U19 rides the next store touch, which M2 is"),
     ("f25", "M3", "f25: reopen when the log backend settles; the cli is the consumer"),
     ("f4", "M3", "f4: M3's server must reject an untyped task_link at the wire"),
     ("f31-39", "f41", "f41 dispositions the nine t20/t22 spec-error records"),
@@ -198,6 +200,7 @@ GATING: list[tuple[str, str, str]] = [
     ("D12", "M4", "D12 reversed D7: the dacode board is M4's only fixture"),
     ("t23", "f42", "promoting the renderer found the shadowed config key"),
     ("t23", "f43", "cross-checking the rendered rows against the board found the dropped items"),
+    ("f42", "f44", "f42's own generalisation — a duplicate-key check — is what f44 records as unlanded"),
     ("U2", "U16", "U16's instruction mechanism rests on U2's fourth question"),
     ("U16", "M3", "U16 lands with M3, and §9 still bars dogfooding before it"),
     ("U17", "M2", "U17 is answered with M2's decomposition — cheaper before the wire"),
@@ -210,7 +213,7 @@ GROUPS: list[dict] = [
     {
         "id": "f31-39",
         "members": [f"f3{i}" for i in range(1, 10)],
-        "label": "f31–f39 · nine t20/t22 spec-error records, undispositioned",
+        "label": "f31–f39 · the t20/t22 spec-error records — dispositioned by f41, f35 lives on as U19",
         "kind": "finding",
     },
 ]
@@ -229,6 +232,7 @@ EXTRA: dict[str, tuple[str, str, str]] = {
     "U16": ("follow-up", "pending", "U16 · server base instructions + the client's native todo off"),
     "U17": ("follow-up", "pending", "U17 · which harness tools become MCP tools"),
     "U18": ("follow-up", "pending", "U18 · live view / shared per-user server (after M4)"),
+    "U19": ("follow-up", "pending", "U19 · one word in repair.rs's module doc (f35 promoted)"),
     "U8": ("decision", "done", "U8 · the first external dependencies (resolved)"),
     "U14": ("decision", "done", "U14 · todo-cli's argument parser (resolved: lexopt)"),
     "D12": ("decision", "done", "D12 · dacode-first importer (signed)"),
@@ -237,20 +241,18 @@ EXTRA: dict[str, tuple[str, str, str]] = {
 # What each open item waits on, for the table. Absent = "nothing declared".
 WAITS: dict[str, str] = {
     "f4": "M3's wire mapping",
-    "f13": "nothing — accepted, revisit only if debris is observed",
     "f25": "the log backend settling (M3)",
-    "f40": "the next store touch (= U15)",
-    "f41": "a tracker sweep + dispositioning f31–f39",
+    "f40": "the next store touch (= U15, which U19 rides too)",
+    "f44": "a user call: land the duplicate-key check in agents-sync.py, or promote it",
     "d1": "M2's queries",
-    "d2": "M2 (U13's ledger)",
-    "d3": "M2 (U13's ledger)",
     "U2": "nothing — it is the next action, scheduled before M2",
     "U15": "the next store touch",
+    "U19": "the next store touch (= U15)",
     "U13": "M2",
     "U16": "U2's fourth question; lands with M3",
     "U17": "M2's decomposition — and a §6 amendment, so a user decision",
     "U18": "M4's importer check, by the user's own deferral",
-    "f31-39": "f41's disposition pass (its consumers, t20/t22, have landed)",
+    "f31-39": "nothing — dispositioned by f41; f35 lives on as U19",
 }
 
 COLOR = {
