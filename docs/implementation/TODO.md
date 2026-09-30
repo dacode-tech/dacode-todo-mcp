@@ -15,11 +15,13 @@ blocking. Rules, which `tools/attention.py` and the reviewers enforce:
 
 ## 1. Current state
 
-**Phase: M2 decomposed 2026-09-30 — nothing dispatched yet.** The query
-layer is five tasks under tracker **g6** (t27–t29 domain selection,
-t30/t31 store), each one commit with its own file, plus the **g7** exit
-gate; §2's M2 row names them. One decision is open out of the
-decomposition — **D16**, the progress roll-up — and no task waits on it.
+**Phase: M2 under way 2026-09-30 — t27 landed.** The query layer is five
+tasks under tracker **g6**, each one commit with its own file, plus the
+**g7** exit gate; §2's M2 row names them. **t27** is in — the domain's
+§5.2 selection: the actionability and until-target predicates, `next_task`'s
+two scopes and D9's deferred summary, which is what t28 and t29 reuse. One
+decision is open out of the decomposition — **D16**, the progress roll-up —
+and no task waits on it.
 M1 is closed. The domain layer (§3's value types and closure discipline,
 §5.1's graph, §5.2's canonical order), the storage engine (the signed D1
 JSONL event log behind the `Store` trait
@@ -61,7 +63,7 @@ exit criteria: spec §14. Priority is derived from the Gated-on column by
 |---|---|---|---|
 | M0 | spec settled: §12 items 1–3 signed (done 2026-09-25); Cargo workspace skeleton with the lint regime; all gates green | — | done 2026-09-25 |
 | M1 | domain model + storage engine: graph, statuses, persistence behind the `Store` trait, golden files | — | done 2026-09-30 — g5 ran green: every code gate, five goldens byte-identical, `cargo doc` clean, pitfalls consolidated |
-| M2 | queries: repo/epic selection, dependency resolution, deterministic `next_task`; registry with path updates | **D16** adds one task if signed; no dispatched task waits on it | decomposed 2026-09-30 — **t27** domain `graph/select.rs` (the actionability predicate, `next_task`, the until-target `ready` predicate, D9's deferred `{total, ready}`); **t28** `graph/items.rs` (`next_items`' batch: annotations, derived weight, task scope); **t29** `graph/list.rs` (`task_list`'s epic/status/kind/`ready` filters); **t30** the store doc riders (**U15** + **U19**); **t31** the registry query side (`repo_list`/`repo_show` + t11's cold-open measurement). Dispatch t27→t28→t29, then t30→t31; **g7** is the exit gate. U17 answered, d1 closed by measurement, U13 re-measured and unchanged |
+| M2 | queries: repo/epic selection, dependency resolution, deterministic `next_task`; registry with path updates | **D16** adds one task if signed; no dispatched task waits on it | under way — **t27 done 2026-09-30**: domain `graph/select.rs`, the actionability predicate, `next_task` in both scopes, the until-target `ready` predicate and D9's deferred `{total, ready}` (19 tests, dual-reviewed over two rounds); **t28** `graph/items.rs` (`next_items`' batch: annotations, derived weight, task scope); **t29** `graph/list.rs` (`task_list`'s epic/status/kind/`ready` filters); **t30** the store doc riders (**U15** + **U19**); **t31** the registry query side (`repo_list`/`repo_show` + t11's cold-open measurement). Dispatch t27→t28→t29, then t30→t31; **g7** is the exit gate. U17 answered, d1 closed by measurement, U13 re-measured and unchanged |
 | M3 | MCP server: the full §6 tool list over the wire, protocol-level tests, default-repo slug config (D8), smoke against a real client | the **rmcp dependency ask** (Ask-First) — **D14**/**D15** signed 2026-09-30, so the wire's key order and §6.1's error carrier are settled | not started |
 | M4 | adoption: the dacode-dialect importer first (**D12**, amending D7), its board the only fixture checked in per §10; camera and ikvm-html imported from their live boards and never copied into this repo; the three repos tracked for real | — | not started |
 | M5 | packaging, docs, cwd auto-detection (deferred by D8), polish | — | not started |
@@ -906,6 +908,93 @@ Oldest first. One line per delivery, with the commit hash once committed.
        listing consumer at §4.1's scale, the case the debt itself called
         fine. **U13 re-measured and unchanged.** No Rust moved, so every code
         gate is `skipped` by construction. Landed as `c088ba9`.
+- 2026-09-30 — **M2 t27: §5.2 selection — the domain's `graph/select.rs`.**
+       The first M2 code task and the one t28/t29 reuse: the actionability
+       predicate, the until-target ("ready") predicate, D9's deferred
+       `{total, ready}` summary and `next_task`'s two entry points. Split so
+       the three consumers cannot drift: `is_until_satisfied` is the edge half
+       alone — every predecessor holding a task back is finished, a task
+       predecessor at `closed`/`wontfix` and a decision one at
+       `signed`/`superseded`, reusing the crate's existing `is_terminal`/
+       `is_resolved` rather than a new status match — and `is_actionable` is
+       that plus status `open`/`in_work`. t29's `ready` filter and the
+       summary's `ready` count are the edge half, so one implementation
+       answers all three. `next_task()` is total and infallible;
+       `next_task_of_epic()` has exactly one failure, `unknown_id`, propagated
+       from `canonical_order_of_epic` rather than re-checked. The answer is a
+       value, `NextTask { task: Option<TaskId>, deferred }`: **"nothing is
+       actionable" is `None`, not an error**, because §6.1's list is closed
+       and has no code for it, and the summary rides both entry points and
+       both scopes unconditionally, including on a `None` answer. Counts are
+       `u64` (`Counters`' precedent, fixed width per §8) and the two types
+       carry **no serde** — a query result is not persisted and the consumer
+       owns its wire shape, which is what the cli's `dump.rs` and the
+       serde-free `Counters` already do.
+       **Two readings of signed text, both flagged as veto-able** rather than
+       settled silently. (i) The predecessors consulted are *two* adjacency
+       lists — the task's own incoming `blocks` edges **and its epic's**
+       decision gates, which is §5.1's "an open decision blocking an epic
+       holds all work under it"; §5.2's summary sentence says only "every
+       until-target `blocks` predecessor", and the gate is included in
+       `ready` too so the two predicates cannot disagree — a readiness that
+       ignored the gate would report a deferred task under an epic gated by an
+       unsigned decision as worth revisiting now, while actionability refuses
+       it the moment it is reopened. (ii) The summary's unit is **tasks**: an
+       epic can be `deferred` (§3 shares `Status`) and is not counted, because
+       the selection unit is a task and an epic's deferral is visible through
+       its own status. Both are pinned by a test each, so a veto is a named
+       diff and not an argument.
+       **Epic *status* never gates — only epic edges do.** A task under a
+       `closed`, `blocked` or `deferred` epic is still actionable and can be
+       the answer; §3 gives an epic no closure discipline of its own and §5.1's
+       gating mechanism is the edge. Stated plainly because it is the
+       consequence a reviewer checks first, and pinned with the paired case (a
+       decision-gated epic of the same status still holds its tasks).
+       `until`, `priority` and `relates` never enter (§3/§8, D11/§11, §5.1),
+       each pinned because each is a silent way to be wrong. Epic scope walks
+       the **induced** order but tests each id against the **full** graph —
+       t8's own documented contract — so a cross-epic predecessor contributes
+       no in-degree to the list and still holds its successor back. Two
+       fallbacks are unreachable by type and documented rather than tested: an
+       epic endpoint as a *predecessor* (`BlocksEdge::source` has exactly two
+       arms) and a predecessor id the graph does not hold (`link_blocks`
+       requires both ends, the cascade removes edges with its nodes, and
+       `assert_invariants` proves both indexes account for exactly the stored
+       set); both answer "not finished", so an unclassifiable endpoint holds
+       work back rather than releasing it, and neither panics. No new field,
+       no cache, nothing stored — every call recomputes, which is the whole
+       determinism argument. 240 production lines.
+       19 tests, 130 in the crate (the pre-existing 111 unmodified), 272
+       workspace-wide; no golden moved, `Cargo.lock` untouched, `cargo doc`
+       clean, and the no-clock grep still empty. Dual-reviewed over two rounds
+       on the same tree, and **the review earned its keep in the first one**:
+       D9's epic-scope order had no falsifiable pin, and two wrong
+       implementations survived all 18 tests — walking `canonical_order()`
+       filtered to the epic (D9's rejected alternative) and walking the epic's
+       tasks in ascending id, dropping topology and the signed D6 tiebreaker
+       together. The reviewer built and ran both rather than reasoning about
+       them, and the hand-built case could not catch them because with E1 < E2
+       the induced and filtered orders coincide, while the seeded graphs reach
+       the divergence once in 74 epics. T19 now pins both, with the induced
+       order asserted beside each answer so the test names which of the two
+       orders it means, and each mutant was observed failing exactly it. The
+       same round caught a **spec error by the same mechanism**: as written,
+       T18's chain held exactly one actionable task at every step, so
+       first-equals-last and the last-not-first mutant survived it — the
+       implementer reported the spec wrong rather than reporting the mutation
+       as run, added an independent actionable task later in canonical order,
+       and re-ran it to observe the failure. Strengthening the coverage pin
+       then found a vacuity of its own: seed 14's graphs never hold a task by
+       an epic gate *alone*, which is the shape that makes the seeded
+       agreement test sensitive to deleting the gate, so the seed set changed
+       and the pin now asserts **per seed** instead of over the union — a
+       generator change that narrows one seed fails instead of hiding behind
+       the other four. Three stale doc claims this change falsified
+       (`order.rs`'s module doc calling selection M2's future work, the same
+       tense in `tests/order.rs`, and `node.rs`'s "a later M1 commit") were
+       fixed as riders, and eight more candidates were read and left with
+       their reasons. Four lows from round two are recorded as **f47** rather
+       than looped, with t28's dispatch named as their consumer.
 
 ## 4. Follow-ups
 
@@ -1375,6 +1464,155 @@ Deliberate shortcuts, acknowledged rather than fixed. Same id rules as §4.
 Newest first. One entry per session, written for someone who was not
 here. The final entry of a session is the handover
 (`.agents/skills/todo-next-imp/SKILL.md` defines the shape).
+
+### 2026-09-30 (third session, continued) — M2 t27: §5.2 selection
+
+The decomposition was agreed and dispatched in the same sitting, so M2's
+first code landed hours after its plan did: **t27**, the domain's
+`graph/select.rs`. §3 carries the delivery; this entry carries the process,
+because two things happened that the next dispatch should know about.
+
+**The round-1 gap was a test that could not fail, not code that was wrong.**
+`next_task_of_epic` was implemented correctly and *nothing in the suite could
+tell*: two wrong implementations of the same method survived all 18 tests —
+walking the repo-wide order filtered to the epic (D9's rejected alternative)
+and walking the epic's tasks in ascending id, which drops topology and the
+signed D6 tiebreaker together. The hand-built case that looked like it pinned
+the meeting of those two signed rules did not, because with E1 < E2 the
+induced order and the filtered repo order **coincide**, and the seeded graphs
+reach a divergence once in 74 epics. The reviewer found it by building the
+mutants rather than reasoning about them, which is the only method that would
+have. The generalisation is worth more than the instance: a test that pins an
+interaction between two rules has to be derived from the *state where the two
+candidate behaviours differ*, not from a description of either rule — the
+same shape as pitfalls 2.1 (build the crash, do not describe it) on the
+ordering side.
+
+**The coverage pin earned its keep twice in one task.** f9's lesson — a
+property test whose interesting branches the generator never reaches is green
+and vacuous — was built into the spec as a required test, and it fired: when
+branch (c) was strengthened from "a task under a gated epic" to "a task the
+gate holds *alone*" (the shape that actually makes the seeded agreement test
+sensitive to deleting the gate), seed 14 stopped qualifying, so the seed set
+changed. A pin that only ever says "yes" would have hidden that. The
+per-seed restructuring came from the same round: asserting the union across
+five seeds let a generator change narrow one of them silently.
+
+**The stopping rule was applied rather than a third round opened.** Both
+reviewers returned `ok` on the fixed tree with four lows between them, so
+those became **f47** with t28's dispatch named as their consumer — a rider
+section in a spec whose implementer re-reads `select.rs` anyway, at no extra
+review cost. One of the four is substantive and is recorded precisely because
+it is *not* a present defect: a valid-but-not-key-minimal walk of the induced
+subgraph still survives the suite, and t8's own minimality recomputation pins
+that property inside `canonical_order_of_epic`, so what is missing is a guard
+against someone re-deriving the order inside `select.rs` later.
+
+The spec-error path ran twice more and worked both times: the implementer
+reported that mutation M4 survived T18 **as the spec specified it** (the
+chain held exactly one actionable task at every step, so first equalled last)
+and fixed the test rather than reporting the mutation as run; and the primary
+found that M1's stated condition was false — "a seed whose graphs contain an
+epic gate" is not enough, since a task also held by an unfinished predecessor
+answers the same either way. `tmp/t27-spec.md` carries both amendments
+inline, per pitfalls 5.1 (amend the spec; do not qualify the docs around it).
+
+**Handover** — supersedes the decomposition's below.
+
+```
+Workspace:    main, clean at t27's commit; M2 UNDER WAY — t27 of five
+              tasks landed, nothing else dispatched. Four crates:
+              todo-domain 130 tests (was 111; the 19 new are all in
+              graph/tests/select.rs), todo-store 107 (four goldens),
+              todo-cli 35 (one golden), todo-mcp an M0 shell. rustc
+              1.98.1, MSRV 1.95, 272 workspace tests, Cargo.lock
+              UNTOUCHED — no rmcp, no serde_json, and t27 added no
+              dependency. Deps unchanged (serde, dacode-json + zmij by
+              path on ../rust/json-tiers at f7f26f8, tempfile dev-only,
+              lexopt 0.3.2); tools/ need Python 3 + PyYAML. Serena live.
+              Nothing to install.
+Landed:       t27 — the domain's §5.2 selection: graph/select.rs (240
+              production lines) with is_until_satisfied (the edge half:
+              the task's own blocks predecessors AND its epic's decision
+              gates), is_actionable (that plus status open/in_work),
+              next_task() total and next_task_of_epic() failing only
+              unknown_id, and NextTask{task: Option<TaskId>, deferred:
+              DeferredSummary{total: u64, ready: u64}} with None as an
+              answer and no serde on either type. 19 tests including an
+              independent longhand recomputation over seeded graphs and a
+              per-seed coverage pin. Riders: three stale doc claims this
+              change falsified (order.rs's module doc, tests/order.rs,
+              node.rs). Board §1/§2/§3/§6 moved in the same commit;
+              AGENTS.md's phase line, with the index backfilled after it.
+              Closed: t27, and d1 earlier this session. Opened: f47 (four
+              round-2 lows, consumer named). Still open: D16, U13, U15/U19
+              (owned by t30), U16, U18, f4, f25, f35(=U19), f40(=U15),
+              f44, f45, f47.
+Next step:    dispatch t28 — the domain's graph/items.rs, next_items'
+              batch: the blocked-by/blocks annotations, the derived weight
+              (count of transitive dependents), the task-scoped variant
+              (that item's transitive dependents, each marked immediately
+              actionable or still held), limit defaulting to 10, and the
+              deferred summary reused from select.rs. It depends on t27 and
+              must not edit it: the two share DeferredSummary and the
+              predicates by import, and t28 owns items.rs and
+              tests/items.rs alone. Its spec carries f47's four items as a
+              rider section. The alternative front is t30, the two-sentence
+              store doc riders (U15 + U19) — independent of the domain
+              chain, closes two board items, and is the cheap win if a
+              session wants one. D16 gates neither.
+Blocked on you: D16 — the progress roll-up: (a) a status_summary(repo?,
+              epic?) tool plus blocked_by on task_list rows, (b) a counts
+              block on §6.2's graph_show dump plus the same annotation,
+              (c) leave it client-side per §11; recommendation (a) with the
+              annotation whichever wins. A signed (a) or (b) adds one
+              domain aggregation task under g6; no task may implement a
+              roll-up before then. Also open and gating nothing: f44, f45,
+              U13's acknowledgement, the carried f25 reading (4c5782b is
+              the commit to revert), and two sibling-repo calls (a cargo
+              fmt --check gate for dacode-json; whether to benchmark
+              c4aebe9). D13 stays reserved for U18.
+              Two readings of signed text landed in t27 and are flagged
+              veto-able there: the epic gate feeds the ready count as well
+              as actionability, and the deferred summary counts tasks, not
+              epics. Both are pinned by a test each, so a veto is a named
+              diff. Also worth knowing: an epic's own STATUS does not gate
+              its tasks — only decision→epic edges do — so a task under a
+              closed epic is a legal next_task answer.
+Unverified:   t27 is verified by 19 tests and two review rounds, and NOT by
+              anything outside the crate: no store event, no wire, no client
+              has ever carried a selection answer, so §5.2's rules are
+              proven against hand-built and seeded graphs alone. The
+              seeded generator reaches an epic whose induced order differs
+              from ascending id once in 74 epics, which is why T19 carries
+              D9 rather than the property test — and f47 records the one
+              wrong order implementation that still survives the suite.
+              Carried forward and still true: the signed wire contract
+              (D14/D15) has no code behind it; no induced crash or power
+              loss anywhere; nothing calls compact() outside tests; no
+              human has run dump/verify/repair against a real store;
+              multi-process lock contention is still two handles in one
+              process; the f41 sweep line has never been exercised by a
+              milestone gate; tools/progress.py has no test of its own.
+Tracker:      tools/tasks.py check exits 1 on exactly one line — OPEN g6,
+              the in-flight milestone goal that closes at g7 (the g4/g5
+              precedent). Everything else clean: g3 standing until M5, t26
+              and t27 done with evidence, d1 wontfix on measurement, no
+              debt open. Open findings f4, f25, f35(=U19), f40(=U15), f44,
+              f45, f47. .agents/pitfalls-live.md is still EMPTY — the next
+              entry is P-LIVE-007, and t27's "derive the fixture from the
+              state where the two candidate behaviours differ" is a
+              candidate for it at the M2 gate. Doc gates green: check-links,
+              agents-sync --check, attention --check; agents-index --check
+              is stale by construction because AGENTS.md moved in this
+              commit and is backfilled by the next one (pitfalls 5.3). Code
+              gates ALL RUN on the committed tree: fmt clean, check
+              --workspace --all-targets clean, 272 workspace tests (domain
+              130, store 107, cli 35), clippy --workspace --all-targets
+              clean, cargo doc --workspace --no-deps warning-free, the
+              no-clock/no-rand grep empty, the five goldens untouched,
+              Cargo.lock untouched.
+```
 
 ### 2026-09-30 (third session) — M2 decomposed, D16 drafted
 

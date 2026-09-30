@@ -164,7 +164,7 @@ fn graph_seeded_mutations_hold_for_a_long_run_too() {
 /// Runs `steps` operations from `seed` and returns the operation log and
 /// the final state, asserting the full invariant set after every single
 /// step.
-fn run_sequence(seed: u64, steps: u64) -> (Vec<String>, Graph) {
+pub(super) fn run_sequence(seed: u64, steps: u64) -> (Vec<String>, Graph) {
     let mut rng = Rng(seed);
     let mut graph = empty_graph();
     let mut issued: Issued = BTreeMap::new();

@@ -225,8 +225,8 @@ fn order_epic_scope_is_the_induced_subgraph() {
         graph.canonical_order_of_epic(&epic_id(2)).unwrap(),
         vec![task_id(5), task_id(4)]
     );
-    // ... and the blocker stays visible through the adjacency M2's
-    // actionability check will consult.
+    // ... and the blocker stays visible through the adjacency the
+    // actionability check consults (the `select` tests pin it).
     assert!(
         graph
             .blocked_by(&BlockEnd::Task(task_id(5)))

@@ -17,7 +17,7 @@ If `MYAGENTS.md` exists at the repo root, it is untracked, personal, and
 
 ## Project State
 
-**Phase: M2 decomposed 2026-09-30 — M1 closed, nothing dispatched yet.**
+**Phase: M2 — the query layer, decomposed 2026-09-30 and under way.**
 An MCP server that replaces
 markdown TODO boards with a deterministic task graph: tasks are typed
 nodes, dependencies are typed edges, everything lives in local
@@ -39,7 +39,10 @@ domain model (§3's value types and closure discipline, §5's graph and
 canonical order), the signed D1 JSONL store behind the `Store` trait with
 the D4 layout, advisory locking, snapshots, compaction and §4.3's repair
 primitive, and the `todo-cli` inspector — 253 tests, five goldens, every
-gate green at the g5 exit. `todo-mcp` is still an M0 shell: the wire is
+gate green at the g5 exit. M2 opened 2026-09-30 with the domain's §5.2
+selection (`graph/select.rs`: actionability, `next_task` in both scopes,
+D9's deferred summary), and board §2's M2 row names its five tasks.
+`todo-mcp` is still an M0 shell: the wire is
 M3's, whose shapes spec §6.3 measured against rmcp 3.5.0 and whose only
 remaining gate is the dependency ask itself. Run
 `tools/attention.py` for the current picture rather than trusting this

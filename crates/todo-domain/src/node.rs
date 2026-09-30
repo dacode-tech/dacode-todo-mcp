@@ -15,7 +15,7 @@
 //! fixed, so the same invalid node always yields the same error).
 //!
 //! The structs here are the nodes [`crate::Graph`] connects with §5.1's
-//! typed edges; selection (§5.2) is a later M1 commit.
+//! typed edges and selects over (§5.2).
 
 use serde::{Deserialize, Serialize};
 

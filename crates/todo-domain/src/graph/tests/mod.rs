@@ -24,6 +24,7 @@ mod cycles;
 mod edges;
 mod order;
 mod seeded;
+mod select;
 mod tree;
 
 /// The slug every builder below uses.

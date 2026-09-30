@@ -15,8 +15,8 @@
 //! every platform; no wall clock, no randomness, no hash-iteration
 //! order.
 //!
-//! Current surface (M1, spec §3 and §5.1): the core value types —
-//! identity ([`RepoSlug`], the typed node ids [`TaskId`]/[`EpicId`]/
+//! Current surface (spec §3 and §5): the core value types — identity
+//! ([`RepoSlug`], the typed node ids [`TaskId`]/[`EpicId`]/
 //! [`DecisionId`]/[`DocId`]), time values ([`Timestamp`], [`Date`]),
 //! [`References`], the status/kind vocabularies with the closure
 //! discipline ([`Task::validate`], [`Decision::validate`]), and the five
@@ -28,8 +28,13 @@
 //! `relates` annotation and the no-orphans rule. The §5.2 canonical
 //! order lands on top of it — [`Graph::canonical_order`] and
 //! [`Graph::canonical_order_of_epic`] derive the topological order with
-//! the D6 tiebreaker (topology, epic registration order, task id);
-//! selection (`next_task`/`next_items`) is M2.
+//! the D6 tiebreaker (topology, epic registration order, task id) — and
+//! §5.2's selection half on top of that: [`Graph::next_task`] and
+//! [`Graph::next_task_of_epic`] answer with the first actionable task
+//! and the deferred summary ([`NextTask`], [`DeferredSummary`]), over
+//! the [`Graph::is_actionable`] and [`Graph::is_until_satisfied`]
+//! predicates. M2's remaining surface: `next_items` and `task_list`'s
+//! filters.
 
 #![cfg_attr(
     test,
@@ -52,7 +57,8 @@ mod time;
 
 pub use error::{DomainError, ErrorCode, ValueError};
 pub use graph::{
-    BlockEnd, BlocksEdge, Counters, DecisionDraft, DocDraft, EpicDraft, Graph, TaskDraft,
+    BlockEnd, BlocksEdge, Counters, DecisionDraft, DeferredSummary, DocDraft, EpicDraft, Graph,
+    NextTask, TaskDraft,
 };
 pub use id::{DecisionId, DocId, EpicId, MAX_SLUG_LEN, RepoSlug, TaskId};
 pub use node::{Confidence, Decision, Doc, Epic, Repo, Task};
