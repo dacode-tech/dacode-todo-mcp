@@ -15,47 +15,31 @@ blocking. Rules, which `tools/attention.py` and the reviewers enforce:
 
 ## 1. Current state
 
-**Phase: M1 executing — fully unblocked 2026-09-26.** U4 answered
-(`.agents/knowledge/workflows/golden-files.md`), U5 signed (spec §4.3),
-U8 approved (serde + derives on domain, `dacode-json` by path, tempfile
-dev-only, `rust-version` → 1.95). The M1 tree is open in the session
-tracker: three domain commits (value types §3, task graph §5.1,
-canonical order §5.2), five store/cli commits (canonical serialization
-+ golden harness, JSONL log + `Store` trait §4, D4 layout + registry +
-locking §8, snapshots + compaction, minimal `todo-cli` inspector), and
-the M1 exit gate. t6 (value types), t14 (fractional-second timestamps,
-a user decision), t7 (the task graph §5.1) and t8 (the canonical order
-§5.2) have landed — the domain layer of M1 is complete — followed by
-t9 (canonical serialization + golden harness), t10 (the JSONL event
-log + `Store` trait, §4), t11 (the D4 layout + registry + advisory
-locking, §2/§7/§8) and t12 (snapshots + compaction, §4.1/§4.3) — four of
-the five store/cli commits are in, and `Store` now carries all five of
-§4.2's responsibilities. t15 (the domain cleanup: f9's scan scope, f10's
-doc links, f22's domain half) has landed since, so `cargo doc --workspace
---no-deps` — g5's newest gate line — is unconditionally clean; t13, the
-`todo-cli` inspector and the last M1 code task before the g5 exit gate, is
-decomposed along the crate boundary into three commits:
-**t13a**, the store riders (f14's `LogHeader` `deny_unknown_fields`, f17's
-third `LockTarget` variant, f18, f22's store half, f23, U12(a)'s verdict,
-U13's module-doc exception lines — no new dependency, no golden moves),
-**which has landed**; **t22**, the store's §4.3 repair primitive, which
-**has landed** — `repair` truncates, truncating is a write, and §8's lock
-plus the log's line discipline both live in the store, so the binary prints
-what the crate decides; **t13b**, the cli itself (`dump`/`verify`/`repair`
-plus a fifth golden), U14 having chosen `lexopt`. **All three have
-landed**, and so has **t21** — the tests-only commit that pins f19's
-order-sensitive `compact()` test by *inducing* the failure rather than
-constructing its aftermath. Every M1 code task is now in, and the only M1
-work left is the **g5** exit gate.
+**Phase: M1 done 2026-09-30 — M2 next.** The domain layer (§3's value
+types and closure discipline, §5.1's graph, §5.2's canonical order), the
+storage engine (the signed D1 JSONL event log behind the `Store` trait
+carrying all five of §4.2's responsibilities, the D4 layout with its
+registry and advisory locking, snapshots + compaction, §4.3's repair
+primitive) and the `todo-cli` inspector are all in, and the **g5** exit
+gate ran green on the final tree: every code gate, all five goldens
+regenerating byte-identical under `UPDATE_GOLDEN=1`, `cargo doc
+--workspace --no-deps` clean, the Serena semantic layer resolving over the
+workspace, and M1's lessons consolidated into `.agents/pitfalls.md` —
+fifteen entries promoted from f20/f24/f30 and `P-LIVE-001…006`, the live
+file reset with a former-id table so the in-tree citations still resolve.
+253 tests across three crates with real logic; `todo-mcp` is still an M0
+shell, which is M3's business.
 
 | Blocking | What | Action |
 |---|---|---|
-| — | nothing: U14 resolved 2026-09-29 (`lexopt`), t21 landed, and every other open item is non-blocking | run the g5 M1 exit gate — every code gate on the final tree, the five goldens regenerating byte-identical, `cargo doc --workspace --no-deps`, and f20/f24/f30 consolidated into `.agents/pitfalls.md` |
+| — | nothing | **U2** — the rmcp survey against §6, scheduled here on purpose — then decompose M2's query layer |
 
-(Open but non-blocking: U2, scheduled after g5 and before M2, and U15, a
-one-sentence store doc fix that rides the next store touch. Resolved:
-U4/U5/U6/U7/U8/U9/U10/U11/U12/U14, and U3 superseded by D12. U13 is
-acknowledged debt, not an open question.)
+(Open but non-blocking: **U2**, the only open item that could invalidate a
+signed §6 shape and therefore U9's `invalid`/`io`, which is why it runs
+before M2 rather than before M3; and **U15**, a one-sentence store doc fix
+that rides the next store touch. Resolved: U4/U5/U6/U7/U8/U9/U10/U11/U12/
+U14, and U3 superseded by D12. U13 is acknowledged debt, not an open
+question.)
 
 ## 2. Milestones
 
@@ -66,8 +50,8 @@ exit criteria: spec §14. Priority is derived from the Gated-on column by
 | Milestone | Deliverable | Gated on | State |
 |---|---|---|---|
 | M0 | spec settled: §12 items 1–3 signed (done 2026-09-25); Cargo workspace skeleton with the lint regime; all gates green | — | done 2026-09-25 |
-| M1 | domain model + storage engine: graph, statuses, persistence behind the `Store` trait, golden files | — | in progress — every code task landed (t6–t15, t20, t21, t22); only the g5 exit gate remains |
-| M2 | queries: repo/epic selection, dependency resolution, deterministic `next_task`; registry with path updates | — | not started |
+| M1 | domain model + storage engine: graph, statuses, persistence behind the `Store` trait, golden files | — | done 2026-09-30 — g5 ran green: every code gate, five goldens byte-identical, `cargo doc` clean, pitfalls consolidated |
+| M2 | queries: repo/epic selection, dependency resolution, deterministic `next_task`; registry with path updates | — | next — U2 (the rmcp survey) first, by its own scheduling |
 | M3 | MCP server: the full §6 tool list over the wire, protocol-level tests, default-repo slug config (D8), smoke against a real client | — | not started |
 | M4 | adoption: the dacode-dialect importer first (**D12**, amending D7), its board the only fixture checked in per §10; camera and ikvm-html imported from their live boards and never copied into this repo; the three repos tracked for real | — | not started |
 | M5 | packaging, docs, cwd auto-detection (deferred by D8), polish | — | not started |
@@ -705,6 +689,40 @@ Oldest first. One line per delivery, with the commit hash once committed.
       changes nothing on disk" is falsified by the debris this test pins,
       and both remedies are `src` changes, so neither belongs in a
       tests-only commit. Landed as `7563fff`.
+- 2026-09-30 — **M1 exit gate (g5): M1 closed.** Every code gate on the
+      final tree — `cargo fmt --check`, `check --workspace --all-targets`,
+      `test --workspace` (253: domain 111, store 107, cli 35), `clippy
+      --workspace --all-targets`, `cargo doc --workspace --no-deps` — clean;
+      all five goldens regenerate byte-identical under `UPDATE_GOLDEN=1`
+      (twelve store writers plus the cli's `cli_dump.v1`); the Serena
+      semantic layer resolves a `todo-domain` symbol
+      (`impl Graph/raise_counters_to`, which is also the name-path shape
+      this gate measured — `/Graph/raise_counters_to` resolves to nothing,
+      because methods hang off the `impl` node); every doc gate green.
+      **The consolidation the gate owed**: `.agents/pitfalls.md` goes from
+      deliberately empty to fifteen entries across its five categories plus
+      a distilled top ten, promoted from f20 (a spec's safety argument is a
+      claim to falsify, not ground truth to instance-check), f24 (a commit
+      touching an indexed doc cannot carry its own regenerated index), f30
+      (no measurement in a source doc comment) and `P-LIVE-001…006`;
+      `.agents/pitfalls-live.md` resets with a former-id table, because
+      test-file module docs in both crates cite `P-LIVE-002`/`-004`/`-005`
+      by id and those citations must keep resolving. Two rules moved to
+      where they are *enforced* rather than where they are recalled —
+      `_rust.md`'s comment section carries f30's rule, `_search.md`'s
+      Serena specifics carry the impl-node name path (`version.custom` 6→7,
+      five agents regenerated). The two entries that cost M1 most are 2.1
+      and 5.1, and they are one defect seen from both sides: a task spec's
+      crash-safety argument was instance-checked instead of falsified, and
+      the tests built the crash's aftermath instead of inducing it — t12's
+      two silent corners and t21's fix are the same lesson, which is why
+      5.1's rule binds spec authors and reviewer prompts rather than code.
+      Deliberately **not** claimed at this gate: no induced crash or power
+      loss anywhere (t21's rename refusal is the first externally injected
+      fault and is still not a crash), no MCP smoke (M3), and the per-crate
+      lint tripwires for `todo-mcp` and `todo-cli` have never been fired.
+      The harness consolidation landed as `1581007`; this board movement
+      rides the gate's own commit.
 
 ## 4. Follow-ups
 
@@ -1041,7 +1059,7 @@ Newest first. One entry per session, written for someone who was not
 here. The final entry of a session is the handover
 (`.agents/skills/todo-next-imp/SKILL.md` defines the shape).
 
-### 2026-09-30 — t21: `compact()`'s step order, induced; M1's code complete
+### 2026-09-30 — t21 induced the step order; then g5 closed M1
 
 The session opened at the t20 handover's named next step and needed no
 dispatch questions: t21 is one test in one file, so it was written here
@@ -1083,53 +1101,85 @@ now exists and is promoted here to **U15**, because the tracker is
 gitignored and branch-keyed, so a deferral recorded only there does not
 outlive the branch.
 
-With t21 in, **M1's code is complete**: the domain's value types, graph and
-canonical order; the store's serialization, event log, layout and locking,
-snapshots and compaction, and §4.3's repair primitive; and the `todo-cli`
-inspector. 253 workspace tests, five goldens, `cargo doc --workspace
---no-deps` clean. What remains is g5, which is a gate and not a task.
+With t21 in, M1's code was complete, so the session continued straight into
+**g5, the exit gate** — a gate rather than a task, which is why it produced
+no new code and one substantial piece of writing. Every line of its verify
+method ran green on the committed tree (253 workspace tests, five goldens
+byte-identical under `UPDATE_GOLDEN=1`, `cargo doc --workspace --no-deps`
+clean, Serena resolving a `todo-domain` symbol, all four doc gates green),
+and the consolidation it owed is now committed: `.agents/pitfalls.md` went
+from deliberately empty to fifteen entries plus a distilled top ten, and
+`.agents/pitfalls-live.md` reset with a former-id table, because
+`P-LIVE-002`/`-004`/`-005` are cited by id in test-file module docs across
+both crates and a reset that dropped those ids would have left a dozen
+in-tree citations dangling.
+
+**Two of the fifteen are the same defect seen from both sides, and they are
+why M1 cost what it did.** 2.1 (a multi-file write sequence's order *is* the
+safety argument, and a test that constructs the crash's aftermath cannot see
+it) and 5.1 (a spec's safety argument is a claim to falsify against the state
+space, not ground truth to instance-check) are t12's two silent corners and
+t21's fix — one from the spec author's chair, one from the reviewer's. 5.2
+generalizes the class this session hit twice more: a prose claim (a line
+count, a mutation count, a review-process fact, a tracker id that does not
+exist) is an artifact like any other, and the reliable fix is deleting the
+number and pointing at the pin, not restating it more carefully. Two rules
+consequently moved out of the knowledge base and into the role layers, where
+a coding agent meets them at write time rather than at recall time:
+`_rust.md`'s comment section carries "no measurement in a source doc
+comment", and `_search.md`'s Serena specifics carry the impl-node name path
+this gate measured the hard way — `/Graph/raise_counters_to` resolves to
+nothing, while the bare name resolves as `impl Graph/raise_counters_to`.
 
 **Handover**
 
 ```
-Workspace:    main, clean; the last code commit is 7563fff (t21,
-              tests-only) and this board moved in the same commit, with the
-              hash backfilled after it. Four crates: todo-domain
-              (111 tests), todo-store (107, four goldens), todo-cli (35,
-              one golden) and todo-mcp still an M0 shell. rustc 1.98.1,
-              MSRV 1.95, 253 workspace tests. Deps unchanged: serde,
-              dacode-json + zmij (path dep on
+Workspace:    main, clean; **M1 CLOSED** (board §2). The last code commit is
+              7563fff (t21, tests-only); since then only harness and board
+              commits — 673a49f (a hash backfill), 1581007 (the pitfalls
+              consolidation plus two role rules, version.custom 7, five
+              agents regenerated) and this gate's own board movement, whose
+              hash is backfilled after it because AGENTS.md moved and f24's
+              mechanism says a doc-touching commit cannot carry its own
+              fresh index. Four crates: todo-domain (111 tests), todo-store
+              (107, four goldens), todo-cli (35, one golden) and todo-mcp
+              still an M0 shell. rustc 1.98.1, MSRV 1.95, 253 workspace
+              tests. Deps unchanged: serde, dacode-json + zmij (path dep on
               /Users/mouse/RPM/dacode/rust/json-tiers — a cold machine needs
               that checkout beside this repo's parent, at f7f26f8), tempfile
               dev-only, lexopt 0.3.2. Serena's semantic layer is live.
               Nothing to install.
-Landed:       t21 — one test,
+Landed:       t21 (7563fff) — one test,
               `snapshot::compact::a_refused_covering_snapshot_leaves_the_log_untouched`,
               +95/−1 in crates/todo-store/tests/snapshot/compact.rs, no src
               change (src/log.rs sha256 c236755c… verified identical across
-              both mutation runs; the test file's signed-off sha256 is
-              e1cb21c6…). Gates on the final tree: fmt clean, check
-              --workspace --all-targets 0 warnings, todo-store 107 with
-              --test snapshot 32 and 0 filtered out, workspace 253 summed,
-              clippy --workspace --all-targets 0 warnings, cargo doc
-              --workspace --no-deps 0 warnings, all five goldens
-              byte-identical including under UPDATE_GOLDEN=1 (12 writers),
-              Cargo.lock sha unchanged. Closed: f19, t21. Opened: f40/U15.
-Next step:    **g5, the M1 exit gate** — a gate, not a task, so there is
-              nothing to decompose: run its verify line on the final tree
-              (fmt, check --workspace --all-targets, test --workspace,
-              clippy --workspace --all-targets, cargo doc --workspace
-              --no-deps, tasks.py check, attention.py --check, one Serena
-              find_symbol over todo-domain, and all FIVE goldens
-              regenerating byte-identical under UPDATE_GOLDEN=1, the cli's
-              included), then consolidate f20/f24/f30 into
-              .agents/pitfalls.md and close g4 with that evidence. cargo doc
-              is unconditionally clean already (t15 cleared the four f10
-              links), so the gate line that used to be conditional is not.
-              The alternative is U2 (the rmcp survey), scheduled after g5
-              and before M2 on purpose — it is the only open item that could
-              invalidate a signed §6 shape, and therefore U9's invalid/io
-              codes.
+              both mutation runs; the signed-off test file's sha256 is
+              e1cb21c6…). Then **g5, the M1 exit gate**, whose whole verify
+              line ran green on that tree: fmt clean; check --workspace
+              --all-targets 0 warnings; test --workspace 253 summed over
+              every result line (domain 111, store 107, cli 35); clippy
+              --workspace --all-targets 0 warnings; cargo doc --workspace
+              --no-deps 0 warnings; all FIVE goldens byte-identical under
+              UPDATE_GOLDEN=1 (twelve store writers plus cli_dump.v1);
+              Serena resolving impl Graph/raise_counters_to in todo-domain;
+              check-links ok (11 links / 10 files), agents-sync --check and
+              agents-index --check up to date, attention.py --check exit 0,
+              tasks.py check exit 0. The consolidation is 1581007. Closed:
+              f19, f20, f24, f30, t21, g5 and g4 (M1). Opened: f40/U15.
+Next step:    **U2 — survey rmcp's tool macros against §6**, reading the
+              version's source rather than its README, then decompose M2.
+              U2 sits here by decision and not before M3: it is the only
+              open item that could invalidate a *signed* §6 shape, and
+              therefore U9's invalid/io codes, so finding that after M2's
+              query surface is built would be the expensive order. Its three
+              questions: is each of §6's tools declarable at all; do tool
+              errors carry a branchable code or only a string; are list
+              responses order-preserving through schema generation. It is
+              read-only and adds no dependency, so it moves no gate. The
+              alternative — decomposing M2 first — is exactly what U2 exists
+              to make safe; M2's own first task is the obvious one, since
+              §5.2's order is already a derivation and next_task/next_items
+              are the selection over it, both signed (D9/D11).
 Blocked on you: nothing. The attention items are U2's scheduling, U13's
               acknowledgement, U15's deferral and the three P3 tracker
               debts. f25 still carries one veto-able reading (a narrow §4.3
@@ -1156,14 +1206,16 @@ Unverified:   **still no induced crash or power loss anywhere.** t21 injects
               context string and deliberately not the ErrorKind. Snapshot
               durability without a directory fsync is reasoned (f16), not
               measured.
-Tracker:      tools/tasks.py check exits 0. g3/g4 standing (g4 closes at
-              g5); d1/d2/d3 acknowledged against the production-line ledger
-              (log.rs 812, event.rs 772, state.rs 460 and off it); f4 (M3),
-              f13 (accepted), f20/f24/f30 (g5's pitfalls consolidation), f25
-              (parked), f31–f40 recorded. Doc gates all green: check-links
-              ok (11 links / 10 files), agents-sync --check and
-              agents-index --check up to date, attention.py --check exit 0
-              at 155 checks.
+Tracker:      tools/tasks.py check exits 0. g3 standing; **g4 (M1) CLOSED at
+              this gate** with the evidence above; d1/d2/d3 acknowledged
+              against the production-line ledger (log.rs 812, event.rs 772,
+              state.rs 460 and off it); f4 (M3's wire rejection), f13
+              (accepted), f25 (parked diagnostics) and f31–f40 recorded;
+              f19/f20/f24/f30 closed. `.agents/pitfalls-live.md` is EMPTY —
+              the next entry is P-LIVE-007 and a promoted id is never
+              reused. Doc gates all green: check-links ok (11 links /
+              10 files), agents-sync --check and agents-index --check up to
+              date, attention.py --check exit 0.
 ```
 
 ### 2026-09-29 (second session) — the file budget, t13a, U14's measurement, t22

@@ -17,17 +17,23 @@ If `MYAGENTS.md` exists at the repo root, it is untracked, personal, and
 
 ## Project State
 
-**Phase: M1 next — the workspace exists.** An MCP server that replaces
+**Phase: M2 next — M1 closed 2026-09-30.** An MCP server that replaces
 markdown TODO boards with a deterministic task graph: tasks are typed
 nodes, dependencies are typed edges, everything lives in local
 per-repo non-relational stores (D4), and "what is next in repo X under
 epic Y" is a query, not a prose parse. Rust, rmcp, stdio transport.
 
-§12 is closed — all eleven decisions signed 2026-09-25
-(`docs/implementation/decisions.md`); the spec is normative
+§12 is closed — all eleven decisions signed 2026-09-25, D12 added
+2026-09-29 (`docs/implementation/decisions.md`); the spec is normative
 throughout, and signed shapes move only by a new user decision (new
-D-entries, D12+), never by edit. M0 landed the same day: four crates,
-the workspace lint regime, all code gates green. Run
+D-entries), never by edit. M0 landed 2026-09-25: four crates, the
+workspace lint regime, all code gates green. M1 landed 2026-09-30: the
+domain model (§3's value types and closure discipline, §5's graph and
+canonical order), the signed D1 JSONL store behind the `Store` trait with
+the D4 layout, advisory locking, snapshots, compaction and §4.3's repair
+primitive, and the `todo-cli` inspector — 253 tests, five goldens, every
+gate green at the g5 exit. `todo-mcp` is still an M0 shell: the wire is
+M3's, and U2's rmcp survey runs before M2 by decision. Run
 `tools/attention.py` for the current picture rather than trusting this
 paragraph.
 
@@ -119,7 +125,7 @@ spec moves only by user decision.
 │   ├── skills/                     # dacode-todo-mcp, todo-next-imp, md-writer
 │   ├── skill-base.md               # protocols every skill inherits
 │   ├── knowledge/                  # workflows, patterns, generated INDEX.md
-│   ├── pitfalls.md                 # confirmed lessons (starts empty; never seed with guesses)
+│   ├── pitfalls.md                 # confirmed lessons, promoted from pitfalls-live at each milestone gate (never seeded with guesses)
 │   ├── pitfalls-live.md            # adaptive, in-flight lessons
 │   ├── task-templates/             # implement-file, implement-crate, write-tests, review-code
 │   ├── sgrules/                    # verified ast-grep rules (sgconfig.yml)
