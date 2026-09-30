@@ -994,7 +994,8 @@ Oldest first. One line per delivery, with the commit hash once committed.
        tense in `tests/order.rs`, and `node.rs`'s "a later M1 commit") were
        fixed as riders, and eight more candidates were read and left with
        their reasons. Four lows from round two are recorded as **f47** rather
-       than looped, with t28's dispatch named as their consumer.
+       than looped, with t28's dispatch named as their consumer. Landed as
+       `9859bb6`.
 
 ## 4. Follow-ups
 
@@ -1520,7 +1521,7 @@ inline, per pitfalls 5.1 (amend the spec; do not qualify the docs around it).
 **Handover** — supersedes the decomposition's below.
 
 ```
-Workspace:    main, clean at t27's commit; M2 UNDER WAY — t27 of five
+Workspace:    main, clean at 9859bb6 plus its backfill; M2 UNDER WAY — t27 of five
               tasks landed, nothing else dispatched. Four crates:
               todo-domain 130 tests (was 111; the 19 new are all in
               graph/tests/select.rs), todo-store 107 (four goldens),
