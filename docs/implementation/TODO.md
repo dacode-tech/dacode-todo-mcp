@@ -1372,9 +1372,11 @@ Landed:       **D14 and D15 signed, both (a)** — spec §6 (error
               banners and their action lines retired. Earlier this session:
               the f41 sweep and the sweep rule in the exit gate, and the U2
               rmcp 3.5.0 survey as spec §6.3. Closed: t24, t25, f41 (with
-              f31–f34, f36–f39, f42, f13, d2, d3), U2, D14, D15. Opened:
-              U19 (= f35), f44, f45. Probe artifacts stay in gitignored
-              tmp/rmcpprobe — vendored rmcp source, the probe crate,
+              f31–f34, f36–f39, f42, f13, d2, d3), U2, D14, D15, and f46
+              (opened and closed here: progress.py's missing exec bit).
+              Opened and still live: U19 (= f35), f44, f45. Probe artifacts
+              stay in gitignored tmp/rmcpprobe — vendored rmcp source,
+              the probe crate,
               drive.py, six captures — and are NOT committed.
 Next step:    **Decompose M2**, the query layer: repo/epic selection,
               dependency resolution, deterministic next_task, registry with
