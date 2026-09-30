@@ -147,7 +147,7 @@ LANES: list[tuple[str, list[str]]] = [
     ("M1 exit", ["g5"]),
     ("carried forward", ["f4", "f13", "f25", "f40", "f41", "d1", "d2", "d3",
                          "f31-39", "U13", "U15", "U19"]),
-    ("harness (post-M1)", ["t23", "f42", "f43", "f44"]),
+    ("harness (post-M1)", ["t23", "f42", "f43", "f44", "f45"]),
     ("next", ["U2", "U17", "M2"]),
     ("later", ["U16", "M3", "M4", "U18", "M5"]),
 ]
