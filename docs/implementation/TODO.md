@@ -1871,13 +1871,17 @@ Tracker:      tools/tasks.py check exits 1 on exactly one line — OPEN g6, the
               against a run, not against the shape of the test" (all three t28
               spec errors); and "a spec author's mutation list is bounded by the
               shapes they imagined, so the reviewer builds the one they did not"
-              (t28's seventh mutant, the unpinned dedup arm). Doc gates green:
-              check-links, agents-sync --check, attention --check;
-              agents-index --check is stale by construction because this board
-              moved and is backfilled by the next commit (pitfalls 5.3). Code
-              gates ALL RUN on the committed tree: fmt clean, check --workspace
-              --all-targets clean, 291 workspace tests, clippy clean, cargo doc
-              clean, the five goldens untouched, Cargo.lock untouched.
+              (t28's seventh mutant, the unpinned dedup arm). Doc gates ALL
+              green on the committed tree, each run not inherited: check-links,
+              agents-sync --check, attention --check, and agents-index --check —
+              the last is green because this board is not an indexed AGENTS.md
+              doc, so moving it does not stale the index (pitfalls 5.3's backfill
+              is owed only after a commit that touches an AGENTS.md; the f47
+              handover asserted the staleness without checking it, and this
+              session's own lesson is that an inherited claim is a claim like any
+              other). Code gates ALL RUN on the committed tree: fmt clean, check
+              --workspace --all-targets clean, 291 workspace tests, clippy clean,
+              cargo doc clean, the five goldens untouched, Cargo.lock untouched.
 ```
 
 ### 2026-09-30 (third session, continued) — M2 t27: §5.2 selection
