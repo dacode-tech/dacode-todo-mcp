@@ -1280,7 +1280,7 @@ Oldest first. One line per delivery, with the commit hash once committed.
        does not decide", re-deriving the canonical order six times per summary.
        A signed (a) therefore most likely forces a domain aggregate and a domain
        row type, which is recorded in the dossier and changes no recommendation.
-       Landed as `HASH_T29`.
+       Landed as `f3ef61a`.
 - 2026-10-01 — **M2 t29 rider: the "later M2 work" module-doc markers
        retired.** Three module docs carried a marker naming work that had
        since landed, and all three were false by the time t29 committed:
@@ -1310,7 +1310,7 @@ Oldest first. One line per delivery, with the commit hash once committed.
        unchanged, `cargo doc` clean with `--document-private-items` at the
        one known f48 warning, no golden, no `Cargo.lock`. Dual-reviewed
        over two rounds, both bound to the final shas. Landed as
-       `HASH_MARKER`.
+       `034d081`.
 
 ## 4. Follow-ups
 
@@ -1840,9 +1840,10 @@ That is recorded in the dossier beside the claim it qualifies. The vote is the
 user's and the recommendation is unchanged; t29's `Vec<TaskId>` keeps either
 outcome open, which is what its D3 wanted.
 
-**Handover.** Workspace: `main`, clean at `HASH_T29_BACKFILL` after this
-delivery's two commits — t29's crate diff plus its board movement, then the
-comment-only marker fix the sha pin kept out of it. Four crates: todo-domain
+**Handover.** Workspace: `main`, clean at `034d081` after this
+delivery's two commits, plus the hash backfill that follows them — t29's
+crate diff with its board movement, then the comment-only marker fix the sha
+pin kept out of it. Four crates: todo-domain
 **167** tests, todo-store 107 (four goldens), todo-cli 35 (one golden), todo-mcp
 an M0 shell; **309** workspace tests. rustc 1.98.1, MSRV 1.95. `Cargo.lock`
 untouched all of M2 — no rmcp, no serde_json; deps unchanged (serde, dacode-json
