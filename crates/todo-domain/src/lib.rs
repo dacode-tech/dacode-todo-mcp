@@ -33,8 +33,12 @@
 //! [`Graph::next_task_of_epic`] answer with the first actionable task
 //! and the deferred summary ([`NextTask`], [`DeferredSummary`]), over
 //! the [`Graph::is_actionable`] and [`Graph::is_until_satisfied`]
-//! predicates. M2's remaining surface: `next_items` and `task_list`'s
-//! filters.
+//! predicates, and §5.2's batch half beside it: [`Graph::next_items`],
+//! [`Graph::next_items_of_epic`] and [`Graph::next_items_of_task`]
+//! answer with the annotated batch — a scope's actionable nodes, or one
+//! task's transitive dependents, each marked — and the same deferred
+//! summary ([`NextItems`], [`NextItem`]). M2's remaining surface:
+//! `task_list`'s filters.
 
 #![cfg_attr(
     test,
@@ -58,7 +62,7 @@ mod time;
 pub use error::{DomainError, ErrorCode, ValueError};
 pub use graph::{
     BlockEnd, BlocksEdge, Counters, DecisionDraft, DeferredSummary, DocDraft, EpicDraft, Graph,
-    NextTask, TaskDraft,
+    NextItem, NextItems, NextTask, TaskDraft,
 };
 pub use id::{DecisionId, DocId, EpicId, MAX_SLUG_LEN, RepoSlug, TaskId};
 pub use node::{Confidence, Decision, Doc, Epic, Repo, Task};

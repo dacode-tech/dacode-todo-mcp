@@ -22,6 +22,7 @@ use crate::{
 mod alloc;
 mod cycles;
 mod edges;
+mod items;
 mod order;
 mod seeded;
 mod select;

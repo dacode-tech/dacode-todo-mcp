@@ -67,11 +67,14 @@
 //! - **(b) Return type.** `Vec<TaskId>`, not `Vec<&Task>`: ids keep the
 //!   borrow out of the caller's way, serialize for §8's byte-identity
 //!   instruments, and [`Graph::task`] resolves any of them.
-//! - **(c) Key exposure.** The tiebreaker key stays module-private. M2
-//!   may want it — the seam is `order_key`, a pure function of two
-//!   existing fields — but M2's surface is not pre-built here; lift the
-//!   key into a named public type when selection needs to annotate or
-//!   slice by it.
+//! - **(c) Key exposure.** The tiebreaker key stays module-private. The
+//!   selection batch this call anticipated has landed, and the trigger
+//!   did not fire: a batch is a filtered prefix of the derived order,
+//!   so its positions come from the walk — never from the key, which
+//!   the batch surface does not read — and the derived weight is
+//!   display-only. Nothing annotates or slices by the key. The seam
+//!   stays `order_key`, a pure function of two existing fields, for
+//!   whoever needs it next.
 //! - **(d) Indexing.** The derivation builds its own in-degree and
 //!   successor maps in one pass over the tasks and stored edges; it
 //!   never calls [`Graph::tasks_of_epic`], so that linear-scan accessor
