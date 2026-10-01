@@ -1183,7 +1183,8 @@ Oldest first. One line per delivery, with the commit hash once committed.
        falsified the amended `order.rs` (c) against the code — its round-one
        wording ("a prefix of a list already in key order") was false, since the
        list is lexicographically-minimal *topological* and a batch is a
-       *filtered* prefix. Both reviews re-ran all six mutations.
+       *filtered* prefix. Both reviews re-ran all six mutations. Landed as
+       `f5665dc`.
 
 ## 4. Follow-ups
 
