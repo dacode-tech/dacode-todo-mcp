@@ -1401,7 +1401,8 @@ Oldest first. One line per delivery, with the commit hash once committed.
        the twelve writers; `Cargo.lock` untouched; production lines 299
        (`store.rs`), 342 (`repair.rs`), 188 (`error.rs`), 383 (`layout.rs`),
        all under the 600 target, so U13 does not move. Dual-reviewed over four
-       rounds, both reviewers bound to the final bytes. Landed as `HASH`.
+       rounds, both reviewers bound to the final bytes. Landed as
+       `aa107d9`.
 
 ## 4. Follow-ups
 
@@ -1970,6 +1971,54 @@ stranding two. **Blocked on the user, unchanged: D16** (P1, vote) — nothing in
 this delivery waited on it, and no part of a roll-up may be built before it is
 signed. The alternative front remains M3's rmcp dependency ask, which needs a
 decision rather than a session.
+
+**Handover.** Workspace: `main`, clean at `aa107d9` plus the board backfill
+that follows it. Four crates: todo-domain **167** tests, todo-store 107 (four
+goldens), todo-cli 35 (one golden), todo-mcp an M0 shell; **309** workspace
+tests. rustc 1.98.1, MSRV 1.95. `Cargo.lock` untouched by the whole of M2 — no
+rmcp, no serde_json; deps unchanged (serde, dacode-json + zmij by path on
+`../rust/json-tiers`, tempfile dev-only, lexopt 0.3.2); the tools need Python 3
++ PyYAML. Serena live. Nothing to install. **Next step: t31**, the registry
+query side — `repo_list` and `repo_show` over t11's registry, reading §7's
+mutable `name`/`path` off each store's `Repo` node (the registry itself holds
+only `{registered_at, slug}`), plus the cold `repo_list` open-cost measurement
+t11 handed forward. It is the last M2 task before **g7**, and the measurement
+is decision material rather than curiosity: t11's note says extending the
+registry later is a golden-visible format change, cheap before M3 and expensive
+after. The alternative front is M3's rmcp dependency ask (Ask-First), the only
+thing gating M3, which needs the user and not a session. **Blocked on you:
+D16** (P1, vote) — a signed (a) or (b) adds one domain aggregation task under
+g6 and, per t29's measurement, most likely a domain row type with it; t31 and
+g7 do not wait on it, and no task may build any part of a roll-up before it is
+signed. **Unverified — read this before trusting anything above.** t30 changed
+no behaviour, so what it asserts is a set of doc claims two reviewers checked
+against code paths, not a test result: the debris story is pinned only through
+`compact`'s step (1), and no committed test faults a bare `Store::snapshot()`
+(f57 holds the three measured seams). Carried and still true: nothing outside
+`todo-domain` has ever carried a selection, batch or list answer — no store
+event, no wire, no client — so §5.2's rules remain proven against hand-built
+and seeded graphs alone, and the six veto-able readings of signed text are pins
+against a future edit rather than evidence about a present consumer; D14/D15
+have no code behind them; no induced crash or power loss anywhere; nothing
+calls `compact()` outside tests; no human has run `dump`/`verify`/`repair` on a
+real store; multi-process lock contention is still two handles in one process;
+g7 will be the first milestone gate to exercise the f41 sweep line. Open and
+gating nothing: f4, f25, f44, f45, f48, f49, f50's generator half, f51, f54,
+f57, f58, U13's ack, U16, U18, and the carried f25 reading (`4c5782b` reverts
+it). Tracker: `tools/tasks.py check` exits 1 on exactly two lines — OPEN **g6**,
+which closes at g7, and STAND **g3** until M5. `.agents/pitfalls-live.md` now
+carries this session's two lessons as **P-LIVE-007** (a class sweep is only as
+wide as the grep that runs it — and a verify line written from the same
+phrasing inherits the blindness) and **P-LIVE-008** (whoever writes a contract
+sentence cannot falsify it; third occurrence), both scoped for g7's
+consolidation beside pitfalls 5.1 and 3.2; the next id is **P-LIVE-009**. Doc
+gates green:
+check-links (11 links / 10 files), agents-sync `--check`, agents-index
+`--check`, attention `--check` at 181 checks and 4 rendered items. Code gates
+all run on the committed tree: fmt, `check --workspace --all-targets`, clippy,
+`cargo doc --workspace --no-deps` clean and `--document-private-items` at
+exactly the one known f48 warning; 309 tests; the five goldens and `Cargo.lock`
+untouched.
 
 ### 2026-10-01 — M2 t29 landed: the domain's query surface is complete
 
