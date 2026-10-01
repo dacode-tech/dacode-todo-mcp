@@ -15,17 +15,22 @@ blocking. Rules, which `tools/attention.py` and the reviewers enforce:
 
 ## 1. Current state
 
-**Phase: M2 under way 2026-10-01 — t27 and t28 landed, f47 closed.** The query
-layer is five tasks under tracker **g6**, each one commit with its own file,
-plus the **g7** exit gate; §2's M2 row names them. **t27** is in — the domain's
-§5.2 selection: the actionability and until-target predicates, `next_task`'s
-two scopes and D9's deferred summary, which is what t28 and t29 reuse — **t28**
-is in beside it (§5.2's batch half, `next_items` in three scopes with its
-annotations and derived weight), and **f47**, the four lows t27's second review
-round dispositioned instead of looping, is closed as a tests-only commit that
-pins three wrong implementations the suite had been letting through. One
-decision is open out of the decomposition — **D16**, the progress roll-up —
-and no task waits on it.
+**Phase: M2 under way 2026-10-01 — t27, t28 and t29 landed, f47 closed; the
+domain's query surface is complete.** The query layer is five tasks under
+tracker **g6**, each one commit with its own file, plus the **g7** exit gate;
+§2's M2 row names them. **t27** is in — the domain's §5.2 selection: the
+actionability and until-target predicates, `next_task`'s two scopes and D9's
+deferred summary, which is what t28 and t29 reuse — **t28** is in beside it
+(§5.2's batch half, `next_items` in three scopes with its annotations and
+derived weight), **t29** completes the trio (§5.2/§6's listing half,
+`task_list`'s four filters and the three thin reads, returning bare ids so an
+unsigned D16 roll-up has nowhere to hang), and **f47**, the four lows t27's
+second review round dispositioned instead of looping, is closed as a tests-only
+commit that pins three wrong implementations the suite had been letting
+through. What is left in M2 is store-side: **t30**'s two doc riders and
+**t31**'s registry queries, then **g7**. One decision is open out of the
+decomposition — **D16**, the progress roll-up — and no task waits on it; t29
+measured a consequence for its dossier (§3).
 M1 is closed. The domain layer (§3's value types and closure discipline,
 §5.1's graph, §5.2's canonical order), the storage engine (the signed D1
 JSONL event log behind the `Store` trait
@@ -67,7 +72,7 @@ exit criteria: spec §14. Priority is derived from the Gated-on column by
 |---|---|---|---|
 | M0 | spec settled: §12 items 1–3 signed (done 2026-09-25); Cargo workspace skeleton with the lint regime; all gates green | — | done 2026-09-25 |
 | M1 | domain model + storage engine: graph, statuses, persistence behind the `Store` trait, golden files | — | done 2026-09-30 — g5 ran green: every code gate, five goldens byte-identical, `cargo doc` clean, pitfalls consolidated |
-| M2 | queries: repo/epic selection, dependency resolution, deterministic `next_task`; registry with path updates | **D16** adds one task if signed; no dispatched task waits on it | under way — **t27 done 2026-09-30**: domain `graph/select.rs`, the actionability predicate, `next_task` in both scopes, the until-target `ready` predicate and D9's deferred `{total, ready}` (19 tests, dual-reviewed over two rounds); **f47 closed 2026-10-01** as its own tests-only commit rather than a rider in t28's spec, because three of its four items live in t27's files; **t28 done 2026-10-01**: domain `graph/items.rs`, `next_items` in three scopes (repo/epic actionable-only, task-scoped dependents each marked) with the blocked-by/blocks annotations, the derived transitive-dependent weight and the reused deferred summary (19 tests, dual-reviewed over two rounds, three veto-able readings flagged); **t29** `graph/list.rs` (`task_list`'s epic/status/kind/`ready` filters); **t30** the store doc riders (**U15** + **U19**); **t31** the registry query side (`repo_list`/`repo_show` + t11's cold-open measurement). Dispatch t27→t28→t29, then t30→t31; **g7** is the exit gate. U17 answered, d1 closed by measurement, U13 re-measured and unchanged |
+| M2 | queries: repo/epic selection, dependency resolution, deterministic `next_task`; registry with path updates | **D16** adds one task if signed; no dispatched task waits on it | under way — **t27 done 2026-09-30**: domain `graph/select.rs`, the actionability predicate, `next_task` in both scopes, the until-target `ready` predicate and D9's deferred `{total, ready}` (19 tests, dual-reviewed over two rounds); **f47 closed 2026-10-01** as its own tests-only commit rather than a rider in t28's spec, because three of its four items live in t27's files; **t28 done 2026-10-01**: domain `graph/items.rs`, `next_items` in three scopes (repo/epic actionable-only, task-scoped dependents each marked) with the blocked-by/blocks annotations, the derived transitive-dependent weight and the reused deferred summary (19 tests, dual-reviewed over two rounds, three veto-able readings flagged); **t29 done 2026-10-01**: domain `graph/list.rs`, `task_list`'s four ANDing filters (epic/status/kind/`ready`) returning bare task ids in §5.2's order, plus `epic_list`/`decision_list`/`doc_list` as pinned ascending-id reads — with it the domain's M2 query surface is complete (18 tests, dual-reviewed over two rounds, the second driven by an unpinned `ready` gate-arm; one veto-able reading flagged, f50's helper lift landed first); **t30** the store doc riders (**U15** + **U19**); **t31** the registry query side (`repo_list`/`repo_show` + t11's cold-open measurement). Dispatch t30→t31, the store half, then **g7**, the exit gate. U17 answered, d1 closed by measurement, U13 re-measured and unchanged |
 | M3 | MCP server: the full §6 tool list over the wire, protocol-level tests, default-repo slug config (D8), smoke against a real client | the **rmcp dependency ask** (Ask-First) — **D14**/**D15** signed 2026-09-30, so the wire's key order and §6.1's error carrier are settled | not started |
 | M4 | adoption: the dacode-dialect importer first (**D12**, amending D7), its board the only fixture checked in per §10; camera and ikvm-html imported from their live boards and never copied into this repo; the three repos tracked for real | — | not started |
 | M5 | packaging, docs, cwd auto-detection (deferred by D8), polish | — | not started |
@@ -1185,6 +1190,97 @@ Oldest first. One line per delivery, with the commit hash once committed.
        list is lexicographically-minimal *topological* and a batch is a
        *filtered* prefix. Both reviews re-ran all six mutations. Landed as
        `f5665dc`.
+- 2026-10-01 — **M2 t29: §5.2/§6's listing half — the domain's
+       `graph/list.rs`, and with it the M2 query surface is complete.** One
+       method and three thin reads, 251 production lines: `task_list` takes a
+       `TaskFilter` of four ANDing optional filters — epic, status, kind and
+       `ready` — and returns `Result<Vec<TaskId>, DomainError>`, the only `Err`
+       being §6.1's `unknown_id` for an epic the graph does not hold;
+       `epic_list`/`decision_list`/`doc_list` are unfiltered ascending-id reads,
+       each named and pinned as a **domain contract** rather than left to
+       `BTreeMap` iteration that M3 would come to rely on by accident. Every
+       list is in its documented total order, and the order is **reused, never
+       re-derived**: `list.rs` calls `canonical_order`/`canonical_order_of_epic`
+       and `is_until_satisfied`, so f47's pin on the induced epic order guards
+       this module too and a fourth derivation never existed to be wrong.
+       **`Vec<TaskId>` is the D16 guard and it is structural** — a bare id list
+       has nowhere to hang the `blocked_by` annotation D16(a) would add, so this
+       commit could not pre-build an unsigned decision even by accident; no
+       counts, no aggregate, no `status_summary`, no serde on the new types, and
+       no row struct. `ready` implements the **deferred-scoped** reading (ii) of
+       §6's "for deferred items — until-satisfied (`ready`)", reusing t27's
+       predicate so the two cannot drift, flagged veto-able against the
+       status-agnostic reading (i) and pinned by a test that asserts its premise
+       first — the sixth veto-able reading of signed text now pinned by a named
+       diff. **D8's cross-module invariant is pinned rather than assumed**:
+       `task_list(status=Deferred).len() == next_task().deferred.total` and
+       `(…, ready=true).len() == deferred.ready`, at repo scope and every epic
+       scope, hand-built and seeded. Decision **L** ran first, before any
+       `list.rs`: the three byte-identical `naive_*` helpers lifted out of
+       `tests/select.rs` and `tests/items.rs` into `tests/mod.rs` as `pub(super)`,
+       pure 42-line deletions in both donors with select 19 and items 19
+       unmoved, so this suite is not a third verbatim copy (f50). 18 tests.
+       Dual-reviewed over two rounds, and the med that drove the second is the
+       reason the round existed: **`ready`'s decision-gate dimension had no
+       hand-built pin and no coverage counter** — the primary's gate-blind
+       mutant (dropping the `BlockEnd::Epic` half of `is_until_satisfied`) was
+       killed by exactly one seeded test, at one of five seeds, with a one-id
+       margin, so a seed or `LIST_STEPS` change would have removed the pin with
+       the coverage test still green. That is f9 one level down and t28's
+       unpinned dedup arm in a new register. The fix round added the hand-built
+       test covering **both** halves (a deferred task held by a decision gating
+       its *epic*, and one held by a decision gating *itself*, premise asserted,
+       the answer moving as each gate is signed) and a per-seed counter whose
+       suppression fails naming the seed — and the per-seed assertion then
+       **forced a seed re-pick**, the old constants being unsatisfiable for that
+       branch (measured `0,0,0,1,2` across them, reproducing the primary's own
+       numbers, and `s60` dropping to zero at 700 steps, which is why the
+       constant's comment says the shape is rare and not monotone in depth —
+       mechanism only, no figure). Round two re-measured **every** coverage
+       branch at the new seeds, because a re-pick can silently vacate a branch
+       that was pinned at the old ones, and found none vacated; the gate-blind
+       mutant now dies on the hand-built test and on the seeded agreement test
+       at a two-id margin. The primary's 20 mutants killed 19; the survivor is
+       the resolution seam's unreachable-`None` arm, which drops rather than
+       invents, matches two reviewed precedents (`select.rs`'s `filter_map`,
+       `items.rs`'s `if let`) and is recorded as a finding with no change
+       requested. The secondary re-bound its `ok` to the final bytes rather than
+       letting the round-1 verdict stand over a changed file. Two spec errors
+       were measured rather than worked around: **§3 D2 of the task spec
+       misattributed `deny_unknown_fields` and the wire key order to D15** where
+       D14 is the key order (`decisions.md:620`) and D15 the §6.1 carrier
+       (`:689`), and `deny_unknown_fields` appears nowhere in `decisions.md` —
+       the tree cites D14 correctly and carries no misattribution; and the
+       coverage pin was unreachable at the inherited constants, the spec's own
+       named contingency. Gates all run on the final tree: fmt clean; `check
+       --workspace --all-targets` clean; `-- graph::tests::list` 18 passed / 0
+       failed / 149 filtered out, equal to `rg -c '#[test]'` on that file (the
+       only proof a name filter ran, and the module path rather than the bare
+       word per f51); `-- graph::tests::select` 19 and `-- graph::tests::items`
+       19; crate 167 = 149+18; workspace 309 = 291+18 with store 107 and cli 35
+       unmoved; clippy clean on a forced recompile; `cargo doc --workspace
+       --no-deps` 0 warnings and `--document-private-items` printing exactly the
+       one known f48 warning; the five goldens untouched and `Cargo.lock` absent
+       from status; `select.rs` and `items.rs` sha-equal to HEAD before, during
+       and after, `order.rs`/`state.rs` never in the diff; `list.rs` at 251
+       production lines needs no exception line, so U13 does not move. Two
+       riders this diff could not take because both files were sha-pinned: the
+       `select.rs`/`items.rs` module-doc markers calling the batch and listing
+       surfaces "later M2 work", now false for both, which land as their own
+       comment-only commit inside this unit; and a fourth per-suite `shuffle`
+       copy plus near-duplicated spec builders, a rider on the next
+       `tests/mod.rs` owner. **D16 decision material, measured not argued**: the
+       dossier's "the annotation half is separable and cheap" does not survive
+       contact with the code — `items.rs`'s `annotate` is private, and the
+       composition rule it implements (append the epic's gates, dedup at first
+       occurrence, two ascending runs) is a signed domain contract, so a server
+       building D16(a)'s annotation over `Vec<TaskId>` would re-implement that
+       rule in the binary; and six `task_list(status=s).len()` calls in the
+       binary would be an aggregation in the server against §2's "translates,
+       does not decide", re-deriving the canonical order six times per summary.
+       A signed (a) therefore most likely forces a domain aggregate and a domain
+       row type, which is recorded in the dossier and changes no recommendation.
+       Landed as `HASH_T29`.
 
 ## 4. Follow-ups
 
@@ -1654,6 +1750,127 @@ Deliberate shortcuts, acknowledged rather than fixed. Same id rules as §4.
 Newest first. One entry per session, written for someone who was not
 here. The final entry of a session is the handover
 (`.agents/skills/todo-next-imp/SKILL.md` defines the shape).
+
+### 2026-10-01 — M2 t29 landed: the domain's query surface is complete
+
+The session opened on `/todo-next-imp` with the previous handover naming one
+next step and its spec already written, so it dispatched rather than re-derived:
+**t29**, `graph/list.rs`, from `tmp/t29-spec.md`. It is in, dual-reviewed over
+two rounds, and with it the domain half of M2 is done — §5.2's selection
+(t27), batch (t28) and listing (t29) surfaces all exist, and what remains in
+the milestone is store-side (t30, t31) plus the g7 gate. Four things the next
+session should know.
+
+**A coverage pin's constants are part of the pin.** The round-2 med was not a
+missing test in the ordinary sense: `ready`'s decision-gate dimension was
+pinned, but only by one seeded graph at one of five seeds with a one-id margin,
+and the counter that was supposed to make that visible did not count it. The
+remedy — a hand-built pin on both halves of `is_until_satisfied` plus a
+per-seed counter — then *forced a seed re-pick*, because the per-seed assertion
+was unsatisfiable at the inherited constants. That is the part worth carrying
+forward: **changing a seeded suite's constants is a re-measurement event, not a
+one-line edit**, since a branch that was non-zero at the old seeds can be zero
+at the new ones and every other assertion would stay green. Round two therefore
+re-measured *every* coverage branch at the new constants rather than only the
+new counter, and found nothing vacated. A pin that is asserted per seed is
+stronger than a union-across-seeds pin exactly because it fails loudly here —
+t27's round-1 med was the union form, and this is the second time the
+distinction has paid for itself.
+
+**A citation is a claim like any other, and the ones I verify least are the ones
+that break.** The task spec's §3 D2 attributed `deny_unknown_fields` and the
+wire key order to **D15**; D15 is the §6.1 error *carrier*, D14 is the key
+order, and `deny_unknown_fields` appears nowhere in `decisions.md`. Every quoted
+line number in that spec reproduced — the implementer checked them all — and the
+error was in what the cited decision *said*, which is the half the author read
+once and never measured. Pitfalls 5.1 asks a spec author to name the state space
+a safety argument was checked against; this is its citation-shaped sibling, and
+it is the fifth consecutive task spec in this repo to contain a claim that did
+not reproduce. The tree is clean: `list.rs` cites D14 correctly and nothing
+under `crates/` mentions D15.
+
+**The dispatch protocol survived a spawn death, third occurrence.** The first
+implementer spawn died instantly with "Connection reset by server"; a control
+spawn (`explore`, tiny prompt) succeeded in between, and the *identical* prompt
+landed on the retry. That is pitfalls 5.4 exactly as written, now proven twice
+on the remedy: control spawn to isolate binding from infrastructure, then retry
+identically, and only escalate past that. Prompt size is still not the trigger —
+the failing prompt was the same length as the one that worked.
+
+**D16 gained decision material, and no recommendation moved.** t29's review
+measured what the dossier's "the annotation half is separable and cheap" costs
+in practice: `items.rs`'s `annotate` is private and its composition rule
+(append the epic's gates, dedup at first occurrence, two ascending runs) is a
+signed domain contract, so building D16(a)'s annotation over `Vec<TaskId>` in
+the binary means re-implementing that rule there; and six
+`task_list(status=s).len()` calls in the binary is an aggregation in the server,
+which §2 bars, re-deriving the canonical order six times per summary. A signed
+(a) therefore most likely forces a domain aggregate *and* a domain row type.
+That is recorded in the dossier beside the claim it qualifies. The vote is the
+user's and the recommendation is unchanged; t29's `Vec<TaskId>` keeps either
+outcome open, which is what its D3 wanted.
+
+**Handover.** Workspace: `main`, clean at `HASH_T29_BACKFILL` after this
+delivery's two commits — t29's crate diff plus its board movement, then the
+comment-only marker fix the sha pin kept out of it. Four crates: todo-domain
+**167** tests, todo-store 107 (four goldens), todo-cli 35 (one golden), todo-mcp
+an M0 shell; **309** workspace tests. rustc 1.98.1, MSRV 1.95. `Cargo.lock`
+untouched all of M2 — no rmcp, no serde_json; deps unchanged (serde, dacode-json
++ zmij by path on `../rust/json-tiers`, tempfile dev-only, lexopt 0.3.2); tools
+need Python 3 + PyYAML. Serena live. Nothing to install. **Next step: t30**,
+the two one-sentence store doc riders — **U15** (`store.rs`'s `snapshot` doc
+claims "changes nothing on disk", which §4.3's temp debris falsifies: either
+scope the sentence to "nothing in place" or add cleanup-on-failure) and **U19**
+(`repair.rs`'s module doc, "so a snapshot fault" → "so that fault"). They are
+independent of everything above and cheap in lines, but they are a `todo-store`
+`src/` change, so a full dual-review cycle for two sentences — that is the
+known cost, not a reason to skip the review. Then **t31**, the registry query
+side (`repo_list`/`repo_show` plus t11's cold-open measurement, which is
+decision material for M3's registry question), then **g7**. The alternative
+front is the M3 rmcp dependency ask, which is the only thing gating M3 and
+needs the user, not a session. **Blocked on you: D16** (P1, vote) — a signed
+(a) or (b) adds one domain aggregation task under g6 and, per the measurement
+above, most likely a domain row type with it; t30/t31/g7 do not wait on it, and
+no task may build any part of a roll-up before it is signed. Also open and
+gating nothing: f44 (a duplicate-key check in `agents-sync.py`), f45
+(`progress.py` cannot render open D-entries, so the page cannot list D16 — the
+highest-priority open thing), f48 (the `cargo doc` gate's private-module blind
+spot, with one link already broken behind it), f49 (the `awk` line measure
+mis-counts test-only files), f50 (the dedup coverage counter the generator
+cannot reach, and the naive-helper lift — now landed by t29, so what remains is
+the generator half), f51 (the filter-substring rule for verify lines), f52–f54
+from this session, U13's ack, the carried f25 reading (`4c5782b` reverts it),
+and two sibling-repo calls. D13 stays reserved for U18. Six veto-able readings
+of signed text are now pinned by a test each (t27's two, t28's three, t29's
+`ready` scoping), so any veto is a named diff; they are enumerated in the t27,
+t28 and t29 §3 entries. **Unverified — read this before trusting anything
+above.** Nothing outside `todo-domain` has ever carried a selection, batch or
+list answer — no store event, no wire, no client — so §5.2's rules remain
+proven against hand-built and seeded graphs alone, and the six veto-able
+readings are pins against a future edit, not evidence about a present consumer.
+Three weak spots survive by name: t28's judgment call (j) pin is honestly
+circular (the naive recomputation reads the same contract), the `blocked_by`
+two-run order is a contract M3's `outputSchema` must state and nothing enforces
+yet, and the resolution seam's unreachable-`None` arm in `list.rs` drops
+silently by design (f52) — its state-space argument is the only thing behind
+it. Carried and still true: the signed wire contract (D14/D15) has no code
+behind it; no induced crash or power loss anywhere; nothing calls `compact()`
+outside tests; no human has run `dump`/`verify`/`repair` on a real store;
+multi-process lock contention is still two handles in one process; the f41
+sweep line has never been exercised by a milestone gate (g7 will be the first);
+`tools/progress.py` has no test of its own; two harness checks are narrower than
+the reason they exist and no gate fails on either (f48, f49). Tracker:
+`tools/tasks.py check` exits 1 on exactly two lines — OPEN **g6**, the
+in-flight milestone goal that closes at g7 (the g4/g5 precedent), and STAND
+**g3** until M5. `.agents/pitfalls-live.md` is still empty; next entry is
+**P-LIVE-007**, and this session added two candidates for the M2 gate: a
+per-seed coverage pin's constants are part of the pin, so re-picking them is a
+re-measurement event; and a citation's *content* is the half nobody measures —
+verify what a decision says, not only where it lives. Doc gates green:
+check-links, agents-sync `--check`, attention `--check` exit 0. Code gates all
+run on the committed tree: fmt, `check --workspace --all-targets`, clippy,
+`cargo doc --no-deps` clean, `--document-private-items` at exactly the one
+known f48 warning; 309 tests; five goldens and `Cargo.lock` untouched.
 
 ### 2026-10-01 — M2 f47 closed and t28 landed: the brief was the defect twice
 

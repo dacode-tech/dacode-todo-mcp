@@ -847,6 +847,34 @@ exist in §6.2's dump, so `task_list` is the only listing that does not
 carry them. No option needs a §6.1 code beyond the closed list — an
 unknown repo or epic is `unknown_id`.
 
+**Cost measured while building t29 (2026-10-01), qualifying the annotation
+sentence above.** `task_list` landed returning `Vec<TaskId>` — bare ids,
+deliberately, so that no part of an unsigned roll-up could be pre-built by
+accident (spec §5.2/§6, board §3). Two consequences for this vote, both read
+off the code rather than argued:
+
+- The annotation is **not** composable in the server over those ids. The rule
+  that builds a row's `blocked_by` — the task's own predecessors, then its
+  epic's decision gates appended and deduped at first occurrence, as two
+  ascending runs — is `items.rs`'s private `annotate`, and that order is a
+  signed contract M3's `outputSchema` will have to state. A server assembling
+  D16(a)'s annotation from `Vec<TaskId>` plus the public `blocked_by` accessor
+  would re-implement the rule in the binary, where §2 says it translates and
+  does not decide. `NextItem::blocked_by` is the precedent in the other
+  direction: the last annotation this project added landed as a domain row
+  field.
+- Neither is the counting. Six `task_list(status=s).len()` calls in the binary
+  is an aggregation in the server, and each call re-derives the canonical
+  order, so one summary costs six derivations.
+
+So a signed (a) — or (b), whose annotation is the same — most likely adds a
+domain aggregate **and** a domain row type or annotated sibling, not only a
+tool and a schema. That is a cost of the option, recorded beside the claim it
+qualifies; it changes no recommendation, and (c) is untouched by it, since
+§6.2's dump already carries per-node `blocked_by` under the signed D11
+amendment and a client can read the annotation straight off it. Nothing was
+built either way: t29 measured this while refusing to pre-empt the vote.
+
 **On sign-off:** amend §6's tool table with the chosen shape (and §6.2 if
 the dump carries it); state in §6 what the summary counts — which
 statuses are open, what makes a deferred item ready — so the arithmetic

@@ -37,8 +37,13 @@
 //! [`Graph::next_items_of_epic`] and [`Graph::next_items_of_task`]
 //! answer with the annotated batch — a scope's actionable nodes, or one
 //! task's transitive dependents, each marked — and the same deferred
-//! summary ([`NextItems`], [`NextItem`]). M2's remaining surface:
-//! `task_list`'s filters.
+//! summary ([`NextItems`], [`NextItem`]), and §6's listing half beside
+//! it: [`Graph::task_list`] filters the canonical order by epic,
+//! status, kind and deferred readiness ([`TaskFilter`]), and
+//! [`Graph::epic_list`], [`Graph::decision_list`] and
+//! [`Graph::doc_list`] list their node kinds in ascending-id order.
+//! The domain's M2 query surface is complete with these; the rest of
+//! M2 is store-side and the wire is M3's.
 
 #![cfg_attr(
     test,
@@ -62,7 +67,7 @@ mod time;
 pub use error::{DomainError, ErrorCode, ValueError};
 pub use graph::{
     BlockEnd, BlocksEdge, Counters, DecisionDraft, DeferredSummary, DocDraft, EpicDraft, Graph,
-    NextItem, NextItems, NextTask, TaskDraft,
+    NextItem, NextItems, NextTask, TaskDraft, TaskFilter,
 };
 pub use id::{DecisionId, DocId, EpicId, MAX_SLUG_LEN, RepoSlug, TaskId};
 pub use node::{Confidence, Decision, Doc, Epic, Repo, Task};

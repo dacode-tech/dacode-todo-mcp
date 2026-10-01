@@ -151,6 +151,8 @@ LANES: list[tuple[str, list[str]]] = [
     ("next", ["U2", "U17", "M2"]),
     ("M2 · queries (§5.2/§6/§7)", ["g6", "t26", "t27", "t28", "t29", "t30",
                                     "t31", "g7", "D16", "f47"]),
+    ("M2 findings (open unless noted)", ["f48", "f49", "f50", "f51", "f52",
+                                         "f53", "f54", "f55"]),
     ("later", ["U16", "M3", "M4", "U18", "M5"]),
 ]
 
@@ -259,7 +261,6 @@ WAITS: dict[str, str] = {
     "f40": "t30, the store doc riders (= U15, which U19 rides too)",
     "f44": "a user call: land the duplicate-key check in agents-sync.py, or promote it",
     "f45": "a user call: draw open D-entries on the page, or disclaim them in the footer",
-    "f47": "t28's dispatch — its spec carries the four items as a rider section",
     "U15": "t30, the store doc riders",
     "U19": "t30 (= U15)",
     "U13": "the next commit that grows either file, or M3 — whichever comes first",
@@ -267,11 +268,15 @@ WAITS: dict[str, str] = {
     "U18": "M4's importer check, by the user's own deferral",
     "f31-39": "nothing — dispositioned by f41; f35 lives on as U19",
     "g6": "its five tasks, then g7",
-    "t28": "nothing now — t27 landed; it reuses select.rs's predicate and DeferredSummary",
-    "t29": "t27 (the until-target ready predicate)",
     "t30": "nothing — it is the store touch U15/U19 wait on",
     "t31": "t30, plus t11's cold-open question",
     "g7": "t27–t31",
+    "f48": "a user call: add --document-private-items to the doc gate line, or disclaim private-module docs",
+    "f49": "a user call: a caveat beside _rust.md's awk rule, or a sweep wrapper",
+    "f50": "the next owner of tests/seeded.rs for the generator half — the naive-helper lift landed with t29",
+    "f51": "the next edit of task-tracking.md's verify-method section",
+    "f54": "the next owner of tests/mod.rs (= f50's)",
+    "f55": "its own comment-only commit inside the t29 unit",
 }
 
 COLOR = {

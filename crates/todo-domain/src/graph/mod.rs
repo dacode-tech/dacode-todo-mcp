@@ -59,13 +59,14 @@
 //!   edge types and their mutations, `drafts` the add-API input shapes,
 //!   `nodes` the node mutations, `order` the §5.2 canonical-order
 //!   derivation, `select` the §5.2 selection half, `items` the §5.2
-//!   batch half. Every mutation validates on a local before touching
-//!   `self`, which is what makes rejection atomic without a rollback
-//!   path.
+//!   batch half, `list` the §6 listing reads. Every mutation validates
+//!   on a local before touching `self`, which is what makes rejection
+//!   atomic without a rollback path.
 
 mod drafts;
 mod edges;
 mod items;
+mod list;
 mod nodes;
 mod order;
 mod select;
@@ -77,5 +78,6 @@ mod tests;
 pub use drafts::{DecisionDraft, DocDraft, EpicDraft, TaskDraft};
 pub use edges::{BlockEnd, BlocksEdge};
 pub use items::{NextItem, NextItems};
+pub use list::TaskFilter;
 pub use select::{DeferredSummary, NextTask};
 pub use state::{Counters, Graph};

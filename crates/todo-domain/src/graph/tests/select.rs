@@ -775,48 +775,6 @@ fn naive_select(graph: &Graph, scope: Option<&EpicId>) -> NextTask {
     }
 }
 
-fn naive_actionable(graph: &Graph, id: &TaskId) -> bool {
-    let Some(task) = graph.task(id) else {
-        return false;
-    };
-    let live = task.status == Status::Open || task.status == Status::InWork;
-    live && naive_until_satisfied(graph, task)
-}
-
-fn naive_until_satisfied(graph: &Graph, task: &Task) -> bool {
-    for end in graph.blocked_by(&BlockEnd::Task(task.id.clone())) {
-        if !naive_end_finished(graph, &end) {
-            return false;
-        }
-    }
-    // §5.1's epic gate, consulted by hand.
-    for end in graph.blocked_by(&BlockEnd::Epic(task.epic.clone())) {
-        if !naive_end_finished(graph, &end) {
-            return false;
-        }
-    }
-    true
-}
-
-fn naive_end_finished(graph: &Graph, end: &BlockEnd) -> bool {
-    match end {
-        BlockEnd::Task(id) => match graph.task(id) {
-            Some(predecessor) => {
-                predecessor.status == Status::Closed || predecessor.status == Status::Wontfix
-            }
-            None => false,
-        },
-        BlockEnd::Decision(id) => match graph.decision(id) {
-            Some(decision) => {
-                decision.status == DecisionStatus::Signed
-                    || decision.status == DecisionStatus::Superseded
-            }
-            None => false,
-        },
-        BlockEnd::Epic(_) => false,
-    }
-}
-
 /// What the coverage pin observed on **one seed**, computed from the
 /// built graphs.
 #[derive(Debug, Default)]

@@ -1,6 +1,7 @@
 //! The graph tests (spec §10): shared builders, the invariant scan the
-//! property test re-runs after every mutation, and the byte fingerprint
-//! that makes "same state twice" checkable.
+//! property test re-runs after every mutation, the byte fingerprint
+//! that makes "same state twice" checkable, and the naive predicates
+//! the suites' independent recomputations share.
 //!
 //! The scan is deliberately written against the public accessors only,
 //! with its own cycle detection, so it cannot share a bug with the code
@@ -23,6 +24,7 @@ mod alloc;
 mod cycles;
 mod edges;
 mod items;
+mod list;
 mod order;
 mod seeded;
 mod select;
@@ -513,6 +515,54 @@ pub(super) fn outcome<T>(result: &Result<T, DomainError>) -> String {
     match result {
         Ok(_) => "ok".to_owned(),
         Err(error) => error.code().as_str().to_owned(),
+    }
+}
+
+/// The naive predicates behind the suites' independent recomputations.
+/// Deliberately a second, slower implementation reading only the public
+/// accessors and spelling the status matches out by hand, so agreement
+/// with production cannot come from a shared bug — independence from
+/// *production* is the property that matters, and one shared copy
+/// inside the test tree preserves it without per-suite duplication.
+pub(super) fn naive_actionable(graph: &Graph, id: &TaskId) -> bool {
+    let Some(task) = graph.task(id) else {
+        return false;
+    };
+    let live = task.status == Status::Open || task.status == Status::InWork;
+    live && naive_until_satisfied(graph, task)
+}
+
+pub(super) fn naive_until_satisfied(graph: &Graph, task: &Task) -> bool {
+    for end in graph.blocked_by(&BlockEnd::Task(task.id.clone())) {
+        if !naive_end_finished(graph, &end) {
+            return false;
+        }
+    }
+    // §5.1's epic gate, consulted by hand.
+    for end in graph.blocked_by(&BlockEnd::Epic(task.epic.clone())) {
+        if !naive_end_finished(graph, &end) {
+            return false;
+        }
+    }
+    true
+}
+
+pub(super) fn naive_end_finished(graph: &Graph, end: &BlockEnd) -> bool {
+    match end {
+        BlockEnd::Task(id) => match graph.task(id) {
+            Some(predecessor) => {
+                predecessor.status == Status::Closed || predecessor.status == Status::Wontfix
+            }
+            None => false,
+        },
+        BlockEnd::Decision(id) => match graph.decision(id) {
+            Some(decision) => {
+                decision.status == DecisionStatus::Signed
+                    || decision.status == DecisionStatus::Superseded
+            }
+            None => false,
+        },
+        BlockEnd::Epic(_) => false,
     }
 }
 
