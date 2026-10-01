@@ -1092,6 +1092,7 @@ Oldest first. One line per delivery, with the commit hash once committed.
        untouched; `check-links`, `agents-sync --check` and `attention.py
        --check` green. Production lines: `order.rs` 241 (one more, a doc
        rewrap), `select.rs` 240 — no exception line and no U13 movement.
+       Landed as `8581533`.
 
 ## 4. Follow-ups
 
