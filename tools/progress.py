@@ -152,7 +152,8 @@ LANES: list[tuple[str, list[str]]] = [
     ("M2 · queries (§5.2/§6/§7)", ["g6", "t26", "t27", "t28", "t29", "t30",
                                     "t31", "g7", "D16", "f47"]),
     ("M2 findings (open unless noted)", ["f48", "f49", "f50", "f51", "f52",
-                                         "f53", "f54", "f55"]),
+                                         "f53", "f54", "f55", "f56", "f57",
+                                         "f58"]),
     ("later", ["U16", "M3", "M4", "U18", "M5"]),
 ]
 
@@ -258,25 +259,21 @@ EXTRA: dict[str, tuple[str, str, str]] = {
 WAITS: dict[str, str] = {
     "f4": "M3's wire mapping",
     "f25": "the log backend settling (M3)",
-    "f40": "t30, the store doc riders (= U15, which U19 rides too)",
     "f44": "a user call: land the duplicate-key check in agents-sync.py, or promote it",
     "f45": "a user call: draw open D-entries on the page, or disclaim them in the footer",
-    "U15": "t30, the store doc riders",
-    "U19": "t30 (= U15)",
+    "f57": "a tests-only commit (the t21/f47 shape); its three seams are measured in the finding",
+    "f58": "the next owner of crates/todo-store/src/log.rs — one sentence in open_log's doc fixes all three pointers",
     "U13": "the next commit that grows either file, or M3 — whichever comes first",
     "U16": "lands with M3; its mechanism is measured (spec §6.3)",
     "U18": "M4's importer check, by the user's own deferral",
-    "f31-39": "nothing — dispositioned by f41; f35 lives on as U19",
     "g6": "its five tasks, then g7",
-    "t30": "nothing — it is the store touch U15/U19 wait on",
-    "t31": "t30, plus t11's cold-open question",
+    "t31": "nothing — t30 landed, so it is the last M2 task before g7; it owes t11's cold-open measurement",
     "g7": "t27–t31",
     "f48": "a user call: add --document-private-items to the doc gate line, or disclaim private-module docs",
     "f49": "a user call: a caveat beside _rust.md's awk rule, or a sweep wrapper",
     "f50": "the next owner of tests/seeded.rs for the generator half — the naive-helper lift landed with t29",
     "f51": "the next edit of task-tracking.md's verify-method section",
     "f54": "the next owner of tests/mod.rs (= f50's)",
-    "f55": "its own comment-only commit inside the t29 unit",
 }
 
 COLOR = {

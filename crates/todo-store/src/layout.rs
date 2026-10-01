@@ -348,8 +348,8 @@ pub(crate) fn store_dir_missing(path: &Path) -> bool {
 /// directory that parses as a slug, and none may be invented (§7: the
 /// slug is the key, and this store was not opened by one). The target is
 /// [`LockTarget::Unnamed`] (f17, t13's decision), so the contended
-/// report is §6.1's `locked` — honest, because nothing was opened, read
-/// or written — rather than the `io` this arm used to degrade to. §6.1's
+/// report is §6.1's `locked` — honest, because nothing was read or
+/// written — rather than the `io` this arm used to degrade to. §6.1's
 /// code list is untouched: `locked` was already on it. The case is only
 /// reachable when such a path is *contended* (see [`crate::lock`]'s
 /// lazy-target note): every other fault on a bare path keeps t10's exact

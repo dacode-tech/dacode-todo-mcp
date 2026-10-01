@@ -15,8 +15,8 @@ blocking. Rules, which `tools/attention.py` and the reviewers enforce:
 
 ## 1. Current state
 
-**Phase: M2 under way 2026-10-01 — t27, t28 and t29 landed, f47 closed; the
-domain's query surface is complete.** The query layer is five tasks under
+**Phase: M2 under way 2026-10-02 — t27, t28, t29 and t30 landed, f47 closed;
+the domain's query surface is complete.** The query layer is five tasks under
 tracker **g6**, each one commit with its own file, plus the **g7** exit gate;
 §2's M2 row names them. **t27** is in — the domain's §5.2 selection: the
 actionability and until-target predicates, `next_task`'s two scopes and D9's
@@ -27,10 +27,13 @@ derived weight), **t29** completes the trio (§5.2/§6's listing half,
 unsigned D16 roll-up has nowhere to hang), and **f47**, the four lows t27's
 second review round dispositioned instead of looping, is closed as a tests-only
 commit that pins three wrong implementations the suite had been letting
-through. What is left in M2 is store-side: **t30**'s two doc riders and
-**t31**'s registry queries, then **g7**. One decision is open out of the
-decomposition — **D16**, the progress roll-up — and no task waits on it; t29
-measured a consequence for its dossier (§3).
+through. **t30** is in beside them, and it is the store's turn: the two doc
+riders the board had parked on the next store touch (**U15**'s falsified
+"changes nothing on disk" and **U19**'s over-broad quantifier) plus two more
+claims of the same class its own review found — comment-only, no behaviour
+moved. What is left in M2 is **t31**'s registry queries, then **g7**. One
+decision is open out of the decomposition — **D16**, the progress roll-up —
+and no task waits on it; t29 measured a consequence for its dossier (§3).
 M1 is closed. The domain layer (§3's value types and closure discipline,
 §5.1's graph, §5.2's canonical order), the storage engine (the signed D1
 JSONL event log behind the `Store` trait
@@ -51,16 +54,14 @@ shell, which is M3's business.
 | **D16** | the progress roll-up — totals by kind and status, and per open item what it waits on — is a §6 amendment, drafted out of **U17** with recommendation (a): a `status_summary(repo?, epic?)` tool plus `blocked_by` on `task_list` rows. It gates M2 only in the sense that a signed (a) or (b) adds one domain aggregation task to g6; **t27–t29 do not wait on it** and no task may implement a roll-up before it is signed | vote |
 | — | M3's remaining gate is the **rmcp dependency ask** itself (Ask-First): the survey measured its weight (spec §6.3) and D14 now names `serde_json` as a wire serializer, but nothing has entered the workspace | ask, then build the wire |
 
-(Open but non-blocking: **U15** and **U19**, the two one-sentence store
-doc fixes, are now owned by **t30** rather than waiting on an incidental
-touch; **U16** (ship base instructions with the server and gate the
-client's native todo off, M3 — its mechanism is measured rather than
+(Open but non-blocking: **U16** (ship base instructions with the server and
+gate the client's native todo off, M3 — its mechanism is measured rather than
 assumed, spec §6.3) and **U18** (a live view for progress and whether the
 server is shared per user, deferred until after M4's importer check, and
 holding the **D13** reservation) are unchanged. Resolved: U2/U4/U5/U6/U7/
-U8/U9/U10/U11/U12/U14 and now **U17**, whose mapping is settled and whose
-one open piece is D16; U3 superseded by D12. U13 is acknowledged debt,
-re-measured at this decomposition and unchanged.)
+U8/U9/U10/U11/U12/U14/U17 and now **U15** and **U19**, both taken by t30 —
+U17's mapping is settled and its one open piece is D16; U3 superseded by D12.
+U13 is acknowledged debt, re-measured at the M2 decomposition and unchanged.)
 
 ## 2. Milestones
 
@@ -72,7 +73,7 @@ exit criteria: spec §14. Priority is derived from the Gated-on column by
 |---|---|---|---|
 | M0 | spec settled: §12 items 1–3 signed (done 2026-09-25); Cargo workspace skeleton with the lint regime; all gates green | — | done 2026-09-25 |
 | M1 | domain model + storage engine: graph, statuses, persistence behind the `Store` trait, golden files | — | done 2026-09-30 — g5 ran green: every code gate, five goldens byte-identical, `cargo doc` clean, pitfalls consolidated |
-| M2 | queries: repo/epic selection, dependency resolution, deterministic `next_task`; registry with path updates | **D16** adds one task if signed; no dispatched task waits on it | under way — **t27 done 2026-09-30**: domain `graph/select.rs`, the actionability predicate, `next_task` in both scopes, the until-target `ready` predicate and D9's deferred `{total, ready}` (19 tests, dual-reviewed over two rounds); **f47 closed 2026-10-01** as its own tests-only commit rather than a rider in t28's spec, because three of its four items live in t27's files; **t28 done 2026-10-01**: domain `graph/items.rs`, `next_items` in three scopes (repo/epic actionable-only, task-scoped dependents each marked) with the blocked-by/blocks annotations, the derived transitive-dependent weight and the reused deferred summary (19 tests, dual-reviewed over two rounds, three veto-able readings flagged); **t29 done 2026-10-01**: domain `graph/list.rs`, `task_list`'s four ANDing filters (epic/status/kind/`ready`) returning bare task ids in §5.2's order, plus `epic_list`/`decision_list`/`doc_list` as pinned ascending-id reads — with it the domain's M2 query surface is complete (18 tests, dual-reviewed over two rounds, the second driven by an unpinned `ready` gate-arm; one veto-able reading flagged, f50's helper lift landed first); **t30** the store doc riders (**U15** + **U19**); **t31** the registry query side (`repo_list`/`repo_show` + t11's cold-open measurement). Dispatch t30→t31, the store half, then **g7**, the exit gate. U17 answered, d1 closed by measurement, U13 re-measured and unchanged |
+| M2 | queries: repo/epic selection, dependency resolution, deterministic `next_task`; registry with path updates | **D16** adds one task if signed; no dispatched task waits on it | under way — **t27 done 2026-09-30**: domain `graph/select.rs`, the actionability predicate, `next_task` in both scopes, the until-target `ready` predicate and D9's deferred `{total, ready}` (19 tests, dual-reviewed over two rounds); **f47 closed 2026-10-01** as its own tests-only commit rather than a rider in t28's spec, because three of its four items live in t27's files; **t28 done 2026-10-01**: domain `graph/items.rs`, `next_items` in three scopes (repo/epic actionable-only, task-scoped dependents each marked) with the blocked-by/blocks annotations, the derived transitive-dependent weight and the reused deferred summary (19 tests, dual-reviewed over two rounds, three veto-able readings flagged); **t29 done 2026-10-01**: domain `graph/list.rs`, `task_list`'s four ANDing filters (epic/status/kind/`ready`) returning bare task ids in §5.2's order, plus `epic_list`/`decision_list`/`doc_list` as pinned ascending-id reads — with it the domain's M2 query surface is complete (18 tests, dual-reviewed over two rounds, the second driven by an unpinned `ready` gate-arm; one veto-able reading flagged, f50's helper lift landed first); **t30 done 2026-10-02**: the store doc riders — **U15**'s "changes nothing on disk" scoped to nothing *in place* with §4.3's temp debris named, **U19**'s quantifier narrowed to the fault it was argued for, plus two more claims of the same class that its own review found (`error.rs`'s `Locked` doc and `layout.rs`'s `Unnamed` rationale both said "nothing was **opened**", and opening the lock file is how contention is discovered) — comment-only, four files, dual-reviewed over four rounds; **t31** the registry query side (`repo_list`/`repo_show` + t11's cold-open measurement). Dispatch t31, the last store task, then **g7**, the exit gate. U17 answered, d1 closed by measurement, U13 re-measured and unchanged |
 | M3 | MCP server: the full §6 tool list over the wire, protocol-level tests, default-repo slug config (D8), smoke against a real client | the **rmcp dependency ask** (Ask-First) — **D14**/**D15** signed 2026-09-30, so the wire's key order and §6.1's error carrier are settled | not started |
 | M4 | adoption: the dacode-dialect importer first (**D12**, amending D7), its board the only fixture checked in per §10; camera and ikvm-html imported from their live boards and never copied into this repo; the three repos tracked for real | — | not started |
 | M5 | packaging, docs, cwd auto-detection (deferred by D8), polish | — | not started |
@@ -1307,10 +1308,100 @@ Oldest first. One line per delivery, with the commit hash once committed.
        three surfaces do read `order`'s derivation, that `items` and `list`
        both call `select`'s predicates, that `items` carries
        `DeferredSummary`, that `list` calls nothing from `items`. 167 tests
-       unchanged, `cargo doc` clean with `--document-private-items` at the
-       one known f48 warning, no golden, no `Cargo.lock`. Dual-reviewed
-       over two rounds, both bound to the final shas. Landed as
-       `034d081`.
+        unchanged, `cargo doc` clean with `--document-private-items` at the
+        one known f48 warning, no golden, no `Cargo.lock`. Dual-reviewed
+        over two rounds, both bound to the final shas. Landed as
+        `034d081`.
+- 2026-10-02 — **M2 t30: the store doc riders — U15, U19, and two of their
+       kind.** The two one-sentence fixes the board had parked on "the next
+       store touch", taken as one comment-only commit, plus the two further
+       claims of the same class its own review turned up. No behaviour moved
+       anywhere in the crate: every changed line in `git diff -U0 -- crates/`
+       begins with `///` or `//!`, and all four files — `store.rs`,
+       `repair.rs`, `error.rs`, `layout.rs` — are byte-identical to the
+       baseline once comments are stripped, which is the proof that makes a
+       diff like this cheap to review and the reason it still carries both
+       trailers (f55's caveat: a comment-only edit to production `.rs` is not
+       review-exempt).
+       **U15, remedy (a) — scope the sentence, do not add cleanup.**
+       `Store::snapshot`'s doc claimed a failed snapshot "changes nothing on
+       disk", which §4.3's own discipline falsifies: a rename that refuses
+       leaves its pid-suffixed temp beside the snapshot, and t21's test
+       measures exactly that. The doc now claims nothing **in place** — the
+       log, the graph and the snapshot already on disk untouched — and states
+       what a failure *after* the temp file's creation does leave, why the
+       debris is inert (its name is never the snapshot's, and nothing in this
+       crate reads a store directory's contents: no `read_dir` in either
+       crate's `src`), and how it is reused (the same process's next snapshot
+       of this store truncates it; a dead process's is left behind). It names
+       the pin rather than counting what the pin counts, and says which path
+       the pin drives — `compact`'s step (1) is the same `write_snapshot_atomic`
+       a bare `snapshot()` calls, there being no test that faults a bare one
+       (f57). Cleanup-on-failure was rejected on measurement, not taste:
+       §4.3's signed text promises temp+`fsync`+rename "so they are never
+       torn" and nothing about removing a temp; the debris assertion would
+       have had to invert, i.e. move a t21 sign-off to fix a doc; and the
+       change reaches four write sites while adding a failure mode — the
+       cleanup failing — inside the one path whose promise is "not
+       session-fatal".
+       **U19, the one word.** `repair.rs`'s `Err` rationale closed with "so a
+       snapshot fault is never reported through it", false read broadly
+       because a snapshot-origin *reconcile* fault is reported through
+       `Unrepairable { offset: None }` and a test pins that it is. Narrowed to
+       "that fault" — the parse fault the sentence was argued for — and checked
+       against the code rather than the report: classification-order item 2
+       already states the contrast case in terms, so the narrowing removes a
+       contradiction instead of needing a new clause.
+       **The class sweep found two more, and they are why the diff is four
+       files rather than the board's two.** `error.rs`'s `Locked` doc and
+       `layout.rs`'s `Unnamed` rationale both said "nothing was **opened**,
+       read or written" — and `open_and_try_lock` opens the lock file, with
+       `create`, before `try_lock`, because that open is how the contention is
+       discovered. The sweep's own grep had been too narrow: it looked for
+       "nothing written / nothing on disk / untouched" and not for "nothing was
+       opened". Both were fixed here rather than deferred to a board item on
+       f55's rule — sweep the class, not the instances — since t30 *is* the
+       store touch such an item would wait for and t31 is the next one, so
+       deferral would have bought nothing; both reviewers ruled the four-file
+       diff one logical change and one commit.
+       **Review earned its keep in round one, on my own sentence.** The primary
+       falsified "a failure **at or** after the temp file's creation does leave
+       that temp" by building the two states that refute it — a `chmod 0500`
+       store directory, where the `open` itself is refused and nothing is
+       created, and a store directory removed out of band, where the handle's
+       `fstat` still succeeds and the temp open reports `NotFound` — and it
+       also measured the positive half at a bare `Store::snapshot()`, the seam
+       no committed test drives. Three rounds of lows followed, all on prose:
+       the debris reuse was scoped per store rather than per process (`temp_path_for`
+       keys the name on the directory, so a process holding many stores reuses
+       it only for this one); "no reader opens anything but the exact paths it
+       derives" was loose because `JsonlStore::open_log` is `pub` and takes a
+       bare path, so the enumeration fact replaced it; and "the whole effect
+       **of the attempt**" survived neither `LockTarget::Registry` — whose
+       `lock_registry` runs `create_dir_all` on the root strictly before the
+       acquire, so a racing loser's refusal follows a mkdir — nor the phrase's
+       own target-neutrality, and became "the whole effect **on the data**".
+       The pointer this diff added follows the crate's convention
+       (`[crate::JsonlStore::open_log]`, as `lock.rs` and `layout.rs` already
+       do) and both reviewers independently found that convention lands one
+       method off the fact it is attached to — the lock-debris sentence is in
+       `create_log`'s doc, not `open_log`'s — at all three sites, two of them
+       pre-existing. Left alone and recorded as f58 rather than fixed here:
+       the honest remedy is one sentence in `open_log`'s doc, which makes all
+       three pointers true at once, and it belongs to whoever next owns
+       `log.rs`.
+       Gates on the final tree: fmt clean; `check --workspace --all-targets`
+       clean; `cargo test --workspace` 309 passed 0 failed, with `--test
+       snapshot` 32, `--test repair` 19 and `--test layout` 20 all at 0
+       filtered out and the named debris pin run by name; clippy clean on a
+       forced recompile; `cargo doc --workspace --no-deps` 0 warnings and
+       `--document-private-items` at exactly the one known f48 warning, which
+       is the gate that would catch the new link being wrong; both golden dirs
+       `git diff --exit-code` 0 including after an `UPDATE_GOLDEN=1` run over
+       the twelve writers; `Cargo.lock` untouched; production lines 299
+       (`store.rs`), 342 (`repair.rs`), 188 (`error.rs`), 383 (`layout.rs`),
+       all under the 600 target, so U13 does not move. Dual-reviewed over four
+       rounds, both reviewers bound to the final bytes. Landed as `HASH`.
 
 ## 4. Follow-ups
 
@@ -1639,7 +1730,7 @@ Unowned work. Take the next unused `U` id; never renumber, never reuse.
       second shape to pin; `jq .` is one pipe away. The measured surface
       keeps its three subcommands, both required options and `repair`'s two
       switches, so the comparison that chose the parser is unaffected.
-- [ ] **U15 · Scope or fix `Store::snapshot`'s "changes nothing on disk".**
+- [x] **U15 · Scope or fix `Store::snapshot`'s "changes nothing on disk".**
       `crates/todo-store/src/store.rs`'s `snapshot` doc promises that "a
       failed snapshot changes nothing on disk and is **not** session-fatal".
       The second half is now pinned by t21's test; the first is falsified by
@@ -1652,10 +1743,34 @@ Unowned work. Take the next unused `U` id; never renumber, never reuse.
       sentence to "nothing in place" and name the debris, or add
       cleanup-on-failure to `write_snapshot_atomic`/`write_temp`. Both are
       `src` changes, which is why t21 — tests-only by its own acceptance
-      criterion — recorded it as tracker f40 instead of fixing it. Rides the
-      next store touch; the debris assertion in
-      `tests/snapshot/compact.rs::a_refused_covering_snapshot_leaves_the_log_untouched`
-      is the measurement to re-read first.
+       criterion — recorded it as tracker f40 instead of fixing it. Rides the
+       next store touch; the debris assertion in
+       `tests/snapshot/compact.rs::a_refused_covering_snapshot_leaves_the_log_untouched`
+       is the measurement to re-read first. **Resolved 2026-10-02 by t30,
+       remedy (a) — the sentence is scoped, the code is not touched.**
+       `store.rs`'s `snapshot` doc now claims a failed snapshot changes
+       nothing **in place** (the log, the graph and the snapshot already on
+       disk untouched) and says what a failure *after* the temp file's
+       creation does leave, why the debris is inert (its name is never the
+       snapshot's, and nothing in this crate reads a store directory's
+       contents), and how it is reused — the same process's next snapshot of
+       this store truncates it, a dead process's is left behind. It names the
+       pin instead of counting what the pin counts. Remedy (b),
+       cleanup-on-failure, was rejected on measurement rather than
+       preference: §4.3's signed text promises only temp+`fsync`+rename "so
+       they are never torn", the debris assertion above would have had to
+       invert, and the change reaches four write sites (`snapshot.rs`, two in
+       `log.rs`'s `compact`, one in `repair.rs`) while adding a failure mode
+       inside the one path promised not session-fatal. Review then found the
+       class sweep's grep had been too narrow — it looked for "nothing
+       written / nothing on disk" and not for "nothing was **opened**" — and
+       two more claims of the same class: `error.rs`'s `Locked` doc and
+       `layout.rs`'s `Unnamed` rationale both said "nothing was opened, read
+       or written", while `open_and_try_lock` opens the lock file, with
+       `create`, before `try_lock` — that is how the contention is
+       discovered. Both fixed in the same commit, on f55's sweep-the-class
+       rule rather than deferred to a board item, since t30 *is* the store
+       touch a deferral would wait for.
 - [ ] **U16 · Ship base instructions with the server, and stop the harness
       using its own todo handling.** Stated by the user 2026-09-30; lands
       with M3 and needs U2's fourth question answered first. Two halves, and
@@ -1729,7 +1844,7 @@ Unowned work. Take the next unused `U` id; never renumber, never reuse.
       the shared instance. That is a new decision (**D13** when it is taken),
       not an implementation choice, and it belongs at M3/M5 when there is a
       wire to put in front of. Nothing here starts before M4's check.
-- [ ] **U19 · One word in `repair.rs`'s module doc.** Its `Err` rationale
+- [x] **U19 · One word in `repair.rs`'s module doc.** Its `Err` rationale
       closes with "so a snapshot fault is never reported through it" — true of
       the parse fault that sentence follows, false read broadly, since the
       foreign-snapshot case *does* report a snapshot-origin reconcile fault
@@ -1742,7 +1857,18 @@ Unowned work. Take the next unused `U` id; never renumber, never reuse.
       because a deferral recorded only in a gitignored branch-keyed tracker
       does not outlive the branch. Rides the next touch of
       `crates/todo-store/src/` — the same touch **U15** waits on, so whoever
-      takes one takes both.
+      takes one takes both. **Resolved 2026-10-02 by t30**: the one word,
+      exactly as prescribed, and verified against the code rather than the
+      report — the parse fault propagates as an `Err` at `repair.rs:250`
+      (`load_snapshot(snapshot_path)?`), while a snapshot-origin *reconcile*
+      fault arrives through `replay` as an unpositioned `corrupt_store` and is
+      refused as `Unrepairable { offset: None }` at `:260-262`, which the
+      module doc's classification-order item 2 (`:46-49`, "a fault with no
+      offset — a semantic disagreement between two files") already states in
+      terms. So the narrowing removes the contradiction with the paragraph
+      below it instead of needing a new clause, and `Unrepairable.offset`'s
+      field doc ("a position in the log, never in a snapshot") stays true of
+      the `None` case.
 
 ## 5. Debt
 
@@ -1780,6 +1906,70 @@ Deliberate shortcuts, acknowledged rather than fixed. Same id rules as §4.
 Newest first. One entry per session, written for someone who was not
 here. The final entry of a session is the handover
 (`.agents/skills/todo-next-imp/SKILL.md` defines the shape).
+
+### 2026-10-02 — M2 t30 landed: two doc sentences, four files, four rounds
+
+The session opened on `/todo-next-imp` with the previous handover naming one
+next step, and the user signed the recommendation it carried — **U15**'s
+remedy (a), scope the doc rather than add cleanup — so t30 was dispatched
+straight away. It is in: `store.rs`, `repair.rs`, `error.rs` and `layout.rs`,
+comment-only, every gate green, both reviewers bound to the final bytes. Three
+things the next session should know, all of them about doc work rather than
+about the store.
+
+**A sweep is only as wide as the grep that runs it.** The spec's class table
+listed twelve "nothing written / nothing on disk / untouched" claims, read each
+against the temp- and lock-debris facts, and cleared eleven. The two it missed
+were the same defect in a different spelling — "nothing was **opened**, read or
+written" — and the review found both. The generalisation is worth more than the
+two fixes: the defect class here is *an exhaustive claim that is narrower or
+looser than its mechanism*, and it has many surface forms, so a sweep has to be
+run against the defect and not against one phrasing of it. That is f41's lesson
+(a gate that cannot see the status it exists to catch) in a lexical register,
+and the third time in this repo that the instances found were exactly the ones
+the pattern matched. The same defect sat in this task's **own verify line**,
+which asked for `rg 'never reported through it'` to return nothing after a fix
+whose entire content was changing the four words *before* that substring — so
+the grep matched the corrected sentence and could never have passed. f26 and
+f51 again: a verification whose command does not mean what its author thought,
+caught by running it rather than by reading it. The check that does mean it is
+`rg 'so a snapshot fault is never reported'` → empty, beside
+`rg -c 'so that fault is never reported through it'` → 1.
+
+**When I write the replacement text, I inherit the claim I was correcting.** The
+round-one med was not in the old sentence, it was in the new one: "a failure
+**at or** after the temp file's creation does leave that temp" is false when the
+creation is what refused, and the reviewer proved it by building the two states
+rather than by reading my prose. Rounds two and three were the same shape —
+reuse scoped per process where the name is keyed per store directory, a
+"no reader opens anything but derived paths" clause loosened by `open_log`'s
+public bare-path signature, and "the whole effect of the attempt" broken by
+`lock_registry`'s `create_dir_all` on the `Registry` arm. This is the third
+delivery where the orchestrator's own prose was the load-bearing defect (t11's
+round three, f47's round one), and the remedy is the same each time: the party
+that writes a contract sentence is the party least able to falsify it, so the
+reviewer prompt asks for falsification against the code path and not for
+agreement with the summary.
+
+**What decided remedy (a) was a test, not a preference.** Cleanup-on-failure
+looked like the stronger fix until the measurement: `compact.rs` already asserts
+exactly one `.tmp` survives a refused rename, so (b) would have inverted a t21
+sign-off to make a doc true, across four write sites, adding a failure mode
+inside the one path promised not session-fatal. Where a doc claim and a pin
+disagree, the pin is the fact and the doc moves — which is also why the new
+sentence names the pin instead of restating a count of what it counts.
+
+Two findings were recorded rather than fixed, both deliberately: **f57**, no
+test faults a bare `Store::snapshot()`, with the three ready-made seams the
+review measured (`chmod 0500` the store directory; remove it out of band while
+the handle is open; park a directory at the snapshot path) — a tests-only commit
+of the t21/f47 shape; and **f58**, the crate's lock-debris pointer convention
+lands one method off the fact at all three of its sites, whose honest remedy is
+one sentence in `open_log`'s doc rather than re-pointing one caller and
+stranding two. **Blocked on the user, unchanged: D16** (P1, vote) — nothing in
+this delivery waited on it, and no part of a roll-up may be built before it is
+signed. The alternative front remains M3's rmcp dependency ask, which needs a
+decision rather than a session.
 
 ### 2026-10-01 — M2 t29 landed: the domain's query surface is complete
 

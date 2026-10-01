@@ -105,8 +105,19 @@ pub trait Store {
     /// and replays only the lines appended after this instant. The write
     /// is temp-file + `fsync` + atomic rename, so a snapshot is never
     /// torn and the previous one stays loadable until the rename lands;
-    /// a failed snapshot changes nothing on disk and is **not**
-    /// session-fatal — the log and the graph are untouched.
+    /// a failed snapshot changes nothing **in place** and is **not**
+    /// session-fatal — the log, the graph and the snapshot already on
+    /// disk are all untouched.
+    ///
+    /// What a failure after the temp file's creation does leave is that
+    /// temp, and nothing removes it: its name is never the snapshot's and
+    /// nothing in this crate reads a store directory's contents, so the
+    /// debris is inert rather than a state to recover from. The same
+    /// process's next snapshot of this store truncates it; a dead
+    /// process's is left behind. The `snapshot` test target's
+    /// `a_refused_covering_snapshot_leaves_the_log_untouched` counts what
+    /// a refused rename leaves, through [`crate::Store::compact`]'s
+    /// step (1) — the same atomic write.
     ///
     /// **No policy, no clock.** Snapshotting is this explicit call and
     /// nothing else: no threshold, no timer, no snapshot-on-open. A

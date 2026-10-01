@@ -26,7 +26,7 @@
 //! byte-identical to `open_log`'s own, which is the agreement this
 //! primitive exists to keep; truncating a log cannot fix a snapshot, and
 //! [`RepairOutcome::Unrepairable`]'s offset is a *log* position by
-//! contract, so a snapshot fault is never reported through it.
+//! contract, so that fault is never reported through it.
 //!
 //! # The classification order is the argument
 //!

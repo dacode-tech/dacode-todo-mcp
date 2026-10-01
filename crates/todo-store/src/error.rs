@@ -76,8 +76,10 @@ pub enum StoreError {
         expected: u32,
     },
     /// Another writer holds the store's advisory lock (spec §8's single
-    /// writer; §6.1's `locked` when contended). Nothing was opened, read
-    /// or written: the refusal is the whole effect of the attempt.
+    /// writer; §6.1's `locked` when contended). Nothing was read or
+    /// written: the refusal is the whole effect on the data, beyond
+    /// opening the lock file whose bytes mean nothing (see
+    /// [`crate::JsonlStore::open_log`]).
     Locked {
         /// The contended lock — a repo store or the registry.
         target: LockTarget,
