@@ -2,11 +2,12 @@
 //! graph with the signed D6 tiebreaker — topology first, then epic
 //! registration order, then task id — repo-scoped and epic-scoped.
 //!
-//! **Ordering only.** `next_task`'s actionability filtering and the
-//! deferred summary landed beside this module in `select`; `next_items`'s
-//! batch surface — annotations, derived weight and the task-scoped
-//! dependents view — is M2's remaining selection. This module builds
-//! the pure order selection reads. Consequently:
+//! **Ordering only.** The surfaces that read it live beside this module:
+//! `select` holds `next_task`'s actionability filtering and the deferred
+//! summary, `items` the batch — `next_items`'s annotations, derived
+//! weight and task-scoped dependents view — and `list` the filtered and
+//! thin listings. This module builds the pure order all three read.
+//! Consequently:
 //!
 //! - **Statuses do not filter.** A `closed`/`wontfix` task sits at its
 //!   topological position; actionability is selection's question, not

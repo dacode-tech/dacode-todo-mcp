@@ -4,10 +4,12 @@
 //! scope.
 //!
 //! **Selection only.** The batch surface — `next_items` with its
-//! annotations, derived weight and task scope — and `task_list`'s
-//! filters are later M2 work; nothing of theirs is pre-built here, the
-//! same way [`Graph::canonical_order`] pre-built nothing of this
-//! module.
+//! annotations, derived weight and task scope — is `items`; the listing
+//! reads, `task_list`'s filters and the three thin listings, are `list`.
+//! Both call this module's predicates rather than restating them, and
+//! `items` carries its [`DeferredSummary`] too; nothing of either is
+//! pre-built here, the same way [`Graph::canonical_order`] pre-built
+//! nothing of this module.
 //!
 //! # The rules
 //!
@@ -81,9 +83,11 @@
 //!   readiness cannot drift apart. Each entry point makes two passes
 //!   over the derived list — the answer pass stops at its first hit,
 //!   which a fused pass could not.
-//! - **(c) The crate-root surface paragraph.** `lib.rs` now names
-//!   `next_task` as landed and keeps `next_items` and `task_list`'s
-//!   filters named as M2's remaining surface — no stale claim.
+//! - **(c) The crate-root surface paragraph.** `lib.rs` named
+//!   `next_task` as landed here and the rest of M2's query surface as
+//!   remaining; `items` and then `list` landed beside this module and the
+//!   paragraph names all three, so it now states the crate's whole query
+//!   surface rather than what remains of M2's.
 //! - **(d) Unclassifiable predecessors.** `finished` answers "not
 //!   finished" for a [`BlockEnd::Epic`] predecessor and for a
 //!   predecessor id this graph does not hold. Neither is reachable

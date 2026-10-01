@@ -4,10 +4,12 @@
 //! actionable-or-held mark, plus the deferred summary [`Graph::next_task`]
 //! also carries.
 //!
-//! **The batch only.** `task_list`'s filters are later M2 work; nothing
-//! of theirs is pre-built here, the same way [`Graph::canonical_order`]
-//! pre-built nothing of `select` and `select` pre-built nothing of this
-//! module.
+//! **The batch only.** The listing reads — `task_list`'s filters and
+//! the three thin listings — are `list`, which follows this module's
+//! shape (a sibling `impl Graph`, no new state, no serde on its answer
+//! types) without calling any of it; nothing of it is pre-built here,
+//! the same way [`Graph::canonical_order`] pre-built nothing of `select`
+//! and `select` pre-built nothing of this module.
 //!
 //! # The rules
 //!

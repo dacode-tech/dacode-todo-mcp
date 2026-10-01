@@ -1281,6 +1281,36 @@ Oldest first. One line per delivery, with the commit hash once committed.
        A signed (a) therefore most likely forces a domain aggregate and a domain
        row type, which is recorded in the dossier and changes no recommendation.
        Landed as `HASH_T29`.
+- 2026-10-01 — **M2 t29 rider: the "later M2 work" module-doc markers
+       retired.** Three module docs carried a marker naming work that had
+       since landed, and all three were false by the time t29 committed:
+       `select.rs` and `items.rs` called the batch and listing surfaces
+       "later M2 work" (false since t28 and since t29 respectively) and
+       `order.rs` called `next_items`'s batch "M2's remaining selection"
+       (false since t28, and unnoticed until this review). t29 could not
+       take the first two — both files were sha-pinned as its review gate
+       lines — so both its reviewers prescribed a separate comment-only
+       commit inside the unit, and it was that commit's own second reviewer
+       who found the third instance its first had passed, plus a judgment
+       call in `select.rs` whose recorded anticipation had resolved. All
+       three markers are rewritten **positively**, naming where each
+       surface lives rather than what is not yet built, so t31 and M3
+       cannot stale them a fourth time; the judgment call is amended on the
+       t28 precedent — a judgment call here is a live contract doc, so it
+       is amended when the anticipation it records resolves rather than
+       left as dated history, and the primary withdrew its contrary
+       round-one reading on that precedent. One clause of my own rewriting
+       was corrected on review: "bare answers" is `list`'s property, not a
+       shape it shares with `items`, whose answers are annotated rows.
+       Comment-only, and every clause of the new text was read against the
+       code by both reviewers rather than accepted as plausible — that the
+       three surfaces do read `order`'s derivation, that `items` and `list`
+       both call `select`'s predicates, that `items` carries
+       `DeferredSummary`, that `list` calls nothing from `items`. 167 tests
+       unchanged, `cargo doc` clean with `--document-private-items` at the
+       one known f48 warning, no golden, no `Cargo.lock`. Dual-reviewed
+       over two rounds, both bound to the final shas. Landed as
+       `HASH_MARKER`.
 
 ## 4. Follow-ups
 
