@@ -44,9 +44,9 @@
 //! The epic-scoped order is the *induced subgraph*: that epic's tasks
 //! and the `TaskToTask` edges between them. A cross-epic predecessor
 //! contributes no in-degree to the scoped order — no semantics is lost,
-//! because M2's actionability check consults the full
-//! [`Graph::blocked_by`]: order answers "in what sequence", selection
-//! answers "is it ready".
+//! because the actionability check ([`Graph::is_until_satisfied`])
+//! consults the full [`Graph::blocked_by`]: order answers "in what
+//! sequence", selection answers "is it ready".
 //!
 //! [`Graph::link_blocks`] rejects cycles at write time (§5.1), so via
 //! the public API the derivation always places every in-scope task:
@@ -131,7 +131,8 @@ impl Graph {
     ///
     /// A cross-epic predecessor contributes no in-degree here: the
     /// scoped list answers "in what sequence should this epic's tasks be
-    /// considered", and M2's actionability check consults the full
+    /// considered", and the actionability check
+    /// ([`Graph::is_until_satisfied`]) consults the full
     /// [`Graph::blocked_by`], so the outside blocker is still honored at
     /// selection time — no semantics is lost.
     ///

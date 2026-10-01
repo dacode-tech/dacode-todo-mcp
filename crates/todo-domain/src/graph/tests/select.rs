@@ -513,16 +513,19 @@ fn select_until_priority_and_relates_never_enter() {
     assert_answer(&graph, Some(1), Some(1), 0, 0);
 
     // `relates`: annotating changes neither the answer nor the
-    // summary. The annotation's lower-numbered end is `closed` and the
-    // answer is its partner, so a directed leak — reading the stored
-    // (low, high) pair as a hold — lands on the answer instead of on a
-    // task that was never going to be returned.
+    // summary. The lower-numbered end is `deferred`, not `closed` — a
+    // closed end is finished, so it holds nothing under either reading
+    // of the annotation and neither leak can move the answer. A deferred
+    // end holds its open partner whether the stored (low, high) pair is
+    // read as a directed `low blocks high` or the annotation is read as
+    // symmetric, so both leaks move the answer to `None`; the symmetric
+    // one holds the deferred end in turn and drops `ready`.
     let mut related = graph_with_epics(1);
     related
-        .insert_task(task_node(1, 1, Status::Closed))
+        .insert_task(task_node(1, 1, Status::Deferred))
         .unwrap();
     related.insert_task(task_node(2, 1, Status::Open)).unwrap();
-    assert_answer(&related, None, Some(2), 0, 0);
+    assert_answer(&related, None, Some(2), 1, 1);
     let before = related.next_task();
     let before_epic = related.next_task_of_epic(&epic_id(1)).unwrap();
     related.link_relates(task_id(1), task_id(2)).unwrap();
@@ -859,8 +862,20 @@ impl Coverage {
             // The shape that makes the agreement test sensitive to
             // mutation M1: the epic's gate holds and nothing else does —
             // a task an unfinished own predecessor also holds answers
-            // the same with or without the epic-gating half.
-            if gate_held && !own_held {
+            // the same with or without the epic-gating half. The status
+            // filter is part of that shape: the agreement test sees the
+            // gate only through a scope's answer or its `ready` counts, so
+            // a sole-hold that can be neither — a terminal task, or a
+            // `blocked` one, which is never actionable whatever its edges
+            // say — would inflate this count without making that test
+            // sensitive to anything.
+            if gate_held
+                && !own_held
+                && matches!(
+                    task.status,
+                    Status::Open | Status::InWork | Status::Deferred
+                )
+            {
                 self.held_by_epic_gate_alone += 1;
             }
             if task.status == Status::Deferred {
@@ -961,7 +976,7 @@ fn select_a_deep_chain_returns_the_first_actionable_not_the_last() {
 
 // ---------------------------------------------------------------------
 // 19. Epic scope walks the induced order — not the filtered repo order,
-//     not ascending task id
+//     not ascending task id, not a chain-following greedy walk
 // ---------------------------------------------------------------------
 
 #[test]
@@ -1021,5 +1036,42 @@ fn select_epic_scope_walks_the_induced_order() {
         graph.next_task_of_epic(&epic_id(1)).unwrap().task,
         Some(task_id(3)),
         "the epic scope is not an ascending-id walk"
+    );
+
+    // (iii) Not a chain-following greedy walk either: draining a
+    // just-released successor before re-taking the frontier minimum still
+    // yields a valid topological order of the same induced subgraph, so
+    // the walk is not wrong about sequence — only about the tiebreaker.
+    // The two part wherever a just-released successor is taken ahead of
+    // a smaller-keyed task the frontier still holds. No seeded epic scope
+    // reaches that shape, so it is built here: statuses do not filter the
+    // order, the closed U1 leads both walks, and the walks diverge at the
+    // second position, where the frontier minimum is U2 but the greedy
+    // walk takes the U3 that placing U1 just released — induced
+    // [U1, U2, U3, U4] against greedy [U1, U3, U2, U4], so the first
+    // actionable task is U2 under the induced order and U3 under the
+    // greedy one.
+    let mut graph = graph_with_epics(1);
+    graph.insert_task(task_node(1, 1, Status::Closed)).unwrap();
+    for n in 2..=4 {
+        graph.insert_task(task_node(n, 1, Status::Open)).unwrap();
+    }
+    graph.link_blocks(task_edge(1, 3)).unwrap();
+    graph.link_blocks(task_edge(2, 4)).unwrap();
+
+    assert_eq!(
+        graph.canonical_order_of_epic(&epic_id(1)).unwrap(),
+        vec![task_id(1), task_id(2), task_id(3), task_id(4)],
+        "the induced order the epic scope must walk"
+    );
+    // Single epic, so the repo scope walks the same list: the divergence
+    // is against the greedy walk, not between the scopes. A greedy
+    // rewrite of the repo-scoped entry point alone is a different
+    // residual, and this is the assertion that catches it.
+    assert_eq!(graph.next_task().task, Some(task_id(2)), "repo scope");
+    assert_eq!(
+        graph.next_task_of_epic(&epic_id(1)).unwrap().task,
+        Some(task_id(2)),
+        "the epic scope is not a chain-following greedy walk"
     );
 }
