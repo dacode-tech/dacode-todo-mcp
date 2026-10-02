@@ -17,8 +17,10 @@
 //! tests inside `src/layout.rs`. The suite is split by responsibility:
 //! `layout/fixtures.rs` holds the builders, `layout/paths.rs` the D4
 //! derivation and the slug's path-safety, `layout/lock.rs` §8's
-//! single-writer behavior, and `layout/registry.rs` the registry
-//! document — its golden, its faults and its byte stability.
+//! single-writer behavior, `layout/registry.rs` the registry document — its
+//! golden, its faults and its byte stability — and `layout/repos.rs` the
+//! registry's query side (`repo_list`/`repo_show`) plus the ignored
+//! cold-open measurement.
 
 #![cfg_attr(
     test,
@@ -42,4 +44,5 @@ mod layout {
     mod lock;
     mod paths;
     mod registry;
+    mod repos;
 }

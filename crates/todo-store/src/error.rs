@@ -45,10 +45,14 @@ pub enum LockTarget {
 /// the domain's `DomainError` draws.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StoreError {
-    /// Stored bytes could not be parsed into the value they claim to
-    /// hold, or a value could not be serialized (see [`crate::to_bytes`]
-    /// and [`crate::from_bytes`]). Corruption is this named error, never
-    /// a panic and never a silent truncation (spec §4).
+    /// Stored bytes could not be parsed into the value they claim to hold, a
+    /// value could not be serialized (see [`crate::to_bytes`] and
+    /// [`crate::from_bytes`]), or the values they hold fail a cross-check or
+    /// a domain rule — a snapshot against its log, a replayed id against the
+    /// sequence it must continue, a store against the slug it was opened
+    /// under, an event against the closure discipline. §4 makes corruption
+    /// one named error whether the fault is in the bytes or in what they
+    /// contradict; it is never a panic and never a silent truncation.
     ///
     /// Over a log, `offset` is the **absolute** byte offset of the
     /// offending line's start — where a repair truncates from (§4.3) —
@@ -59,8 +63,9 @@ pub enum StoreError {
         /// The byte offset where the engine located the fault (spec
         /// §4.3: the error carries its offset), when the fault has a
         /// position in the input. `None` for faults without one: a
-        /// validated-newtype rejection, a missing field, or a failure in
-        /// the serialization direction.
+        /// validated-newtype rejection, a missing field, a failure in the
+        /// serialization direction, or a cross-check, which locates a
+        /// relation between two facts rather than a byte in either.
         offset: Option<usize>,
         /// The engine's message as its `Display` text. The engine error
         /// *type* never crosses this crate's boundary (§2).

@@ -66,7 +66,10 @@
 //!   inspector.
 //!
 //! Either way the divergence is *reported* (by t13), never silently
-//! repaired here.
+//! repaired here. The registry query side inherits the same reading:
+//! [`DataRoot::repo_list`] answers from the index, so a store the index
+//! does not list is not listed, and [`DataRoot::repo_show`] refuses one as
+//! `unknown_id` instead of adopting it.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -77,6 +80,7 @@ use crate::error::{LockTarget, StoreError, io_error};
 use crate::lock::RegistryLock;
 use crate::log::JsonlStore;
 use crate::registry::Registry;
+use crate::store::Store;
 
 /// The registry document's file name (§2's shared registry file).
 const REGISTRY_FILE: &str = "registry.json";
@@ -113,11 +117,12 @@ const SNAPSHOT_SUFFIX: &str = ".snapshot";
 /// [`DataRoot::register`] — the store directory, the log, and the registry
 /// — and [`DataRoot::lock_registry`], which makes the root directory so
 /// the registry's lock file has a home. The read paths ([`Registry::load`],
-/// [`DataRoot::open`], [`DataRoot::open_many`]) create no store and no
-/// registry, with one exception: opening a store whose directory exists
-/// but whose log is missing creates a zero-byte `.lock` beside the absent
-/// log before the open fails — a lock file's bytes mean nothing, so the
-/// debris is harmless (see [`crate::JsonlStore::open_log`]).
+/// [`DataRoot::open`], [`DataRoot::open_many`], [`DataRoot::repo_list`] and
+/// [`DataRoot::repo_show`], the last two opening stores) create no store
+/// and no registry, with one exception: opening a store whose directory
+/// exists but whose log is missing creates a zero-byte `.lock` beside the
+/// absent log before the open fails — a lock file's bytes mean nothing, so
+/// the debris is harmless (see [`crate::JsonlStore::open_log`]).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DataRoot {
     /// The injected root directory.
@@ -285,13 +290,168 @@ impl DataRoot {
         }
         Ok(stores)
     }
+
+    /// Lists every registered repository — §6's `repo_list` underneath.
+    ///
+    /// **The total order is ascending slug**, and it is the registry's own
+    /// rather than one this method imposes: [`Registry::load`] keeps its
+    /// entries sorted and [`Registry::slugs`] hands them back that way, so
+    /// registration order never reaches the answer (§8's total orders
+    /// everywhere). Sorted, though, and **not deduplicated**: an index this
+    /// crate wrote cannot hold one slug twice, because
+    /// [`DataRoot::register`] refuses a duplicate, but a hand-spliced repeat
+    /// parses and is listed twice — this method answers what the index says.
+    ///
+    /// Each row is the listed store's own [`Repo`] node, because §7's
+    /// mutable `name` and `path` live only there — the index holds the
+    /// immutable half alone (see [`crate::Registry`]) — so answering costs
+    /// one store open per listed repo. `registered_at` is the node's too.
+    /// It equals the registry entry's by construction: [`DataRoot::register`]
+    /// writes both from the same [`Repo`], nothing rewrites an entry (§6
+    /// has no `repo_delete`, D3 never reuses a slug) and no `repo_set_*`
+    /// mutation touches the field. §6.1's closed list has no code for "the
+    /// index and the node disagree", so production does not cross-check a
+    /// contradiction it could not report; `tests/layout/repos.rs` pins the
+    /// equality where it is observable.
+    ///
+    /// # One lock at a time, in sorted order
+    ///
+    /// The registry read takes no lock — only its writers do — and each
+    /// store is opened, read and dropped before the next opens, so **two
+    /// locks are never held at once**: §8's sorted-slug rule is satisfied
+    /// trivially, because no acquisition order exists to deadlock. That is
+    /// [`DataRoot::open_many`] deliberately *not* used. A listing protects
+    /// no cross-store invariant, holding every descriptor at once has a
+    /// per-process ceiling, and one lock at a time is the shorter
+    /// contention window.
+    ///
+    /// **The trap that follows: this call takes every listed store's lock in
+    /// turn, so anything else holding one fails the whole call with
+    /// `locked`.** Three ways, all §8's per-descriptor contention (see
+    /// `lock.rs`): a caller already holding a handle for a listed repo
+    /// contends with *itself*, since two handles in one process conflict; a
+    /// second listing contends with the first; and [`DataRoot::register`]
+    /// returns its new store still holding that store's lock, so a listing
+    /// that reads the index after the save but before the registrant drops
+    /// the handle fails on the repo just registered. M3 answers `repo_list`
+    /// from the handles it already holds, or before it opens any. The failed
+    /// call leaves nothing held: every store it opened dropped on the way
+    /// out, and a store's `Drop` is its release.
+    ///
+    /// # A store that will not open fails the whole call
+    ///
+    /// The first [`DataRoot::open`] fault propagates and no list is
+    /// returned at all — a corrupt log, a foreign format version, a listed
+    /// slug whose log is gone and a contended store each fail the call with
+    /// the error [`DataRoot::open`] itself reports, byte-identical. §6.1's
+    /// list is closed and has no code for "partially listed", and a row
+    /// that quietly disappears is a silent omission. The mirror half: a
+    /// store directory the registry does **not** list — what a registration
+    /// that crashed after the log landed leaves behind — is simply not
+    /// listed, and resolving that stays t13's inspector's job (module
+    /// docs).
+    ///
+    /// What the per-repo open costs, and so whether the registry should
+    /// ever cache `name`/`path` at the price of a golden-visible format
+    /// change, is measured — by `tests/layout/repos.rs`'s ignored
+    /// `cold_repo_list_open_cost`, whose numbers live in that run's output
+    /// and the tracker node's evidence, never in a comment here.
+    pub fn repo_list(&self) -> Result<Vec<Repo>, StoreError> {
+        let registry = Registry::load(self)?;
+        let mut repos: Vec<Repo> = Vec::with_capacity(registry.entries().len());
+        for slug in registry.slugs() {
+            repos.push(self.repo_node(slug)?);
+        }
+        Ok(repos)
+    }
+
+    /// Shows one registered repository — §6's `repo_show` underneath, and
+    /// the same record [`DataRoot::repo_list`] carries, for one slug.
+    ///
+    /// The registry **is** consulted here, unlike [`DataRoot::open`]: a
+    /// slug the index does not list is §6.1's `unknown_id` even when a
+    /// store directory sits at `repos/<slug>/`. `repo_show` is a registry
+    /// query (§6 groups all three registry tools under §7), the registry is
+    /// the index of *which repositories exist*, and answering for an
+    /// unlisted directory would silently adopt the half-created state
+    /// [`DataRoot::register`] refuses as a `duplicate` forever after. A
+    /// listed slug then opens its store, so a listed store that will not
+    /// open is [`DataRoot::repo_list`]'s named error, reported identically,
+    /// and one lock is held at a time by the same argument.
+    ///
+    /// **That mapping is a reading, flagged so a veto is a named diff.**
+    /// §6.1 lists `unknown_id` and glosses nothing; the gloss that creates
+    /// the tension is the domain's own — [`DomainError::UnknownId`] is "no
+    /// node exists under `id`", and a registry is not the graph, so a slug
+    /// it does not list is not literally an unknown *node*. The rejected
+    /// alternative is [`DataRoot::open`]'s behaviour: no registry consult,
+    /// and §6.1's `io` for a slug with no store — which would answer a
+    /// different code for "this server has no such repository" depending on
+    /// whether a directory happens to sit at that slug.
+    pub fn repo_show(&self, slug: &RepoSlug) -> Result<Repo, StoreError> {
+        if !Registry::load(self)?.contains(slug) {
+            return Err(unknown_slug(slug));
+        }
+        self.repo_node(slug)
+    }
+
+    /// One store's [`Repo`] node: open, check that the store this slug names
+    /// really holds that repo's graph, clone, and let the store drop —
+    /// releasing its lock before returning, which is the one-lock-at-a-time
+    /// discipline both queries above document. **Every *registry* query that
+    /// answers a [`Repo`] goes through this method, and a new one must too**:
+    /// the check below is the only thing between a caller and another
+    /// repository's record, and a method that opened the store directly would
+    /// lose it silently.
+    ///
+    /// The check is the snapshot reconcile's slug cross-check one level out:
+    /// a node whose slug is not the one this store was opened under means the
+    /// directory and its contents disagree, which no reader can resolve and
+    /// no answer may paper over — a listing would otherwise carry the same
+    /// repo twice under two slugs and break the total order it documents. So
+    /// it is §6.1's `corrupt_store`, unpositioned, because the fault is a
+    /// relation between two facts rather than a byte in one file, and its
+    /// detail names both slugs — an id, not a path (§7). Unreachable through
+    /// this crate's own writes ([`DataRoot::register`] creates the store from
+    /// the same [`Repo`] it indexes and D3 never reuses a slug); reachable by
+    /// a store directory copied or moved out of band. [`DataRoot::open`]
+    /// itself does not check this, so the inspector's `dump`/`verify` still
+    /// report a copied store under the slug they were asked for.
+    fn repo_node(&self, slug: &RepoSlug) -> Result<Repo, StoreError> {
+        let store = self.open(slug)?;
+        let repo = store.graph().repo();
+        if &repo.slug != slug {
+            return Err(StoreError::CorruptStore {
+                offset: None,
+                detail: format!("{DETAIL_FOREIGN_STORE}{slug} holds repo {}", repo.slug),
+            });
+        }
+        Ok(repo.clone())
+    }
 }
+
+/// The detail of a store whose graph names another repository than the slug
+/// it was opened under — caller-facing contract text like every detail this
+/// crate writes, so it is deterministic, path-free (both halves are slugs,
+/// and a slug is an id, §7) and pinned by a needle in
+/// `tests/layout/repos.rs`.
+const DETAIL_FOREIGN_STORE: &str = "the store opened for ";
 
 /// The refused re-registration: a repo's id *is* its slug (D3), so the
 /// taken id is the slug's own string — the domain's `duplicate` code,
 /// because that is what happened (§6.1).
 fn duplicate(slug: &RepoSlug) -> StoreError {
     StoreError::Domain(DomainError::Duplicate {
+        id: slug.to_string(),
+    })
+}
+
+/// A slug the registry does not list, as [`DataRoot::repo_show`] refuses
+/// it: §6.1's `unknown_id`, spelled from the slug's own string the way
+/// [`duplicate`] spells the taken id, because a repo's id *is* its slug
+/// (D3) and the registry is the index of which repos exist.
+fn unknown_slug(slug: &RepoSlug) -> StoreError {
+    StoreError::Domain(DomainError::UnknownId {
         id: slug.to_string(),
     })
 }

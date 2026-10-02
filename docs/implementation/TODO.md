@@ -15,9 +15,10 @@ blocking. Rules, which `tools/attention.py` and the reviewers enforce:
 
 ## 1. Current state
 
-**Phase: M2 under way 2026-10-02 — t27, t28, t29 and t30 landed, f47 closed;
-the domain's query surface is complete.** The query layer is five tasks under
-tracker **g6**, each one commit with its own file, plus the **g7** exit gate;
+**Phase: M2's five tasks all landed 2026-10-02 — t27, t28, t29, t30 and t31
+in, f47 closed; only the g7 exit gate remains.** The query layer is five tasks
+under tracker **g6**, each one commit with its own file, plus the **g7** exit
+gate;
 §2's M2 row names them. **t27** is in — the domain's §5.2 selection: the
 actionability and until-target predicates, `next_task`'s two scopes and D9's
 deferred summary, which is what t28 and t29 reuse — **t28** is in beside it
@@ -31,7 +32,13 @@ through. **t30** is in beside them, and it is the store's turn: the two doc
 riders the board had parked on the next store touch (**U15**'s falsified
 "changes nothing on disk" and **U19**'s over-broad quantifier) plus two more
 claims of the same class its own review found — comment-only, no behaviour
-moved. What is left in M2 is **t31**'s registry queries, then **g7**. One
+moved. **t31** closes the store half and with it the milestone's five tasks:
+`DataRoot::repo_list`/`repo_show` over t11's registry, reading §7's mutable
+`name`/`path` off each store's `Repo` node, in the registry's own ascending-slug
+order, one store lock at a time, with a store that will not open failing the
+whole call rather than dropping a row — plus the cold-open measurement t11
+handed forward, which is now **U20**: M3's registry-format question with numbers
+behind it (§3). What remains in M2 is **g7**, the exit gate. One
 decision is open out of the decomposition — **D16**, the progress roll-up —
 and no task waits on it; t29 measured a consequence for its dossier (§3).
 M1 is closed. The domain layer (§3's value types and closure discipline,
@@ -53,6 +60,7 @@ shell, which is M3's business.
 |---|---|---|
 | **D16** | the progress roll-up — totals by kind and status, and per open item what it waits on — is a §6 amendment, drafted out of **U17** with recommendation (a): a `status_summary(repo?, epic?)` tool plus `blocked_by` on `task_list` rows. It gates M2 only in the sense that a signed (a) or (b) adds one domain aggregation task to g6; **t27–t29 do not wait on it** and no task may implement a roll-up before it is signed | vote |
 | — | M3's remaining gate is the **rmcp dependency ask** itself (Ask-First): the survey measured its weight (spec §6.3) and D14 now names `serde_json` as a wire serializer, but nothing has entered the workspace | ask, then build the wire |
+| **U20** | whether the registry should cache `name`/`path` — a golden-visible format change, cheap before M3 and expensive after — now that **t31** has priced a cold `repo_list`: it is O(total history), not O(repos), because §7's mutables live only on each store's node | decide before M3 builds |
 
 (Open but non-blocking: **U16** (ship base instructions with the server and
 gate the client's native todo off, M3 — its mechanism is measured rather than
@@ -61,7 +69,9 @@ server is shared per user, deferred until after M4's importer check, and
 holding the **D13** reservation) are unchanged. Resolved: U2/U4/U5/U6/U7/
 U8/U9/U10/U11/U12/U14/U17 and now **U15** and **U19**, both taken by t30 —
 U17's mapping is settled and its one open piece is D16; U3 superseded by D12.
-U13 is acknowledged debt, re-measured at the M2 decomposition and unchanged.)
+U13 is acknowledged debt, re-measured at the M2 decomposition and unchanged;
+t31 grew `layout.rs` to 543 production lines, still under the 600 target, so
+the ledger does not move but the file is now close to it.)
 
 ## 2. Milestones
 
@@ -73,8 +83,8 @@ exit criteria: spec §14. Priority is derived from the Gated-on column by
 |---|---|---|---|
 | M0 | spec settled: §12 items 1–3 signed (done 2026-09-25); Cargo workspace skeleton with the lint regime; all gates green | — | done 2026-09-25 |
 | M1 | domain model + storage engine: graph, statuses, persistence behind the `Store` trait, golden files | — | done 2026-09-30 — g5 ran green: every code gate, five goldens byte-identical, `cargo doc` clean, pitfalls consolidated |
-| M2 | queries: repo/epic selection, dependency resolution, deterministic `next_task`; registry with path updates | **D16** adds one task if signed; no dispatched task waits on it | under way — **t27 done 2026-09-30**: domain `graph/select.rs`, the actionability predicate, `next_task` in both scopes, the until-target `ready` predicate and D9's deferred `{total, ready}` (19 tests, dual-reviewed over two rounds); **f47 closed 2026-10-01** as its own tests-only commit rather than a rider in t28's spec, because three of its four items live in t27's files; **t28 done 2026-10-01**: domain `graph/items.rs`, `next_items` in three scopes (repo/epic actionable-only, task-scoped dependents each marked) with the blocked-by/blocks annotations, the derived transitive-dependent weight and the reused deferred summary (19 tests, dual-reviewed over two rounds, three veto-able readings flagged); **t29 done 2026-10-01**: domain `graph/list.rs`, `task_list`'s four ANDing filters (epic/status/kind/`ready`) returning bare task ids in §5.2's order, plus `epic_list`/`decision_list`/`doc_list` as pinned ascending-id reads — with it the domain's M2 query surface is complete (18 tests, dual-reviewed over two rounds, the second driven by an unpinned `ready` gate-arm; one veto-able reading flagged, f50's helper lift landed first); **t30 done 2026-10-02**: the store doc riders — **U15**'s "changes nothing on disk" scoped to nothing *in place* with §4.3's temp debris named, **U19**'s quantifier narrowed to the fault it was argued for, plus two more claims of the same class that its own review found (`error.rs`'s `Locked` doc and `layout.rs`'s `Unnamed` rationale both said "nothing was **opened**", and opening the lock file is how contention is discovered) — comment-only, four files, dual-reviewed over four rounds; **t31** the registry query side (`repo_list`/`repo_show` + t11's cold-open measurement). Dispatch t31, the last store task, then **g7**, the exit gate. U17 answered, d1 closed by measurement, U13 re-measured and unchanged |
-| M3 | MCP server: the full §6 tool list over the wire, protocol-level tests, default-repo slug config (D8), smoke against a real client | the **rmcp dependency ask** (Ask-First) — **D14**/**D15** signed 2026-09-30, so the wire's key order and §6.1's error carrier are settled | not started |
+| M2 | queries: repo/epic selection, dependency resolution, deterministic `next_task`; registry with path updates | **D16** adds one task if signed; no dispatched task waits on it | under way — **t27 done 2026-09-30**: domain `graph/select.rs`, the actionability predicate, `next_task` in both scopes, the until-target `ready` predicate and D9's deferred `{total, ready}` (19 tests, dual-reviewed over two rounds); **f47 closed 2026-10-01** as its own tests-only commit rather than a rider in t28's spec, because three of its four items live in t27's files; **t28 done 2026-10-01**: domain `graph/items.rs`, `next_items` in three scopes (repo/epic actionable-only, task-scoped dependents each marked) with the blocked-by/blocks annotations, the derived transitive-dependent weight and the reused deferred summary (19 tests, dual-reviewed over two rounds, three veto-able readings flagged); **t29 done 2026-10-01**: domain `graph/list.rs`, `task_list`'s four ANDing filters (epic/status/kind/`ready`) returning bare task ids in §5.2's order, plus `epic_list`/`decision_list`/`doc_list` as pinned ascending-id reads — with it the domain's M2 query surface is complete (18 tests, dual-reviewed over two rounds, the second driven by an unpinned `ready` gate-arm; one veto-able reading flagged, f50's helper lift landed first); **t30 done 2026-10-02**: the store doc riders — **U15**'s "changes nothing on disk" scoped to nothing *in place* with §4.3's temp debris named, **U19**'s quantifier narrowed to the fault it was argued for, plus two more claims of the same class that its own review found (`error.rs`'s `Locked` doc and `layout.rs`'s `Unnamed` rationale both said "nothing was **opened**", and opening the lock file is how contention is discovered) — comment-only, four files, dual-reviewed over four rounds; **t31 done 2026-10-02**: the registry query side — `DataRoot::repo_list`/`repo_show`, the cold-open measurement in both profiles, and **U20** opened out of it (14 tests, dual-reviewed over four rounds; three veto-able readings and a fourth file flagged in §3). All five tasks in; what remains is **g7**, the exit gate. U17 answered, d1 closed by measurement, U13 re-measured and unchanged |
+| M3 | MCP server: the full §6 tool list over the wire, protocol-level tests, default-repo slug config (D8), smoke against a real client | the **rmcp dependency ask** (Ask-First) — **D14**/**D15** signed 2026-09-30, so the wire's key order and §6.1's error carrier are settled. **U20** (the registry format) is due before the wire is built, not after: t31's measurement is its input | not started |
 | M4 | adoption: the dacode-dialect importer first (**D12**, amending D7), its board the only fixture checked in per §10; camera and ikvm-html imported from their live boards and never copied into this repo; the three repos tracked for real | — | not started |
 | M5 | packaging, docs, cwd auto-detection (deferred by D8), polish | — | not started |
 
@@ -1403,6 +1413,118 @@ Oldest first. One line per delivery, with the commit hash once committed.
        all under the 600 target, so U13 does not move. Dual-reviewed over four
        rounds, both reviewers bound to the final bytes. Landed as
        `aa107d9`.
+- 2026-10-02 — **M2 t31: the registry query side, and the measurement M3's
+       registry question was waiting for.** `DataRoot::repo_list` and
+       `DataRoot::repo_show`, named after §6's tools so the M3 translation is
+       auditable by name, answering the domain's **`Repo`** — no new row type,
+       because §3's node already carries exactly the four fields a registry
+       query answers with (`slug`, `name`, `path`, `registered_at`), and a
+       `RepoSummary` would have been a second shape to keep in step. Order is
+       **ascending slug and it is the registry's own**, not one the method
+       imposes: `Registry::load` sorts and `slugs()` hands them back that way,
+       so registration order never reaches the answer (§6/§8). `name`/`path`
+       come from each store's node because §7's mutables live only there under
+       t11's narrow reading, so a listing costs one store open per repo — which
+       is exactly the cost t11 handed forward and what the measurement below
+       prices. No serde (a query result is not persisted; M3 owns the wire
+       shape) and **no counts or aggregates of any kind**, D16 being unsigned.
+       **Locking is one store at a time in sorted order**, `open_many`
+       deliberately not used: a listing protects no cross-store invariant,
+       holding every descriptor at once has a per-process ceiling, and one lock
+       at a time is the shorter contention window — §8's sorted-slug rule is
+       satisfied trivially because no acquisition order exists to deadlock. The
+       trap that follows is documented *and* tested rather than smoothed over:
+       anything holding a listed store's lock fails the whole call, in three
+       ways — a caller holding its own handle contends with itself (§8's
+       contention is per descriptor), a second listing contends with the first,
+       and `register` returns its new store still locked, so a listing that
+       reads the index after the save but before the registrant drops the
+       handle fails on the repo just registered. M3 answers `repo_list` from
+       the handles it holds, or before it opens any.
+       **A store that will not open fails the whole call**, with the error
+       `DataRoot::open` itself reports byte-identical — corrupt log, foreign
+       format version, a listed slug whose log is gone, a contended store, each
+       pinned and each asserting an `Err` rather than a shorter list, because
+       §6.1 is closed and has no "partially listed", and a row that quietly
+       disappears is the silent-omission class. The mirror half holds too: a
+       store directory the index does not list is not listed, and resolving it
+       stays t13's inspector's.
+       **The review's med is the delivery's most substantive addition.**
+       `repo_node` trusted that `repos/<slug>/` holds `<slug>`'s graph, so a
+       store directory copied out of band made `repo_show` answer *another
+       repository's* record and `repo_list` carry one repo twice under two
+       slugs — breaking the total order it documents — with nothing anywhere
+       detecting it: t13's `verify` prints the requested slug and never
+       compares it to the graph's (f61). It is now a cross-check returning
+       §6.1's `corrupt_store`, unpositioned (the fault is a relation between
+       two facts, not a byte in one file) with a detail naming both slugs, on
+       `snapshot.rs`'s slug-reconcile precedent and its "a slug is an id, not a
+       path" rule. Pinned by a test built by copying one real log over another
+       — never hand-written JSON — and mutation-proven: deleting the check
+       fails exactly that test with `unwrap_err()` on
+       `Ok(Repo { slug: "camera", … })` asked for as `shelly-ng`.
+       **Four readings flagged so a veto is a named diff.** (1) `repo_show`
+       consults the registry, so an unlisted slug is `unknown_id` even with a
+       store directory behind it: §6.1 lists the code and glosses nothing, the
+       tension is the *domain's* node-scoped gloss ("no node exists under
+       `id`", and a registry is not the graph), and the rejected alternative is
+       `DataRoot::open`'s `io` — which would answer a different code for "this
+       server has no such repository" depending on whether a directory happens
+       to sit there. The review prescribed anchoring that choice on
+       `decisions.md:848`; the anchor was refused because that line is inside
+       **D16's unsigned dossier**, and citing a draft as signed support is the
+       same defect inverted. (2) The foreign-store refusal itself, a
+       `corrupt_store` D6 never enumerated. (3) Two tests beyond the spec's
+       twelve: a registry this build cannot read fails both queries (an empty
+       list substituted for it would be D6's omission one level up), and the
+       slug mismatch. (4) `error.rs` as a fourth file, which D9's list did not
+       name: t31 adds a third class of `CorruptStore` producer, so a variant doc
+       describing only parse and serialize faults would have been falsified by
+       code landing in the same commit. Both reviewers ruled it in scope on the
+       f55-vs-f58 distinction — ride when the diff's own subject touches the
+       class and the remedy is bounded; defer when the remedy describes another
+       file's mechanism the diff neither changed nor owns.
+       **The measurement, which is what M3's registry decision waits on.** A
+       committed `#[ignore]` test — a measurement, not a property: it asserts
+       structure only, never a duration, and its doc carries the exact command
+       (`cargo test -p todo-store --test layout -- --ignored --nocapture`),
+       which is a convention this repo did not have. `std::time::Instant`
+       appears in that one test file; `src`'s no-clock grep stays empty. Grid
+       `[1, 10, 50] repos × [0, 200] events`, first call and steady mean of six
+       reported separately, on this host at this commit — release: registry
+       floor **12–59 µs** whatever N is, cold `repo_list` **120 µs** (one
+       seed-only repo) to **12 099 µs** (50 repos × 200 events), i.e. **~45–61
+       µs per seed-only repo and ~238–270 µs per repo with a 200-event log**
+       (≈1.2 µs per event), with the first call running 1.2–2.9× the steady
+       mean; debug is 6–8× slower across the board. **So a cold `repo_list` is
+       O(total history), not O(repos)** — at §4.1's top of scale one repo would
+       cost ~120 ms and ten of them ~1.2 s steady — and the numbers are the
+       *optimistic* case for opening every store, because a cold page cache
+       would inflate the whole listing (every log) far more than the floor (one
+       small document). Reproduce them with the command above; the table lives
+       in this entry and the tracker node's evidence, never in a source
+       comment. That is **U20**.
+       Gates on the final tree: fmt, `check --workspace --all-targets` and
+       clippy clean on a forced recompile; **322** workspace tests (was 309),
+       the `layout` target **33 passed + 1 ignored with 0 filtered out**
+       against a `#[test]` count of 14; `cargo doc --workspace --no-deps` clean
+       and `--document-private-items` at exactly the one known f48 warning —
+       the invocation that proves the new intra-doc links resolve; all five
+       goldens untouched, `Cargo.lock` untouched, `git status` confined to the
+       four files. Production lines **543** (`layout.rs`, from 383) and **193**
+       (`error.rs`), both under the 600 target so U13 does not move — but
+       `layout.rs` is now 57 lines from it, and the natural split when it
+       crosses is the query side. Six findings recorded (f59–f64), among them
+       the one-lock-at-a-time discipline being unpinned (an `open_many` mutant
+       survives all 33 tests and no non-flaky single-threaded pin exists) and
+       `Registry::load` sorting without deduplicating. Dual-reviewed over four
+       rounds, both reviewers bound to the final bytes; the review earned its
+       keep in round one (the wrong-slug answer) and again in round three, on
+       two clauses of measurement prose the orchestrator had just written — a
+       duration figure in a comment falsified by the same test's own `build ms`
+       column, and a claim that a warm page cache left the floor/whole ratio
+       unaffected, which the byte counts refute. P-LIVE-008's third and fourth
+       occurrences, an hour after it was written. Landed as `HASH`.
 
 ## 4. Follow-ups
 
@@ -1870,6 +1992,41 @@ Unowned work. Take the next unused `U` id; never renumber, never reuse.
       below it instead of needing a new clause, and `Unrepairable.offset`'s
       field doc ("a position in the log, never in a snapshot") stays true of
       the `None` case.
+- [ ] **U20 · Decide whether the registry caches `name`/`path`, now that a
+      cold `repo_list` is priced.** t11's narrow reading — the registry holds
+      only `{registered_at, slug}` and §7's mutable `name`/`path` live solely on
+      each store's `Repo` node — was accepted with its cost recorded rather than
+      hidden: a cold `repo_list` must open every store, and extending the
+      registry later is a golden-visible format change, cheap before M3 and
+      expensive after. The instruction at the time was that the revisit be
+      driven by a measurement and not a preference (U1's precedent), and **t31
+      took it**: a cold listing is **O(total history), not O(repos)** — ~45–61
+      µs per seed-only repo but ~238–270 µs per repo with a 200-event log in
+      release (≈1.2 µs per event), against a registry floor of 12–59 µs that
+      does not grow with N, and a first call 1.2–2.9× the steady mean. At §4.1's
+      top of scale that is ~120 ms for one repo and ~1.2 s for ten, steady. The
+      numbers are the *optimistic* case for opening every store, because a cold
+      page cache inflates the whole listing far more than the floor.
+      Three ways out, and the choice is the user's. **(a) Extend the registry**
+      with `name`/`path`: a golden-moving change to `registry.v1`, two writes
+      per `repo_set_path` instead of one — and it **kills the lock-order
+      argument that makes t11's ordering safe**, which `layout.rs`'s module doc
+      already names in terms: a mutable field in the index means
+      `repo_set_path` needs the registry lock *while holding the store lock*,
+      acquiring in the forbidden order, so the format may only be extended
+      together with a re-derived lock order. **(b) Leave the format alone** and
+      have M3 answer `repo_list` from the handles it already holds, which
+      removes the cost for the server and leaves it only on a cold or cli path —
+      the reading t11's hand-off assumed. **(c) Accept the cost** on §4.1's own
+      scale argument that replay is already cheap. (a) is not the cheap option
+      it looks: the lock order, not the golden, is what makes it expensive.
+      Reproduce the measurement with `cargo test -p todo-store --test layout --
+      --ignored --nocapture`; the grid, both profiles and the caveats are in
+      t31's §3 entry and tracker evidence, and **f64** names the noisy cells.
+      Due before M3 builds the wire, not after — and note that
+      `tools/attention.py` renders this **P3**, because a §4 item carries no
+      `Gates` field for it to derive a priority from (f65); §1's blocking table
+      above is where the deadline lives.
 
 ## 5. Debt
 
@@ -1908,7 +2065,7 @@ Newest first. One entry per session, written for someone who was not
 here. The final entry of a session is the handover
 (`.agents/skills/todo-next-imp/SKILL.md` defines the shape).
 
-### 2026-10-02 — M2 t30 landed: two doc sentences, four files, four rounds
+### 2026-10-02 — M2 t30 and t31 landed: five tasks in, only g7 remains
 
 The session opened on `/todo-next-imp` with the previous handover naming one
 next step, and the user signed the recommendation it carried — **U15**'s
@@ -1972,53 +2129,130 @@ this delivery waited on it, and no part of a roll-up may be built before it is
 signed. The alternative front remains M3's rmcp dependency ask, which needs a
 decision rather than a session.
 
-**Handover.** Workspace: `main`, clean at `aa107d9` plus the board backfill
-that follows it. Four crates: todo-domain **167** tests, todo-store 107 (four
-goldens), todo-cli 35 (one golden), todo-mcp an M0 shell; **309** workspace
+The session then continued into **t31**, and four things from it are worth more
+than its §3 entry.
+
+**A measurement can change the shape of a decision, and the direction of its
+error matters as much as its magnitude.** t11's hand-off assumed a cold
+`repo_list` opening every store was acceptable because "M3 answers from handles
+it already holds". The numbers say the cost is O(total history) rather than
+O(repos) — ~1.2 µs per event of history per repo in release, against a registry
+floor that does not grow with N — so at §4.1's top of scale the cold path costs
+seconds, not microseconds. The half that nearly got lost is the *bias*: the
+fixture is written in-process, so the page cache is warm for both terms, and a
+cold cache would inflate the whole listing (every log) far more than the floor
+(one small document). These are therefore the optimistic case for the design
+being priced, which is the direction the U20 decision turns on. My first draft
+of that paragraph claimed the ratio was unaffected; the byte counts refute it.
+
+**The defects were in the prose again, twice more, an hour after writing the
+rule about it.** P-LIVE-008 says whoever writes a contract sentence is the party
+least able to falsify it. Round three found a duration figure in a comment
+("wrote those bytes microseconds earlier") contradicted by the same test's own
+`build ms` column, which is `_rust.md`'s no-measurement rule violated by the
+person who had just cited it, and a false claim that a warm cache left the
+floor/whole ratio unaffected. Both were mine, both were in text written that
+morning, and neither was visible to any gate. Occurrences three and four of the
+class, after t11's round three and f47's round one.
+
+**A lost worker report is survivable exactly to the extent the spec was written
+down.** A power outage killed the implementer's return but not its work: the tree
+held three files of finished code and no account of what had been tried. What
+made recovery mechanical rather than archaeological was that `tmp/t31-spec.md`
+carried the decisions, the twelve required tests and the four mandatory
+mutations, so the orchestrator could re-establish non-vacuity by running the
+mutations and re-take the measurement instead of guessing. The lesson for
+dispatch: a worker's report is a *claim*; the tree and the spec are the
+recoverable artefacts, so the spec must be sufficient to verify the work without
+the report. The cost of losing it was real but bounded — four mutations, two
+measurement profiles and a full gate re-run, all of which a reviewer would have
+re-run anyway.
+
+**The load-bearing defect was one no gate could see, and review found it by
+building a state.** `repo_node` trusted that `repos/<slug>/` holds `<slug>`'s
+graph. Copy a store directory out of band and `repo_show` answers *another
+repository's* record while `repo_list` carries one repo twice under two slugs —
+breaking the total order the method documents — with nothing detecting it: t13's
+`verify` prints the slug it was asked for and never compares it to the graph's.
+The type system cannot see it (both are `Repo`), the suite could not see it (no
+test built the state), and the mutation that proves the new check is
+load-bearing fails with `unwrap_err()` on `Ok(Repo { slug: "camera" })` asked
+for as `shelly-ng`. That is the fourth time in this repo a reviewer found the
+gap by constructing a state rather than reading a diff, after t22's
+interior-damage guard, t20's `--dry-run`/`--yes` swap and t29's `ready` gate
+arm.
+
+One reviewer citation was refused rather than inherited: the prescription to
+anchor D7's `unknown_id` mapping on `decisions.md:848` ("an unknown repo or epic
+is `unknown_id`") points inside **D16's dossier**, whose status row reads
+"drafted 2026-09-30 — awaiting the user's vote". Citing a draft as signed
+support is f53's class from the other side of the review, so the doc cites only
+what is stable — §6.1's silence and the domain's node-scoped gloss — and the
+unsigned fact is recorded here instead, where it stales on the vote rather than
+in a source comment. The generalisation, for g7's consolidation: verify what a
+citation says **and whether the thing it cites is signed**.
+
+**Handover.** Workspace: `main`, t31 committed, and the tree carrying one thing
+that is **not** this delivery's to commit: `.agents/config/agent-rules.yaml`
+re-points the `heavy` alias (qwen3.8-max-0902 → glm-5.3) and raises `reasoning:
+high` → `max` for the orchestrator, implementer and primary reviewer, with four
+generated `.opencode/agent/*.md` files partially regenerated — so
+`tools/agents-sync.py --check` **exits 1** and `version.custom` is still 8. It
+appeared mid-session, it is the user's edit, and t31's four files were staged by
+explicit path to keep out of it. Whoever owns it owes the bump to 9, a re-sync, a
+green `--check` and a review-exempt commit with no trailers; note that `heavy` is
+the alias both t31 reviewers ran under, and that a model re-point does not take
+effect mid-session. Four crates: todo-domain **167** tests, todo-store **120**
+(four goldens), todo-cli 35 (one golden), todo-mcp an M0 shell; **322** workspace
 tests. rustc 1.98.1, MSRV 1.95. `Cargo.lock` untouched by the whole of M2 — no
 rmcp, no serde_json; deps unchanged (serde, dacode-json + zmij by path on
-`../rust/json-tiers`, tempfile dev-only, lexopt 0.3.2); the tools need Python 3
-+ PyYAML. Serena live. Nothing to install. **Next step: t31**, the registry
-query side — `repo_list` and `repo_show` over t11's registry, reading §7's
-mutable `name`/`path` off each store's `Repo` node (the registry itself holds
-only `{registered_at, slug}`), plus the cold `repo_list` open-cost measurement
-t11 handed forward. It is the last M2 task before **g7**, and the measurement
-is decision material rather than curiosity: t11's note says extending the
-registry later is a golden-visible format change, cheap before M3 and expensive
-after. The alternative front is M3's rmcp dependency ask (Ask-First), the only
-thing gating M3, which needs the user and not a session. **Blocked on you:
-D16** (P1, vote) — a signed (a) or (b) adds one domain aggregation task under
-g6 and, per t29's measurement, most likely a domain row type with it; t31 and
-g7 do not wait on it, and no task may build any part of a roll-up before it is
-signed. **Unverified — read this before trusting anything above.** t30 changed
-no behaviour, so what it asserts is a set of doc claims two reviewers checked
-against code paths, not a test result: the debris story is pinned only through
-`compact`'s step (1), and no committed test faults a bare `Store::snapshot()`
-(f57 holds the three measured seams). Carried and still true: nothing outside
-`todo-domain` has ever carried a selection, batch or list answer — no store
-event, no wire, no client — so §5.2's rules remain proven against hand-built
-and seeded graphs alone, and the six veto-able readings of signed text are pins
-against a future edit rather than evidence about a present consumer; D14/D15
-have no code behind them; no induced crash or power loss anywhere; nothing
-calls `compact()` outside tests; no human has run `dump`/`verify`/`repair` on a
-real store; multi-process lock contention is still two handles in one process;
-g7 will be the first milestone gate to exercise the f41 sweep line. Open and
-gating nothing: f4, f25, f44, f45, f48, f49, f50's generator half, f51, f54,
-f57, f58, U13's ack, U16, U18, and the carried f25 reading (`4c5782b` reverts
-it). Tracker: `tools/tasks.py check` exits 1 on exactly two lines — OPEN **g6**,
-which closes at g7, and STAND **g3** until M5. `.agents/pitfalls-live.md` now
-carries this session's two lessons as **P-LIVE-007** (a class sweep is only as
-wide as the grep that runs it — and a verify line written from the same
-phrasing inherits the blindness) and **P-LIVE-008** (whoever writes a contract
-sentence cannot falsify it; third occurrence), both scoped for g7's
-consolidation beside pitfalls 5.1 and 3.2; the next id is **P-LIVE-009**. Doc
-gates green:
-check-links (11 links / 10 files), agents-sync `--check`, agents-index
-`--check`, attention `--check` at 181 checks and 4 rendered items. Code gates
-all run on the committed tree: fmt, `check --workspace --all-targets`, clippy,
-`cargo doc --workspace --no-deps` clean and `--document-private-items` at
-exactly the one known f48 warning; 309 tests; the five goldens and `Cargo.lock`
-untouched.
+`../rust/json-tiers`, tempfile dev-only, lexopt 0.3.2); the tools need Python 3 +
+PyYAML. Serena live. Nothing to install. **Next step: g7**, the M2 exit gate —
+every code gate on the final tree, §5.2's selection proven a pure function of
+state, the five goldens unmoved unless a move is called out, board §2's M2 row
+done, U13/U15/U19 and any D16 consequence dispositioned, the tracker swept
+against `git log` per f41 (the first milestone gate to exercise that line), and
+t29's two pitfalls candidates plus **P-LIVE-007/-008** consolidated into
+`.agents/pitfalls.md`. Its verify line should also settle **f48** (the `cargo
+doc` gate's private-module blind spot) and **f49** (the `awk` measure
+mis-counting test-only files), because both are gate-shape questions and a gate
+is what g7 is. The alternative fronts all need the user rather than a session:
+the **rmcp dependency ask** (the only thing gating M3), **D16** and **U20**.
+**Blocked on you: D16** (P1, vote) — a signed (a) or (b) adds one domain
+aggregation task under g6 and, per t29's measurement, most likely a domain row
+type with it; nothing waits on it today. **U20**, new out of t31's measurement —
+whether the registry should cache `name`/`path`, due before M3 builds the wire,
+where option (a) costs a re-derived lock order and not merely a golden.
+**Unverified — read this before trusting anything above.** Nothing outside
+`todo-domain` has ever carried a selection, batch or list answer, and nothing at
+all has carried a *registry* answer: no store event, no wire, no cli subcommand,
+no client. So §5.2's rules and §7's registry semantics remain proven against
+hand-built and seeded graphs plus store-level tests alone, and the veto-able
+readings of signed text are pins against a future edit rather than evidence
+about a present consumer. Named weak spots: t28's judgment call (j) pin is
+honestly circular; the `blocked_by` two-run order is a contract M3's
+`outputSchema` must state and nothing enforces; `list.rs`'s resolution seam
+drops silently by design (f52); **the one-lock-at-a-time discipline is
+unpinned** — an `open_many` mutant survives all 33 tests and no non-flaky
+single-threaded pin exists (f59); `Registry::load` sorts without deduplicating,
+so a spliced repeated slug lists twice (f60); the slug cross-check lives only in
+the query side, so the crate's readers now disagree about a copied store (f61);
+t31's measurement is warm-cache, host-specific and noisy in two cells (f64).
+Carried and still true: t30 asserts doc claims checked against code paths, not
+test results — the debris story is pinned only through `compact`'s step (1) and
+no committed test faults a bare `Store::snapshot()` (f57, three seams measured);
+D14/D15 have no code behind them; no induced crash or power loss anywhere;
+nothing calls `compact()` outside tests; no human has run `dump`/`verify`/`repair`
+on a real store; multi-process lock contention is still two handles in one
+process; `tools/progress.py` has no test of its own. Open and gating nothing: f4,
+f25, f44, f45, f48, f49, f50's generator half, f51, f54, f57, f58, f59–f64,
+U13's ack, U16, U18, U20. Tracker: `tools/tasks.py check` exits 1 on exactly two
+lines — OPEN **g6**, which closes at g7, and STAND **g3** until M5. Doc gates:
+check-links and `attention.py --check` green; `agents-sync --check` **red for
+the reason above**, which is not this delivery's. Code gates all run on the
+committed tree: fmt, `check --workspace --all-targets`, clippy, `cargo doc
+--workspace --no-deps` clean and `--document-private-items` at exactly the one
+known f48 warning; 322 tests; the five goldens and `Cargo.lock` untouched.
 
 ### 2026-10-01 — M2 t29 landed: the domain's query surface is complete
 
