@@ -10,7 +10,7 @@
 # ─── Template Versioning ───────────────────────────────────────────────
 version:
   template: "0.1"          # Inherited from the dacode agent-rules layout
-  custom: 8                # Local adjustment counter
+  custom: 9                # Local adjustment counter
 
 # ─── Project Identity ──────────────────────────────────────────────────
 project:
@@ -105,7 +105,7 @@ limits:
 harness:
   # Bare model IDs, harness-agnostic. Re-point every role by editing these.
   aliases:
-    heavy: "qwen3.8-max-0902"        # deepest reasoning — orchestration, implementation, primary review
+    heavy: "glm-5.3"        # deepest reasoning — orchestration, implementation, primary review
     mid:   "glm-5.3"                 # cross-family second opinion — secondary review
     light: "qwen3.8-flash"           # cheap, mechanical work — search, triage
 
@@ -214,21 +214,21 @@ roles:
   orchestrator:
     agent: "dacode-todo-mcp"
     layers: [_common, _search, _rust]
-    reasoning: high
+    reasoning: max
     alias: heavy
     mode: primary
     purpose: "Decompose work, route, spawn workers/reviewers, commit."
   implementer:
     agent: "dacode-todo-mcp-implementer"
     layers: [_common, _search, _rust]
-    reasoning: high
+    reasoning: max
     alias: heavy
     mode: subagent
     purpose: "Produce code + tests for one scoped task."
   review_primary:
     agent: "dacode-todo-mcp-reviewer-primary"
     layers: [_common, _search, _rust]
-    reasoning: high
+    reasoning: max
     alias: heavy
     mode: subagent
     purpose: "Deep semantic and logic analysis."

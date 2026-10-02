@@ -1,9 +1,9 @@
 ---
 description: Produce code + tests for one scoped task.
 mode: subagent
-model: alibaba-token-plan-cn/qwen3.8-max-0902
+model: alibaba-token-plan-cn/glm-5.3
 temperature: 0.1
-reasoningEffort: high
+reasoningEffort: max
 permission:
   task: deny
   serena*: allow
