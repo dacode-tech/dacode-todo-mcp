@@ -15,10 +15,11 @@ discipline, commit format, no AI attribution — live in
 `.agents/config/agent-rules.yaml`, not here. This file is for
 **discovered** mistakes.
 
-Entries below were promoted at the **M1 exit gate (g5, 2026-09-30)**.
-Each names what it was promoted from, because `P-LIVE-NNN` ids are cited
-in test-file module docs across `crates/todo-store/tests/` and
-`crates/todo-cli/tests/` and those citations must keep resolving.
+Entries below were promoted at the **M1 exit gate (g5, 2026-09-30)** and
+the **M2 exit gate (g7, 2026-10-02)**. Each names what it was promoted
+from, because `P-LIVE-NNN` ids are cited in test-file module docs across
+`crates/todo-store/tests/` and `crates/todo-cli/tests/` and those
+citations must keep resolving.
 
 ---
 
@@ -231,7 +232,17 @@ in test-file module docs across `crates/todo-store/tests/` and
 - **Do instead**: `cargo doc --workspace --no-deps` is a gate line, and
   there is **one** link convention in this workspace: `[`crate::Epic`]`.
   The `](crate::` form is absent from the tree and must stay absent.
-- **Promoted from**: f10 (t8/t15)
+  And the gate has a **private-reachability blind spot**: rustdoc
+  renders only publicly reachable items by default, so a private
+  module's own doc page — and private items inside public modules — are
+  never rendered and their broken intra-doc links are invisible to the
+  plain invocation; run it with `--document-private-items` too. One
+  broken link (`[`BTreeSet`]` in `reference.rs`, the type not imported
+  into its module) sat behind that blind spot from t6 until the M2 gate,
+  visible only under the flag; proven by mutation there — reverting the
+  one-word fix prints exactly that warning under the flag and none
+  without it.
+- **Promoted from**: f10 (t8/t15), f48 (g7)
 
 ### 4.5 Fault seams that need no production code
 - **Scope**: any test that must make a write, a rename or a read fail
@@ -329,11 +340,96 @@ in test-file module docs across `crates/todo-store/tests/` and
   `escalation`).
 - **Promoted from**: P-LIVE-001 (t6, recurred t7)
 
+### 5.5 A per-seed coverage pin's constants are part of the pin
+- **Scope**: seeded property tests — `todo-domain`'s `graph/tests/`
+  coverage counters; any test whose non-vacuity depends on generator
+  reach
+- **What happened**: three M2 tasks re-picked `GRAPH_SEEDS`/steps, and
+  every re-pick was forced by a measurement, not a preference: t27's
+  sole-hold branch found one seed never held a task by an epic gate
+  alone, so the set became hand-tuned; t28 needed a *different* set,
+  because whole-batch shapes need deeper graphs than per-task shapes;
+  t29's ready-gate pin was killed by exactly one seeded test at one of
+  five seeds with a one-id margin, and the per-seed assertion then
+  forced a re-pick with every coverage branch re-measured at the new
+  seeds. The unasserted counter is the same defect one level down —
+  f47's dead-counter class: a coverage test that asserts the union
+  across seeds stays green while a seed change vacates the very branch
+  it exists to pin.
+- **Do instead**: the constants (seeds, step count, limit) are part of
+  the pin — changing them is a re-measurement event that re-derives
+  every coverage branch, never a tuning knob. Assert coverage **per
+  seed**, read the traced half off the built node rather than off the
+  draw (f9's label/effect decoupling), and document the constants'
+  rationale mechanism-only — why these seeds, not what they measure.
+- **Promoted from**: t27, t28, t29; f47's dead-counter item, f50's grid
+
+### 5.6 A citation's content is a claim, and so is its signedness
+- **Scope**: task specs, reviewer prescriptions, board prose — anywhere
+  a line number or a decision id is quoted
+- **What happened**: five consecutive M2 task specs carried claims that
+  did not reproduce, and the missing half was always the citation's
+  *content*: t29's spec attributed `deny_unknown_fields` and the wire
+  key order to D15, where D15 is §6.1's error carrier, D14 is the key
+  order, and `deny_unknown_fields` appears nowhere in the decision
+  record; t31's spec called §6.1 "the closed twelve-code list"
+  (thirteen — U9 added `invalid` and `io`), glossed `unknown_id` with
+  words §6.1 never says, mis-stated a mutant's kill set, and cited
+  `node.rs` field positions off by one. The sharper half: a reviewer
+  prescription anchored D7 on `decisions.md:848` as *signed* text —
+  that line sits inside D16's unsigned dossier, so following it would
+  have laundered a draft into a spec.
+- **Do instead**: re-read the cited line when writing the citation —
+  quoting where something lives without re-reading what it says is the
+  defect. And check the cited thing is signed (a resolution banner,
+  normative spec text), not a drafted dossier awaiting a vote. A line
+  number that reproduces says nothing about the sentence beside it.
+- **Promoted from**: f53 (t29), f62 (t31), t29's second candidate
+
+### 5.7 A class sweep is only as wide as the grep that runs it
+- **Scope**: doc-claim and defect-class sweeps anywhere in the tree; the
+  `verify:` lines written for them
+- **What happened**: t30's spec listed twelve "nothing written / nothing
+  on disk / untouched" claims, cleared eleven, and review found two more
+  of the same class in the same crate — "nothing was **opened**, read or
+  written", falsified by `open_and_try_lock` opening the lock file. The
+  sweep had greped one phrasing of the defect instead of the defect (an
+  exhaustive claim narrower or looser than its mechanism). The same
+  blindness hit the task's own verify line: it asked for
+  `rg 'never reported through it'` to return nothing after a fix whose
+  content changed the four words *before* that substring — a check that
+  could never pass.
+- **Do instead**: name the defect class first, enumerate its plausible
+  surface forms ("nothing was opened/written/created/changed", "no
+  trace", "leaves nothing", "untouched"), and grep each. Then run every
+  verify-line grep against the intended fixed state before writing it —
+  a check that cannot pass is not a check.
+- **Promoted from**: P-LIVE-007 (t30), f56
+
+### 5.8 Whoever writes a contract sentence cannot falsify it
+- **Scope**: doc-only and spec-text commits; reviewer prompts for prose
+  changes
+- **What happened**: three of t30's four review rounds found a false
+  clause in text the orchestrator had just written — "a failure **at or**
+  after the temp file's creation" (false when the creation is what
+  refused; the reviewer built the two states rather than reading the
+  summary), debris reuse scoped per process where `temp_path_for` keys
+  the name per store directory, and "the whole effect **of the
+  attempt**" against `lock_registry`'s `create_dir_all` running strictly
+  before the acquire. Third occurrence after t11's round 3 and f47's
+  round 1.
+- **Do instead**: for a prose change, the reviewer prompt must ask for
+  falsification against the code path (build the state, name the
+  file:line), and the author states, per clause, what it was checked
+  against. Applying a reviewer's prescribed wording verbatim is safe;
+  paraphrasing it is what costs the extra round.
+- **Promoted from**: P-LIVE-008 (t30), t11 round 3, f47 round 1
+
 ---
 
 ## Quick Reference: Top Rules
 
-Distilled from the entries above at the M1 gate.
+Distilled from the entries above at the M1 and M2 gates.
 
 1. **Select the test target, never a name filter** — `--test <name>`, and
    the only proof a filtered run ran is the passed count plus
@@ -357,4 +453,9 @@ Distilled from the entries above at the M1 gate.
 9. **Caller-facing strings are contract text and are pinned by a needle**
    (3.2).
 10. **A doc-touching commit backfills its own index and its own hash in a
-    follow-up** (5.3).
+     follow-up** (5.3).
+11. **A citation's content is a claim: re-read the cited line, and check
+     what it cites is signed** (5.6).
+12. **A class sweep enumerates the defect's surface forms before
+     grepping, and every verify-line grep is run against the intended
+     fixed state before it is written** (5.7).
