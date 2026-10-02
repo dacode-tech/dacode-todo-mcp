@@ -1575,8 +1575,8 @@ Oldest first. One line per delivery, with the commit hash once committed.
         blind-spot addition and two new top-ten rules; `pitfalls-live.md`
         reset with the former-id table extended to P-LIVE-008, next id
         P-LIVE-009. D16 unsigned throughout; U15/U19 already struck by
-        t30; g6 closed with the gate's evidence. Landed as `<hash>`
-        (backfilled in the next board commit).
+        t30; g6 closed with the gate's evidence. Landed as `73faff5` (the
+        dual-reviewed code commit) and `d30cf08` (this consolidation).
 
 ## 4. Follow-ups
 
