@@ -1622,7 +1622,7 @@ Oldest first. One line per delivery, with the commit hash once committed.
        point behind the tool bodies, the guard never held across an
        await, the libraries staying sync per §2. import_md stays M4's
        per D12; pulling it forward is recorded as a one-task change.
-       Landed as `<hash>` (backfilled in the next board commit).
+       Landed as `dd45caf`.
 
 ## 4. Follow-ups
 
