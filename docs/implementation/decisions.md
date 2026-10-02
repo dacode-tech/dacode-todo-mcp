@@ -10,10 +10,10 @@ same change — most orders delete the §12 item, so the spec moves too.
 and the meta block below; keep the shapes it parses.
 
 <!-- attention-meta — machine-readable; read by tools/attention.py.
-     D1–D12 resolved 2026-09-25/2026-09-29, D14 and D15 resolved 2026-09-30.
+     D1–D12 resolved 2026-09-25/2026-09-29, D14 and D15 resolved 2026-09-30,
+     D16 resolved 2026-10-03.
      D13 is reserved for the transport question board U18 defers, and is not
      drafted, so it has no action line either.
-action: D16=vote
 -->
 
 ## Sign-off summary
@@ -34,7 +34,7 @@ action: D16=vote
 | ~~**D12**~~ | Importer fixture scope (amends D7) | dacode dialect first; camera and ikvm-html are live-test subjects only, never checked in here | high | M4 | resolved 2026-09-29 — user decision, reversing D7's order |
 | ~~**D14**~~ | The wire's canonical JSON key order | (a) enable `serde_json/preserve_order` here, with a golden pinning the wire bytes | medium | M3 | resolved (a) 2026-09-30 — user decision, with the wire golden named as part of it |
 | ~~**D15**~~ | Where a §6.1 code lives on the wire | (a) `structuredContent.code` via `structured_error`, §6.1 naming the carrier | medium | M3 | resolved (a) 2026-09-30 — user decision |
-| **D16** | The progress roll-up: a tool, a field, or a client concern | (a) a `status_summary(repo?, epic?)` tool, plus `blocked_by` on `task_list` rows whichever option wins | medium | M2 | drafted 2026-09-30 — awaiting the user's vote |
+| ~~**D16**~~ | The progress roll-up: a tool, a field, or a client concern | (a) a `status_summary(repo?, epic?)` tool, plus `blocked_by` on `task_list` rows whichever option wins | medium | M2 | resolved (a) 2026-10-03 — signed after M2 closed at g7; the domain aggregation task lands under M3's goal |
 
 ---
 
@@ -771,7 +771,22 @@ M3 row, §3 and §6.
 
 ### D16 — The progress roll-up: a tool, a field, or a client concern
 
-**Gates** M2 · **Action** vote · drafted 2026-09-30 from the M2
+**Resolved 2026-10-03 — option (a), signed by the user.** A
+`status_summary(repo?, epic?)` tool returning counts by kind and status
+plus D9's deferred `{total, ready}`, and `task_list` rows carrying their
+`blocked_by` ids with every blocker's status. Work order executed in the
+same change: §6's tool table gains the `status_summary` row and the
+`task_list` annotation, §6 states the arithmetic as signed text (what
+"open" means per kind, and that `ready` is exactly D9's
+until-satisfied predicate), §12 item 16 deleted and the list closed
+again, this row struck. One deviation from the work order as written: it
+predates g7 and says the tracker gains the domain aggregation task
+"under g6" — g6 closed at g7 while this decision was unsigned, so the
+task lands under M3's goal instead, exactly as board §1's D16 row
+records. The t29-measured cost stands as written: the domain gains the
+aggregate and the annotated row type, not only a tool and a schema.
+
+**Gates** M2 · **Resolved** 2026-10-03 · drafted 2026-09-30 from the M2
 decomposition answering board U17 · **Confidence: medium**
 
 **Current (before this decision).** §6's signed list contains no

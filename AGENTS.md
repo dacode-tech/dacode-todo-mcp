@@ -17,19 +17,22 @@ If `MYAGENTS.md` exists at the repo root, it is untracked, personal, and
 
 ## Project State
 
-**Phase: M2 closed 2026-10-02 — M3 (the MCP wire) is next, gated on the
-rmcp dependency ask.**
+**Phase: M3 (the MCP wire) is next — all its gates cleared 2026-10-03.**
 An MCP server that replaces
 markdown TODO boards with a deterministic task graph: tasks are typed
 nodes, dependencies are typed edges, everything lives in local
 per-repo non-relational stores (D4), and "what is next in repo X under
 epic Y" is a query, not a prose parse. Rust, rmcp, stdio transport.
 
-§12 holds **one open item — D16**, the progress roll-up (a new tool, a
-field on an existing one, or a client-side concern), drafted 2026-09-30
-out of the M2 decomposition's answer to U17; it gates no dispatched task,
-and a signed (a) or (b) adds one domain aggregation task to M3's
-decomposition.
+§12 is closed: the last open item, **D16** (the progress roll-up), was
+signed (a) on 2026-10-03 — `status_summary` and the `task_list`
+annotation are in §6 with the arithmetic as signed text — and **D13
+stays reserved** for the transport question board U18 defers. The same
+exchange cleared M3's other two gates: the **rmcp dependency ask** was
+granted (rmcp 3.5.0 with `server`/`macros`/`transport-io` plus
+`serde_json` with `preserve_order` per D14, recorded in spec §6.3) and
+**U20** resolved (b) — the registry format stays, and the server
+answers `repo_list` from the handles it holds.
 Everything else is signed: all eleven decisions on 2026-09-25, D12 added
 2026-09-29, and D14/D15 on 2026-09-30 out of U2's rmcp survey (the
 wire's canonical key order and §6.1's error carrier)
@@ -46,10 +49,9 @@ selection (`graph/select.rs`), batch (`graph/items.rs`) and listing
 (`graph/list.rs`) surfaces, plus the registry queries
 (`DataRoot::repo_list`/`repo_show`) — 322 tests, every gate green at the
 g7 exit, M2's lessons consolidated into `.agents/pitfalls.md`.
-`todo-mcp` is still an M0 shell: the wire is
-M3's, whose shapes spec §6.3 measured against rmcp 3.5.0 and whose only
-remaining gate is the dependency ask itself, with **U20** (the registry
-format) due before the wire is built. Run
+`todo-mcp` is still an M0 shell: the wire is M3's, whose shapes spec
+§6.3 measured against rmcp 3.5.0 and whose gates are now all cleared.
+The next step is M3's decomposition. Run
 `tools/attention.py` for the current picture rather than trusting this
 paragraph.
 

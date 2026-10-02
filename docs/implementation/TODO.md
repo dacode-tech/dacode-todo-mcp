@@ -33,10 +33,16 @@ rest verified deliberately open with their named consumers. M2's lessons
 consolidated into `.agents/pitfalls.md`: P-LIVE-007/-008 plus the citation
 rule and the coverage-pin-constants rule (four new entries, 5.5–5.8; the
 live file reset, next id P-LIVE-009). One decision is open out of the M2
-decomposition — **D16**, the progress roll-up — and nothing waited on it; a
-signed (a) or (b) now adds the aggregation task to M3's decomposition, since
-g6 is closed. **M3 is next**: its only gate is the rmcp dependency ask, with
-**U20** due before the wire is built.
+decomposition — **D16**, the progress roll-up — and nothing waited on it;
+it was **signed (a) on 2026-10-03**, after the gate. **M3 is next, and
+unblocked**: on 2026-10-03 the user signed all three of its gates — the
+**rmcp dependency ask** (rmcp 3.5.0 with `server`/`macros`/
+`transport-io` plus `serde_json` with `preserve_order` per D14, recorded
+in spec §6.3), **U20** resolved (b) (the registry format stays; the
+server answers `repo_list` from handles it holds), and **D16** (a)
+(`status_summary` and the `task_list` annotation in §6, with the
+arithmetic as signed text; §12 closed again). The next step is M3's
+decomposition.
 M1 is closed. The domain layer (§3's value types and closure discipline,
 §5.1's graph, §5.2's canonical order), the storage engine (the signed D1
 JSONL event log behind the `Store` trait
@@ -54,9 +60,7 @@ shell, which is M3's business.
 
 | Blocking | What | Action |
 |---|---|---|
-| **D16** | the progress roll-up — totals by kind and status, and per open item what it waits on — is a §6 amendment, drafted out of **U17** with recommendation (a): a `status_summary(repo?, epic?)` tool plus `blocked_by` on `task_list` rows. M2 closed without it (g7, 2026-10-02); a signed (a) or (b) now adds one domain aggregation task to **M3's decomposition**, and no task may implement a roll-up before it is signed | vote |
-| — | M3's remaining gate is the **rmcp dependency ask** itself (Ask-First): the survey measured its weight (spec §6.3) and D14 now names `serde_json` as a wire serializer, but nothing has entered the workspace | ask, then build the wire |
-| **U20** | whether the registry should cache `name`/`path` — a golden-visible format change, cheap before M3 and expensive after — now that **t31** has priced a cold `repo_list`: it is O(total history), not O(repos), because §7's mutables live only on each store's node | decide before M3 builds |
+| — | nothing blocks M3: the rmcp ask, U20 and D16 were all signed 2026-10-03 (§3); the wire's shapes are settled (D14/D15/D16) and the dependency is approved (§6.3) | decompose M3, then build |
 
 (Open but non-blocking: **U16** (ship base instructions with the server and
 gate the client's native todo off, M3 — its mechanism is measured rather than
@@ -67,7 +71,8 @@ g7 sweep — the duplicate-key check for `agent-rules.yaml` (f44) and
 `progress.py`'s blind spot for open decisions (f45), both user calls that
 must outlive the branch. Resolved: U2/U4/U5/U6/U7/
 U8/U9/U10/U11/U12/U14/U17 and now **U15** and **U19**, both taken by t30 —
-U17's mapping is settled and its one open piece is D16; U3 superseded by D12.
+U17's mapping is settled and **D16 closed its one open piece** (signed
+2026-10-03); **U20** resolved (b) 2026-10-03; U3 superseded by D12.
 U13 is acknowledged debt, re-measured at the M2 decomposition and again at
 g7 — unchanged; t31 grew `layout.rs` to 543 production lines, still under the
 600 target, so the ledger does not move but the file is now close to it.)
@@ -82,8 +87,8 @@ exit criteria: spec §14. Priority is derived from the Gated-on column by
 |---|---|---|---|
 | M0 | spec settled: §12 items 1–3 signed (done 2026-09-25); Cargo workspace skeleton with the lint regime; all gates green | — | done 2026-09-25 |
 | M1 | domain model + storage engine: graph, statuses, persistence behind the `Store` trait, golden files | — | done 2026-09-30 — g5 ran green: every code gate, five goldens byte-identical, `cargo doc` clean, pitfalls consolidated |
-| M2 | queries: repo/epic selection, dependency resolution, deterministic `next_task`; registry with path updates | **D16** adds one task if signed; no dispatched task waits on it | done 2026-10-02 — **g7 ran green**: every code gate, the five goldens byte-identical under `UPDATE_GOLDEN=1`, `cargo doc` warning-free under both invocations for the first time (f48 settled), §5.2's selection re-proven a pure function of state, the f41 sweep exercised for the first time (f44/f45 promoted to U21/U22, the rest verified open with named consumers), and M2's lessons consolidated into `.agents/pitfalls.md` (P-LIVE-007/-008, the citation rule, the coverage-pin rule). The five deliveries — t27 selection, f47's pins, t28 batch, t29 listing, t30 doc riders, t31 registry queries — are §3's entries; D16 stayed unsigned throughout and nothing waited on it |
-| M3 | MCP server: the full §6 tool list over the wire, protocol-level tests, default-repo slug config (D8), smoke against a real client | the **rmcp dependency ask** (Ask-First) — **D14**/**D15** signed 2026-09-30, so the wire's key order and §6.1's error carrier are settled. **U20** (the registry format) is due before the wire is built, not after: t31's measurement is its input | not started |
+| M2 | queries: repo/epic selection, dependency resolution, deterministic `next_task`; registry with path updates | **D16** adds one task if signed; no dispatched task waits on it | done 2026-10-02 — **g7 ran green**: every code gate, the five goldens byte-identical under `UPDATE_GOLDEN=1`, `cargo doc` warning-free under both invocations for the first time (f48 settled), §5.2's selection re-proven a pure function of state, the f41 sweep exercised for the first time (f44/f45 promoted to U21/U22, the rest verified open with named consumers), and M2's lessons consolidated into `.agents/pitfalls.md` (P-LIVE-007/-008, the citation rule, the coverage-pin rule). The five deliveries — t27 selection, f47's pins, t28 batch, t29 listing, t30 doc riders, t31 registry queries — are §3's entries; D16 stayed unsigned throughout and nothing waited on it — **signed (a) 2026-10-03, after closure**, its aggregation task landing under M3's goal |
+| M3 | MCP server: the full §6 tool list over the wire, protocol-level tests, default-repo slug config (D8), smoke against a real client | gates cleared 2026-10-03: the **rmcp ask** signed (rmcp 3.5.0 + `serde_json/preserve_order`, §6.3), **U20** resolved (b) — the registry format stays and the server answers `repo_list` from handles — and **D16** signed (a), adding the domain aggregation task (`status_summary` + `task_list` rows) to the decomposition; D14/D15 settled the wire's key order and error carrier on 2026-09-30 | ready — the decomposition is next |
 | M4 | adoption: the dacode-dialect importer first (**D12**, amending D7), its board the only fixture checked in per §10; camera and ikvm-html imported from their live boards and never copied into this repo; the three repos tracked for real | — | not started |
 | M5 | packaging, docs, cwd auto-detection (deferred by D8), polish | — | not started |
 
@@ -1577,6 +1582,30 @@ Oldest first. One line per delivery, with the commit hash once committed.
         P-LIVE-009. D16 unsigned throughout; U15/U19 already struck by
         t30; g6 closed with the gate's evidence. Landed as `73faff5` (the
         dual-reviewed code commit) and `d30cf08` (this consolidation).
+- 2026-10-03 — **the M3 gates cleared: rmcp, U20 and D16 all signed** —
+       one exchange, three work orders executed. **rmcp (a)**: rmcp 3.5.0
+       with `server`/`macros`/`transport-io` plus `serde_json` with
+       `preserve_order` (D14) is approved for the workspace, recorded in
+       spec §6.3 beside the survey that measured it — the first heavy
+       external dependency, asked and granted per U8's precedent; the
+       approval is a decision, not a dependency, so `Cargo.lock` is
+       untouched and the first M3 task adds it. **U20 (b)**: the registry
+       format stays as t11 built it; M3's `repo_list`/`repo_show` answer
+       from the handles the server holds, so t31's measured cold cost
+       survives only on cold and cli paths, which is what they are for;
+       (a) was declined on its real cost — the lock-order re-derivation,
+       not the golden — and f63's lock-free-reader question stays M3's
+       design call. **D16 (a)**: `status_summary(repo?, epic?)` joins
+       §6's tool table and `task_list` rows gain their `blocked_by` ids
+       with each blocker's status, with the arithmetic as signed text —
+       "open" means non-terminal per kind, and `ready` is exactly D9's
+       until-satisfied predicate, so the summary and the selection tools
+       cannot disagree; §12 item 16 deleted and the list closed again;
+       the domain aggregation task lands under M3's goal, since g6
+       closed at g7 while the vote was open — the deviation from the
+       work order's "under g6" is recorded in decisions.md D16's banner.
+       U17 fully answered; U20 struck with its resolution. Landed as
+       `<hash>` (backfilled in the next board commit).
 
 ## 4. Follow-ups
 
@@ -1999,7 +2028,12 @@ Unowned work. Take the next unused `U` id; never renumber, never reuse.
       rows, whichever option wins. Its `On sign-off:` work order adds a
       domain aggregation task under g6 if (a) or (b) is signed, and records
       that the roll-up stays a script if (c) is. No task may implement a
-      roll-up before then.
+      roll-up before then. **D16 signed (a) 2026-10-03** — the roll-up is
+      behind the wire: §6 gains `status_summary` and the `task_list`
+      annotation with the arithmetic as signed text, and the domain
+      aggregation task lands under M3's goal (g6 closed at g7 while the
+      vote was open; decisions.md D16 records the deviation). U17 is
+      fully answered.
 - [ ] **U18 · A live view for progress, and whether the server is shared per
       user.** Deferred by the user 2026-09-30 until after the primary part is
       implemented and checked against the existing markdown boards (M4's
@@ -2044,7 +2078,7 @@ Unowned work. Take the next unused `U` id; never renumber, never reuse.
       below it instead of needing a new clause, and `Unrepairable.offset`'s
       field doc ("a position in the log, never in a snapshot") stays true of
       the `None` case.
-- [ ] **U20 · Decide whether the registry caches `name`/`path`, now that a
+- [x] **U20 · Decide whether the registry caches `name`/`path`, now that a
       cold `repo_list` is priced.** t11's narrow reading — the registry holds
       only `{registered_at, slug}` and §7's mutable `name`/`path` live solely on
       each store's `Repo` node — was accepted with its cost recorded rather than
@@ -2078,7 +2112,15 @@ Unowned work. Take the next unused `U` id; never renumber, never reuse.
       Due before M3 builds the wire, not after — and note that
       `tools/attention.py` renders this **P3**, because a §4 item carries no
       `Gates` field for it to derive a priority from (f65); §1's blocking table
-      above is where the deadline lives.
+      above is where the deadline lives. **Resolved 2026-10-03, option (b) —
+      the format stays.** The registry keeps only `{registered_at, slug}`;
+      M3's `repo_list`/`repo_show` answer from the handles the server already
+      holds, so the measured cost survives only on cold and cli paths, which is
+      what they are for. (a) was declined on its real cost — the lock-order
+      re-derivation, not the golden — and stays reachable later as a format
+      change if a cli-heavy workflow ever needs it. f63's lock-free-reader
+      question is untouched by this: it was one of the three answers and
+      remains M3's design call with its unsigned §4.3 reading.
 - [ ] **U21 · Land the duplicate-key check for `agent-rules.yaml`, or close
       it wontfix.** f44, promoted out of the tracker at the g7 sweep because
       the generalisation must not survive only in a gitignored file:

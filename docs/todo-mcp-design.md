@@ -346,15 +346,30 @@ Sketch (names are the proposal; rmcp's tool macros will shape schemas):
 | `repo_register` / `repo_list` / `repo_show` | registry CRUD (§7) |
 | `repo_set_path` | a checkout moved; update the path attribute |
 | `epic_add` / `epic_list` / `epic_update` | top-level grouping per repo |
-| `task_add` / `task_show` / `task_list` | task CRUD; `task_list` filters by repo, epic, status, kind, and — for deferred items — until-satisfied (`ready`) |
+| `task_add` / `task_show` / `task_list` | task CRUD; `task_list` filters by repo, epic, status, kind, and — for deferred items — until-satisfied (`ready`); rows carry each task's `blocked_by` ids with every blocker's status (D16) |
 | `task_update` | status + fields, with the closure discipline above |
 | `task_link` / `task_unlink` | `blocks` / `relates` edges (task and decision sources); cycle-checked |
 | `next_task` | **the question the system exists for** (§5.2) |
 | `next_items` | ranked actionable batch — repo/epic-scoped, or task-scoped (its dependents) — with blocked-by/blocks annotations, derived weight and the deferred summary (§5.2, D11 amended) |
+| `status_summary` | the roll-up (D16): counts by kind and status for the scope, plus D9's deferred `{total, ready}` — the arithmetic is signed below |
 | `decision_add` / `decision_list` / `decision_show` / `decision_update` | decision dossiers (D10); `decision_update` to `signed`/`superseded` requires `resolution` — the closure discipline applied to decisions |
 | `doc_register` / `doc_list` / `doc_set_path` / `doc_update` | registered-document records for stable citation (D10); `doc_set_path` is audited like `repo_set_path` |
 | `graph_show` | the complete graph (all repos) or one repo/epic subgraph, as an LLM-consumable handover dump (§6.2, D11 amended) |
 | `import_md` | one-shot importer from the sibling markdown boards (§9; D7 as amended by D12: the dacode dialect first, and the only one with a checked-in fixture) |
+
+**What `status_summary` counts (D16, signed 2026-10-03 — the arithmetic
+is signed text, not an implementation's opinion).** For the queried
+scope, every epic and task is counted by its `Status` and every decision
+by its `DecisionStatus`; docs carry no status and are counted as one
+total. "Open" in any total means *non-terminal*: for epics and tasks
+`open`, `in_work`, `blocked` and `deferred` (terminal: `closed`,
+`wontfix`); for decisions `open` (terminal: `signed`, `superseded`). The
+deferred `{total, ready}` uses exactly D9's ready predicate — the same
+until-satisfied rule `next_task` and `next_items` apply — so the summary
+and the selection tools cannot disagree about what "ready" means. The
+`task_list` annotation carries the same `blocked_by` list §6.2's dump
+carries per node: the task's own predecessors, then its epic's decision
+gates, deduplicated at first occurrence.
 
 ### 6.1 Error contract
 
@@ -431,10 +446,13 @@ source, and by driving a probe server over raw stdio — newline-delimited
 JSON-RPC written to the process's stdin and captured byte-for-byte from
 its stdout, against a server declaring `#[tool]` methods shaped like the
 table above. The probe is **not committed**: adding rmcp to this workspace
-is an Ask-First that belongs to M3, so the wire bytes that decide anything
-are quoted here and every source citation is to the crates.io 3.5.0 tree,
-which is re-downloadable. Its direct dependencies were `rmcp` (features
-`server`, `macros`, `transport-io`), `tokio`, `serde`, `serde_json` and
+is an Ask-First that belongs to M3 — **granted by the user 2026-10-03:
+rmcp 3.5.0 with features `server`, `macros`, `transport-io`, plus
+`serde_json` with `preserve_order` per D14** — so the wire bytes that
+decide anything are quoted here and every source citation is to the
+crates.io 3.5.0 tree, which is re-downloadable. Its direct dependencies
+were `rmcp` (features `server`, `macros`, `transport-io`), `tokio`,
+`serde`, `serde_json` and
 `schemars`: 81 `Cargo.lock` packages, 56 unique normal dependencies, a
 tree MSRV of 1.88 (below this workspace's 1.95 floor) and a 15 s cold build
 on the surveying host with a warm registry cache.
@@ -710,37 +728,19 @@ Each item is mirrored by a `D`-numbered entry in
 `docs/implementation/decisions.md` with options, a recommendation, a
 confidence and an `On sign-off:` work order. Agents propose; the user
 decides. An item is deleted from this list when its decision is signed:
-items 1–11 on 2026-09-25, D12 on 2026-09-29, and D14/D15 on 2026-09-30 —
+items 1–11 on 2026-09-25, D12 on 2026-09-29, D14/D15 on 2026-09-30 —
 the two that came out of U2's rmcp survey (§6.3), settling the wire's
-canonical key order and the carrier a §6.1 code travels in. The sections
-they settled are normative above, and a future change to a signed shape
+canonical key order and the carrier a §6.1 code travels in — and D16 on
+2026-10-03, the progress roll-up, which put `status_summary` and the
+`task_list` annotation into the table above. The sections they settled
+are normative above, and a future change to a signed shape
 is a new decision, not an edit (the D6/D11 priority boundary is the
 worked example). Numbers are never reused, and **D13 is reserved** for
 the transport question board U18 defers — a shared per-user server
 instance against the signed D5 stdio — which is not drafted because
 nothing there starts before M4's importer check.
 
-One item is open. It came out of the M2 decomposition answering board
-U17 (2026-09-30): every other harness tool the server should absorb is
-already signed, and the one piece that is not is an aggregate §6's list
-does not carry.
-
-16. **The progress roll-up: a tool, a field, or a client concern** — §6
-    signs a tool list with no aggregate in it, and board U17 asks whether
-    the roll-up this project's own harness renders (totals by kind and
-    status; per open item, what it waits on) belongs behind the wire, so
-    another project's agents get it instead of each repo growing its own
-    script. It is a query over the same graph, so the server answers it
-    cheaply and every client otherwise re-implements it — but adding it
-    amends D5's signed list, which is how D11's `next_items` happened.
-    (a) a `status_summary(repo?, epic?)` tool returning counts by kind
-    and status plus D9's deferred `{total, ready}`, with `task_list` rows
-    gaining their `blocked_by` ids so "what waits on what" needs no
-    second round trip; (b) no new tool — a `counts` block on §6.2's
-    `graph_show` dump, plus the same `task_list` annotation; (c) leave it
-    client-side over `graph_show`, per §11's "clients render". No option
-    needs a §6.1 code beyond the closed list. Gates M2. See decisions.md
-    D16.
+None — the list is closed.
 
 ## 13. Packaging and Distribution
 
