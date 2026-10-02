@@ -186,9 +186,15 @@ surfaces; the code must not reintroduce the property it removes:
   awk '/^#\[cfg\(test\)\]/{exit} {n++} END{print n+0}' <file>
   ```
 
-  which stops at the first in-file test module. A test-only file reports
-  its whole length here; it is exempt by the rule above, not by the number,
-  so do not "fix" one by splitting it.
+  which stops at the first in-file test module. The measure is for
+  production files: the awk stops at an in-file test block where there is
+  one and counts the whole file where there is not. A file that *is* test
+  code never contains the attribute itself — its parent declares it, or
+  it lives under `crates/<crate>/tests/` — so the awk counts it in full.
+  It is exempt by the rule above, not by the number: do not "fix" one by
+  splitting it, and do not feed the exempt files to a sweep, because a
+  crate-wide run of this one-liner reports test-only files as over
+  budget.
 - **Target 600 production lines, cap 1000.** Split by responsibility, not
   by size alone — a 900-line module with one coherent job can pass, a
   300-line grab-bag should not.

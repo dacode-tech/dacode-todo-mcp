@@ -111,7 +111,7 @@ opencode and the other clients here use.
 
 ## Verification for this domain
 
-Beyond the standard gates (`fmt`/`check`/`test`/`clippy`), this project
+Beyond the standard gates (`fmt`/`check`/`test`/`clippy`/`doc`), this project
 has two verification shapes of its own:
 
 1. **Byte-stability**: serialize → load → serialize is identical; a tool
@@ -120,11 +120,12 @@ has two verification shapes of its own:
    — never by calling the handler function around it. The wire is the
    product.
 
-The workspace exists (M0, 2026-09-25), so the four code gates run on
-every delivery, with the doc gates (`attention.py --check`,
-`check-links.py`, `agents-sync.py --check`, `agents-index.py --check`)
-alongside them; on docs-only changes the doc gates carry the weight
-alone.
+The workspace exists (M0, 2026-09-25), so the code gates run on
+every delivery — `cargo doc` twice, plain and with
+`--document-private-items` — with the harness self-checks
+(`attention.py --check`, `check-links.py`, `agents-sync.py --check`,
+`agents-index.py --check`) alongside them; on docs-only changes the
+harness self-checks carry the weight alone.
 
 ## Where things live
 

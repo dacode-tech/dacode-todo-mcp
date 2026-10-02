@@ -75,6 +75,8 @@ like this and not like the spec section it claims to implement".
 cargo fmt --check
 cargo clippy -p <crate> --all-targets 2>&1 | tail -c 5000
 cargo test -p <crate> 2>&1 | tail -c 5000
+cargo doc --workspace --no-deps 2>&1 | tail -c 2000
+cargo doc --workspace --no-deps --document-private-items 2>&1 | tail -c 2000
 ast-grep scan $(git diff --name-only <base>... -- '*.rs')
 ```
 

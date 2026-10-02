@@ -66,6 +66,7 @@ at review.
 | Test (iterating) | `cargo test -p <crate> [-- <name>]` | bare `cargo test --workspace` in the inner loop |
 | Test (final gate) | `cargo test --workspace` | — |
 | Lint | `cargo clippy --workspace --all-targets` | suppressing a lint without a one-line reason |
+| Docs | `cargo doc --workspace --no-deps`, twice — plain and with `--document-private-items` | skipping the private-items run |
 | Release build | `cargo build --release 2>&1 \| tail -c 5000` | — |
 | Server smoke | `cargo run -p todo-mcp -- --stdio` + an initialize handshake | asserting "it should work" |
 | Code search | the four-layer policy in `.agents/roles/_search.md` | an unscoped repo-wide grep |

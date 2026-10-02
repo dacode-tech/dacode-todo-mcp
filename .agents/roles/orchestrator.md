@@ -87,8 +87,9 @@ never write the same file.
 6. Verify, in this order, and report each as pass/fail/**skipped**:
    `cargo fmt --check` → `cargo check --workspace --all-targets` →
    `cargo test -p <touched crate>` → `cargo clippy --workspace
-   --all-targets`. Before M0 there is no workspace and every code gate is
-   honestly `skipped`.
+   --all-targets` → `cargo doc --workspace --no-deps`, run twice —
+   plain and with `--document-private-items`. Before M0 there is no
+   workspace and every code gate is honestly `skipped`.
 7. Commit — it is a step of the cycle, not an optional extra. Code
    commits only after both reviewers sign off, and carry both
    `Reviewed-by:` role trailers (format in `_common.md`); review-exempt
@@ -238,7 +239,8 @@ Reviewers are not decoration: if you skip review because the change
 The two reviewers run on different model families (see
 `.agents/config/agent-rules.yaml`), so their blind spots largely do not
 correlate — but unanimity still does not substitute for actually running
-fmt/check/test/clippy, which share no blind spot with any model.
+the code gates — fmt, check, test, clippy and cargo doc — which share no
+blind spot with any model.
 
 A code commit carries both `Reviewed-by:` role trailers, and only after a
 real dual review of this exact diff (format in `_common.md`).

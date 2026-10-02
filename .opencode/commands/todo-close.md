@@ -19,13 +19,13 @@ The live state is injected below.
 
 !`echo "=== repo ==="; git status --short 2>&1 | head -30; echo "=== branch ==="; git symbolic-ref --short HEAD 2>/dev/null || echo "<no commits yet>"; echo "=== staged ==="; git diff --cached --stat 2>&1 | tail -5; echo "=== last commits ==="; git log --format='%h %s' -5 2>&1`
 
-## Doc and harness gates
+## Harness self-checks
 
 !`echo '--- attention (hygiene) ---'; tools/attention.py 2>&1 | sed -n '/^## Hygiene/,$p' | head -20; echo '--- links ---'; tools/check-links.py --quiet 2>&1 | tail -3; echo '--- adapters ---'; tools/agents-sync.py --check 2>&1 | tail -3; echo '--- doc index ---'; tools/agents-index.py --check 2>&1 | tail -3`
 
 ## Code gates, if a workspace exists
 
-!`if [ -f Cargo.toml ]; then echo '--- fmt ---'; cargo fmt --check 2>&1 | tail -5; echo '--- clippy ---'; cargo clippy --workspace --all-targets 2>&1 | tail -c 3000; else echo '<no Cargo.toml — pre-M0; code gates are skipped by construction>'; fi`
+!`if [ -f Cargo.toml ]; then echo '--- fmt ---'; cargo fmt --check 2>&1 | tail -5; echo '--- clippy ---'; cargo clippy --workspace --all-targets 2>&1 | tail -c 3000; echo '--- doc ---'; cargo doc --workspace --no-deps 2>&1 | tail -3; echo '--- doc (private items) ---'; cargo doc --workspace --no-deps --document-private-items 2>&1 | tail -3; else echo '<no Cargo.toml — pre-M0; code gates are skipped by construction>'; fi`
 
 $ARGUMENTS
 
@@ -52,7 +52,9 @@ $ARGUMENTS
    commit message is not where it survives.
 6. **Code gates, if and only if code was written**: `cargo fmt --check` →
    `cargo check --workspace --all-targets` → `cargo test -p <touched
-   crate>` → `cargo clippy --workspace --all-targets`. Report each as
+   crate>` → `cargo clippy --workspace --all-targets` → `cargo doc
+   --workspace --no-deps`, run twice — plain and with
+   `--document-private-items`. Report each as
    pass / fail / **skipped**. Pre-M0, every code gate is `skipped` with
    that reason.
 7. **Commit message audit** on anything new in the log:

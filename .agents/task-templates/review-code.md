@@ -42,9 +42,10 @@ skill first.
 ## Your Task
 Review all files against the checklist in your instructions.
 Run the diff-scoped checks: cargo fmt --check, cargo clippy -p {crate}
---all-targets, cargo test -p {crate}, ast-grep scan on changed files.
-Produce a structured verdict per the report contract: status ok or
-changes_requested.
+--all-targets, cargo test -p {crate}, cargo doc --workspace --no-deps
+(plain and with --document-private-items), ast-grep scan on changed
+files. Produce a structured verdict per the report contract: status ok
+or changes_requested.
 
 If changes_requested:
 - List all issues in the `issues` block (sev/at/why)

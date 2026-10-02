@@ -15,12 +15,28 @@ cargo check --workspace --all-targets 2>&1 | tail -c 5000
 cargo test -p <crate> 2>&1 | tail -c 5000      # scoped while iterating
 cargo test --workspace 2>&1 | tail -c 5000     # final gate before "done"
 cargo clippy --workspace --all-targets 2>&1 | tail -c 5000
+cargo doc --workspace --no-deps 2>&1 | tail -c 5000
+cargo doc --workspace --no-deps --document-private-items 2>&1 | tail -c 5000
 ```
 
 Rules:
 
 - **The order is the order.** fmt is cheapest and clippy the most
   expensive; a failure early saves the later runs.
+- **`cargo doc` runs twice, and both runs must be warning-free.** The
+  plain invocation renders only publicly reachable items, so a private
+  module's own doc page — and private items inside public modules — are
+  never rendered and their broken intra-doc links are invisible to it;
+  the `--document-private-items` run is what proofreads them. One broken
+  link sat behind that blind spot from M1 until the M2 exit gate, seen
+  only under the flag.
+- **A test-name filter is a substring match over the whole test path**,
+  not a module selector: tests in *other* modules whose names contain
+  the word are selected too, and the collision is invisible in a verify
+  line. Quote the passed count beside every name filter and read it
+  against `rg -c '#\[test\]'` on the intended file, or use a
+  module-path filter (`-- graph::tests::items`) rather than a bare
+  word (`.agents/pitfalls.md` 4.1).
 - **Scope while iterating** (`-p <crate>`, plus a test-name filter for a
   single test). Workspace-wide is for the final gate, never the inner
   loop.
@@ -30,7 +46,7 @@ Rules:
   naming the invariant relied on (`.agents/roles/_rust.md`).
 - A gate you did not run is `skipped` with a reason. Never infer a pass.
 
-## Doc gates (every delivery)
+## Harness self-checks (every delivery)
 
 The workspace exists (M0, 2026-09-25), so these run *alongside* the code
 gates at every delivery, and carry the weight alone on docs-only changes:

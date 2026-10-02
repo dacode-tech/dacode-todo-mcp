@@ -10,7 +10,7 @@
 # ─── Template Versioning ───────────────────────────────────────────────
 version:
   template: "0.1"          # Inherited from the dacode agent-rules layout
-  custom: 9                # Local adjustment counter
+  custom: 10               # Local adjustment counter
 
 # ─── Project Identity ──────────────────────────────────────────────────
 project:
@@ -46,6 +46,8 @@ build_commands:
   test_workspace: "cargo test --workspace 2>&1 | tail -c 5000"
   clippy: "cargo clippy --workspace --all-targets 2>&1 | tail -c 5000"
   clippy_crate: "cargo clippy -p <crate> --all-targets 2>&1 | tail -c 5000"
+  doc: "cargo doc --workspace --no-deps 2>&1 | tail -c 5000"
+  doc_private: "cargo doc --workspace --no-deps --document-private-items 2>&1 | tail -c 5000"
   build_release: "cargo build --release 2>&1 | tail -c 5000"
   run_server: "cargo run -p todo-mcp -- --stdio   # smoke: initialize handshake over stdin"
 
@@ -69,6 +71,9 @@ verification:
     required: true
   - name: "clippy"
     command: "cargo clippy --workspace --all-targets"
+    required: true
+  - name: "doc"
+    command: "cargo doc --workspace --no-deps (twice: plain and with --document-private-items)"
     required: true
 
 # ─── Code Quality Limits ───────────────────────────────────────────────
@@ -148,8 +153,8 @@ harness:
   # Reviewers are deliberately cross-family (qwen primary, glm secondary)
   # so their blind spots do not correlate — unlike a single-vendor pair,
   # unanimous approval here is meaningful evidence. It still does not
-  # substitute for the mechanical gates: fmt, check, test, clippy share no
-  # blind spot with any model.
+  # substitute for the mechanical gates: fmt, check, test, clippy and
+  # cargo doc share no blind spot with any model.
 
   # Hand-maintained opencode config merged verbatim into the generated
   # .opencode/opencode.json. For settings that are not role-derived.
@@ -288,8 +293,8 @@ review:
   # The two reviewers run on different model families (qwen primary, glm
   # secondary), so their blind spots largely do not correlate and
   # unanimous approval is meaningful evidence. It still does not replace
-  # the mechanical gates — fmt, check, test, clippy — which share no
-  # blind spot with any model.
+  # the mechanical gates — fmt, check, test, clippy and cargo doc —
+  # which share no blind spot with any model.
 
   # Verdict merge rules (when dual_review: true)
   # both_approved           → commit
@@ -445,6 +450,7 @@ subagent_report:
       build: pass | fail | skipped
       test: pass | fail | skipped
       clippy: pass | fail | skipped
+      doc: pass | fail | skipped
     blocked_on: <one line, only when status is blocked>
 
 # ─── Git Conventions ───────────────────────────────────────────────────
@@ -537,7 +543,7 @@ prohibited:
   - "Never settle a §12 open decision, or write code past one — agents propose, the user decides"
   - "Never add an external crate dependency without flagging it first (Ask First in AGENTS.md)"
   - "Never run git push, git reset, --amend, force-push, branch deletion, git config edits or --no-verify without explicit instruction"
-  - "Never claim fmt/check/test/clippy passed without having run it and seen it pass — report skipped, never infer"
+  - "Never claim fmt/check/test/clippy/doc passed without having run it and seen it pass — report skipped, never infer"
   - "Never commit secrets, target/, tmp/, .agents/cache/, or .opencode/node_modules/"
   - "Never hand-edit .opencode/ or .agents/knowledge/INDEX.md — both are generated; edit agent-rules.yaml and re-sync"
   - "Never bind any dev/test server to 0.0.0.0; 127.0.0.1 only unless the user explicitly asks"

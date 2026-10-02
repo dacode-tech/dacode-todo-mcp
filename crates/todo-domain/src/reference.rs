@@ -3,8 +3,9 @@
 //!
 //! A [`References`] collection keeps the canonical sort §8 demands —
 //! `(kind, target, note)` — under out-of-order insertion: it is a
-//! [`BTreeSet`], so insertion order never reaches the serialized bytes,
-//! and exact duplicates (all three fields equal) deduplicate on insert.
+//! [`std::collections::BTreeSet`], so insertion order never reaches the
+//! serialized bytes, and exact duplicates (all three fields equal)
+//! deduplicate on insert.
 //! Kind order is the enum's declaration order, which spells §3's
 //! enumeration `tracker, url, doc, spec, file, other`.
 //!

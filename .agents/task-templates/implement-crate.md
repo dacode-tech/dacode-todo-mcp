@@ -58,7 +58,9 @@ Create ALL files for this module. Ensure:
 6. Golden files for any serialized shape owned by this module
 7. Unit tests per module (#[cfg(test)]) + integration tests in tests/
 8. cargo fmt --check, cargo check -p {crate} --all-targets,
-   cargo test -p {crate}, cargo clippy -p {crate} --all-targets all pass
+   cargo test -p {crate}, cargo clippy -p {crate} --all-targets,
+   cargo doc --workspace --no-deps (plain and with
+   --document-private-items) all pass
 
 Write all files. Maintain consistency across the module.
 ```

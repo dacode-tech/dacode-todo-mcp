@@ -17,7 +17,8 @@ If `MYAGENTS.md` exists at the repo root, it is untracked, personal, and
 
 ## Project State
 
-**Phase: M2 — the query layer, decomposed 2026-09-30 and under way.**
+**Phase: M2 closed 2026-10-02 — M3 (the MCP wire) is next, gated on the
+rmcp dependency ask.**
 An MCP server that replaces
 markdown TODO boards with a deterministic task graph: tasks are typed
 nodes, dependencies are typed edges, everything lives in local
@@ -27,7 +28,8 @@ epic Y" is a query, not a prose parse. Rust, rmcp, stdio transport.
 §12 holds **one open item — D16**, the progress roll-up (a new tool, a
 field on an existing one, or a client-side concern), drafted 2026-09-30
 out of the M2 decomposition's answer to U17; it gates no dispatched task,
-and a signed (a) or (b) adds one domain aggregation task to M2.
+and a signed (a) or (b) adds one domain aggregation task to M3's
+decomposition.
 Everything else is signed: all eleven decisions on 2026-09-25, D12 added
 2026-09-29, and D14/D15 on 2026-09-30 out of U2's rmcp survey (the
 wire's canonical key order and §6.1's error carrier)
@@ -39,12 +41,15 @@ domain model (§3's value types and closure discipline, §5's graph and
 canonical order), the signed D1 JSONL store behind the `Store` trait with
 the D4 layout, advisory locking, snapshots, compaction and §4.3's repair
 primitive, and the `todo-cli` inspector — 253 tests, five goldens, every
-gate green at the g5 exit. M2 opened 2026-09-30 with the domain's §5.2
-selection (`graph/select.rs`: actionability, `next_task` in both scopes,
-D9's deferred summary), and board §2's M2 row names its five tasks.
+gate green at the g5 exit. M2 landed 2026-10-02: the query layer — §5.2's
+selection (`graph/select.rs`), batch (`graph/items.rs`) and listing
+(`graph/list.rs`) surfaces, plus the registry queries
+(`DataRoot::repo_list`/`repo_show`) — 322 tests, every gate green at the
+g7 exit, M2's lessons consolidated into `.agents/pitfalls.md`.
 `todo-mcp` is still an M0 shell: the wire is
 M3's, whose shapes spec §6.3 measured against rmcp 3.5.0 and whose only
-remaining gate is the dependency ask itself. Run
+remaining gate is the dependency ask itself, with **U20** (the registry
+format) due before the wire is built. Run
 `tools/attention.py` for the current picture rather than trusting this
 paragraph.
 
@@ -109,6 +114,8 @@ cargo fmt --check
 cargo check --workspace --all-targets 2>&1 | tail -c 5000
 cargo test -p <crate> 2>&1 | tail -c 5000
 cargo clippy --workspace --all-targets 2>&1 | tail -c 5000
+cargo doc --workspace --no-deps 2>&1 | tail -c 5000
+cargo doc --workspace --no-deps --document-private-items 2>&1 | tail -c 5000
 ```
 
 ## Project Overview
@@ -276,8 +283,8 @@ reported `skipped` with a reason.
 2. Decompose so one task is one reviewable commit, files never shared
    between two tasks.
 3. Implement + tests (templates: `.agents/task-templates/`).
-4. fmt → check → test → clippy; golden/protocol fixtures in the same
-   commit.
+4. fmt → check → test → clippy → doc (both invocations); golden/protocol
+   fixtures in the same commit.
 5. Dual review, then commit with the trailers.
 
 ### Fixing the harness

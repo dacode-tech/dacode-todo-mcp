@@ -97,7 +97,7 @@ An empty tracker at the start of a session is normal; a tracker with
   exists, the gates run. Code shape is still thin; the spec is the
   precedent.
 - **M1/M2+** — crates carry real logic. Now the code gates
-  (fmt/check/test/clippy) apply to everything, and golden files exist to
+  (fmt/check/test/clippy/doc) apply to everything, and golden files exist to
   break.
 
 Check which by looking at the repo itself, not at the board:
@@ -175,7 +175,10 @@ Before reporting any unit of work as done, in this order:
    hygiene failure.
 7. **Code gates, if and only if code was written**: `cargo fmt --check` →
    `cargo check --workspace --all-targets` → `cargo test -p <touched
-   crate>` → `cargo clippy --workspace --all-targets`. Dual reviewer
+   crate>` → `cargo clippy --workspace --all-targets` → `cargo doc
+   --workspace --no-deps`, run twice — plain and with
+   `--document-private-items`
+   (`.agents/knowledge/workflows/build-and-test.md`). Dual reviewer
    sign-off before the commit; docs and `.agents/` are review-exempt.
 8. **Commit.** It is a step of the cycle, not a favour. Inspect
    `git status` and `git diff` first, stage only intended files, code

@@ -65,8 +65,8 @@ preamble and closing summaries. Reference code as `path:line`.
   `.opencode/node_modules/`.
 - Never bind a dev/test server to `0.0.0.0`; `127.0.0.1` only, unless the
   user explicitly asks otherwise.
-- Never claim fmt, check, test or clippy passed without having run it and
-  seen it pass.
+- Never claim fmt, check, test, clippy or cargo doc passed without
+  having run it and seen it pass.
 - Never run bare `cargo test --workspace` while iterating — scope with
   `-p <crate>` (and a test-name filter for a single test). Workspace-wide
   is for the final gate, not the inner loop.
@@ -99,7 +99,12 @@ toolchain excuse. Build and test output is long; pipe it:
 `cargo check -p <crate> --all-targets 2>&1 | tail -c 5000`.
 
 The gate order after a code change: `cargo fmt --check` → `cargo check`
-→ `cargo test -p <crate>` → `cargo clippy --workspace --all-targets`.
+→ `cargo test -p <crate>` → `cargo clippy --workspace --all-targets` →
+`cargo doc --workspace --no-deps`, run twice — plain and with
+`--document-private-items`, because rustdoc renders only publicly
+reachable items by default: a private module's own doc page, and private
+items inside public modules, are never rendered and their links go
+unchecked.
 Where no Cargo workspace exists yet, every code gate is `skipped` by
 construction — say so rather than staying silent.
 
@@ -415,9 +420,15 @@ surfaces; the code must not reintroduce the property it removes:
   awk '/^#\[cfg\(test\)\]/{exit} {n++} END{print n+0}' <file>
   ```
 
-  which stops at the first in-file test module. A test-only file reports
-  its whole length here; it is exempt by the rule above, not by the number,
-  so do not "fix" one by splitting it.
+  which stops at the first in-file test module. The measure is for
+  production files: the awk stops at an in-file test block where there is
+  one and counts the whole file where there is not. A file that *is* test
+  code never contains the attribute itself — its parent declares it, or
+  it lives under `crates/<crate>/tests/` — so the awk counts it in full.
+  It is exempt by the rule above, not by the number: do not "fix" one by
+  splitting it, and do not feed the exempt files to a sweep, because a
+  crate-wide run of this one-liner reports test-only files as over
+  budget.
 - **Target 600 production lines, cap 1000.** Split by responsibility, not
   by size alone — a 900-line module with one coherent job can pass, a
   300-line grab-bag should not.
@@ -543,8 +554,9 @@ never write the same file.
 6. Verify, in this order, and report each as pass/fail/**skipped**:
    `cargo fmt --check` → `cargo check --workspace --all-targets` →
    `cargo test -p <touched crate>` → `cargo clippy --workspace
-   --all-targets`. Before M0 there is no workspace and every code gate is
-   honestly `skipped`.
+   --all-targets` → `cargo doc --workspace --no-deps`, run twice —
+   plain and with `--document-private-items`. Before M0 there is no
+   workspace and every code gate is honestly `skipped`.
 7. Commit — it is a step of the cycle, not an optional extra. Code
    commits only after both reviewers sign off, and carry both
    `Reviewed-by:` role trailers (format in `_common.md`); review-exempt
@@ -694,7 +706,8 @@ Reviewers are not decoration: if you skip review because the change
 The two reviewers run on different model families (see
 `.agents/config/agent-rules.yaml`), so their blind spots largely do not
 correlate — but unanimity still does not substitute for actually running
-fmt/check/test/clippy, which share no blind spot with any model.
+the code gates — fmt, check, test, clippy and cargo doc — which share no
+blind spot with any model.
 
 A code commit carries both `Reviewed-by:` role trailers, and only after a
 real dual review of this exact diff (format in `_common.md`).

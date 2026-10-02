@@ -129,7 +129,7 @@ distinction is the whole value of the table.
 
 ## Verification state
 
-- fmt / check / test / clippy: <pass / fail / skipped>
+- fmt / check / test / clippy / doc: <pass / fail / skipped>
 - golden files: <which fixtures pin this area>
 - **smoke against a real client**: <reference, or "never run">
 

@@ -69,8 +69,8 @@ preamble and closing summaries. Reference code as `path:line`.
   `.opencode/node_modules/`.
 - Never bind a dev/test server to `0.0.0.0`; `127.0.0.1` only, unless the
   user explicitly asks otherwise.
-- Never claim fmt, check, test or clippy passed without having run it and
-  seen it pass.
+- Never claim fmt, check, test, clippy or cargo doc passed without
+  having run it and seen it pass.
 - Never run bare `cargo test --workspace` while iterating — scope with
   `-p <crate>` (and a test-name filter for a single test). Workspace-wide
   is for the final gate, not the inner loop.
@@ -103,7 +103,12 @@ toolchain excuse. Build and test output is long; pipe it:
 `cargo check -p <crate> --all-targets 2>&1 | tail -c 5000`.
 
 The gate order after a code change: `cargo fmt --check` → `cargo check`
-→ `cargo test -p <crate>` → `cargo clippy --workspace --all-targets`.
+→ `cargo test -p <crate>` → `cargo clippy --workspace --all-targets` →
+`cargo doc --workspace --no-deps`, run twice — plain and with
+`--document-private-items`, because rustdoc renders only publicly
+reachable items by default: a private module's own doc page, and private
+items inside public modules, are never rendered and their links go
+unchecked.
 Where no Cargo workspace exists yet, every code gate is `skipped` by
 construction — say so rather than staying silent.
 
@@ -256,6 +261,7 @@ verify:           # commands actually run, with real outcomes
   build: pass | fail | skipped
   test: pass | fail | skipped
   clippy: pass | fail | skipped
+  doc: pass | fail | skipped
 blocked_on: <one line, only when status is blocked>
 ```
 

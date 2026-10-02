@@ -30,7 +30,9 @@ the spec and the tests.
    the same commit.
 5. Verify: `cargo fmt`, then `cargo check -p <crate> --all-targets`,
    then `cargo test -p <crate>` (filter to your tests while iterating),
-   then `cargo clippy -p <crate> --all-targets`. Pipe long output
+   then `cargo clippy -p <crate> --all-targets`, then
+   `cargo doc --workspace --no-deps` — plain and with
+   `--document-private-items`. Pipe long output
    through `tail -c 5000`.
 
 ## Hard constraints
