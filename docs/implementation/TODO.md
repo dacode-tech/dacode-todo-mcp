@@ -88,7 +88,7 @@ exit criteria: spec §14. Priority is derived from the Gated-on column by
 | M0 | spec settled: §12 items 1–3 signed (done 2026-09-25); Cargo workspace skeleton with the lint regime; all gates green | — | done 2026-09-25 |
 | M1 | domain model + storage engine: graph, statuses, persistence behind the `Store` trait, golden files | — | done 2026-09-30 — g5 ran green: every code gate, five goldens byte-identical, `cargo doc` clean, pitfalls consolidated |
 | M2 | queries: repo/epic selection, dependency resolution, deterministic `next_task`; registry with path updates | **D16** adds one task if signed; no dispatched task waits on it | done 2026-10-02 — **g7 ran green**: every code gate, the five goldens byte-identical under `UPDATE_GOLDEN=1`, `cargo doc` warning-free under both invocations for the first time (f48 settled), §5.2's selection re-proven a pure function of state, the f41 sweep exercised for the first time (f44/f45 promoted to U21/U22, the rest verified open with named consumers), and M2's lessons consolidated into `.agents/pitfalls.md` (P-LIVE-007/-008, the citation rule, the coverage-pin rule). The five deliveries — t27 selection, f47's pins, t28 batch, t29 listing, t30 doc riders, t31 registry queries — are §3's entries; D16 stayed unsigned throughout and nothing waited on it — **signed (a) 2026-10-03, after closure**, its aggregation task landing under M3's goal |
-| M3 | MCP server: the full §6 tool list over the wire, protocol-level tests, default-repo slug config (D8), smoke against a real client | gates cleared 2026-10-03: the **rmcp ask** signed (rmcp 3.5.0 + `serde_json/preserve_order`, §6.3), **U20** resolved (b) — the registry format stays and the server answers `repo_list` from handles — and **D16** signed (a), adding the domain aggregation task (`status_summary` + `task_list` rows) to the decomposition; D14/D15 settled the wire's key order and error carrier on 2026-09-30 | ready — the decomposition is next |
+| M3 | MCP server: §6's tool surface over the wire (import_md excepted — M4's, per D12), protocol-level tests, default-repo slug config (D8), smoke against a real client | gates cleared 2026-10-03: the **rmcp ask** signed (rmcp 3.5.0 + `serde_json/preserve_order`, §6.3), **U20** resolved (b) — the registry format stays and the server answers `repo_list` from handles — and **D16** signed (a), adding the domain aggregation task to the decomposition; D14/D15 settled the wire's key order and error carrier on 2026-09-30 | decomposed 2026-10-03 — **g8** holds **t32–t39** plus the **g9** exit gate: t32 the D16 domain aggregation, t33 rmcp + the skeleton (the initialize handshake, our serverInfo, U16a's instructions, the §8 concurrency core, `repo_register` as the pipeline proof), t34/t35 the read tools in two clusters (query, then listing), t36 the node-CRUD mutations, t37 edges + registry-from-handles (U20b) + the default slug (D8), t38 the wire golden suite + concurrency proof (D14/D15's pins), t39 the opencode smoke + U16b. Dispatch order t32 → t33 → … → t39 → g9; import_md stays M4's — pulling a minimal dacode-dialect importer into M3's tail is a one-task change if real-board data in the smoke test is wanted |
 | M4 | adoption: the dacode-dialect importer first (**D12**, amending D7), its board the only fixture checked in per §10; camera and ikvm-html imported from their live boards and never copied into this repo; the three repos tracked for real | — | not started |
 | M5 | packaging, docs, cwd auto-detection (deferred by D8), polish | — | not started |
 
@@ -1605,7 +1605,24 @@ Oldest first. One line per delivery, with the commit hash once committed.
        closed at g7 while the vote was open — the deviation from the
        work order's "under g6" is recorded in decisions.md D16's banner.
        U17 fully answered; U20 struck with its resolution. Landed as
-       `<hash>` (backfilled in the next board commit).
+       `9c7b30c` (backfilled in the next board commit).
+- 2026-10-03 — **M3 decomposed: g8 + t32–t39 + g9** — the t26 pattern
+       over the now-unblocked wire. Eight tasks, one reviewable commit
+       each, file ownership disjoint: t32 owns the domain's D16 surfaces
+       (`graph/summary.rs`, `list.rs`'s row type, the annotate lift from
+       `items.rs`); t33 owns the todo-mcp skeleton and the workspace
+       dependency line; t34–t38 own disjoint `tools/` modules and test
+       targets; t39 owns the harness config. Every verify line is a
+       runnable command — the protocol-level rule (§10: request bytes
+       in, response bytes out, golden-pinned) is in every tool task's
+       verify, and t38 owns the two cross-cutting pins: D14's (losing
+       `serde_json/preserve_order` fails a golden, proven by mutation)
+       and D15's (every tool's error carrier shaped identically). The
+       concurrency design is named in t33's note — one serialization
+       point behind the tool bodies, the guard never held across an
+       await, the libraries staying sync per §2. import_md stays M4's
+       per D12; pulling it forward is recorded as a one-task change.
+       Landed as `<hash>` (backfilled in the next board commit).
 
 ## 4. Follow-ups
 
@@ -2183,6 +2200,49 @@ Deliberate shortcuts, acknowledged rather than fixed. Same id rules as §4.
 Newest first. One entry per session, written for someone who was not
 here. The final entry of a session is the handover
 (`.agents/skills/todo-next-imp/SKILL.md` defines the shape).
+
+### 2026-10-03 — the M3 gates cleared and M3 decomposed
+
+The session ran the g7 exit gate to completion (M2 closed; four commits
+`c35c351`/`73faff5`/`d30cf08`/`3a112c5` — the g7 entry below carries the
+full account), briefed the user on the three open decisions, and the user
+signed all three as recommended: **rmcp (a)**, **U20 (b)**, **D16 (a)**.
+The work orders are executed (§3's entry, `9c7b30c`): §6 gains
+`status_summary` and the `task_list` annotation with the arithmetic as
+signed text, §12 is closed again, U20 is struck with its resolution, and
+the rmcp approval is recorded in §6.3 — a decision, not a dependency;
+`Cargo.lock` still holds 26 packages and t33 adds the tree.
+
+**M3 is decomposed** (§3's entry): **g8** holds **t32–t39** plus the
+**g9** exit gate. t32 is the D16 domain aggregation; t33 is rmcp + the
+skeleton (the initialize handshake, our serverInfo, U16a's instructions,
+the §8 concurrency core, `repo_register` as the pipeline proof); t34/t35
+are the read tools in two clusters; t36 the node-CRUD mutations; t37
+edges + registry-from-handles (U20b) + the default slug (D8); t38 the
+wire golden suite + concurrency proof; t39 the opencode smoke + U16b.
+Dispatch order t32 → t33 → … → t39 → g9.
+
+**Handover.** Workspace: `main`, clean, four crates, 322 tests, rustc
+1.98.1, MSRV 1.95; `Cargo.lock` at 26 packages — rmcp approved but not
+yet added (t33's first act). **Next step: dispatch t32** — the D16
+domain aggregation, the only task with no dependency on the skeleton;
+its spec wants pre-writing (the t27/t29 pattern: `tmp/t32-spec.md` with
+the arithmetic transcribed from §6's signed text, the row type's
+`blocked_by` order contract from `items.rs`, and the required tests).
+The alternative is t33 first (the skeleton unblocks everything else) —
+t32 first is preferred because it is domain-only and reviewable while
+t33's spec is being written. **Blocked on you: nothing.** Non-blocking
+and yours: U16 (lands with M3, t33/t39), U21, U22, U18 (parked); spec
+§10's gate enumeration still lists four where every operative home now
+runs cargo doc twice — surfaced at g7, one line to sign whenever you
+want it. **Unverified:** no wire exists — D14/D15/D16 have no code
+behind them, no client has talked to this server, and the rmcp approval
+is a decision on paper; everything else the g7 handover carried stands
+(f52, f57–f65; the imported-board test is M4's importer). Tracker:
+`tools/tasks.py check` exits 0 (g8 open, the in-flight milestone goal;
+g3 stands). Doc gates: check-links, `attention.py --check` (zero vote
+items for the first time since D16 was drafted), `agents-sync.py
+--check` green; agents-index backfilled by this commit.
 
 ### 2026-10-02 — M2 g7: the exit gate ran, M2 is closed
 

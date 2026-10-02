@@ -51,7 +51,8 @@ selection (`graph/select.rs`), batch (`graph/items.rs`) and listing
 g7 exit, M2's lessons consolidated into `.agents/pitfalls.md`.
 `todo-mcp` is still an M0 shell: the wire is M3's, whose shapes spec
 §6.3 measured against rmcp 3.5.0 and whose gates are now all cleared.
-The next step is M3's decomposition. Run
+M3 is decomposed (tracker **g8**: **t32–t39** plus the **g9** exit
+gate); the next step is t32's dispatch. Run
 `tools/attention.py` for the current picture rather than trusting this
 paragraph.
 

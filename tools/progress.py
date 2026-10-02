@@ -155,7 +155,9 @@ LANES: list[tuple[str, list[str]]] = [
                                          "f53", "f54", "f55", "f56", "f57",
                                          "f58", "f59", "f60", "f61", "f62",
                                          "f63", "f64", "f65"]),
-    ("later", ["U16", "U20", "M3", "M4", "U18", "M5"]),
+    ("M3 · the wire (§6/§6.3)", ["g8", "t32", "t33", "t34", "t35", "t36",
+                                 "t37", "t38", "t39", "g9", "M3", "U20"]),
+    ("later", ["U16", "M4", "U18", "M5"]),
 ]
 
 # GATING edges carry the citation that makes them an edge rather than a guess.
@@ -213,6 +215,11 @@ GATING: list[tuple[str, str, str]] = [
     ("U16", "M3", "U16 lands with M3, and §9 still bars dogfooding before it"),
     ("U17", "D16", "U17's one unsettled piece — the progress roll-up — is drafted as D16"),
     ("D16", "M3", "a signed (a) or (b) adds one domain aggregation task to M3's decomposition (board §1, g6 closed at g7)"),
+    ("t32", "t34", "status_summary's domain surface is what t34's wire tool serialises"),
+    ("t32", "t35", "task_list's row type is what t35's wire listing carries"),
+    ("t33", "t34", "the skeleton is what every tool task dispatches against (g8's dispatch order)"),
+    ("t38", "g9", "the wire golden suite is the M3 exit gate's proof (D14/D15's pins)"),
+    ("t39", "g9", "the opencode smoke is the M3 exit gate's last criterion"),
     ("t26", "t27", "the decomposition is what t27 is dispatched against (g6's note)"),
     ("t27", "t28", "t28 reuses select.rs's actionability predicate and DeferredSummary (tracker note)"),
     ("f47", "t28", "f47's note names t28's dispatch as its consumer: a rider section in a spec that re-reads select.rs anyway"),
@@ -243,16 +250,16 @@ EXTRA: dict[str, tuple[str, str, str]] = {
     "M5": ("milestone", "pending", "M5 · packaging, docs, polish"),
     "U2": ("decision", "pending", "U2 · survey rmcp's tool macros against §6"),
     # Not a board item and not a milestone, so this status is authoritative
-    # rather than derived: flip it when D16 is signed (f45 records that the
-    # page cannot derive an open decision from decisions.md itself).
-    "D16": ("decision", "pending", "D16 · the progress roll-up: a tool, a field, or a client concern"),
+    # rather than derived: flipped to done when D16 was signed (f45 records
+    # that the page cannot derive an open decision from decisions.md itself).
+    "D16": ("decision", "done", "D16 · the progress roll-up (signed (a) 2026-10-03)"),
     "U13": ("debt", "pending", "U13 · two store files over the 600-line target"),
     "U15": ("follow-up", "pending", "U15 · scope Store::snapshot's 'changes nothing on disk'"),
     "U16": ("follow-up", "pending", "U16 · server base instructions + the client's native todo off"),
     "U17": ("follow-up", "pending", "U17 · which harness tools become MCP tools"),
     "U18": ("follow-up", "pending", "U18 · live view / shared per-user server (after M4)"),
     "U19": ("follow-up", "pending", "U19 · one word in repair.rs's module doc (f35 promoted)"),
-    "U20": ("follow-up", "pending", "U20 · should the registry cache name/path? t31's measurement is its input"),
+    "U20": ("follow-up", "done", "U20 · the registry format stays; the server answers from handles (resolved (b) 2026-10-03)"),
     "U21": ("follow-up", "pending", "U21 · the duplicate-key check for agent-rules.yaml (f44 promoted at g7)"),
     "U22": ("follow-up", "pending", "U22 · progress.py's blind spot for open decisions (f45 promoted at g7)"),
     "U8": ("decision", "done", "U8 · the first external dependencies (resolved)"),
@@ -267,9 +274,9 @@ WAITS: dict[str, str] = {
     "f57": "a tests-only commit (the t21/f47 shape); its three seams are measured in the finding",
     "f58": "the next owner of crates/todo-store/src/log.rs — one sentence in open_log's doc fixes all three pointers",
     "U13": "the next commit that grows either file, or M3 — whichever comes first",
-    "U16": "lands with M3; its mechanism is measured (spec §6.3)",
+    "U16": "lands with M3 (t33's instructions, t39's gating); its mechanism is measured (spec §6.3)",
     "U18": "M4's importer check, by the user's own deferral",
-    "U20": "a user call before M3 builds the wire: extend the registry (and re-derive the lock order), answer from handles, or accept the cost",
+    "g8": "t32–t39, then g9",
     "U21": "a user call: land the duplicate-key check in agents-sync.py, or decline it (board U21)",
     "U22": "a user call: draw open D-entries on the page, or disclaim them in the footer (board U22)",
     "f59": "M3, where the server holds handles and the fd ceiling stops being theoretical",
