@@ -1514,7 +1514,7 @@ Oldest first. One line per delivery, with the commit hash once committed.
        four files. Production lines **543** (`layout.rs`, from 383) and **193**
        (`error.rs`), both under the 600 target so U13 does not move — but
        `layout.rs` is now 57 lines from it, and the natural split when it
-       crosses is the query side. Six findings recorded (f59–f64), among them
+       crosses is the query side. Seven findings recorded (f59–f65), among them
        the one-lock-at-a-time discipline being unpinned (an `open_many` mutant
        survives all 33 tests and no non-flaky single-threaded pin exists) and
        `Registry::load` sorting without deduplicating. Dual-reviewed over four
@@ -1524,7 +1524,8 @@ Oldest first. One line per delivery, with the commit hash once committed.
        duration figure in a comment falsified by the same test's own `build ms`
        column, and a claim that a warm page cache left the floor/whole ratio
        unaffected, which the byte counts refute. P-LIVE-008's third and fourth
-       occurrences, an hour after it was written. Landed as `HASH`.
+       occurrences, an hour after it was written. Landed as
+       `a1c4afe`.
 
 ## 4. Follow-ups
 
@@ -2245,7 +2246,7 @@ D14/D15 have no code behind them; no induced crash or power loss anywhere;
 nothing calls `compact()` outside tests; no human has run `dump`/`verify`/`repair`
 on a real store; multi-process lock contention is still two handles in one
 process; `tools/progress.py` has no test of its own. Open and gating nothing: f4,
-f25, f44, f45, f48, f49, f50's generator half, f51, f54, f57, f58, f59–f64,
+f25, f44, f45, f48, f49, f50's generator half, f51, f54, f57, f58, f59–f65,
 U13's ack, U16, U18, U20. Tracker: `tools/tasks.py check` exits 1 on exactly two
 lines — OPEN **g6**, which closes at g7, and STAND **g3** until M5. Doc gates:
 check-links and `attention.py --check` green; `agents-sync --check` **red for
