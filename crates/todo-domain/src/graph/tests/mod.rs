@@ -28,6 +28,7 @@ mod list;
 mod order;
 mod seeded;
 mod select;
+mod summary;
 mod tree;
 
 /// The slug every builder below uses.

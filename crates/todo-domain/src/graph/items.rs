@@ -106,10 +106,10 @@
 //!   a dependents closure — and those hold only ids of tasks this graph
 //!   has, so the arm where [`Graph::task`] answers `None` (which skips
 //!   the epic-gate half rather than inventing one) cannot be reached
-//!   through the public API. Both fallbacks filter rather than panic,
-//!   and the state-space argument lives here rather than in a forged
-//!   test — the public API cannot build the state a test would need
-//!   (the same discipline as `select`'s judgment call (d)).
+//!   from the batch or row walks. Both fallbacks filter rather than
+//!   panic, and the state-space argument lives here rather than in a
+//!   forged test — the public API cannot build the state a test would
+//!   need (the same discipline as `select`'s judgment call (d)).
 //! - **(e) Test layout.** `graph/tests/items.rs`, every name prefixed
 //!   `items_` so the module filter selects exactly that suite.
 //! - **(f) Two populations — a reading of §5.2, veto-able.** "Returns
@@ -165,7 +165,11 @@
 //!   be a second sort, re-ordering a list whose documented order the
 //!   annotation's contract is to preserve. A consumer of the bytes —
 //!   M3's `outputSchema` included — must describe the field as two
-//!   ascending runs, not as one [`BlockEnd`]-ordered list.
+//!   ascending runs, not as one [`BlockEnd`]-ordered list. The rule's
+//!   implementation is [`Graph::blockers_of`] — `summary`'s lift, the
+//!   contract's one home — and this module's `annotate` calls it
+//!   rather than restating it, so the batch's annotation and
+//!   `task_list`'s rows cannot drift apart.
 
 use std::collections::BTreeSet;
 
@@ -209,9 +213,11 @@ pub struct NextItem {
     /// order — the task's own edges first, then its epic's gates —
     /// deduplicated at the first occurrence, and *not* one globally
     /// sorted list (judgment call (k)); a schema describing this field
-    /// must say so. The asymmetry with `blocks` is a consequence of
-    /// §5.1's three legal edge shapes, not a choice: predecessors can
-    /// be tasks or decisions.
+    /// must say so. The list is [`Graph::blockers_of`]'s — the rule's
+    /// one home, shared with `task_list`'s rows (D16) — narrowed to the
+    /// id-only vocabulary this row carries. The asymmetry with `blocks`
+    /// is a consequence of §5.1's three legal edge shapes, not a
+    /// choice: predecessors can be tasks or decisions.
     pub blocked_by: Vec<BlockEnd>,
     /// The task's direct `blocks` successors. Tasks only, because §5.1
     /// gives a task no outgoing edge to a decision or an epic — the
@@ -315,19 +321,19 @@ impl Graph {
 
     /// One row's annotations, computed for returned rows only — after
     /// the limit is applied. `actionable` is passed in because the
-    /// caller's walk has just asked the same question. An id this graph
-    /// does not hold — unreachable, because every scope list derives
-    /// from the graph's own tasks (judgment call (d)) — skips the
-    /// epic-gate half rather than inventing one.
+    /// caller's walk has just asked the same question. The
+    /// `blocked_by` half is [`Graph::blockers_of`]'s — the rule's one
+    /// home (judgment call (k)) — converted to the id-only vocabulary
+    /// this row carries. An id this graph does not hold — unreachable,
+    /// because every scope list derives from the graph's own tasks
+    /// (judgment call (d)) — skips the epic-gate half rather than
+    /// inventing one.
     fn annotate(&self, id: &TaskId, actionable: bool) -> NextItem {
-        let mut blocked_by = self.blocked_by(&BlockEnd::Task(id.clone()));
-        if let Some(task) = self.task(id) {
-            for gate in self.blocked_by(&BlockEnd::Epic(task.epic.clone())) {
-                if !blocked_by.contains(&gate) {
-                    blocked_by.push(gate);
-                }
-            }
-        }
+        let blocked_by = self
+            .blockers_of(id)
+            .into_iter()
+            .map(BlockEnd::from)
+            .collect();
         let blocks = self.task_successors(id);
         let weight = self.dependents_of(id).len() as u64;
         NextItem {

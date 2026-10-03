@@ -17,7 +17,7 @@
 use std::collections::BTreeMap;
 
 use crate::testcodec::to_bytes;
-use crate::{DeferredSummary, TaskFilter};
+use crate::{Blocker, DeferredSummary, TaskFilter, TaskRow};
 
 use super::seeded::{Rng, run_sequence};
 use super::*;
@@ -50,12 +50,19 @@ const LIST_STEPS: u64 = 600;
 // Shared helpers
 // ---------------------------------------------------------------------
 
-/// `task_list` unwrapped: every call through this helper is on a graph
-/// that holds the queried scope, so the unwrap is shorthand, not a
-/// hidden expectation — the one `unknown_id` case asserts on the whole
-/// `Result` instead.
+/// `task_list` unwrapped, its rows read down to their task ids: every
+/// call through this helper is on a graph that holds the queried
+/// scope, so the unwrap is shorthand, not a hidden expectation — the
+/// one `unknown_id` case asserts on the whole `Result` instead. The
+/// rows' `blocked_by` payload is `summary`'s suite to pin; this suite
+/// pins the filters and the order.
 fn listed(graph: &Graph, filter: &TaskFilter) -> Vec<TaskId> {
-    graph.task_list(filter).unwrap()
+    graph
+        .task_list(filter)
+        .unwrap()
+        .into_iter()
+        .map(|row| row.task)
+        .collect()
 }
 
 /// The fixed filter matrix the seeded tests walk: the default, each
@@ -678,6 +685,30 @@ fn list_the_epic_filter_walks_the_induced_order() {
     assert_eq!(restricted, vec![task_id(6), task_id(5)]);
     assert_ne!(restricted, induced, "the pin needs the two to differ");
 
+    // The answer is rows, in the induced order: U5's row carries its
+    // closed cross-epic predecessor with its status, U6's none.
+    assert_eq!(
+        graph
+            .task_list(&TaskFilter {
+                epic: Some(epic_id(2)),
+                ..Default::default()
+            })
+            .unwrap(),
+        vec![
+            TaskRow {
+                task: task_id(5),
+                blocked_by: vec![Blocker::Task {
+                    id: task_id(7),
+                    status: Status::Closed,
+                }],
+            },
+            TaskRow {
+                task: task_id(6),
+                blocked_by: Vec::new(),
+            },
+        ],
+        "the epic filter answers rows in the induced order"
+    );
     assert_eq!(
         listed(
             &graph,
@@ -1434,8 +1465,10 @@ fn check_scope(graph: &Graph, epic: Option<&EpicId>, seed: u64) {
             epic: epic.cloned(),
             ..filter
         };
+        let rows = graph.task_list(&scoped).unwrap();
+        let ids: Vec<TaskId> = rows.iter().map(|row| row.task.clone()).collect();
         assert_eq!(
-            graph.task_list(&scoped).unwrap(),
+            ids,
             naive_task_list(graph, &scoped),
             "seed {seed}: scope {label}: filter {scoped:?}: listings disagree"
         );

@@ -41,8 +41,12 @@ unblocked**: on 2026-10-03 the user signed all three of its gates — the
 in spec §6.3), **U20** resolved (b) (the registry format stays; the
 server answers `repo_list` from handles it holds), and **D16** (a)
 (`status_summary` and the `task_list` annotation in §6, with the
-arithmetic as signed text; §12 closed again). The next step is M3's
-decomposition.
+arithmetic as signed text; §12 closed again). M3 is decomposed (**g8**:
+t32–t39 plus the **g9** exit gate) and its first task is done: **t32,
+D16's domain aggregation** (§3) — `status_summary` and `task_list`'s
+annotated rows in `todo-domain`, the annotate rule lifted to
+`Graph::blockers_of`. The next step is t33's dispatch: rmcp + the
+skeleton, the first wire code.
 M1 is closed. The domain layer (§3's value types and closure discipline,
 §5.1's graph, §5.2's canonical order), the storage engine (the signed D1
 JSONL event log behind the `Store` trait
@@ -60,7 +64,7 @@ shell, which is M3's business.
 
 | Blocking | What | Action |
 |---|---|---|
-| — | nothing blocks M3: the rmcp ask, U20 and D16 were all signed 2026-10-03 (§3); the wire's shapes are settled (D14/D15/D16) and the dependency is approved (§6.3) | decompose M3, then build |
+| — | nothing blocks M3: the rmcp ask, U20 and D16 were all signed 2026-10-03 (§3); the wire's shapes are settled (D14/D15/D16) and the dependency is approved (§6.3) | build — t33 next; t32 done (§3) |
 
 (Open but non-blocking: **U16** (ship base instructions with the server and
 gate the client's native todo off, M3 — its mechanism is measured rather than
@@ -1621,8 +1625,57 @@ Oldest first. One line per delivery, with the commit hash once committed.
        concurrency design is named in t33's note — one serialization
        point behind the tool bodies, the guard never held across an
        await, the libraries staying sync per §2. import_md stays M4's
-       per D12; pulling it forward is recorded as a one-task change.
-       Landed as `dd45caf`.
+        per D12; pulling it forward is recorded as a one-task change.
+        Landed as `dd45caf`.
+- 2026-10-03 — **M3 t32: D16's domain aggregation** — the first M3
+       commit, domain-only. `graph/summary.rs` (505 production lines):
+       `Graph::status_summary()` and `Graph::status_summary_of_epic()`
+       answer §6's signed arithmetic — counts by kind and status as
+       named-field structs carrying their zeros (no maps: a fixed wire
+       shape for D14, and scopes that compare field-for-field), the
+       "open" totals as one top-level `OpenTotals` block (non-terminal
+       per kind — epics/tasks `open`+`in_work`+`blocked`+`deferred`,
+       decisions `open`), `DeferredSummary` reused verbatim over the
+       same derived list the selection tools walk, so the summary and
+       `next_task`/`next_items` cannot disagree about what "ready"
+       means (pinned by type equality at both scopes), and docs as one
+       total. Epic scope — the one veto-able reading, flagged in-tree
+       with both alternatives named: the epic itself, its tasks (the
+       induced order's set), and every decision holding any of them
+       back, both `decision→epic` and `decision→task` gates, so the
+       summary's gate picture agrees with `is_until_satisfied`'s
+       consultation set; docs 0 (a doc has no epic field). `task_list`
+       answers `Vec<TaskRow>` — the D16 guard's documented moment —
+       each row the task plus its `blocked_by` ids with every blocker's
+       status (`Blocker`: task-or-decision, the epic arm
+       unrepresentable by §5.1's edge shapes); the annotate rule lifted
+       from `items.rs`'s private fn into `Graph::blockers_of`, the
+       two-run order (own predecessors, then epic gates, deduplicated
+       at first occurrence, never globally merged) with one contract
+       home that `items.rs`'s docs point at. Eleven tests in
+       `graph::tests::summary`: the arithmetic against a hand-built
+       graph (every status × kind), the open totals, the deferred
+       split across until-target boundaries, the selection agreement,
+       epic-scope membership including the negative half, determinism
+       over shuffled rebuilds, seeded agreement with an independent
+       naive recomputation, a per-seed coverage pin (seeds re-picked
+       by grid measurement), the two-run row order against both
+       `NextItem` and a naive builder, and blocker statuses tracked
+       through mutations. Mutations M1–M6 run, observed failing,
+       reverted, sha-verified — and M1 corrected the spec itself
+       (f66: the select suite stays green, because the lift never
+       touches `select.rs`'s own predicates). Dual review over three
+       rounds — round 1's med was `list.rs`'s t29 judgment call (a)
+       quoting mod.rs/lib.rs in the present tense, falsified by this
+       diff (the claim class swept); round 2's med was the sweep's
+       third instance, in `items.rs`'s judgment call (d) —
+       "unreachable through the public API" false since the lift made
+       the arm public; round 3 both ok on the final bytes. 178 domain
+       tests (167 unmodified + 11), 333 workspace, every gate green
+       including `cargo doc` under both invocations, the five goldens
+       and `Cargo.lock` untouched, the six sha-pinned files
+       byte-identical. f66/f67 recorded. Landed as this commit (hash
+       backfilled in the next board commit).
 
 ## 4. Follow-ups
 
@@ -2200,6 +2253,50 @@ Deliberate shortcuts, acknowledged rather than fixed. Same id rules as §4.
 Newest first. One entry per session, written for someone who was not
 here. The final entry of a session is the handover
 (`.agents/skills/todo-next-imp/SKILL.md` defines the shape).
+
+### 2026-10-03 — t32 landed: D16's domain aggregation
+
+The session opened on `/todo-next-imp` with the previous handover
+naming one next step — dispatch t32 — and the user said go. The spec
+was pre-written at `tmp/t32-spec.md` (the t27/t29 pattern: twelve
+decisions, thirteen required tests, six mandatory mutations, the six
+pinned-file shas as gate lines); the implementer spawn died twice
+before landing — the P-LIVE-001 short-prompt remedy worked on the
+third try — and dual review ran over three rounds to sign-off, both
+reviewers bound to the final bytes. §3's entry carries the delivery.
+
+Two findings a cold reader should know: **f66** — the spec's M1
+kill-set claim half-reproduced (the select suite stays green; a
+mutation's named kill set is a claim to verify, pitfalls 5.6's
+class), and **f67** — `select.rs`'s consumer enumeration is stale
+post-D16 (`summary` now also carries `DeferredSummary` and calls
+`is_until_satisfied`); the file is sha-pinned, so the fix belongs to
+its next owner, the f58 precedent.
+
+**Handover.** Workspace: `main`, clean after this commit, four
+crates, **333** tests, rustc 1.98.1, MSRV 1.95; `Cargo.lock` still
+26 packages — rmcp is approved but not added, which is t33's first
+act. **Next step: dispatch t33** — rmcp + the skeleton: the
+dependency line at the workspace root (rmcp 3.5.0
+`server`/`macros`/`transport-io` plus `serde_json` with
+`preserve_order` per D14), `ServerHandler` with our own serverInfo
+and U16a's base instructions, the initialize handshake (2025-11-25),
+the §8 concurrency core (one serialization point behind the tool
+bodies, the guard never held across an await), and `repo_register`
+end-to-end as the pipeline proof. Its spec wants pre-writing (the
+t32/t27/t29 pattern); the concurrency core and U16a's instructions
+text are the two design surfaces. There is no alternative next step:
+t34–t38 all need t33's skeleton. **Blocked on you: nothing.**
+Non-blocking and yours: U16 (lands with M3), U21, U22, U18 (parked),
+and spec §10's gate-enumeration line (four named where every
+operative home runs cargo doc twice — one line to sign whenever).
+**Unverified:** no wire exists — D14/D15/D16 now have domain code
+behind them but no wire code, and no client has talked to this
+server; the rmcp approval is a decision on paper until t33 lands.
+Tracker: `tools/tasks.py check` exits 0 (g8 open with t33 next; g3
+stands). Doc gates: check-links, `attention.py --check`,
+`agents-sync.py --check` green; agents-index untouched (no indexed
+doc moved in this commit).
 
 ### 2026-10-03 — the M3 gates cleared and M3 decomposed
 

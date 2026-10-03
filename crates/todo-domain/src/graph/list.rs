@@ -1,18 +1,20 @@
 //! The listing reads (spec §6): `task_list` — the canonical order
-//! behind four ANDed filters, epic, status, kind and deferred readiness
-//! — and the three thin unfiltered listings, `epic_list`,
-//! `decision_list` and `doc_list`.
+//! behind four ANDed filters, epic, status, kind and deferred
+//! readiness, answered as D16's annotated rows — and the three thin
+//! unfiltered listings, `epic_list`, `decision_list` and `doc_list`.
 //!
-//! **Listings only.** The answers are bare ids in their documented
-//! total orders, never rows, counts or aggregates: §6's tool table
-//! gives `task_list` filters and no payload beyond the listing, a
-//! query result is not persisted, and the consumer owns the wire shape
-//! — M3 resolves an id to its node through [`Graph::task`] and friends
-//! and declares the tools' schemas, and nothing in this module
-//! pre-empts them. The repo dimension of §6's `task_list(repo?, epic?,
-//! …)` is not here either: a [`Graph`] is single-repo (see `state`),
-//! so the epic filter is the only scope selector and the repo
-//! parameter is the server's composition over one graph per repo.
+//! **Listings only.** `task_list` answers with [`TaskRow`]s — D16's
+//! signed row: the task's id plus its `blocked_by` annotation, built
+//! by [`Graph::blockers_of`] in `summary`, the rule's one home —
+//! while the three thin listings stay bare ids in their documented
+//! total orders: §6's tool table gives them no payload beyond the
+//! listing, a query result is not persisted, and the consumer owns
+//! the wire shape — M3 declares the tools' schemas, and nothing in
+//! this module pre-empts them. The repo dimension of §6's
+//! `task_list(repo?, epic?, …)` is not here either: a [`Graph`] is
+//! single-repo (see `state`), so the epic filter is the only scope
+//! selector and the repo parameter is the server's composition over
+//! one graph per repo.
 //!
 //! # The rules
 //!
@@ -20,12 +22,14 @@
 //! [`Graph::canonical_order`] with no epic filter,
 //! [`Graph::canonical_order_of_epic`] (the induced order, the same
 //! list [`Graph::next_task_of_epic`] and [`Graph::next_items_of_epic`]
-//! walk) with one — and keeps the ids passing the filters, **in that
-//! order**. It never sorts and never re-derives: the output is a
-//! filtered subsequence of the list §5.2 pins, which is what makes
-//! "every returned list carries the documented total order of §5.2" a
-//! property of the pipeline's shape rather than a promise its steps
-//! keep.
+//! walk) with one — keeps the ids passing the filters, **in that
+//! order**, and maps each survivor to its row. It never sorts and
+//! never re-derives: the output is a filtered subsequence of the list
+//! §5.2 pins, one row per surviving id in that sequence, which is
+//! what makes "every returned list carries the documented total order
+//! of §5.2" a property of the pipeline's shape rather than a promise
+//! its steps keep. The row's annotation is attached after the filter
+//! and carries no field that could reorder it.
 //!
 //! The four filters AND, and each is total — a value comparison, never
 //! an error — so an unsatisfiable combination answers an empty list,
@@ -64,12 +68,10 @@
 //! - **(a) Placement and wiring.** `impl Graph` methods in this
 //!   module, mirroring `select.rs`/`items.rs`; [`TaskFilter`] is
 //!   re-exported through `graph/mod.rs` and the crate root the way
-//!   [`crate::NextTask`] is. `graph/mod.rs`'s layout sentence, its
-//!   judgment call (e), now ends "…`items` the §5.2 batch half, `list`
-//!   the §6 listing reads", and the crate-root surface paragraph names
-//!   the listings as landed — the domain's M2 query surface is
-//!   complete with them, and what remains of M2 is store-side and M3's
-//!   wire.
+//!   [`crate::NextTask`] is. `graph/mod.rs`'s layout sentence and its
+//!   judgment call (e) enumerate this module, and the crate-root
+//!   surface paragraph names the listings as landed — t32 extended
+//!   both with `summary`.
 //! - **(b) `TaskFilter` shape.** One struct of four named `Option`
 //!   fields, with `Default` as the no-filter case: filters read by
 //!   name at the call site, which four positional `Option` arguments
@@ -127,6 +129,19 @@
 //!   `list_ready_is_deferred_scoped` pins it (a non-deferred
 //!   until-satisfied task is *not* returned), so a veto is a named
 //!   diff to `deferred_ready`, the `ready` arm's predicate.
+//!
+//! # Judgment calls (t32)
+//!
+//! - **(a) The row rewiring.** `task_list`'s answer becomes
+//!   `Vec<TaskRow>` — the D16 guard's documented moment: the bare-id
+//!   shape was structural precisely because it had nowhere to hang
+//!   the annotation, and board §3's t29 entry said the shape changes
+//!   the moment D16 is signed. The filters, `matches_filter`, the
+//!   order derivation and the totality/empty-answer semantics are
+//!   unchanged — the walk maps surviving ids to rows through
+//!   [`Graph::blockers_of`], the same lift the batch's rows are
+//!   built by, so the two surfaces cannot drift. The thin listings
+//!   stay bare ids: D16's signed text annotates `task_list` alone.
 
 use crate::error::DomainError;
 use crate::id::{DecisionId, DocId, EpicId, TaskId};
@@ -134,6 +149,7 @@ use crate::node::Task;
 use crate::status::{Status, TaskKind};
 
 use super::state::Graph;
+use super::summary::TaskRow;
 
 /// The filters of a [`Graph::task_list`] query (§6): four optional
 /// predicates, ANDed. `TaskFilter::default()` narrows nothing and lists
@@ -171,11 +187,13 @@ pub struct TaskFilter {
 
 impl Graph {
     /// The tasks of this repository matching `filter` (§6's
-    /// `task_list`), as ids in §5.2 canonical order:
+    /// `task_list`), as [`TaskRow`]s in §5.2 canonical order:
     /// [`Graph::canonical_order`] with no epic filter,
     /// [`Graph::canonical_order_of_epic`] — the induced order — with
     /// one. The answer is the scope's canonical order filtered, never
-    /// re-sorted.
+    /// re-sorted; each surviving id becomes one row, its `blocked_by`
+    /// annotation built by [`Graph::blockers_of`] (D16) after the
+    /// filter has chosen it.
     ///
     /// The filters AND and each is total; a combination that matches
     /// nothing — a contradictory one like a non-deferred `status` with
@@ -184,8 +202,8 @@ impl Graph {
     /// this graph does not hold, propagated from the order derivation.
     ///
     /// Reads graph state alone (§8), so the same state and the same
-    /// filter always yield the same list.
-    pub fn task_list(&self, filter: &TaskFilter) -> Result<Vec<TaskId>, DomainError> {
+    /// filter always yield the same rows.
+    pub fn task_list(&self, filter: &TaskFilter) -> Result<Vec<TaskRow>, DomainError> {
         let order = match &filter.epic {
             Some(epic) => self.canonical_order_of_epic(epic)?,
             None => self.canonical_order(),
@@ -193,6 +211,13 @@ impl Graph {
         Ok(order
             .into_iter()
             .filter(|id| self.matches_filter(id, filter))
+            .map(|id| {
+                let blocked_by = self.blockers_of(&id);
+                TaskRow {
+                    task: id,
+                    blocked_by,
+                }
+            })
             .collect())
     }
 

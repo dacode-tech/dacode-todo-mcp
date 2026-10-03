@@ -39,11 +39,19 @@
 //! task's transitive dependents, each marked — and the same deferred
 //! summary ([`NextItems`], [`NextItem`]), and §6's listing half beside
 //! it: [`Graph::task_list`] filters the canonical order by epic,
-//! status, kind and deferred readiness ([`TaskFilter`]), and
+//! status, kind and deferred readiness and answers with annotated
+//! rows ([`TaskFilter`], [`TaskRow`]), and
 //! [`Graph::epic_list`], [`Graph::decision_list`] and
 //! [`Graph::doc_list`] list their node kinds in ascending-id order.
-//! The domain's M2 query surface is complete with these; the rest of
-//! M2 is store-side and the wire is M3's.
+//! D16's roll-up landed beside them: [`Graph::status_summary`] and
+//! [`Graph::status_summary_of_epic`] count a scope's nodes by kind
+//! and status with the non-terminal open totals and the deferred
+//! summary ([`StatusSummary`]), and the rows' `blocked_by`
+//! annotation is [`Graph::blockers_of`]'s two-run list
+//! ([`Blocker`]) — the same contract the batch's rows carry. The
+//! domain's M2 query surface was complete with the listing half; the
+//! roll-up, signed after g7 closed M2, is M3's domain piece, and the
+//! wire above it is M3's own.
 
 #![cfg_attr(
     test,
@@ -66,8 +74,9 @@ mod time;
 
 pub use error::{DomainError, ErrorCode, ValueError};
 pub use graph::{
-    BlockEnd, BlocksEdge, Counters, DecisionDraft, DeferredSummary, DocDraft, EpicDraft, Graph,
-    NextItem, NextItems, NextTask, TaskDraft, TaskFilter,
+    BlockEnd, Blocker, BlocksEdge, Counters, DecisionCounts, DecisionDraft, DeferredSummary,
+    DocDraft, EpicDraft, Graph, NextItem, NextItems, NextTask, OpenTotals, StatusCounts,
+    StatusSummary, TaskDraft, TaskFilter, TaskRow,
 };
 pub use id::{DecisionId, DocId, EpicId, MAX_SLUG_LEN, RepoSlug, TaskId};
 pub use node::{Confidence, Decision, Doc, Epic, Repo, Task};
