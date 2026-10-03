@@ -1728,8 +1728,7 @@ Oldest first. One line per delivery, with the commit hash once committed.
        shape), round 2 both ok on the final bytes. Every gate green;
        the three library crates untouched (`rg tokio` and the clock
        grep empty over them — §2's boundary proven); the goldens
-       untouched. f68/f69/f70 recorded. Landed as this commit (hash
-       backfilled in the next board commit).
+       untouched. f68/f69/f70 recorded. Landed as `26528b4`.
 
 ## 4. Follow-ups
 
