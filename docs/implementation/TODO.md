@@ -1793,8 +1793,7 @@ Oldest first. One line per delivery, with the commit hash once committed.
        bindings had not). Every gate green; the goldens regenerate
        byte-identical under `UPDATE_GOLDEN=1`; `Cargo.lock` and the
        three library crates untouched. f71/f72/f73/f74 recorded; U23
-       opened for the unpinned copied-store check. Landed as this
-       commit (hash backfilled in the next board commit).
+       opened for the unpinned copied-store check. Landed as `c7308aa`.
 
 ## 4. Follow-ups
 
