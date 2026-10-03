@@ -116,7 +116,7 @@ impl From<TaskKindDto> for TaskKind {
 }
 
 /// The wire mirror of the decision lifecycle status (D10): `open`, `signed`, `superseded`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub(crate) enum DecisionStatusDto {
     /// Awaiting the user's sign-off; may block tasks and epics.
@@ -137,8 +137,19 @@ impl From<DecisionStatus> for DecisionStatusDto {
     }
 }
 
+/// The input direction of the vocabulary: a `decision_add`/`decision_update` status back into the domain's enum, variant-for-variant and total.
+impl From<DecisionStatusDto> for DecisionStatus {
+    fn from(status: DecisionStatusDto) -> Self {
+        match status {
+            DecisionStatusDto::Open => Self::Open,
+            DecisionStatusDto::Signed => Self::Signed,
+            DecisionStatusDto::Superseded => Self::Superseded,
+        }
+    }
+}
+
 /// The wire mirror of the agent-set triage priority (D11): `high`, `medium`, `low` — display-only, never an ordering input.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub(crate) enum PriorityDto {
     /// Triage: look at this first.
@@ -159,8 +170,19 @@ impl From<Priority> for PriorityDto {
     }
 }
 
+/// The input direction of the vocabulary: a `task_add`/`task_update` priority back into the domain's enum, variant-for-variant and total.
+impl From<PriorityDto> for Priority {
+    fn from(priority: PriorityDto) -> Self {
+        match priority {
+            PriorityDto::High => Self::High,
+            PriorityDto::Medium => Self::Medium,
+            PriorityDto::Low => Self::Low,
+        }
+    }
+}
+
 /// The wire mirror of the proposer confidence scale (D10): `low`, `medium`, `high`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub(crate) enum ConfidenceDto {
     /// The shape is a guess; expect rework.
@@ -181,8 +203,19 @@ impl From<Confidence> for ConfidenceDto {
     }
 }
 
+/// The input direction of the vocabulary: a `decision_add`/`decision_update` confidence back into the domain's enum, variant-for-variant and total.
+impl From<ConfidenceDto> for Confidence {
+    fn from(confidence: ConfidenceDto) -> Self {
+        match confidence {
+            ConfidenceDto::Low => Self::Low,
+            ConfidenceDto::Medium => Self::Medium,
+            ConfidenceDto::High => Self::High,
+        }
+    }
+}
+
 /// The wire mirror of the reference-kind vocabulary (§3, D10): `tracker`, `url`, `doc`, `spec`, `file`, `other`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub(crate) enum ReferenceKindDto {
     /// An external issue tracker entry (e.g. a JIRA key).
@@ -210,6 +243,32 @@ impl From<ReferenceKind> for ReferenceKindDto {
             ReferenceKind::Other => Self::Other,
         }
     }
+}
+
+/// The input direction of the vocabulary: a reference entry's kind back into the domain's enum, variant-for-variant and total.
+impl From<ReferenceKindDto> for ReferenceKind {
+    fn from(kind: ReferenceKindDto) -> Self {
+        match kind {
+            ReferenceKindDto::Tracker => Self::Tracker,
+            ReferenceKindDto::Url => Self::Url,
+            ReferenceKindDto::Doc => Self::Doc,
+            ReferenceKindDto::Spec => Self::Spec,
+            ReferenceKindDto::File => Self::File,
+            ReferenceKindDto::Other => Self::Other,
+        }
+    }
+}
+
+/// The input mirror of one `{kind, target, note?}` reference entry (§3, D10) — the shape an add or update's `references` parameter takes, converted per entry through the domain's validating constructor.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct ReferenceParam {
+    /// The reference kind: tracker, url, doc, spec, file or other.
+    pub kind: ReferenceKindDto,
+    /// The target string, including any `#anchor` suffix on doc-kind references.
+    pub target: String,
+    /// The optional human note.
+    pub note: Option<String>,
 }
 
 /// The wire mirror of one `{kind, target, note?}` reference entry (§3, D10), in the domain's field order.

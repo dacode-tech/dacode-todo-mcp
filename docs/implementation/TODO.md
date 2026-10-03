@@ -53,8 +53,14 @@ own serverInfo and U16a's instructions, the §8 concurrency core, and
 **t35, the listing read tools** (§3): `task_list` with D16's annotated
 rows, `epic_list`, `decision_list`, `doc_list` and `graph_show` (§6.2's
 dump), five more goldens, and the one domain rider
-`Graph::gating_decisions_of_epic`. The next step is t36's dispatch:
-the node-CRUD mutations.
+`Graph::gating_decisions_of_epic` — and **t36, the node-CRUD mutation
+tools** (§3): `epic_add`/`epic_update`, `task_add`/`task_update`,
+`decision_add`/`decision_update`,
+`doc_register`/`doc_set_path`/`doc_update` over the wire, the
+closure discipline carried by D15's carrier, and the first writer
+goldens (`epic_add.v1`, `epic_update.v1` — the clock-free pair). The
+next step is t37's dispatch: the edges, the registry-from-handles and
+the default slug.
 M1 is closed. The domain layer (§3's value types and closure discipline,
 §5.1's graph, §5.2's canonical order), the storage engine (the signed D1
 JSONL event log behind the `Store` trait
@@ -72,7 +78,7 @@ shell, which is M3's business.
 
 | Blocking | What | Action |
 |---|---|---|
-| — | nothing blocks M3: the rmcp ask, U20 and D16 were all signed 2026-10-03 (§3); the wire's shapes are settled (D14/D15/D16) and the dependency is approved (§6.3) | build — t36 next; t32–t35 done (§3) |
+| — | nothing blocks M3: the rmcp ask, U20 and D16 were all signed 2026-10-03 (§3); the wire's shapes are settled (D14/D15/D16) and the dependency is approved (§6.3) | build — t37 next; t32–t36 done (§3) |
 
 (Open but non-blocking: **U16** (ship base instructions with the server and
 gate the client's native todo off, M3 — its mechanism is measured rather than
@@ -1882,6 +1888,98 @@ Oldest first. One line per delivery, with the commit hash once committed.
        filtered out" filter wording, and its D1/D2 contradiction that
        forced the f80 walker fix in `query.rs` — ratified). Landed as
        `187ec44`.
+- 2026-10-04 — **M3 t36: the node-CRUD mutation tools** —
+       `epic_add`/`epic_update`, `task_add`/`task_update`,
+       `decision_add`/`decision_update` and
+       `doc_register`/`doc_set_path`/`doc_update` over the wire: every
+       mutation already on the `Store` trait, the wire converting and
+       deciding nothing (§2 — no domain or store change, `Cargo.lock`
+       and the three library crates untouched). Writes return the new
+       state (§6's frame). `src/nodes.rs` (769 production lines, over
+       the 600 target by recorded exception — **U25**, the split
+       named) holds the cluster: the add params mirroring the domain
+       drafts field-for-field (`status` required — a defaulted status
+       would hide which closure discipline the caller is reaching
+       for; `references` absent meaning the empty set), the update
+       params mirroring the store's patch DTOs field-for-field under
+       RFC 7386's three-state reading (absent untouched, `null`
+       clears, a value replaces — a server-local `double_option`
+       copy, the store's own being private), `task_update`'s `epic`
+       mapping straight onto `TaskPatch::epic` (§5.1: reparenting is a
+       validated update, no separate verb), and `doc_update` carrying
+       no `path` (the committed D10's audited verb `doc_set_path`
+       owns it). **The clock discipline**: one `time::now()` read per
+       tool call, taken after the parse and the resolve — an add
+       stamps `created`/`updated` with the same instant, an update
+       stamps `updated` alone; no injection seam. The consequence
+       splits the cluster by clock-freeness: epics carry no
+       timestamps, so `epic_add`/`epic_update` are golden-pinned —
+       **the first writer goldens** (`epic_add.v1`, `epic_update.v1`,
+       the property that decides being static bytes, not readness) —
+       while the seven stamped writers assert in-test, byte-exactly
+       around the extracted stamp (the t33 `registered_at_of` pattern
+       generalized to suite-local `created_of`/`updated_of`); the
+       principle is stated in the write suite's module doc so t37's
+       writers know which side they fall on. **The closure discipline
+       is the domain's, carried by the carrier**: `verify`,
+       `evidence`, `note` and `resolution` are optional params whose
+       absence answers `missing_verify`/`missing_evidence`/
+       `missing_note`/`missing_resolution` through D15's carrier —
+       never schema-required fields, which would demote §6.1's own
+       example into rmcp's codeless argument fault. The vocabulary
+       boundary carried from t35: enums typed in the params (a wrong
+       spelling is the argument fault), ids/slugs/dates/references
+       parsed in the body (`invalid` before the store is touched, and
+       a malformed id outranks an unknown repo — parse before
+       resolve). `src/dto.rs` (503) gains the input direction of
+       `DecisionStatusDto`/`ConfidenceDto`/`PriorityDto`/
+       `ReferenceKindDto` (Deserialize + total inverse `From` impls)
+       and `ReferenceParam`, the input mirror of `ReferenceDto`
+       converted per entry through the domain's validating
+       constructor. `tests/write.rs` + `tests/write/nodes.rs` — the
+       write target, fresh fixture per test (the writes mutate the
+       store), the stamped writer families ending with the in-process
+       reopen
+       asserting the mutation is on disk (the t33 precedent: the wire
+       proved the write, the reopen proves the log). Twelve tests:
+       the golden pair, the new-state-and-persists trio per family,
+       the three-state drive, the patch round trip (byte comparison
+       over the raw structuredContent, not parsed values — map
+       equality is order-insensitive and D14's pin is an order pin),
+       the parse-before-resolve sweep, and the clock-free pair's
+       byte-identity across two fresh spawns. The two f71-class name
+       arrays (`tests/read/query.rs`'s schema-discipline test,
+       `tests/protocol.rs`'s composition pin) grew from eleven to
+       twenty tools. 393 workspace tests. Mutations M1–M6 run,
+       observed failing, reverted, sha-verified (kill sets reported;
+       the spec's named sets were wrong in both directions — M1's
+       test 10 unreachable, `DocUpdateParams` having no three-state
+       field, and M3's add half unrepresentable, an add having no
+       pre-write state). Dual review over two rounds plus a binding
+       round and a commit-round confirmation: round 1 primary ok (two
+       lows: the write suite's doc overstating the reopen claim, a
+       stale tracker sha) / secondary changes_requested (one med:
+       `ReferenceParam` lacked `deny_unknown_fields`, so a nested
+       typo'd key was silently dropped while every top-level params
+       struct rejects unknown fields — §6.1's silent-drop consequence
+       applies to nested input objects; four lows: a figure in the
+       exception line, a dead `let _`, the M2 claim that did not
+       reproduce, and common/mod.rs's stale-claim siblings recorded
+       for t37); the orchestrator applied all five fixes plus the
+       f70 sweep (three spec-local D-ids in `nodes.rs`'s module-doc
+       headers, swept to self-contained wording before review), and
+       both reviewers re-bound ok on identical final-byte shas
+       computed independently at verdict time — then routed five
+       commit-round lows to the orchestrator (the parent doc's
+       reopen claim, the nested-field pin reusing the suite's
+       `assert_argument_fault` helper, the `and_repaints` typo, the
+       board's pre-fix dto.rs figure, and the tracker recordings),
+       all applied and confirmed in a third round with the production
+       files byte-identical throughout. f85–f89 recorded (the
+       verify-clear-is-a-rejection discovery, three kill-set claims,
+       and the M2 stale-stamp claim — the fifth consecutive task
+       spec with a claim that did not reproduce). Landed as
+       `«t36-hash»`.
 
 ## 4. Follow-ups
 
@@ -2478,6 +2576,16 @@ Deliberate shortcuts, acknowledged rather than fixed. Same id rules as §4.
       is the dump half (`GraphShowDto`, `RepoDumpDto`, `EpicGroupDto`,
       `TaskNodeDto`, `DecisionNodeDto` and their builders) into its
       own module — a named diff for whoever next owns the file.
+- [ ] **U25 · `todo-mcp/src/nodes.rs` is over the 600-line target.**
+      769 production lines (the awk measure; the file holds no test
+      module). Over target because the mutation cluster's dispatch
+      pins all nine tools, their params and their draft/patch
+      conversions in one file, the `query.rs`/`listing.rs` shape the
+      t36 spec named; the cap of 1000 holds. The split, if the
+      cluster ever grows a tenth tool, is the doc family
+      (`doc_register`/`doc_set_path`/`doc_update` and their
+      conversions) into its own module — a named diff for whoever
+      next owns the file.
 
 ## 6. Session log
 

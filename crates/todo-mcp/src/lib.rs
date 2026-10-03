@@ -78,6 +78,7 @@ use todo_store::{DataRoot, Registry, Store, StoreError};
 
 mod dto;
 mod listing;
+mod nodes;
 mod query;
 mod registry;
 mod time;
@@ -135,14 +136,15 @@ impl TodoServer {
         // The router composes across impl blocks (`ToolRouter::merge`):
         // the cluster files' routers — `registry.rs`'s `tool_router`,
         // `query.rs`'s `query_router`, `listing.rs`'s
-        // `listing_router` — each cluster file owning its own block
-        // and no cluster editing another's. Merge order is
-        // wire-invisible: the router is a name-keyed map and
-        // `list_all` sorts by name (§6.3), so later clusters follow
-        // the same pattern.
+        // `listing_router`, `nodes.rs`'s `nodes_router` — each cluster
+        // file owning its own block and no cluster editing another's.
+        // Merge order is wire-invisible: the router is a name-keyed
+        // map and `list_all` sorts by name (§6.3), so later clusters
+        // follow the same pattern.
         let mut tool_router = Self::tool_router();
         tool_router.merge(Self::query_router());
         tool_router.merge(Self::listing_router());
+        tool_router.merge(Self::nodes_router());
         Self {
             tool_router,
             state: Arc::new(Mutex::new(ServerState {
