@@ -42,11 +42,13 @@ in spec §6.3), **U20** resolved (b) (the registry format stays; the
 server answers `repo_list` from handles it holds), and **D16** (a)
 (`status_summary` and the `task_list` annotation in §6, with the
 arithmetic as signed text; §12 closed again). M3 is decomposed (**g8**:
-t32–t39 plus the **g9** exit gate) and its first task is done: **t32,
-D16's domain aggregation** (§3) — `status_summary` and `task_list`'s
-annotated rows in `todo-domain`, the annotate rule lifted to
-`Graph::blockers_of`. The next step is t33's dispatch: rmcp + the
-skeleton, the first wire code.
+t32–t39 plus the **g9** exit gate) and its first two tasks are done:
+**t32, D16's domain aggregation** (§3) — `status_summary` and
+`task_list`'s annotated rows in `todo-domain` — and **t33, rmcp + the
+skeleton** (§3): the dependency line, the initialize handshake with our
+own serverInfo and U16a's instructions, the §8 concurrency core, and
+`repo_register` end-to-end. The next step is t34's dispatch: the query
+read tools over the wire.
 M1 is closed. The domain layer (§3's value types and closure discipline,
 §5.1's graph, §5.2's canonical order), the storage engine (the signed D1
 JSONL event log behind the `Store` trait
@@ -64,7 +66,7 @@ shell, which is M3's business.
 
 | Blocking | What | Action |
 |---|---|---|
-| — | nothing blocks M3: the rmcp ask, U20 and D16 were all signed 2026-10-03 (§3); the wire's shapes are settled (D14/D15/D16) and the dependency is approved (§6.3) | build — t33 next; t32 done (§3) |
+| — | nothing blocks M3: the rmcp ask, U20 and D16 were all signed 2026-10-03 (§3); the wire's shapes are settled (D14/D15/D16) and the dependency is approved (§6.3) | build — t34 next; t32/t33 done (§3) |
 
 (Open but non-blocking: **U16** (ship base instructions with the server and
 gate the client's native todo off, M3 — its mechanism is measured rather than
@@ -1675,6 +1677,59 @@ Oldest first. One line per delivery, with the commit hash once committed.
        including `cargo doc` under both invocations, the five goldens
        and `Cargo.lock` untouched, the six sha-pinned files
        byte-identical. f66/f67 recorded. Landed as `012af8c`.
+- 2026-10-03 — **M3 t33: rmcp + the skeleton** — the first wire code.
+       The dependency line lands at the workspace root (rmcp 3.5.0
+       `server`/`macros`/`transport-io` plus `serde_json` with
+       `preserve_order` per D14, and tokio/serde/schemars as the
+       survey probe's exact companion set): `Cargo.lock` 27 → 93
+       packages, +66, zero removals, zero version moves, every new
+       package traced to the approved five — the one `-` line is
+       serde_derive's `syn` dep-key rename on collision, verified
+       independently by both reviewers. (The "26" in the t32 handover
+       was stale by one; the pre-t33 count is 27.) `todo-mcp` grows
+       from the M0 shell to lib + main: `lib.rs` — `TodoServer` and
+       `ServerState` behind `Arc<std::sync::Mutex>`, the §8
+       concurrency core: rmcp dispatches each request in its own
+       `tokio::spawn`, so the state sits behind one serialization
+       point, the guard taken and dropped inside the sync tool body,
+       never across an await; the handles are
+       `BTreeMap<RepoSlug, Box<dyn Store + Send>>` — the store's own
+       lib.rs provisioned the boxed shape for M3's server ("if it
+       would otherwise have to name the engine"), the `+ Send` is the
+       trait-object bound rmcp's Send+Sync service requirement forces,
+       and the engine type is never named in this crate. `registry.rs`
+       — `repo_register` and its DTOs, the pipeline proof: params
+       `{slug, name, path}` with `deny_unknown_fields` (the §7-prose
+       divergence named in-tree as the veto-able reading), the D15
+       carrier on every failure path, `registered_at` stamped by the
+       server. `time.rs` — the clock: unix→civil→RFC 3339→
+       `Timestamp::parse`, saturated at the domain's last instant
+       9999-12-31T23:59:59.999999999Z (the year-9999 panic round 1's
+       review caught — both reviewers' hand values were off by a day;
+       the parse-oracle test is the arbiter). `main.rs` — `--root`
+       required via lexopt, exit 2 usage / 1 serve fault, the exit
+       contract narrowed to the measured behaviour: exit 0 only after
+       a completed handshake, a pre-initialize close is exit 1. The
+       initialize handshake answers 2025-11-25 with our own serverInfo
+       (`todo-mcp` + `CARGO_PKG_VERSION` — unset, every client sees
+       `rmcp/3.5.0`) and U16a's base instructions (the full text, one
+       home); the 2026-07-28 discover flow measured **free** over one
+       `serve(stdio())` and pinned both branches (with the two `_meta`
+       keys → instructions; without → `-32602` naming them). 20 tests
+       (6 time + 4 arg-parse + 10 protocol — the protocol suite spawns
+       the real binary over raw stdio and freezes exact bytes: the
+       handshake, `tools/list`, `repo_register`
+       success/duplicate/contended/invalid, the unknown-field
+       rejection, discover, determinism). Mutations M1–M5 run,
+       observed failing, reverted, sha-verified. Dual review over two
+       rounds — round 1 both changes_requested (the year-9999
+       saturation; the exit-contract honesty and its zero coverage;
+       the §2 engine-type boxing, ruled on per the store's provisioned
+       shape), round 2 both ok on the final bytes. Every gate green;
+       the three library crates untouched (`rg tokio` and the clock
+       grep empty over them — §2's boundary proven); the goldens
+       untouched. f68/f69/f70 recorded. Landed as this commit (hash
+       backfilled in the next board commit).
 
 ## 4. Follow-ups
 
@@ -2252,6 +2307,57 @@ Deliberate shortcuts, acknowledged rather than fixed. Same id rules as §4.
 Newest first. One entry per session, written for someone who was not
 here. The final entry of a session is the handover
 (`.agents/skills/todo-next-imp/SKILL.md` defines the shape).
+
+### 2026-10-03 — t33 landed: rmcp + the skeleton
+
+The session continued from t32's landing: the user said go on t33,
+the spec was pre-written at `tmp/t33-spec.md` (twelve decisions, the
+probe at `tmp/rmcpprobe` as the working reference), and the
+implementer landed in one round — no spawn deaths this time. Dual
+review ran over two rounds: round 1 both changes_requested (the
+year-9999 saturation in the clock, the exit contract's honesty and
+its zero coverage, and the §2 engine-type question — settled by
+boxing the handles into `Box<dyn Store + Send>`, the shape the
+store's own lib.rs provisioned for M3's server), round 2 both ok on
+the final bytes. §3's entry carries the delivery.
+
+Three findings a cold reader should know: **f68** — T4's post-exit
+store open failed once on the first full-suite run, unreproduced in
+fifty-plus runs since, the panic now carries the `StoreError` so a
+recurrence is capturable; **f69** — D14's `preserve_order` reaches
+schemars too, so §6.3:474's "properties is alphabetical" is
+feature-conditional (under D14, declaration order — the inputSchema
+properties included); **f70** — task-spec-local decision ids collide
+with committed `decisions.md` ids, so committed doc comments must
+never cite a spec-local D-id (the f62/5.6 class; swept).
+
+**Handover.** Workspace: `main`, clean after this commit, four
+crates, **353** tests, rustc 1.98.1, MSRV 1.95; `Cargo.lock` now 93
+packages — the rmcp tree is in (the pre-t33 count was 27; the "26"
+in the t32 handover was stale). **Next step: dispatch t34** — the
+query read tools: `next_task`, `next_items`, `status_summary`,
+`task_show`, `decision_show`, one params struct per tool with
+`deny_unknown_fields`, outputSchemas declared, §5.2's total orders
+preserved, and the first per-tool wire goldens. Its spec wants
+pre-writing (the t32/t33 pattern); two design decisions live there:
+the wire-golden discipline's shape (D14's declaration-order pin per
+tool, `UPDATE_GOLDEN` over a new golden dir), and the clock-field
+question t33 handed forward — a mutating tool's success response
+carries the clock-stamped `registered_at`, so it cannot be
+byte-golden-pinned the way read tools can; t34's spec decides (read
+goldens only, error-carrier goldens for writers, or another shape).
+t35–t38 follow; t39 is the smoke. **Blocked on you: nothing.**
+Non-blocking and yours: U16 (t39's half remains), U21, U22, U18
+(parked), and two one-line spec asks whenever you want them — §10's
+gate enumeration names four where every operative home runs cargo
+doc twice, and §6.3:474's "properties is alphabetical" wants its
+feature condition stated (f69). **Unverified:** no client has talked
+to this server — the wire is measured by test harnesses only; the
+opencode smoke is t39. The discover flow is measured free and pinned
+both branches. Tracker: `tools/tasks.py check` exits 0 (g8 open with
+t34 next; g3 stands). Doc gates: check-links, `attention.py
+--check`, `agents-sync.py --check` green; agents-index untouched (no
+indexed doc moved in this commit).
 
 ### 2026-10-03 — t32 landed: D16's domain aggregation
 

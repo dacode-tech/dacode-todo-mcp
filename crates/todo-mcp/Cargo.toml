@@ -8,6 +8,17 @@ description = "the server binary: rmcp wire surface over stdio. Translates, neve
 [dependencies]
 todo-domain = { workspace = true }
 todo-store = { workspace = true }
+lexopt = { workspace = true }
+rmcp = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+schemars = { workspace = true }
+tokio = { workspace = true }
+
+[dev-dependencies]
+# Temporary data roots for the protocol fixtures (the store/cli
+# precedent): a spawned server never writes to a fixed path or the cwd.
+tempfile = "3"
 
 [lints]
 workspace = true
