@@ -1881,7 +1881,7 @@ Oldest first. One line per delivery, with the commit hash once committed.
        f80 recorded (the spec's kill-set understatement, its "0
        filtered out" filter wording, and its D1/D2 contradiction that
        forced the f80 walker fix in `query.rs` — ratified). Landed as
-       `«t35-hash»`.
+       `187ec44`.
 
 ## 4. Follow-ups
 
@@ -2484,6 +2484,81 @@ Deliberate shortcuts, acknowledged rather than fixed. Same id rules as §4.
 Newest first. One entry per session, written for someone who was not
 here. The final entry of a session is the handover
 (`.agents/skills/todo-next-imp/SKILL.md` defines the shape).
+
+### 2026-10-03 — t35 landed: the listing read tools and §6.2's dump
+
+The session opened on `/todo-next-imp` with the previous handover
+naming one next step — dispatch t35 — and the user said ok. Two
+pieces of bookkeeping preceded the dispatch: f72's stale `active`
+status was closed with a fresh verify run (the f41 class — its pin
+had landed with t34's fix round and the status was never swept), and
+the spec was pre-written at `tmp/t35-spec.md` (14 decisions, 13
+required tests, 6 mandatory mutations, baseline shas pinned at
+`9dc9806`). The two design surfaces the t34 handover named were
+settled by **measurement before dispatch**, not assumption: a scratch
+probe proved `serde(flatten)` preserves declaration order under
+`preserve_order` (the flattened node's fields first, then the outer
+struct's — D14's pin holding by construction, which is what made the
+dump DTO's shape decidable), and a second probe proved the
+internally-tagged `BlockerDto` serializes `[shape, id, status]` with
+schemars rendering a `oneOf` + `$defs` enumerating both closed status
+vocabularies. The implementer landed in one round; dual review ran
+over two rounds plus a binding round — round 1 primary ok with two
+lows, secondary changes_requested with three meds and two lows; the
+orchestrator applied all seven fixes itself (the t11/t30 precedent
+for small exactly-prescribed fixes), and both reviewers re-bound ok
+on **identical final-byte shas computed independently at verdict
+time** — the t34 binding-round discipline holding on its first
+reuse. §3's entry carries the delivery.
+
+Findings: **f78** (the spec's mutation kill sets understate — the
+named tests fail, but the true sets are supersets; 5.6's class one
+level down), **f79** (the spec's "0 filtered out" filter wording —
+the read binary holds both suites after t35, so the count to quote is
+"13 passed / 13 filtered out"; plus its siblings: a named "time" test
+target that does not exist, and the spec's golden shas mapped to the
+wrong files read positionally), **f80** (the spec's D1/D2
+contradiction — EpicDto's prose `description` field became an
+outputSchema *property* whose value is an object, and the
+string-expecting description walker panicked; the fix keeps the pin's
+strength and was ratified). **U24** opened: `listing.rs` is over the
+600-line target by recorded exception, the dump half named as the
+split. And a t36+ spec-authoring note from the secondary: baseline
+shas are `shasum` file-SHA-1 prefixes, not git blob hashes — name the
+tool in the spec, or a reviewer using `git hash-object` reads false
+MOVEs.
+
+**Handover.** Workspace: `main`, clean after the board commit, four
+crates, **381** tests, rustc 1.98.1, MSRV 1.95; `Cargo.lock` 93
+packages (unchanged — t35 added no dependency). **Next step: dispatch
+t36** — the node-CRUD mutations: `epic_add`/`epic_update`,
+`task_add`/`task_update` (the closure discipline mapped to §6.1's
+codes — `missing_verify`/`missing_evidence`/`missing_note` through
+D15's carrier), `decision_add`/`decision_update`
+(`missing_resolution`), `doc_register`/`doc_set_path`/`doc_update`;
+writes return the new state. Its spec wants pre-writing (the
+t32–t35 pattern); the design surfaces to settle there: **the clock
+question t33 handed forward** — a mutating tool's success response
+carries the server-stamped timestamp, so it cannot be byte-golden-
+pinned the way read tools can; the options are error-carrier goldens
+for writers plus parsed-field assertions on success, a fixed-clock
+injection seam, or another shape — and the params/patch DTOs (the
+store's RFC 7386 three-state patch DTOs are the persisted precedent;
+the wire's patch spelling is t36's to declare). The pieces it
+inherits are landed: `dto.rs`'s node mirrors and the vocabulary enums
+(now with the input direction), `ToolError`, `resolve`, the router
+composition, the golden discipline, the fixture. **Blocked on you:
+nothing.** Non-blocking and yours: U16 (t39's half), U21, U22, U18
+(parked), U23 (t37/t38's swapped-store fixture test), U24 (new — the
+`listing.rs` split rides its next owner), and the two one-line spec
+asks — §10's gate enumeration and §6.3:474's feature condition
+(f69). **Unverified:** no client has talked to this server; the wire
+is measured by test harnesses only — the opencode smoke is t39.
+Tracker: `tools/tasks.py check` exits 0 on the two expected lines
+(g8 open with t36 next; g3 stands). Doc gates: check-links,
+`attention.py --check`, `agents-sync.py --check` green; agents-index
+untouched (no indexed doc moved in the code commit; this board
+commit backfills the hash).
 
 ### 2026-10-03 — t34 landed: the query read tools and the first goldens
 
