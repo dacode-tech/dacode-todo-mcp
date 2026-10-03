@@ -49,8 +49,12 @@ skeleton** (§3): the dependency line, the initialize handshake with our
 own serverInfo and U16a's instructions, the §8 concurrency core, and
 `repo_register` end-to-end — and **t34, the query read tools** (§3):
 `next_task`, `next_items`, `status_summary`, `task_show` and
-`decision_show` over the wire, with the first per-tool goldens. The
-next step is t35's dispatch: the listing cluster.
+`decision_show` over the wire, with the first per-tool goldens — and
+**t35, the listing read tools** (§3): `task_list` with D16's annotated
+rows, `epic_list`, `decision_list`, `doc_list` and `graph_show` (§6.2's
+dump), five more goldens, and the one domain rider
+`Graph::gating_decisions_of_epic`. The next step is t36's dispatch:
+the node-CRUD mutations.
 M1 is closed. The domain layer (§3's value types and closure discipline,
 §5.1's graph, §5.2's canonical order), the storage engine (the signed D1
 JSONL event log behind the `Store` trait
@@ -68,7 +72,7 @@ shell, which is M3's business.
 
 | Blocking | What | Action |
 |---|---|---|
-| — | nothing blocks M3: the rmcp ask, U20 and D16 were all signed 2026-10-03 (§3); the wire's shapes are settled (D14/D15/D16) and the dependency is approved (§6.3) | build — t35 next; t32/t33/t34 done (§3) |
+| — | nothing blocks M3: the rmcp ask, U20 and D16 were all signed 2026-10-03 (§3); the wire's shapes are settled (D14/D15/D16) and the dependency is approved (§6.3) | build — t36 next; t32–t35 done (§3) |
 
 (Open but non-blocking: **U16** (ship base instructions with the server and
 gate the client's native todo off, M3 — its mechanism is measured rather than
@@ -1794,6 +1798,90 @@ Oldest first. One line per delivery, with the commit hash once committed.
        byte-identical under `UPDATE_GOLDEN=1`; `Cargo.lock` and the
        three library crates untouched. f71/f72/f73/f74 recorded; U23
        opened for the unpinned copied-store check. Landed as `c7308aa`.
+- 2026-10-03 — **M3 t35: the listing read tools + §6.2's dump** —
+       `task_list` with D16's annotated rows, `epic_list`,
+       `decision_list`, `doc_list`, and `graph_show`, each with a
+       `deny_unknown_fields` params struct, a declared outputSchema,
+       read-only annotations and a per-tool wire golden (five new:
+       `task_list.v1`, `epic_list.v1`, `decision_list.v1`,
+       `doc_list.v1`, `graph_show.v1` — ten goldens in the dir now,
+       the t34 five byte-identical throughout). `src/listing.rs`
+       (683 production lines, over the 600 target by recorded
+       exception — **U24**, the split named) holds the cluster;
+       `src/dto.rs` gains `EpicDto`/`DocDto`/`RepoDto` and the input
+       direction of `StatusDto`/`TaskKindDto` (`Deserialize` + total
+       inverse `From` impls — `task_list`'s `status`/`kind` params are
+       typed enums, so a wrong vocabulary spelling is rmcp's own
+       codeless argument fault, **not** `invalid`: §6.1's consequence
+       text scopes `invalid` to values this server parses — the
+       `ValueError` class — and the input schema itself enumerates the
+       closed set; the boundary is pinned by a dedicated test so a
+       future `serde(other)` leniency cannot move it silently).
+       **`BlockerDto` is a tagged enum** — `{"shape":"task","id":…,
+       "status":"open"}` — following `BlocksEdgeDto`, the project's one
+       persisted tagged-union spelling (`tag = "shape"`); measured in a
+       scratch probe at dispatch: key order `[shape, id, status]` under
+       `preserve_order`, and schemars renders a `oneOf` with per-variant
+       `const` discriminants and `$defs` enumerating both closed status
+       sets. **The dump DTO uses `#[serde(flatten)]`**, also measured
+       at dispatch: the flattened node's fields serialize first, in the
+       node's declaration order, then the adjacency fields — D14's
+       declaration-order pin holding by construction, and schemars
+       merges the schema. Every node carries exactly the adjacency
+       fields that can be non-empty for its kind (tasks:
+       `blocked_by`/`blocks`/`relates`; epics: `blocked_by`, their own
+       gates; decisions: `blocks`, what they gate; docs: none), every
+       edge visible from both endpoints, no edge table — and each
+       field's doc states its total order (the `BlockEnd` endpoint
+       order the domain documents). **The thin listings answer
+       id+title rows** — a veto-able reading of §6's silence (the
+       alternative, bare id arrays, mirrors the domain surface
+       exactly), taken because §6's own client-flow sentence needs the
+       listing to carry names an agent can show; pinned by the goldens
+       so a veto is a named diff. `relates` rides per task in the dump
+       (also veto-able, same pinning). **`graph_show`'s three scopes**:
+       no args = every registered repo in sorted-slug order (the
+       registry's set — a dump may pay the cold open, amortized once
+       per repo per process); `repo` = that repo; `epic` = the subtree
+       plus the gating decisions, the repo derived from the epic id
+       when absent, the explicit repo authoritative when present, a
+       cross-repo epic answering the domain's own `unknown_id`. The
+       optional `repo` is §6.2's all-repos semantics, **not** the
+       default-slug case — recorded in the params doc so t37 does not
+       "fix" it. **One domain rider**: `Graph::gating_decisions_of_epic`
+       in `summary.rs` — the epic scope's gate set exposed publicly
+       because the server must not re-derive the composition from
+       adjacency (the t29 measurement, the reason t32 lifted
+       `blockers_of`); one public method + one pin test, nothing else
+       in `todo-domain`. The fixture gained a second repo **alpha**
+       (minimal, timestamped *after* `fixture` but sorted before it, so
+       the all-repos order pin distinguishes slug order from both
+       arrival and timestamp order), and the three suite-generic test
+       helpers (`call`, `structured`, `assert_carrier`) lifted from
+       `read/query.rs` into `common/mod.rs` — f54's anticipated "next
+       copy is M3's" moment, decided by the shared module's next owner
+       as its rule prescribes; the query suite's half is pure deletion
+       plus the `use` line. 14 tests in `read::listing` (the goldens,
+       the domain agreement, the filter semantics, the two-run order
+       with statuses, the epic scope, the all-repos order, the error
+       paths, the vocabulary boundary, determinism) + the domain pin;
+       381 workspace tests. Mutations M1–M6 run by the implementer and
+       independently re-run by the primary in a scratch copy (kill sets
+       matching; the spec's named sets understated — f75). Dual review
+       over two rounds plus a binding round: round 1 primary ok (two
+       lows: the unpinned vocabulary boundary, the all-repos order
+       pin's slug-vs-timestamp ambiguity) / secondary
+       changes_requested (three meds: the undocumented adjacency
+       orders, a "five lines" figure in a doc comment — f30's class —
+       and the domain pin test's section banner misplaced; two lows:
+       the exception line's shape, the stale two-router merge comment);
+       the orchestrator applied all seven fixes itself per the t11/t30
+       precedent, and both reviewers re-bound ok on identical
+       final-byte shas computed independently at verdict time. f78/f79/
+       f80 recorded (the spec's kill-set understatement, its "0
+       filtered out" filter wording, and its D1/D2 contradiction that
+       forced the f80 walker fix in `query.rs` — ratified). Landed as
+       `«t35-hash»`.
 
 ## 4. Follow-ups
 
@@ -2379,6 +2467,17 @@ Deliberate shortcuts, acknowledged rather than fixed. Same id rules as §4.
       fixture test (register `aaa`, copy its directory to `bbb`'s slot,
       query through the wire) — t37's registry cluster or t38's wire
       suite, whichever owns the fixture machinery first.
+- [ ] **U24 · `todo-mcp/src/listing.rs` is over the 600-line target.**
+      683 production lines (the awk measure; the `#[cfg(test)]` clause
+      does not apply — the file holds no test module). Over target
+      because the listing cluster's dispatch pins all five tools,
+      their params and their answer DTOs — `graph_show`'s dump
+      builders included — in one file, the `query.rs` shape the t35
+      spec named; the cap of 1000 holds. The split, if the cluster
+      ever grows a sixth tool or the dump grows a second scope shape,
+      is the dump half (`GraphShowDto`, `RepoDumpDto`, `EpicGroupDto`,
+      `TaskNodeDto`, `DecisionNodeDto` and their builders) into its
+      own module — a named diff for whoever next owns the file.
 
 ## 6. Session log
 

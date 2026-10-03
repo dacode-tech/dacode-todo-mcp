@@ -77,6 +77,7 @@ use todo_domain::{DomainError, RepoSlug, ValueError};
 use todo_store::{DataRoot, Registry, Store, StoreError};
 
 mod dto;
+mod listing;
 mod query;
 mod registry;
 mod time;
@@ -132,13 +133,16 @@ impl TodoServer {
     /// A server serving every store under `root`.
     pub fn new(root: DataRoot) -> Self {
         // The router composes across impl blocks (`ToolRouter::merge`):
-        // `registry.rs`'s `tool_router` plus `query.rs`'s
-        // `query_router`, each cluster file owning its own block and
-        // no cluster editing another's. Merge order is wire-invisible:
-        // the router is a name-keyed map and `list_all` sorts by name
-        // (§6.3), so t35+ follow the same pattern.
+        // the cluster files' routers — `registry.rs`'s `tool_router`,
+        // `query.rs`'s `query_router`, `listing.rs`'s
+        // `listing_router` — each cluster file owning its own block
+        // and no cluster editing another's. Merge order is
+        // wire-invisible: the router is a name-keyed map and
+        // `list_all` sorts by name (§6.3), so later clusters follow
+        // the same pattern.
         let mut tool_router = Self::tool_router();
         tool_router.merge(Self::query_router());
+        tool_router.merge(Self::listing_router());
         Self {
             tool_router,
             state: Arc::new(Mutex::new(ServerState {

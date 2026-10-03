@@ -25,5 +25,6 @@
 mod common;
 
 mod read {
+    mod listing;
     mod query;
 }

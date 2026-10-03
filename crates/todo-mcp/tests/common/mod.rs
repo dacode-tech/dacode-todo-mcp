@@ -31,6 +31,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStdin, ChildStdout, Command, ExitStatus, Stdio};
 use std::str::FromStr;
 
+use serde_json::{Value, json};
 use tempfile::TempDir;
 use todo_domain::EpicId;
 use todo_domain::{
@@ -191,11 +192,57 @@ fn bounded(line: &str) -> String {
 }
 
 // =================================================================
+// The shared suite helpers (lifted from read/query.rs: every read
+// suite needs exactly these three, and a second verbatim copy was
+// the cost the lift ends)
+// =================================================================
+
+/// One `tools/call` request line with a fixed id.
+pub(crate) fn call(id: u64, name: &str, arguments: &str) -> String {
+    format!(
+        r#"{{"jsonrpc":"2.0","id":{id},"method":"tools/call","params":{{"name":"{name}","arguments":{arguments}}}}}"#
+    )
+}
+
+/// The structuredContent of one response line, parsed.
+pub(crate) fn structured(response: &str) -> Value {
+    let value: Value = serde_json::from_str(response).expect("the response line is JSON");
+    value["result"]["structuredContent"].clone()
+}
+
+/// Asserts one response is D15's carrier for `code`/`message`:
+/// `isError: true`, the code in `structuredContent`, and the same JSON
+/// mirrored into the text block.
+pub(crate) fn assert_carrier(response: &str, code: &str, message: &str) {
+    let value: Value = serde_json::from_str(response).expect("the response line is JSON");
+    assert_eq!(value["result"]["isError"], json!(true), "{response}");
+    assert_eq!(
+        value["result"]["structuredContent"]["code"],
+        json!(code),
+        "{response}"
+    );
+    assert_eq!(
+        value["result"]["structuredContent"]["message"],
+        json!(message),
+        "{response}"
+    );
+    let mirror = value["result"]["content"][0]["text"]
+        .as_str()
+        .expect("the text mirror");
+    let mirrored: Value = serde_json::from_str(mirror).expect("the mirror is JSON");
+    assert_eq!(mirrored, value["result"]["structuredContent"], "{response}");
+}
+
+// =================================================================
 // The fixture store
 // =================================================================
 
 /// The fixture repo's slug — a fixture, not a product.
 const FIXTURE: &str = "fixture";
+/// The second repo's slug: it sorts before `fixture`, so the
+/// all-repos scope's order `[alpha, fixture]` is visible and
+/// non-trivial — registration order is the reverse.
+const ALPHA: &str = "alpha";
 
 /// Builds the fixture store under a fresh temp root and returns the
 /// root; the `TempDir` guard keeps the directory alive for the drive,
@@ -203,7 +250,9 @@ const FIXTURE: &str = "fixture";
 /// (the advisory lock is per process).
 pub(crate) fn fixture() -> TempDir {
     let root = TempDir::new().expect("a fresh temp root");
-    build_fixture(&DataRoot::new(root.path()));
+    let data_root = DataRoot::new(root.path());
+    build_fixture(&data_root);
+    build_alpha(&data_root);
     root
 }
 
@@ -581,6 +630,54 @@ fn build_fixture(root: &DataRoot) {
 
     // The builder's last act: drop the handle, releasing the advisory
     // lock before the server spawns.
+    drop(store);
+}
+
+/// The fixture's second repo, **alpha** — minimal: one epic, one
+/// task, no edges, decisions or docs. It exists to pin the
+/// all-repos scope's membership and order: registered *after*
+/// `fixture` and timestamped after it too, but sorted before it by
+/// slug — so the pinned `[alpha, fixture]` order is the registry's
+/// slug order, distinguishable from both arrival and timestamp
+/// order. Every repo-scoped request is blind to it.
+fn build_alpha(root: &DataRoot) {
+    let mut store = root
+        .register(Repo {
+            slug: RepoSlug::from_str(ALPHA).expect("a valid slug"),
+            name: "Alpha".to_owned(),
+            path: "/repos/alpha".to_owned(),
+            registered_at: ts("2026-10-01T09:00:00Z"),
+        })
+        .expect("the alpha repo registers");
+    let epic = store
+        .add_epic(
+            EpicDraft {
+                title: "Alpha epic".to_owned(),
+                description: String::new(),
+                status: Status::Open,
+                references: References::new(),
+            },
+            ts("2026-10-01T09:01:00Z"),
+        )
+        .expect("alpha E1 lands");
+    store
+        .add_task(
+            TaskDraft {
+                epic: epic.id,
+                kind: TaskKind::Task,
+                title: "Alpha task".to_owned(),
+                body: String::new(),
+                status: Status::Open,
+                verify: Some("cargo test -p alpha".to_owned()),
+                evidence: None,
+                note: None,
+                references: References::new(),
+                priority: None,
+                until: None,
+            },
+            ts("2026-10-01T09:02:00Z"),
+        )
+        .expect("alpha U1 lands");
     drop(store);
 }
 

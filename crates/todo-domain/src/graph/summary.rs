@@ -405,6 +405,22 @@ impl Graph {
         Ok(summary)
     }
 
+    /// The decisions gating one epic's scope (§6.2): every decision
+    /// with an edge into the epic or into one of its tasks, ascending
+    /// — the same set [`Graph::status_summary_of_epic`] counts,
+    /// exposed as the ids themselves because the wire's epic-scoped
+    /// dump lists exactly these nodes; one rule, one home, so the
+    /// dump and the roll-up cannot drift about what gates a scope.
+    ///
+    /// An epic this graph does not hold is `unknown_id`, propagated
+    /// from the order derivation and the only failure this method
+    /// has. Reads graph state alone (§8), so the same state always
+    /// yields the same vec.
+    pub fn gating_decisions_of_epic(&self, epic: &EpicId) -> Result<Vec<DecisionId>, DomainError> {
+        let order = self.canonical_order_of_epic(epic)?;
+        Ok(self.gating_decisions(epic, &order).into_iter().collect())
+    }
+
     /// What holds `task` back (§6's D16 annotation, the same contract
     /// [`crate::NextItem::blocked_by`] carries): the task's own
     /// predecessors, then its epic's decision gates — each run in

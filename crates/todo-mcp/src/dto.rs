@@ -1,9 +1,10 @@
 //! The shared wire vocabulary: the server-local mirrors of
 //! the domain's node and vocabulary types that every tool cluster
 //! translates through — the vocabulary enums, [`ReferenceDto`],
-//! [`TaskDto`], [`DecisionDto`] and [`DeferredDto`] — the pieces t35's
-//! listing DTOs and t36's mutation params also consume, so the node
-//! mirrors have one home instead of per-cluster copies.
+//! [`TaskDto`], [`EpicDto`], [`DecisionDto`], [`DocDto`], [`RepoDto`]
+//! and [`DeferredDto`] — the pieces the listing and mutation clusters
+//! also consume, so the node mirrors have one home instead of
+//! per-cluster copies.
 //!
 //! Server-local on purpose (§2): no `schemars` dependency reaches the
 //! domain, so the outputSchema a client sees is generated here, from
@@ -24,14 +25,14 @@
 //! from *input* schemas only, `handler/server/common.rs`).
 
 use schemars::JsonSchema;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use todo_domain::{
-    Confidence, Decision, DecisionStatus, DeferredSummary, Priority, Reference, ReferenceKind,
-    Status, Task, TaskKind,
+    Confidence, Decision, DecisionStatus, DeferredSummary, Doc, Epic, Priority, Reference,
+    ReferenceKind, Repo, Status, Task, TaskKind,
 };
 
 /// The wire mirror of the task/epic lifecycle status (§3, D9): `open`, `in_work`, `blocked`, `deferred`, `closed`, `wontfix`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub(crate) enum StatusDto {
     /// Not started; actionable if the graph says so (§5.2).
@@ -61,8 +62,23 @@ impl From<Status> for StatusDto {
     }
 }
 
+/// The input direction of the vocabulary: a `task_list` filter value
+/// back into the domain's enum, variant-for-variant and total.
+impl From<StatusDto> for Status {
+    fn from(status: StatusDto) -> Self {
+        match status {
+            StatusDto::Open => Self::Open,
+            StatusDto::InWork => Self::InWork,
+            StatusDto::Blocked => Self::Blocked,
+            StatusDto::Deferred => Self::Deferred,
+            StatusDto::Closed => Self::Closed,
+            StatusDto::Wontfix => Self::Wontfix,
+        }
+    }
+}
+
 /// The wire mirror of the task-kind vocabulary (§3): `task`, `gate`, `finding`, `debt`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub(crate) enum TaskKindDto {
     /// One unit of work.
@@ -82,6 +98,19 @@ impl From<TaskKind> for TaskKindDto {
             TaskKind::Gate => Self::Gate,
             TaskKind::Finding => Self::Finding,
             TaskKind::Debt => Self::Debt,
+        }
+    }
+}
+
+/// The input direction of the vocabulary: a `task_list` filter value
+/// back into the domain's enum, variant-for-variant and total.
+impl From<TaskKindDto> for TaskKind {
+    fn from(kind: TaskKindDto) -> Self {
+        match kind {
+            TaskKindDto::Task => Self::Task,
+            TaskKindDto::Gate => Self::Gate,
+            TaskKindDto::Finding => Self::Finding,
+            TaskKindDto::Debt => Self::Debt,
         }
     }
 }
@@ -261,6 +290,36 @@ impl From<&Task> for TaskDto {
     }
 }
 
+/// The wire mirror of an epic node (§3): every field, in the domain's declaration order, ids as canonical `String`s.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
+pub(crate) struct EpicDto {
+    /// The epic's id, e.g. `camera:E1`.
+    pub id: String,
+    /// The slug of the repository this epic belongs to.
+    pub repo: String,
+    /// Short human title.
+    pub title: String,
+    /// Longer prose description.
+    pub description: String,
+    /// Lifecycle status: open, in_work, blocked, deferred, closed or wontfix.
+    pub status: StatusDto,
+    /// External references (D10), canonically sorted by (kind, target, note).
+    pub references: Vec<ReferenceDto>,
+}
+
+impl From<&Epic> for EpicDto {
+    fn from(epic: &Epic) -> Self {
+        Self {
+            id: epic.id.to_string(),
+            repo: epic.repo.to_string(),
+            title: epic.title.clone(),
+            description: epic.description.clone(),
+            status: epic.status.into(),
+            references: epic.references.iter().map(ReferenceDto::from).collect(),
+        }
+    }
+}
+
 /// The wire mirror of a decision dossier (§3, D10): every field, in the domain's declaration order.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
 pub(crate) struct DecisionDto {
@@ -302,6 +361,66 @@ impl From<&Decision> for DecisionDto {
             references: decision.references.iter().map(ReferenceDto::from).collect(),
             created: decision.created.as_str().to_owned(),
             updated: decision.updated.as_str().to_owned(),
+        }
+    }
+}
+
+/// The wire mirror of a doc node (§3, D10): every field, in the domain's declaration order, ids and timestamps in their canonical spellings.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
+pub(crate) struct DocDto {
+    /// The doc's id, e.g. `camera:S1`.
+    pub id: String,
+    /// The slug of the repository this doc belongs to.
+    pub repo: String,
+    /// Short human title.
+    pub title: String,
+    /// The mutable file path of the prose body.
+    pub path: String,
+    /// The document's version — an opaque string the document itself declares.
+    pub version: String,
+    /// External references (D10), canonically sorted by (kind, target, note).
+    pub references: Vec<ReferenceDto>,
+    /// Registration time — RFC 3339 UTC with the nine-digit fraction.
+    pub created: String,
+    /// Last mutation time — RFC 3339 UTC with the nine-digit fraction.
+    pub updated: String,
+}
+
+impl From<&Doc> for DocDto {
+    fn from(doc: &Doc) -> Self {
+        Self {
+            id: doc.id.to_string(),
+            repo: doc.repo.to_string(),
+            title: doc.title.clone(),
+            path: doc.path.clone(),
+            version: doc.version.clone(),
+            references: doc.references.iter().map(ReferenceDto::from).collect(),
+            created: doc.created.as_str().to_owned(),
+            updated: doc.updated.as_str().to_owned(),
+        }
+    }
+}
+
+/// The wire mirror of a repo node (§7) — field-for-field `repo_register`'s answer shape (`RepoRegistered`, registry.rs), an acknowledged duplication: the write tool's answer stays in its cluster file, and a consolidation, if one ever happens, is a later task's call.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
+pub(crate) struct RepoDto {
+    /// The repository's stable slug key.
+    pub slug: String,
+    /// The repository's display name.
+    pub name: String,
+    /// The filesystem path of the checkout.
+    pub path: String,
+    /// When the repository was registered — RFC 3339 UTC with the nine-digit fraction.
+    pub registered_at: String,
+}
+
+impl From<&Repo> for RepoDto {
+    fn from(repo: &Repo) -> Self {
+        Self {
+            slug: repo.slug.to_string(),
+            name: repo.name.clone(),
+            path: repo.path.clone(),
+            registered_at: repo.registered_at.as_str().to_owned(),
         }
     }
 }

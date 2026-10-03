@@ -14,7 +14,7 @@ use serde_json::{Value, json};
 use todo_domain::{RepoSlug, StatusCounts};
 use todo_store::{DataRoot, Store};
 
-use crate::common::{assert_golden, drive, fixture};
+use crate::common::{assert_carrier, assert_golden, call, drive, fixture, structured};
 
 // =================================================================
 // The request builders — each documents the request order its tool's
@@ -23,13 +23,6 @@ use crate::common::{assert_golden, drive, fixture};
 // slug, and — for `next_task`, the representative — an unknown
 // argument field, rmcp's own codeless argument fault).
 // =================================================================
-
-/// One `tools/call` request line with a fixed id.
-fn call(id: u64, name: &str, arguments: &str) -> String {
-    format!(
-        r#"{{"jsonrpc":"2.0","id":{id},"method":"tools/call","params":{{"name":"{name}","arguments":{arguments}}}}}"#
-    )
-}
 
 /// `next_task`'s request order: the repo scope, the two epic scopes,
 /// an unknown repo, an unknown epic, a malformed epic id, a malformed
@@ -258,14 +251,19 @@ fn tools_list_advertises_output_schemas_with_single_line_descriptions() {
     assert_eq!(
         names,
         [
+            "decision_list",
             "decision_show",
+            "doc_list",
+            "epic_list",
+            "graph_show",
             "next_items",
             "next_task",
             "repo_register",
             "status_summary",
+            "task_list",
             "task_show"
         ],
-        "all six landed tools, sorted by name"
+        "all eleven landed tools, sorted by name"
     );
     for tool in tools {
         assert!(
@@ -644,21 +642,19 @@ fn the_two_run_blocked_by_order_reaches_the_wire() {
 // The assertion helpers
 // =================================================================
 
-/// The structuredContent of one response line, parsed.
-fn structured(response: &str) -> Value {
-    let value: Value = serde_json::from_str(response).expect("the response line is JSON");
-    value["result"]["structuredContent"].clone()
-}
-
 /// Walks a parsed response and asserts no `description` string
 /// anywhere carries a line break — the single-line rule for every doc
-/// comment that becomes a schema description.
+/// comment that becomes a schema description. A `description` key
+/// whose value is an object is a *property* of that name (an output
+/// DTO field, e.g. the epic's prose field), not a doc string; the
+/// recursion still checks the schema object's own inner descriptions.
 fn assert_no_newline_in_descriptions(value: &Value, path: &str) {
     match value {
         Value::Object(map) => {
             for (key, inner) in map {
-                if key == "description" {
-                    let text = inner.as_str().expect("a description is a string");
+                if key == "description"
+                    && let Some(text) = inner.as_str()
+                {
                     assert!(
                         !text.contains('\n'),
                         "a description carries a line break at {path}: {text:?}"
@@ -674,29 +670,6 @@ fn assert_no_newline_in_descriptions(value: &Value, path: &str) {
         }
         _ => {}
     }
-}
-
-/// Asserts one response is D15's carrier for `code`/`message`:
-/// `isError: true`, the code in `structuredContent`, and the same JSON
-/// mirrored into the text block.
-fn assert_carrier(response: &str, code: &str, message: &str) {
-    let value: Value = serde_json::from_str(response).expect("the response line is JSON");
-    assert_eq!(value["result"]["isError"], json!(true), "{response}");
-    assert_eq!(
-        value["result"]["structuredContent"]["code"],
-        json!(code),
-        "{response}"
-    );
-    assert_eq!(
-        value["result"]["structuredContent"]["message"],
-        json!(message),
-        "{response}"
-    );
-    let mirror = value["result"]["content"][0]["text"]
-        .as_str()
-        .expect("the text mirror");
-    let mirrored: Value = serde_json::from_str(mirror).expect("the mirror is JSON");
-    assert_eq!(mirrored, value["result"]["structuredContent"], "{response}");
 }
 
 /// Asserts one wire batch against the domain's answer, row for row.

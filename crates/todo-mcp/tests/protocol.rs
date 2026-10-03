@@ -221,11 +221,16 @@ mod protocol {
         assert_eq!(
             names,
             [
+                "decision_list",
                 "decision_show",
+                "doc_list",
+                "epic_list",
+                "graph_show",
                 "next_items",
                 "next_task",
                 "repo_register",
                 "status_summary",
+                "task_list",
                 "task_show"
             ],
             "the router composes every landed cluster, sorted by name"

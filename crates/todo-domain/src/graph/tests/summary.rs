@@ -1171,3 +1171,55 @@ fn summary_rows_carry_every_blockers_current_status() {
         ]
     );
 }
+
+// ---------------------------------------------------------------------
+// 12. The epic scope's gate set, as ids (§6.2's epic-scoped dump)
+// ---------------------------------------------------------------------
+
+#[test]
+fn summary_gating_decisions_of_epic_pins_the_gate_set() {
+    // E1's gate set is {epic-gate, task-gate, both}: D1 gates E1
+    // itself, D2 gates E1's U2, D3 gates both E1 and U1 — the
+    // double-gate decision appears once. D4 gates only E2's U3 — the
+    // exclusion pin.
+    let mut graph = graph_with_epics(2);
+    graph.insert_task(task_node(1, 1, Status::Open)).unwrap();
+    graph.insert_task(task_node(2, 1, Status::Open)).unwrap();
+    graph.insert_task(task_node(3, 2, Status::Open)).unwrap();
+    for n in 1..=4 {
+        graph
+            .insert_decision(decision_node(n, DecisionStatus::Open))
+            .unwrap();
+    }
+    graph.link_blocks(gate_epic(1, 1)).unwrap();
+    graph.link_blocks(gate_task(2, 2)).unwrap();
+    graph.link_blocks(gate_epic(3, 1)).unwrap();
+    graph.link_blocks(gate_task(3, 1)).unwrap();
+    graph.link_blocks(gate_task(4, 3)).unwrap();
+
+    // The exact ascending vec, the double-gate decision once.
+    assert_eq!(
+        graph.gating_decisions_of_epic(&epic_id(1)).unwrap(),
+        vec![decision_id(1), decision_id(2), decision_id(3)]
+    );
+    // Agreement with the roll-up over the same graph: E1's scope
+    // counts exactly D1, D2 and D3, all open.
+    let summary = graph.status_summary_of_epic(&epic_id(1)).unwrap();
+    assert_eq!(
+        summary.decisions,
+        DecisionCounts {
+            open: 3,
+            ..zero_decisions()
+        }
+    );
+    // E2's scope: D4 alone, through the task edge only.
+    assert_eq!(
+        graph.gating_decisions_of_epic(&epic_id(2)).unwrap(),
+        vec![decision_id(4)]
+    );
+    // An unknown epic is the one failure.
+    assert_eq!(
+        outcome(&graph.gating_decisions_of_epic(&epic_id(9))),
+        "unknown_id"
+    );
+}
