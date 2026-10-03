@@ -1979,7 +1979,7 @@ Oldest first. One line per delivery, with the commit hash once committed.
        verify-clear-is-a-rejection discovery, three kill-set claims,
        and the M2 stale-stamp claim — the fifth consecutive task
        spec with a claim that did not reproduce). Landed as
-       `«t36-hash»`.
+       `6d36651`.
 
 ## 4. Follow-ups
 
@@ -2592,6 +2592,85 @@ Deliberate shortcuts, acknowledged rather than fixed. Same id rules as §4.
 Newest first. One entry per session, written for someone who was not
 here. The final entry of a session is the handover
 (`.agents/skills/todo-next-imp/SKILL.md` defines the shape).
+
+### 2026-10-04 — t36 landed: the node-CRUD mutation tools
+
+The session continued from t35's landing: the user said ok to the
+proposed dispatch, the spec was pre-written at `tmp/t36-spec.md`
+(14 decisions, 12 required tests, 6 mandatory mutations, baseline
+shas pinned at `17f2a68` — the sha tool named this time, the
+secondary's t35 note), and the two design surfaces the t35 handover
+named were settled there: **the clock question t33 handed forward**
+(one `time::now()` per tool call, taken after the parse and the
+resolve; the epic tools golden-pinned because epics carry no
+timestamps — clock-freeness is the property that decides, not
+readness; the stamped writers asserted in-test byte-exactly around
+the extracted stamp, the t33 pattern generalized) and **the patch
+DTOs' wire spelling** (mirroring the store's patches field-for-field
+under RFC 7386's three-state, through a server-local `double_option`
+copy). The implementer landed in one round; dual review ran over two
+rounds, a binding round, and a commit-round confirmation — the
+secondary's med (ReferenceParam lacking `deny_unknown_fields`, the
+nested silent-drop) and both reviewers' lows were applied by the
+orchestrator (the t11/t30/t35 precedent), and both re-bound ok on
+identical final-byte shas computed independently at verdict time,
+twice, with the production files byte-identical through the last two
+rounds. §3's entry carries the delivery.
+
+Findings: **f85** (the discovery that the closure discipline binds
+on the *update* path — clearing `verify` through a patch is a domain
+rejection answering `missing_verify`, so the three-state's clear
+case for verify is pinned as the carrier, not a cleared field),
+**f86–f88** (three more kill-set claims that did not reproduce —
+M1's named test 10 unreachable, M3's add half unrepresentable, M6's
+superset), **f89** (M2's "leaves updated untouched" did not kill
+what it named — the fixture's `updated` equals its `created`, so a
+stale stamp satisfied the suite; closed by hardening tests 4 and 7
+with `assert_ne!` against the fixture's fixed instant). The fifth
+consecutive task spec with a claim that did not reproduce — the
+citation rule (pitfalls 5.6) is holding, and the spec-authoring
+lesson is now simply: *every* named kill set and every "this fails
+if" in a spec is a claim to measure. **U25** opened (`nodes.rs` 769
+production lines, over target by recorded exception, the doc-family
+split named). The f70 sweep ran before review this time (three
+spec-local D-ids in the module-doc headers, caught by the
+orchestrator's own gate check). And t37's note carries the
+common/mod.rs hand-off: two stale claims in the shared test module's
+doc ("The read suites' shared halves", "every read suite needs
+exactly these three") are false now that the write suite imports six
+of its helpers — the file was frozen by t36's baseline gate, so the
+sweep rides t37, common's next owner.
+
+**Handover.** Workspace: `main`, clean after the board commit, four
+crates, **393** tests, rustc 1.98.1, MSRV 1.95; `Cargo.lock` 93
+packages (unchanged). **Next step: dispatch t37** — the edges +
+registry + config cluster: `task_link`/`task_unlink` (f4's named
+criterion: an untyped pair `BlocksEdge::from_ends` rejects at the
+wire), `repo_set_path`, `repo_list`/`repo_show` answered from the
+handles the server holds (U20(b)), and the default-repo slug (the
+committed D8: flag or env, the explicit parameter always wins). Its
+spec wants pre-writing (the t32–t36 pattern); the design surfaces to
+settle there: the default slug's mechanism (a `--repo` flag on
+`main.rs` and/or an env var — §13/D8's per-project mcp entry is the
+client-side home, and the params' `repo` fields relax
+required→optional, backward-compatible), the edges' params shapes
+(`task_link`'s untyped pair vs the three `BlocksEdge` shapes — f4's
+criterion decides), and `repo_list`'s row shape (t31's `Repo`-node
+answer, `RepoDto` now in `dto.rs`). The pieces it inherits are
+landed: the write target and its helpers, the carrier, the golden
+discipline with the clock-freeness principle, `resolve`'s handle
+cache. **Blocked on you: nothing.** Non-blocking and yours: U16
+(t39's half), U21, U22, U18 (parked), U23 (this task's or t38's
+swapped-store fixture test — whoever owns the fixture machinery
+first), U24/U25 (the two over-target splits, riding their next
+owners), and the two one-line spec asks — §10's gate enumeration and
+§6.3:474's feature condition (f69). **Unverified:** no client has
+talked to this server; the wire is measured by test harnesses only —
+the opencode smoke is t39. Tracker: `tools/tasks.py check` exits 0
+on the two expected lines (g8 open with t37 next; g3 stands). Doc
+gates: check-links, `attention.py --check`, `agents-sync.py --check`
+green; agents-index untouched (no indexed doc moved in the code
+commit; this board commit backfills the hash).
 
 ### 2026-10-03 — t35 landed: the listing read tools and §6.2's dump
 
