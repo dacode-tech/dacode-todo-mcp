@@ -1674,8 +1674,7 @@ Oldest first. One line per delivery, with the commit hash once committed.
        tests (167 unmodified + 11), 333 workspace, every gate green
        including `cargo doc` under both invocations, the five goldens
        and `Cargo.lock` untouched, the six sha-pinned files
-       byte-identical. f66/f67 recorded. Landed as this commit (hash
-       backfilled in the next board commit).
+       byte-identical. f66/f67 recorded. Landed as `012af8c`.
 
 ## 4. Follow-ups
 
