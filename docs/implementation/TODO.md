@@ -42,13 +42,15 @@ in spec §6.3), **U20** resolved (b) (the registry format stays; the
 server answers `repo_list` from handles it holds), and **D16** (a)
 (`status_summary` and the `task_list` annotation in §6, with the
 arithmetic as signed text; §12 closed again). M3 is decomposed (**g8**:
-t32–t39 plus the **g9** exit gate) and its first two tasks are done:
+t32–t39 plus the **g9** exit gate) and its first three tasks are done:
 **t32, D16's domain aggregation** (§3) — `status_summary` and
-`task_list`'s annotated rows in `todo-domain` — and **t33, rmcp + the
+`task_list`'s annotated rows in `todo-domain` — **t33, rmcp + the
 skeleton** (§3): the dependency line, the initialize handshake with our
 own serverInfo and U16a's instructions, the §8 concurrency core, and
-`repo_register` end-to-end. The next step is t34's dispatch: the query
-read tools over the wire.
+`repo_register` end-to-end — and **t34, the query read tools** (§3):
+`next_task`, `next_items`, `status_summary`, `task_show` and
+`decision_show` over the wire, with the first per-tool goldens. The
+next step is t35's dispatch: the listing cluster.
 M1 is closed. The domain layer (§3's value types and closure discipline,
 §5.1's graph, §5.2's canonical order), the storage engine (the signed D1
 JSONL event log behind the `Store` trait
@@ -66,7 +68,7 @@ shell, which is M3's business.
 
 | Blocking | What | Action |
 |---|---|---|
-| — | nothing blocks M3: the rmcp ask, U20 and D16 were all signed 2026-10-03 (§3); the wire's shapes are settled (D14/D15/D16) and the dependency is approved (§6.3) | build — t34 next; t32/t33 done (§3) |
+| — | nothing blocks M3: the rmcp ask, U20 and D16 were all signed 2026-10-03 (§3); the wire's shapes are settled (D14/D15/D16) and the dependency is approved (§6.3) | build — t35 next; t32/t33/t34 done (§3) |
 
 (Open but non-blocking: **U16** (ship base instructions with the server and
 gate the client's native todo off, M3 — its mechanism is measured rather than
@@ -1729,6 +1731,70 @@ Oldest first. One line per delivery, with the commit hash once committed.
        the three library crates untouched (`rg tokio` and the clock
        grep empty over them — §2's boundary proven); the goldens
        untouched. f68/f69/f70 recorded. Landed as `26528b4`.
+- 2026-10-03 — **M3 t34: the query read tools + the first wire
+       goldens** — `next_task`, `next_items`, `status_summary`,
+       `task_show` and `decision_show` over the wire, each with a
+       `deny_unknown_fields` params struct, a declared outputSchema,
+       read-only annotations, and §5.2's total orders preserved through
+       server-local DTOs. `src/dto.rs` (325 production lines) — the
+       shared wire vocabulary: the vocabulary enums mirroring the
+       domain's variant-for-variant with the same `snake_case`
+       spellings (the outputSchema enumerates the closed sets),
+       `TaskDto`/`DecisionDto` field-for-field in the domain's
+       declaration order, ids/timestamps/dates as their canonical
+       strings. `src/query.rs` (519) — the five tools and their
+       DTOs; `NextItemDto.blocked_by` carries the blocker ids with the
+       **two-run order** intact (own predecessors, then epic gates,
+       dedup at first occurrence — the contract stated in the field
+       doc, t28's ruling). `src/lib.rs` (305) — `ToolError` (the one
+       error-mapping layer: `StoreError`/`DomainError` → their codes,
+       `ValueError` → `invalid`), `ServerState::resolve` (handles hit
+       → cached; miss → registry consult, an unlisted slug is
+       `unknown_id`, then open + cache — the cold open amortized to
+       once per repo per process, U20(b)), the copied-store
+       cross-check on the open path (mirroring the store's
+       `repo_node`), and `structured()` moved beside `error_carrier`
+       as the shared success arm (f74: the dedup edited registry.rs,
+       an unowned file, ratified on review). The router composes:
+       `query.rs`'s own `#[tool_router]` block merged into the
+       handler's router (`ToolRouter::merge` — the mechanism that
+       makes the per-cluster file layout work). **The golden
+       discipline starts here**: `tests/golden/` with one file per
+       tool holding the full JSON-RPC response lines (success + error
+       responses, fixed request ids), the store's `assert_golden`
+       copied verbatim, the fixture store hand-built with fixed
+       caller-passed timestamps (deterministic — the shapes: two
+       epics, the full status vocabulary, deferred-ready and
+       deferred-held, a decision gating both a task and its epic —
+       the dedup case on the wire — a signed decision, `relates`,
+       until-targets, a doc), and the drive interactive (one request,
+       one response — f73: rmcp's concurrent dispatch reorders under
+       rapid-fire, so arrival order is t38's concurrency property,
+       not a byte property). Thirteen tests in `read::query` — the
+       goldens, the domain agreement (the wire's parsed answers
+       compared field-for-field with the domain's in-process answers),
+       the unknown repo/epic/task/decision and malformed-id error
+       paths, the unknown-field rejection, `limit`'s default, and the
+       tools/list schema-discipline test (outputSchema on all six
+       tools, no description carrying a newline — f72's rule pinned).
+       Mutations M1–M6 run, observed failing, reverted, sha-verified —
+       M2 (dropping `preserve_order`) killed all five goldens, D14's
+       pin biting from the first golden. Dual review over three
+       rounds: round 1 both changes_requested (the unpinned
+       outputSchema/description rule — f72's verify line was false as
+       written; the dropped envelope pin; f70's class twice; the
+       structured() duplication; resolve's copied-store adoption; the
+       fixture-spelled example ids), the fix round landed all six, and
+       the binding round re-established both sign-offs on the exact
+       final bytes after the re-bind round's sha reports proved
+       unreliable (both reviewers' reported shas mismatched the tree;
+       a clean confirmation round recomputed all thirteen from the
+       repo at verdict time — the content verdicts stood, the
+       bindings had not). Every gate green; the goldens regenerate
+       byte-identical under `UPDATE_GOLDEN=1`; `Cargo.lock` and the
+       three library crates untouched. f71/f72/f73/f74 recorded; U23
+       opened for the unpinned copied-store check. Landed as this
+       commit (hash backfilled in the next board commit).
 
 ## 4. Follow-ups
 
@@ -2299,13 +2365,79 @@ Deliberate shortcuts, acknowledged rather than fixed. Same id rules as §4.
       store task (t31) touches the registry, not the log or the event
       schema. Revisit at M3, whose wire mapping touches the store's error
       surface, or at the next commit that grows either file — whichever
-      comes first.
+       comes first.
+- [ ] **U23 · The copied-store cross-check on the server's resolve path is
+      unpinned.** t34's `ServerState::resolve` gained the one-line check
+      `store.graph().repo().slug != slug → corrupt_store`, mirroring
+      `todo-store`'s `repo_node` cross-check (layout.rs) so a copied store
+      directory is refused rather than adopted — f61's recorded
+      reader disagreement made client-visible otherwise. The branch is
+      live (verified ad hoc: a store holding repo `aaa` opened under
+      slug `bbb` answers `corrupt_store` naming both) but no test pins
+      it, and the check re-spells the store's private detail string
+      with no compile-time link, so a future resolve/handle-cache
+      change could drop it silently. The remedy is a swapped-store
+      fixture test (register `aaa`, copy its directory to `bbb`'s slot,
+      query through the wire) — t37's registry cluster or t38's wire
+      suite, whichever owns the fixture machinery first.
 
 ## 6. Session log
 
 Newest first. One entry per session, written for someone who was not
 here. The final entry of a session is the handover
 (`.agents/skills/todo-next-imp/SKILL.md` defines the shape).
+
+### 2026-10-03 — t34 landed: the query read tools and the first goldens
+
+The session continued from t33's landing: the user said go on t34,
+the spec was pre-written at `tmp/t34-spec.md`, and the implementer
+landed in one round (one spawn death, the short-prompt retry landed).
+Dual review ran over three rounds: round 1 both changes_requested
+(the unpinned outputSchema/description rule, the dropped envelope
+pin, f70's citation class twice, the structured() duplication,
+resolve's copied-store adoption, the fixture-spelled example ids);
+the fix round landed all six; and a **binding round** — the re-bind
+round's sha reports from both reviewers mismatched the repository
+tree, so a clean confirmation round recomputed all thirteen shas
+from the repo at verdict time and both re-bound ok. The lesson is
+recorded in the tracker: a reviewer's bound shas are only evidence if
+computed from the repo at verdict time, never from a scratch copy or
+mid-mutation. §3's entry carries the delivery.
+
+Findings: **f71** (the spec's file ownership contradicted its own
+gate — protocol.rs was necessarily edited, resolved toward the gate
+and ratified), **f72** (schemars carries output DTO struct docs into
+the outputSchema description verbatim — the single-line rule binds
+them too, now pinned by the tools/list test), **f73** (the golden
+drive is interactive — arrival order is t38's concurrency property),
+**f74** (the structured() dedup edited an unowned file, ratified).
+**U23** opened: the copied-store cross-check on resolve is live but
+unpinned; a swapped-store fixture test is t37/t38's.
+
+**Handover.** Workspace: `main`, clean after this commit, four
+crates, **366** tests, rustc 1.98.1, MSRV 1.95; `Cargo.lock` 93
+packages (unchanged since t33 — t34 added no dependency). **Next
+step: dispatch t35** — the listing cluster: `task_list` (D16's rows
+with `blocked_by` and blocker statuses), `epic_list`,
+`decision_list`, `doc_list`, and `graph_show` (§6.2's dump shape
+over the canonical serialization). Its spec wants pre-writing (the
+t32/t33/t34 pattern); the pieces it inherits are all landed: the
+golden discipline (extend `tests/golden/`, the fixture, the
+interactive drive), `dto.rs` (extend with the listing DTOs —
+single-line struct docs, f72), `ToolError`, `resolve`, the router
+composition. Two design notes for its spec: `graph_show`'s wire shape
+is §6.2's canonical JSON (the domain's own serialization spelling —
+decide how the DTO mirrors the grouped-by-epic dump), and
+`task_list`'s rows carry D16's blocker statuses (t32's `TaskRow`/
+`Blocker` are the domain surface). t36–t38 follow; t39 is the smoke.
+**Blocked on you: nothing.** Non-blocking and yours: U16 (t39's
+half), U21, U22, U18 (parked), U23 (new, t37/t38), and the two
+one-line spec asks — §10's gate enumeration and §6.3:474's feature
+condition (f69). **Unverified:** no client has talked to this
+server; the wire is measured by test harnesses only. Tracker:
+`tools/tasks.py check` exits 0 (g8 open with t35 next; g3 stands).
+Doc gates: check-links, `attention.py --check`, `agents-sync.py
+--check` green; agents-index untouched (no indexed doc moved).
 
 ### 2026-10-03 — t33 landed: rmcp + the skeleton
 

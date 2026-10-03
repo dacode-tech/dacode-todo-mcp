@@ -38,12 +38,15 @@
 //! [`CallToolResult::structured_error`] with
 //! `structuredContent = { "code", "message" }` and the same JSON
 //! mirrored into the text block (§6.1): a client branches on the code,
-//! a model still reads the message. Codes are §6.1's closed list —
-//! answered by `StoreError::code()` for store faults, `"invalid"` for
-//! the domain's `ValueError` (U9's mapping). Argument faults — a wrong
-//! type, a missing or unknown field — are rmcp's own unstructured text
-//! errors and never reach the tool body (§6.3), so they arrive
-//! codeless by design and no code is invented for them.
+//! a model still reads the message. Codes are §6.1's closed list,
+//! mapped once by `ToolError` — answered by `StoreError::code()` for
+//! store faults, `DomainError::code()` for domain faults, `"invalid"`
+//! for the domain's `ValueError` (U9's mapping) — so a tool's failure
+//! arm is one line and t35+ inherit the mapping rather than restating
+//! it. Argument faults — a wrong type, a missing or unknown field —
+//! are rmcp's own unstructured text errors and never reach the tool
+//! body (§6.3), so they arrive codeless by design and no code is
+//! invented for them.
 
 // Tests are exempt from the panic-family lints through a mechanism, not
 // a convention (the workspace's rule, stated once in the root
@@ -60,17 +63,21 @@
 )]
 
 use std::collections::BTreeMap;
+use std::collections::btree_map::Entry;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use rmcp::ServerHandler;
 use rmcp::handler::server::router::tool::ToolRouter;
 use rmcp::model::{
-    CallToolResult, Implementation, ProtocolVersion, ServerCapabilities, ServerConfig,
+    CallToolResult, ErrorData, Implementation, ProtocolVersion, ServerCapabilities, ServerConfig,
 };
 use rmcp::tool_handler;
-use todo_domain::RepoSlug;
-use todo_store::{DataRoot, Store};
+use serde::Serialize;
+use todo_domain::{DomainError, RepoSlug, ValueError};
+use todo_store::{DataRoot, Registry, Store, StoreError};
 
+mod dto;
+mod query;
 mod registry;
 mod time;
 
@@ -124,8 +131,16 @@ pub struct TodoServer {
 impl TodoServer {
     /// A server serving every store under `root`.
     pub fn new(root: DataRoot) -> Self {
+        // The router composes across impl blocks (`ToolRouter::merge`):
+        // `registry.rs`'s `tool_router` plus `query.rs`'s
+        // `query_router`, each cluster file owning its own block and
+        // no cluster editing another's. Merge order is wire-invisible:
+        // the router is a name-keyed map and `list_all` sorts by name
+        // (§6.3), so t35+ follow the same pattern.
+        let mut tool_router = Self::tool_router();
+        tool_router.merge(Self::query_router());
         Self {
-            tool_router: Self::tool_router(),
+            tool_router,
             state: Arc::new(Mutex::new(ServerState {
                 root,
                 handles: BTreeMap::new(),
@@ -145,6 +160,104 @@ impl TodoServer {
     }
 }
 
+impl ServerState {
+    /// Every tool's repo dimension: resolve `slug` to an open store
+    /// handle. A handles hit returns the cached handle; a miss consults
+    /// the registry — an unlisted slug is `unknown_id`, the
+    /// `repo_show` pattern (t31), never a raw io — then opens the
+    /// store and caches it, so the first query per repo pays one open
+    /// and every later query reads the handle: U20(b)'s
+    /// no-cold-opens-on-the-query-path, the cold open amortized to
+    /// once per repo per process. A registered store that will not
+    /// open propagates the store's own error (`corrupt_store`/`io`)
+    /// through the carrier.
+    ///
+    /// Called under the state lock; the registry load happens only on
+    /// a miss.
+    fn resolve(&mut self, slug: &RepoSlug) -> Result<&mut Box<dyn Store + Send>, ToolError> {
+        match self.handles.entry(slug.clone()) {
+            Entry::Occupied(entry) => Ok(entry.into_mut()),
+            Entry::Vacant(entry) => {
+                let registry = Registry::load(&self.root)?;
+                if !registry.contains(slug) {
+                    return Err(ToolError::from(DomainError::UnknownId {
+                        id: slug.to_string(),
+                    }));
+                }
+                let store = self.root.open(slug)?;
+                // The mirror of the store's own cross-check
+                // (`DataRoot::repo_node`, layout.rs): a store directory
+                // copied or moved under another slug is `corrupt_store`
+                // — the same error, the same detail — never served as
+                // the named repo's graph. Runs only on a handles miss:
+                // a cached handle was checked at its own open.
+                let repo = store.graph().repo();
+                if &repo.slug != slug {
+                    return Err(ToolError::from(StoreError::CorruptStore {
+                        offset: None,
+                        detail: format!("the store opened for {slug} holds repo {}", repo.slug),
+                    }));
+                }
+                Ok(entry.insert(Box::new(store)))
+            }
+        }
+    }
+}
+
+/// The one error-mapping layer between the crates below and D15's
+/// carrier: a §6.1 code plus its message, converted from
+/// [`StoreError`], [`DomainError`] and [`ValueError`] (U9's `invalid`
+/// mapping). Every tool's failure arm is
+/// `Err(e) => Ok(error_carrier(&e.code, &e.message))` — one home, so
+/// t35+ inherit the mapping rather than restating it per cluster.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct ToolError {
+    /// The stable §6.1 code a client branches on.
+    pub code: String,
+    /// The human-readable message, mirrored into the carrier's text
+    /// block; never the contract.
+    pub message: String,
+}
+
+impl ToolError {
+    /// §6.1's `invalid` for a rejection this crate makes itself (not a
+    /// domain `ValueError`): t34's mutually exclusive `next_items`
+    /// scopes.
+    pub(crate) fn invalid(message: &str) -> Self {
+        Self {
+            code: "invalid".to_owned(),
+            message: message.to_owned(),
+        }
+    }
+}
+
+impl From<StoreError> for ToolError {
+    fn from(error: StoreError) -> Self {
+        Self {
+            code: error.code().to_owned(),
+            message: error.to_string(),
+        }
+    }
+}
+
+impl From<DomainError> for ToolError {
+    fn from(error: DomainError) -> Self {
+        Self {
+            code: error.code().as_str().to_owned(),
+            message: error.to_string(),
+        }
+    }
+}
+
+impl From<ValueError> for ToolError {
+    fn from(error: ValueError) -> Self {
+        Self {
+            code: "invalid".to_owned(),
+            message: error.to_string(),
+        }
+    }
+}
+
 /// D15's error carrier: a §6.1 code and its message as a tool-level
 /// error result — `isError: true`, `structuredContent.code` for a
 /// client to branch on, the same JSON mirrored into the text block for
@@ -155,6 +268,23 @@ pub(crate) fn error_carrier(code: &str, message: &str) -> CallToolResult {
         "code": code,
         "message": message,
     }))
+}
+
+/// The shared success arm: the DTO serialized into the structured
+/// result. The one failure path that bypasses the carrier, on purpose:
+/// no §6.1 code names a serializer fault, the path is unreachable for
+/// DTOs of strings, integers and booleans, and a protocol-level
+/// internal error is the honest carrier for it. One home beside
+/// [`error_carrier`] so every cluster — registry, query, and the
+/// clusters t35+ land — shares the mechanism instead of copying it.
+pub(crate) fn structured<T: Serialize>(tool: &str, output: T) -> Result<CallToolResult, ErrorData> {
+    let value = serde_json::to_value(output).map_err(|error| {
+        ErrorData::internal_error(
+            format!("failed to serialize {tool}'s output: {error}"),
+            None,
+        )
+    })?;
+    Ok(CallToolResult::structured(value))
 }
 
 #[tool_handler(router = self.tool_router)]

@@ -158,11 +158,36 @@ mod protocol {
         assert_eq!(responses[0], initialize_response());
     }
 
-    /// `tools/list` advertises `repo_register` with its description
-    /// — the doc comment, U16a's tool-side mechanism — plus the params
-    /// schema (unknown fields denied: `additionalProperties: false`)
-    /// and the declared output schema. Exact bytes; the frozen line
-    /// also pins D14's declaration-order `required` lists.
+    /// `repo_register`'s exact advertisement within `tools/list` — the
+    /// frozen bytes t33 pinned as a whole one-tool response, unwrapped
+    /// from that response's shell: the router now composes across
+    /// cluster files (t34's `ToolRouter::merge`), so the list holds
+    /// every landed tool while this entry stays byte-identical.
+    const REPO_REGISTER_ENTRY: &str = concat!(
+        r#"{"name":"repo_register","#,
+        r#""description":"Register a repository under its stable slug key: the store is created under the data root, the registry lists it, and the response is the new state.","#,
+        r#""inputSchema":{"$schema":"https://json-schema.org/draft/2020-12/schema","#,
+        r#""required":["slug","name","path"],"additionalProperties":false,"type":"object","#,
+        r#""properties":{"slug":{"description":"The repository's stable slug key (§7): ASCII lowercase segments joined by single hyphens; the caller's chosen identity, never reused once registered.","type":"string"},"#,
+        r#""name":{"description":"The repository's display name — a mutable attribute, unlike the slug.","type":"string"},"#,
+        r#""path":{"description":"The filesystem path of the checkout (§7) — an attribute, not the key; `repo_set_path` moves it when a checkout moves.","type":"string"}}},"#,
+        r#""outputSchema":{"$schema":"https://json-schema.org/draft/2020-12/schema","title":"RepoRegistered","#,
+        r#""description":"`repo_register`'s success payload: the new state (§6 — writes return the new state), the repo node in declaration order (D14).","#,
+        r#""type":"object","properties":{"slug":{"description":"The repository's stable slug key.","type":"string"},"#,
+        r#""name":{"description":"The repository's display name.","type":"string"},"#,
+        r#""path":{"description":"The filesystem path of the checkout.","type":"string"},"#,
+        r#""registered_at":{"description":"When the server registered the repository — RFC 3339 UTC with the nine-digit fraction, the one clock-stamped field.","type":"string"}},"#,
+        r#""required":["slug","name","path","registered_at"]}}"#,
+    );
+
+    /// `tools/list` advertises every landed tool, sorted by name (§6.3:
+    /// the router is a name-keyed map and `list_all` sorts), with
+    /// `repo_register`'s own entry — description, params schema
+    /// (unknown fields denied: `additionalProperties: false`), declared
+    /// output schema, D14's declaration-order `required` lists — pinned
+    /// byte-exactly within the response. The name list is the
+    /// composition pin: it grows with every cluster file the router
+    /// merges (t34 added the query cluster's five reads).
     #[test]
     fn tools_list_advertises_repo_register_with_its_description() {
         let root = TempDir::new().unwrap();
@@ -177,24 +202,37 @@ mod protocol {
         );
         let responses = responses(&stdout);
         assert_eq!(responses.len(), 2, "stderr: {stderr}");
+        let response = responses[1];
+        // The envelope: one result, one tools array, nothing else —
+        // the shape t33's whole-response pin carried.
+        assert!(
+            response.starts_with(r#"{"jsonrpc":"2.0","id":2,"result":{"tools":[{"#),
+            "{response}"
+        );
+        assert!(response.ends_with("}]}}"), "{response}");
+        let value: serde_json::Value =
+            serde_json::from_str(response).expect("tools/list answers JSON");
+        let names: Vec<&str> = value["result"]["tools"]
+            .as_array()
+            .expect("the tool list")
+            .iter()
+            .map(|tool| tool["name"].as_str().expect("a tool name"))
+            .collect();
         assert_eq!(
-            responses[1],
-            concat!(
-                r#"{"jsonrpc":"2.0","id":2,"result":{"tools":[{"name":"repo_register","#,
-                r#""description":"Register a repository under its stable slug key: the store is created under the data root, the registry lists it, and the response is the new state.","#,
-                r#""inputSchema":{"$schema":"https://json-schema.org/draft/2020-12/schema","#,
-                r#""required":["slug","name","path"],"additionalProperties":false,"type":"object","#,
-                r#""properties":{"slug":{"description":"The repository's stable slug key (§7): ASCII lowercase segments joined by single hyphens; the caller's chosen identity, never reused once registered.","type":"string"},"#,
-                r#""name":{"description":"The repository's display name — a mutable attribute, unlike the slug.","type":"string"},"#,
-                r#""path":{"description":"The filesystem path of the checkout (§7) — an attribute, not the key; `repo_set_path` moves it when a checkout moves.","type":"string"}}},"#,
-                r#""outputSchema":{"$schema":"https://json-schema.org/draft/2020-12/schema","title":"RepoRegistered","#,
-                r#""description":"`repo_register`'s success payload: the new state (§6 — writes return the new state), the repo node in declaration order (D14).","#,
-                r#""type":"object","properties":{"slug":{"description":"The repository's stable slug key.","type":"string"},"#,
-                r#""name":{"description":"The repository's display name.","type":"string"},"#,
-                r#""path":{"description":"The filesystem path of the checkout.","type":"string"},"#,
-                r#""registered_at":{"description":"When the server registered the repository — RFC 3339 UTC with the nine-digit fraction, the one clock-stamped field.","type":"string"}},"#,
-                r#""required":["slug","name","path","registered_at"]}}]}}"#,
-            )
+            names,
+            [
+                "decision_show",
+                "next_items",
+                "next_task",
+                "repo_register",
+                "status_summary",
+                "task_show"
+            ],
+            "the router composes every landed cluster, sorted by name"
+        );
+        assert!(
+            response.contains(REPO_REGISTER_ENTRY),
+            "repo_register's advertisement is byte-exact: {response}"
         );
     }
 

@@ -18,7 +18,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use todo_domain::{Repo, RepoSlug};
 
-use crate::{TodoServer, error_carrier, time};
+use crate::{TodoServer, error_carrier, structured, time};
 
 /// `repo_register`'s parameters (§7): the caller-chosen stable slug —
 /// the key, never minted from the name — plus the mutable attributes.
@@ -110,19 +110,10 @@ impl TodoServer {
                 // repo's single writer from here on (§8) — and the map
                 // is U20(b)'s answer surface.
                 state.handles.insert(slug, Box::new(store));
-                // The one failure path that bypasses the carrier,
-                // deliberately: no §6.1 code names a serializer fault,
-                // the path is unreachable for a four-`String` DTO, and
-                // a protocol-level internal error is the honest
-                // carrier for it. Recorded so t34+ inherit the pattern
-                // by decision, not by copy-paste.
-                let value = serde_json::to_value(RepoRegistered::from(repo)).map_err(|error| {
-                    ErrorData::internal_error(
-                        format!("failed to serialize repo_register's output: {error}"),
-                        None,
-                    )
-                })?;
-                Ok(CallToolResult::structured(value))
+                // The shared success arm: its serializer-fault bypass of
+                // the carrier is deliberate and documented on the helper
+                // (lib.rs's `structured`).
+                structured("repo_register", RepoRegistered::from(repo))
             }
             Err(error) => Ok(error_carrier(error.code(), &error.to_string())),
         }
