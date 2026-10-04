@@ -48,6 +48,20 @@ an unsigned design.
 Ids are assigned by the tool from the kind's first letter. Note `goal`
 and `gate` share the `g` prefix, so read the `[kind]` column, not the id.
 
+**An f-id is for what survives the branch.** A finding earns its own
+node only when it changes behaviour, lands a fix, or names something a
+future session must find (a stale claim in a committed file, an
+unpinned invariant, a flake). A divergence between a task spec's
+prediction and the measured result — a kill set, a count, a line
+number — folds into the task's `evidence` line instead, stated as
+"the spec said X, the run showed Y". Task specs are gitignored
+scratch: their claims die with the branch, and numbering every one
+that failed to reproduce made the open list grow faster than the
+work (the M3 pattern: ~24 of 33 findings were scratch-spec
+divergences). The measurement itself is still recorded — in the
+evidence, where the task's verification already lives — it just does
+not get an id, a status, and a line in the open list.
+
 ### Statuses
 
 `pending` · `active` · `blocked` · `done` · `wontfix` · `standing`
