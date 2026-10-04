@@ -42,7 +42,7 @@ in spec §6.3), **U20** resolved (b) (the registry format stays; the
 server answers `repo_list` from handles it holds), and **D16** (a)
 (`status_summary` and the `task_list` annotation in §6, with the
 arithmetic as signed text; §12 closed again). M3 is decomposed (**g8**:
-t32–t39 plus the **g9** exit gate) and its first three tasks are done:
+t32–t39 plus the **g9** exit gate) and its landed tasks are:
 **t32, D16's domain aggregation** (§3) — `status_summary` and
 `task_list`'s annotated rows in `todo-domain` — **t33, rmcp + the
 skeleton** (§3): the dependency line, the initialize handshake with our
@@ -66,9 +66,20 @@ goldens (`epic_add.v1`, `epic_update.v1` — the clock-free pair) — and
 default-repo slug (the committed D8: a `--repo` startup flag, the
 explicit parameter always wins, the repo-field relaxation across the
 three previous clusters), five more goldens (all five tools
-clock-free), and U23 closed by the swapped-store fixture test. The
-next step is t38's dispatch: the wire golden suite and the
-concurrency proof.
+clock-free), and U23 closed by the swapped-store fixture test — and
+**t38, the wire suite's cross-cutting pins** (§3): the
+tests-only fifth target `tests/wire.rs` — the D15 carrier
+conformance sweep over twenty-four tools, the full response set's
+twice-run byte-identity (seventeen clock-free byte-exact, eight
+normalized — f95: `repo_register`'s `registered_at` joins the
+needles, the spec's 18/7 split was off by one), the §8 concurrency
+proof over a suite-local rapid-fire drive (responses matched by
+JSON-RPC id, never position; the consistency burst with the write
+ids asserted as a set and the reopen showing the exact graph; the
+write-then-read race asserted as the pre-state or the write's own
+post-state, both disjuncts observed), and the U26 hammer —
+**unreproduced** (the disposition is U26's entry). The next step is
+t39's dispatch: the opencode smoke + U16b.
 M1 is closed. The domain layer (§3's value types and closure discipline,
 §5.1's graph, §5.2's canonical order), the storage engine (the signed D1
 JSONL event log behind the `Store` trait
@@ -86,7 +97,7 @@ shell, which is M3's business.
 
 | Blocking | What | Action |
 |---|---|---|
-| — | nothing blocks M3: the rmcp ask, U20 and D16 were all signed 2026-10-03 (§3); the wire's shapes are settled (D14/D15/D16) and the dependency is approved (§6.3) | build — t38 next; t32–t37 done (§3) |
+| — | nothing blocks M3: the rmcp ask, U20 and D16 were all signed 2026-10-03 (§3); the wire's shapes are settled (D14/D15/D16) and the dependency is approved (§6.3) | build — t39 next; t32–t38 done (§3) |
 
 (Open but non-blocking: **U16** (ship base instructions with the server and
 gate the client's native todo off, M3 — its mechanism is measured rather than
@@ -2072,6 +2083,72 @@ Oldest first. One line per delivery, with the commit hash once committed.
        shas. f92/f93 recorded (the two kill-set divergences). No
        domain, store or cli change; `Cargo.lock` untouched. Landed
        as `29a735b`.
+- 2026-10-04 — **M3 t38: the wire suite's cross-cutting pins and the
+       concurrency proof** — a tests-only fifth target,
+       `crates/todo-mcp/tests/wire.rs` (the t21/f19/f57 shape: no
+       production code moves, no goldens, `common/mod.rs` and
+       `tests/write.rs` untouched, `tests/protocol.rs` untouched
+       because U26 closed as unreproduced), five tests over two
+       suite-local mechanisms the home rulings keep out of
+       `common/` (the t37 `reopened` precedent): the **rapid-fire
+       drive** — all request lines written before any response is
+       read, then exactly as many responses read, each matched to
+       its request **by JSON-RPC id, never by position** (the
+       out-of-order tolerance is the matching rule itself; the
+       arrival order measured genuinely out-of-order and varying
+       per run) — and the **stamp normalization** (a bounded
+       30-byte value replacement after `"created"`/`"updated"`/
+       `"registered_at"` in both the structuredContent's and the
+       mirror's spelling — normalization, not the write suite's
+       extraction). The five pins: the **D15 carrier conformance
+       sweep** over twenty-four tools (the unknown-repo uniform
+       over the twenty-three repo-scoped tools, `repo_register`'s
+       duplicate; `repo_list` excluded and the exclusion documented
+       in the test — its cheap fault is codeless by design, its
+       carrier paths need a corrupt registry this sweep does not
+       build); the **twice-run byte-identity** over twenty-five
+       representative happy paths driven across two fresh spawns —
+       seventeen clock-free responses byte-exact, eight normalized
+       (f95: the spec's eighteen/seven split miscounted
+       `repo_register` as clock-free; its `registered_at` is the
+       clock's, so the honest split is 17/8 with the third needle),
+       plus the success assertion f97 added after M4 showed the
+       comparison alone survives a uniformly-broken server; the
+       **consistency burst** (three `task_add`s, an `epic_add`, a
+       `task_link` and three reads over one connection — the write
+       ids asserted **as a set** `{U22,U23,U24}` because the
+       dispatch order under the §8 mutex is nondeterministic, every
+       response a valid success, and the reopen showing the exact
+       nodes and all ten blocks edges); the **write-then-read race**
+       (`[task_update(U1's title), task_show(U1)]` — the read
+       asserted to be the pre-state or **the write's own response's
+       post-state exactly**, stamp included, so a mixed state
+       matches neither; both disjuncts observed across runs); and
+       the **U26 hammer** at 150 rounds (see U26's entry). The
+       mutations, all observed failing then reverted with
+       sha-verified restores: **M1** dropping `preserve_order`
+       killed 21 tests (read 7, write 12, protocol 2; the wire
+       suite survives by design — its comparisons are cross-run or
+       parsed-Value, the byte pin is the goldens'; f98: five
+       golden tests survive — the three list envelopes and the two
+       edge echoes, their DTOs already alphabetically keyed; f96:
+       `Cargo.lock` *does* move — the `indexmap` line —
+       and was restored with the manifest), **M2** the bare-text
+       carrier killed the sweep on its first row plus 37 across
+       protocol 3/read 15/write 19, **M3** the diverged mirror
+       killed the sweep's mirror assertions plus protocol 3/read
+       15/write 18 (the forbidden-pairs test survives it, never
+       comparing the mirror), **M4** the resolve cache bypass
+       killed wire 3 (the burst, the race, the twice-run — the
+       last only after f97's assertion) plus read 16/write 16, the
+       sweep surviving because unknown-repo rows fail at the
+       registry check before any open, protocol 0 because its
+       drives are single-call. **M5 does not exist** — U26 closed
+       as unreproduced, no fix landed to revert. 82 crate tests
+       (77+5), 416 workspace (411+5), the gate run four times. No
+       src, golden, domain, store or cli change; `Cargo.toml` and
+       `Cargo.lock` byte-identical at the end. f95–f98 recorded.
+       Tree left dirty for dual review.
 
 ## 4. Follow-ups
 
@@ -2616,10 +2693,25 @@ Unowned work. Take the next unused `U` id; never renumber, never reuse.
       self-contention shape — flock is per open-file-description).
       Pre-existing (t33's machinery, untouched by t37) and outside
       every intervening task's owned set, which is why it survived
-      four landings unreproduced. **Rides t38's concurrency work** —
-      the wire suite owns the drive's reaping semantics there and
-      will hold the two-threaded proof that makes the window
-      reproducible or closes it.
+      four landings unreproduced. **t38's hammer closed it as
+      unreproduced, and it stays open on those numbers**: the
+      committed hammer (`the_u26_sequence_hammers_clean_or_reproduces`
+      in `tests/wire.rs`, 150 rounds of the flaky test's exact
+      sequence per run) plus a campaign of 20 wire-target runs
+      (3000 rounds), 172 protocol-target executions (100
+      sequential, 72 under four-way parallel load) and four
+      workspace runs all ran clean on this host (macOS, Apple
+      Silicon — build-and-test.md's standing machine), against the
+      flake's recorded ~3/83 — no reproduction, so no isolation
+      variant was run and
+      no fix landed (the honest disposition; a fix without a
+      reproduction would be unprovable). The hammer stays in the
+      suite as the standing detector — a recurrence is captured by
+      the round-indexed panic naming the `StoreError`, and the two
+      named isolation variants (without the `repo_list()` call;
+      with a bounded sleep before the open) are documented on the
+      hammer's test for whoever next sees it. The flake remains
+      t39's smoke session's watch item.
 - [ ] **U22 · `progress.py` does not render open decisions.** f45,
       promoted at the g7 sweep for the same reason: the page reads board
       §2/§4/§5 and the tracker, so an open D-entry has no row — measured
@@ -2711,6 +2803,65 @@ Deliberate shortcuts, acknowledged rather than fixed. Same id rules as §4.
 Newest first. One entry per session, written for someone who was not
 here. The final entry of a session is the handover
 (`.agents/skills/todo-next-imp/SKILL.md` defines the shape).
+
+### 2026-10-04 — t38 landed: the wire suite's cross-cutting pins, U26 unreproduced
+
+The session continued from t37's landing: the spec was pre-written at
+`tmp/t38-spec.md` (8 decisions, 4 judgment calls, 5 required tests, 5
+mandatory mutations, 11 gates, baseline shas pinned at `24153f7` and
+verified to hold at `8ba153c`), and the implementer landed in one
+round — a tests-only fifth target, `tests/wire.rs`, with the tree left
+dirty for dual review. §3's entry carries the delivery.
+
+What the suite proved, and how it was proven against:
+
+- **The rapid-fire drive is real concurrency, not a shape.** The
+  burst's arrival order measured genuinely out-of-order and different
+  on every run (`["2","9","5","3","4","7","8","6"]`, then
+  `["9","4","6","5","7","8","2","3"]`, …), and the race test observed
+  **both** disjuncts across runs — the read before the write (pre-
+  state) and after it (post-state) — so the id-matching rule is
+  load-bearing and the disjunction is coverage, not vacuity.
+- **The mutations measured, not trusted** (the seventh consecutive
+  spec with kill-set claims, and the fourth with divergences —
+  f95–f98): M1 killed 21 with five golden survivors
+  (already-alphabetical DTOs — the three list envelopes plus the
+  two edge echoes) and moved `Cargo.lock` (the `indexmap`
+  line — the spec said it would not); M2/M3 killed the sweep plus 37
+  and 36 elsewhere, with one test surviving M3 alone (it never
+  compares the mirror); M4 killed the two concurrency tests as named
+  — and exposed that the twice-run as spec'd survives a
+  uniformly-broken server (two identical `locked` failures are still
+  byte-identical), so the success assertion was added and M4's wire
+  kill grew to 3.
+- **U26 closed as unreproduced, honestly.** The committed 150-round
+  hammer plus 3000 more hammer rounds, 172 protocol-target
+  executions (sequential and under four-way parallel load) and four
+  workspace runs, all clean against the flake's recorded ~3/83. No
+  reproduction → no isolation variant, no fix (a fix without a
+  reproduction would be unprovable); U26 stays open with the numbers,
+  the hammer stays as the standing detector, and the flake remains
+  t39's watch item.
+
+Findings: **f95** (the spec's twice-run clock split miscounted
+`repo_register` as clock-free — its `registered_at` is the clock's,
+so the honest split is 17/8 with a third normalization needle),
+**f96** (M1's "the lock does not move" is false — the `indexmap`
+line goes with the feature), **f97** (the twice-run's vacuity under
+uniform failure, closed by the success assertion), **f98** (M1's
+"the goldens fail" overstates — five golden tests survive on
+already-alphabetical DTOs). No production code moved; the seventeen
+goldens, `common/mod.rs`, `tests/write.rs` and `tests/protocol.rs`
+are byte-identical; `Cargo.toml`/`Cargo.lock` restored and
+sha-verified after every mutation.
+
+Handover: the tree is dirty with exactly one new file
+(`crates/todo-mcp/tests/wire.rs`) awaiting dual review; on ok, the
+orchestrator commits with both trailers and dispatches **t39** — the
+opencode smoke + U16b (the mcp entry in the generated config, the
+native todo pair gated off, a real client session with the transcript
+as evidence) — which is also U26's next watch point. The g9 exit gate
+follows.
 
 ### 2026-10-04 — t37 landed: edges, registry-from-handles, the default slug
 
