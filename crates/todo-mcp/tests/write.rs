@@ -7,17 +7,19 @@
 //! families end by reopening the store in-process once the server has
 //! exited, asserting the mutation is on disk (the t33
 //! `repo_register` precedent: the wire proved the write, the reopen
-//! proves the log); the clock-free epic pair is golden-pinned instead
+//! proves the log); the clock-free families are golden-pinned instead
 //! — the split each suite's module doc states.
 //!
 //! The suite is split by cluster the way `tests/read.rs` is:
-//! `write/nodes.rs` holds the node-CRUD cluster's tests, and later
-//! clusters (t37's edges and registry writes) add sibling files under
-//! `write/` — no `mod.rs` in the directory (P-LIVE-004). Every test
-//! lists as `write::nodes::…` so the module-path filter
-//! `cargo test -p todo-mcp --test write -- write::nodes` selects
-//! exactly this target (P-LIVE-002/P-LIVE-005: quote the counts beside
-//! the filter — the target holds one suite, so 0 filtered out).
+//! `write/nodes.rs` holds the node-CRUD cluster's tests,
+//! `write/edges.rs` the edge cluster's, and later clusters add
+//! sibling files under `write/` — no `mod.rs` in the directory
+//! (P-LIVE-004). Every test lists as `write::nodes::…` /
+//! `write::edges::…` so the module-path filter
+//! `cargo test -p todo-mcp --test write -- write::edges` selects
+//! exactly one suite (P-LIVE-002/P-LIVE-005: quote the counts beside
+//! the filter — the target holds two suites, so the sibling's count
+//! is the filtered-out one).
 
 #![cfg_attr(
     test,
@@ -32,6 +34,21 @@
 
 mod common;
 
+use std::str::FromStr;
+
 mod write {
+    mod edges;
     mod nodes;
+}
+
+// The write target's own helper, shared by both suites and compiled
+// by no other target: `reopened` is write-suite-only, so it cannot
+// live in `common/` (the read target compiles that module and would
+// see it dead). The write target's root is its one home.
+/// Reopens the fixture's store in-process after the drive — the server
+/// has exited, its locks released — for the persistence assertions.
+pub(crate) fn reopened(root: &std::path::Path) -> todo_store::JsonlStore {
+    todo_store::DataRoot::new(root)
+        .open(&todo_domain::RepoSlug::from_str("fixture").unwrap())
+        .unwrap()
 }

@@ -120,7 +120,7 @@ use crate::dto::{
     ConfidenceDto, DecisionDto, DecisionStatusDto, DocDto, EpicDto, PriorityDto, ReferenceParam,
     StatusDto, TaskDto, TaskKindDto,
 };
-use crate::{ServerState, TodoServer, ToolError, error_carrier, structured, time};
+use crate::{ServerState, TodoServer, ToolError, error_carrier, repo_of, structured, time};
 
 // =================================================================
 // The three-state deserializer
@@ -207,8 +207,8 @@ fn until_of(value: &Option<Option<String>>) -> Result<Option<Option<Date>>, Tool
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct EpicAddParams {
-    /// The repository's stable slug key (§7): ASCII lowercase segments joined by single hyphens; the repo whose graph gains the epic.
-    pub repo: String,
+    /// The repository's stable slug key (§7): ASCII lowercase segments joined by single hyphens; the repo whose graph gains the epic; absent means the configured default repo; an explicit value always wins.
+    pub repo: Option<String>,
     /// Short human title.
     pub title: String,
     /// Longer prose description.
@@ -223,8 +223,8 @@ pub(crate) struct EpicAddParams {
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct TaskAddParams {
-    /// The repository's stable slug key (§7): ASCII lowercase segments joined by single hyphens; the repo whose graph gains the task.
-    pub repo: String,
+    /// The repository's stable slug key (§7): ASCII lowercase segments joined by single hyphens; the repo whose graph gains the task; absent means the configured default repo; an explicit value always wins.
+    pub repo: Option<String>,
     /// The parent epic's id, e.g. `camera:E1` — the tree edge (§5.1); an epic the graph does not hold is `unknown_id`.
     pub epic: String,
     /// What kind of work this records: task, gate, finding or debt.
@@ -253,8 +253,8 @@ pub(crate) struct TaskAddParams {
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct DecisionAddParams {
-    /// The repository's stable slug key (§7): ASCII lowercase segments joined by single hyphens; the repo whose graph gains the decision.
-    pub repo: String,
+    /// The repository's stable slug key (§7): ASCII lowercase segments joined by single hyphens; the repo whose graph gains the decision; absent means the configured default repo; an explicit value always wins.
+    pub repo: Option<String>,
     /// Short human title.
     pub title: String,
     /// Lifecycle status: open, signed or superseded — `signed`/`superseded` require a resolution.
@@ -275,8 +275,8 @@ pub(crate) struct DecisionAddParams {
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct DocRegisterParams {
-    /// The repository's stable slug key (§7): ASCII lowercase segments joined by single hyphens; the repo whose graph gains the doc.
-    pub repo: String,
+    /// The repository's stable slug key (§7): ASCII lowercase segments joined by single hyphens; the repo whose graph gains the doc; absent means the configured default repo; an explicit value always wins.
+    pub repo: Option<String>,
     /// Short human title.
     pub title: String,
     /// The mutable file path of the prose body — an attribute, moved later by `doc_set_path`.
@@ -295,8 +295,8 @@ pub(crate) struct DocRegisterParams {
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct EpicUpdateParams {
-    /// The repository's stable slug key (§7): ASCII lowercase segments joined by single hyphens; the repo whose graph holds the epic.
-    pub repo: String,
+    /// The repository's stable slug key (§7): ASCII lowercase segments joined by single hyphens; the repo whose graph holds the epic; absent means the configured default repo; an explicit value always wins.
+    pub repo: Option<String>,
     /// The epic's id, e.g. `camera:E1`.
     pub epic: String,
     /// A new title; absent leaves the field untouched.
@@ -313,8 +313,8 @@ pub(crate) struct EpicUpdateParams {
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct TaskUpdateParams {
-    /// The repository's stable slug key (§7): ASCII lowercase segments joined by single hyphens; the repo whose graph holds the task.
-    pub repo: String,
+    /// The repository's stable slug key (§7): ASCII lowercase segments joined by single hyphens; the repo whose graph holds the task; absent means the configured default repo; an explicit value always wins.
+    pub repo: Option<String>,
     /// The task's id, e.g. `camera:U7`.
     pub task: String,
     /// A new title; absent leaves the field untouched.
@@ -350,8 +350,8 @@ pub(crate) struct TaskUpdateParams {
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct DecisionUpdateParams {
-    /// The repository's stable slug key (§7): ASCII lowercase segments joined by single hyphens; the repo whose graph holds the decision.
-    pub repo: String,
+    /// The repository's stable slug key (§7): ASCII lowercase segments joined by single hyphens; the repo whose graph holds the decision; absent means the configured default repo; an explicit value always wins.
+    pub repo: Option<String>,
     /// The decision's id, e.g. `camera:D3`.
     pub decision: String,
     /// A new title; absent leaves the field untouched.
@@ -376,8 +376,8 @@ pub(crate) struct DecisionUpdateParams {
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct DocUpdateParams {
-    /// The repository's stable slug key (§7): ASCII lowercase segments joined by single hyphens; the repo whose graph holds the doc.
-    pub repo: String,
+    /// The repository's stable slug key (§7): ASCII lowercase segments joined by single hyphens; the repo whose graph holds the doc; absent means the configured default repo; an explicit value always wins.
+    pub repo: Option<String>,
     /// The doc's id, e.g. `camera:S1`.
     pub doc: String,
     /// A new title; absent leaves the field untouched.
@@ -392,8 +392,8 @@ pub(crate) struct DocUpdateParams {
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct DocSetPathParams {
-    /// The repository's stable slug key (§7): ASCII lowercase segments joined by single hyphens; the repo whose graph holds the doc.
-    pub repo: String,
+    /// The repository's stable slug key (§7): ASCII lowercase segments joined by single hyphens; the repo whose graph holds the doc; absent means the configured default repo; an explicit value always wins.
+    pub repo: Option<String>,
     /// The doc's id, e.g. `camera:S1`.
     pub doc: String,
     /// The doc's new filesystem path of the prose body.
@@ -406,7 +406,7 @@ pub(crate) struct DocSetPathParams {
 
 /// `epic_add`'s answer: parse, resolve, convert, stamp, add.
 fn answer_epic_add(state: &mut ServerState, params: &EpicAddParams) -> Result<EpicDto, ToolError> {
-    let slug = parse_value(&params.repo)?;
+    let slug = repo_of(state, params.repo.as_deref())?;
     let references = references_of(params.references.as_deref().unwrap_or(&[]))?;
     let draft = EpicDraft {
         title: params.title.clone(),
@@ -424,7 +424,7 @@ fn answer_epic_update(
     state: &mut ServerState,
     params: &EpicUpdateParams,
 ) -> Result<EpicDto, ToolError> {
-    let slug = parse_value(&params.repo)?;
+    let slug = repo_of(state, params.repo.as_deref())?;
     let epic = parse_value::<EpicId>(&params.epic)?;
     let references = params
         .references
@@ -444,7 +444,7 @@ fn answer_epic_update(
 
 /// `task_add`'s answer: parse, resolve, convert, stamp, add.
 fn answer_task_add(state: &mut ServerState, params: &TaskAddParams) -> Result<TaskDto, ToolError> {
-    let slug = parse_value(&params.repo)?;
+    let slug = repo_of(state, params.repo.as_deref())?;
     let epic = parse_value::<EpicId>(&params.epic)?;
     let references = references_of(params.references.as_deref().unwrap_or(&[]))?;
     let until = params
@@ -476,7 +476,7 @@ fn answer_task_update(
     state: &mut ServerState,
     params: &TaskUpdateParams,
 ) -> Result<TaskDto, ToolError> {
-    let slug = parse_value(&params.repo)?;
+    let slug = repo_of(state, params.repo.as_deref())?;
     let task = parse_value::<TaskId>(&params.task)?;
     let references = params
         .references
@@ -512,7 +512,7 @@ fn answer_decision_add(
     state: &mut ServerState,
     params: &DecisionAddParams,
 ) -> Result<DecisionDto, ToolError> {
-    let slug = parse_value(&params.repo)?;
+    let slug = repo_of(state, params.repo.as_deref())?;
     let references = references_of(params.references.as_deref().unwrap_or(&[]))?;
     let draft = DecisionDraft {
         title: params.title.clone(),
@@ -533,7 +533,7 @@ fn answer_decision_update(
     state: &mut ServerState,
     params: &DecisionUpdateParams,
 ) -> Result<DecisionDto, ToolError> {
-    let slug = parse_value(&params.repo)?;
+    let slug = repo_of(state, params.repo.as_deref())?;
     let decision = parse_value::<DecisionId>(&params.decision)?;
     let references = params
         .references
@@ -559,7 +559,7 @@ fn answer_doc_register(
     state: &mut ServerState,
     params: &DocRegisterParams,
 ) -> Result<DocDto, ToolError> {
-    let slug = parse_value(&params.repo)?;
+    let slug = repo_of(state, params.repo.as_deref())?;
     let references = references_of(params.references.as_deref().unwrap_or(&[]))?;
     let draft = DocDraft {
         title: params.title.clone(),
@@ -577,7 +577,7 @@ fn answer_doc_set_path(
     state: &mut ServerState,
     params: &DocSetPathParams,
 ) -> Result<DocDto, ToolError> {
-    let slug = parse_value(&params.repo)?;
+    let slug = repo_of(state, params.repo.as_deref())?;
     let doc = parse_value::<DocId>(&params.doc)?;
     let handle = state.resolve(&slug)?;
     let doc = handle.set_doc_path(doc, params.path.clone(), time::now())?;
@@ -589,7 +589,7 @@ fn answer_doc_update(
     state: &mut ServerState,
     params: &DocUpdateParams,
 ) -> Result<DocDto, ToolError> {
-    let slug = parse_value(&params.repo)?;
+    let slug = repo_of(state, params.repo.as_deref())?;
     let doc = parse_value::<DocId>(&params.doc)?;
     let references = params
         .references

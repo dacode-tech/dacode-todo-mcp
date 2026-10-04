@@ -58,9 +58,17 @@ tools** (§3): `epic_add`/`epic_update`, `task_add`/`task_update`,
 `decision_add`/`decision_update`,
 `doc_register`/`doc_set_path`/`doc_update` over the wire, the
 closure discipline carried by D15's carrier, and the first writer
-goldens (`epic_add.v1`, `epic_update.v1` — the clock-free pair). The
-next step is t37's dispatch: the edges, the registry-from-handles and
-the default slug.
+goldens (`epic_add.v1`, `epic_update.v1` — the clock-free pair) — and
+**t37, the edges + registry + config cluster** (§3):
+`task_link`/`task_unlink` (f4's criterion at the wire: an untyped pair
+`BlocksEdge::from_ends` rejects as `invalid`), `repo_set_path`,
+`repo_list`/`repo_show` through the resolve path (U20(b)), the
+default-repo slug (the committed D8: a `--repo` startup flag, the
+explicit parameter always wins, the repo-field relaxation across the
+three previous clusters), five more goldens (all five tools
+clock-free), and U23 closed by the swapped-store fixture test. The
+next step is t38's dispatch: the wire golden suite and the
+concurrency proof.
 M1 is closed. The domain layer (§3's value types and closure discipline,
 §5.1's graph, §5.2's canonical order), the storage engine (the signed D1
 JSONL event log behind the `Store` trait
@@ -78,7 +86,7 @@ shell, which is M3's business.
 
 | Blocking | What | Action |
 |---|---|---|
-| — | nothing blocks M3: the rmcp ask, U20 and D16 were all signed 2026-10-03 (§3); the wire's shapes are settled (D14/D15/D16) and the dependency is approved (§6.3) | build — t37 next; t32–t36 done (§3) |
+| — | nothing blocks M3: the rmcp ask, U20 and D16 were all signed 2026-10-03 (§3); the wire's shapes are settled (D14/D15/D16) and the dependency is approved (§6.3) | build — t38 next; t32–t37 done (§3) |
 
 (Open but non-blocking: **U16** (ship base instructions with the server and
 gate the client's native todo off, M3 — its mechanism is measured rather than
@@ -1980,6 +1988,90 @@ Oldest first. One line per delivery, with the commit hash once committed.
        and the M2 stale-stamp claim — the fifth consecutive task
        spec with a claim that did not reproduce). Landed as
        `6d36651`.
+- 2026-10-04 — **M3 t37: the edges, registry-from-handles and the
+       default slug** — `task_link`/`task_unlink` (the `blocks` and
+       `relates` edges, f4's named criterion at the wire: the
+       endpoints arrive as untyped id strings, parse into `BlockEnd`
+       through the domain's own parsers tried in kind order — task,
+       decision, epic, at most one accepting any string — and a pair
+       §5.1 forbids answers `invalid` naming both endpoints, the
+       domain having made the shapes unrepresentable and §6.1's list
+       carrying no code for them), `repo_set_path` (the audited verb,
+       clock-free: a `Repo` node has no `updated` and its
+       `registered_at` is fixed), `repo_list`/`repo_show` answered
+       through the resolve path (U20(b): the registry is the
+       membership source, the handles the answer source, one cold
+       open per repo per process — pinned by the held-handles test,
+       a re-opening implementation contending with its own advisory
+       lock), and the default-repo slug (the committed D8: a
+       `--repo <slug>` startup flag on `main.rs`, validated at the
+       parse so a malformed value is a usage fault, the explicit
+       parameter always winning, and the repo-field relaxation —
+       `repo: String` → `repo: Option<String>` on the query
+       cluster's five, the listing cluster's four and the nodes
+       cluster's nine params structs, `GraphShowParams` excluded by
+       §6.2's all-repos semantics, `repo_register`/`repo_list` taking
+       no repo parameter at all; an absent repo with no default
+       answers `invalid` from the tool body, the schema being static
+       and unable to express "required iff no default"). New
+       `src/edges.rs` (the two tools, the `EdgeKindDto` discriminator,
+       the echo response `EdgeDto` — the store returns `()` for
+       edges, so there is no node state to return and the echo gives
+       the idempotent no-ops their honest shape; the endpoints are
+       echoed as parsed, the domain's id `Display`/`FromStr`
+       round-tripping every accepted string) and
+       `tests/write/edges.rs` (fourteen tests, fresh fixture per
+       test); `registry.rs` extended with the three repo tools;
+       `main.rs` gains `--repo` and four parse tests; `lib.rs` gains
+       `default_repo` + the shared `repo_of` helper + the fifth
+       router; `query.rs`/`listing.rs`/`nodes.rs` carry only the
+       mechanical repo-field relaxation; `common/mod.rs` gains the
+       `--repo` drive variant and the stale-claim sweep (the t36
+       hand-off: "the read suites' shared halves" reworded to the
+       read *and* write suites). Five new goldens — `task_link.v1`,
+       `task_unlink.v1`, `repo_set_path.v1`, `repo_list.v1`,
+       `repo_show.v1`, all five tools clock-free (the t36 principle
+       applied to its first full cluster) — seventeen in the
+       directory, the twelve existing byte-identical throughout.
+       **U23 closed here**: the swapped-store fixture test (register
+       `aaa`/`bbb`, copy `aaa`'s log over `bbb`'s out of band,
+       `repo_show` answers `corrupt_store` naming both slugs) pins
+       the resolve cross-check that had been live since t34. The two
+       f71-class name arrays grew from twenty to twenty-five tools.
+       411 workspace tests. Mutations M1–M6 run, observed failing,
+       reverted, sha-verified (kill sets reported; M1's named test 7
+       survived — the swapped routing answers the relates forbidden-
+       pair message, which also carries `invalid` naming both
+       endpoints — M2's named set gained tests 7 and 12, non-task
+       endpoints answering `invalid node id` under the mutation, and
+       M5's gained test 10, the client flow's first call holding no
+       handles; the primary independently reproduced all six and
+       added a seventh of its own — deleting the resolve cross-check
+       kills exactly test 14, proving U23's pin genuine). Dual review
+       over two rounds plus a binding round: round 1 primary ok (four
+       lows) / secondary changes_requested (three meds: the nine
+       `nodes.rs` field docs joining the relaxation's sentence with
+       a period where the other thirteen use a semicolon —
+       wire-visible, the docs being the inputSchema descriptions;
+       the common/mod.rs sweep replacing one false enumeration with
+       another, "six helpers" false the moment `drive_with` landed;
+       and **f68's flake recurring three times in ~83 runs** of the
+       protocol target during the review — `store is locked: repo
+       camera` after the server exits, green on every immediate
+       re-run, pre-existing and outside this diff's owned set, so
+       **U26** opens for it riding t38's concurrency work); the
+       orchestrator applied the fixes (the joins, the count-free
+       sweep, the echo doc's vacuous canonical-spelling half dropped,
+       the parse doc's declined-alternative clause, the forbidden-
+       pair message reworded to name the three legal shapes — a
+       called-out regeneration of the new golden — the two unpinned
+       D5 semantics given pins in test 6, and `reopened` lifted out
+       of its second verbatim copy into the write target's own root,
+       `common/` being barred by the read target's compilation of
+       it), and both reviewers re-bound ok on identical final-byte
+       shas. f92/f93 recorded (the two kill-set divergences). No
+       domain, store or cli change; `Cargo.lock` untouched. Landed
+       as `«t37-hash»`.
 
 ## 4. Follow-ups
 
@@ -2509,6 +2601,25 @@ Unowned work. Take the next unused `U` id; never renumber, never reuse.
       duplicate key anywhere in the file — proved by feeding it a copy
       with one spliced in, `--check` still green on the real config — or
       the check is declined and this item records that decision.
+- [ ] **U26 · The protocol suite's post-exit store open flakes
+      (`store is locked`).** f68's one-off flake recurred three times
+      in ~83 executions of the protocol target during t37's review —
+      `repo_register_creates_a_real_store_and_returns_the_new_state`
+      failing on "the store opens after the server exits: store is
+      locked: repo camera", green on every immediate re-run, under
+      both `--test workspace` and `--test protocol` alone. The panic
+      names the `StoreError` as f68 designed, so a recurrence is
+      capturable; the prime suspects are the drive's
+      `wait_with_output` reaping the child while its flock
+      outlives the reap, and the in-process `repo_list()` one line
+      earlier opening and dropping the same store's flock (t31's
+      self-contention shape — flock is per open-file-description).
+      Pre-existing (t33's machinery, untouched by t37) and outside
+      every intervening task's owned set, which is why it survived
+      four landings unreproduced. **Rides t38's concurrency work** —
+      the wire suite owns the drive's reaping semantics there and
+      will hold the two-threaded proof that makes the window
+      reproducible or closes it.
 - [ ] **U22 · `progress.py` does not render open decisions.** f45,
       promoted at the g7 sweep for the same reason: the page reads board
       §2/§4/§5 and the tracker, so an open D-entry has no row — measured
@@ -2551,7 +2662,7 @@ Deliberate shortcuts, acknowledged rather than fixed. Same id rules as §4.
       schema. Revisit at M3, whose wire mapping touches the store's error
       surface, or at the next commit that grows either file — whichever
        comes first.
-- [ ] **U23 · The copied-store cross-check on the server's resolve path is
+- [x] **U23 · The copied-store cross-check on the server's resolve path is
       unpinned.** t34's `ServerState::resolve` gained the one-line check
       `store.graph().repo().slug != slug → corrupt_store`, mirroring
       `todo-store`'s `repo_node` cross-check (layout.rs) so a copied store
@@ -2565,9 +2676,17 @@ Deliberate shortcuts, acknowledged rather than fixed. Same id rules as §4.
       fixture test (register `aaa`, copy its directory to `bbb`'s slot,
       query through the wire) — t37's registry cluster or t38's wire
       suite, whichever owns the fixture machinery first.
+      **Closed 2026-10-04 by t37**: `write/edges.rs`'s
+      `a_swapped_store_is_refused_not_adopted` drives `repo_show` on
+      `bbb` after the out-of-band log copy and pins the
+      `corrupt_store` carrier naming both slugs — the branch is
+      pinned, and the detail-string re-spelling rides the golden's
+      bytes.
 - [ ] **U24 · `todo-mcp/src/listing.rs` is over the 600-line target.**
-      683 production lines (the awk measure; the `#[cfg(test)]` clause
-      does not apply — the file holds no test module). Over target
+      685 production lines (the awk measure; the `#[cfg(test)]` clause
+      does not apply — the file holds no test module; re-measured at
+      t37, 683 + the repo-field relaxation's module-doc rewrap). Over
+      target
       because the listing cluster's dispatch pins all five tools,
       their params and their answer DTOs — `graph_show`'s dump
       builders included — in one file, the `query.rs` shape the t35

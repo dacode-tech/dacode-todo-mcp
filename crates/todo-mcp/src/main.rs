@@ -8,7 +8,11 @@
 //! The data root is explicit configuration (§7/§13/D8): `--root <DIR>`
 //! names the store location; nothing reads the environment, a home
 //! directory or the cwd to find one, and cwd auto-detection is M5's
-//! deferred convenience, never a heuristic this binary grows.
+//! deferred convenience, never a heuristic this binary grows. The
+//! default repo slug is the same kind of configuration (the committed
+//! D8): `--repo <SLUG>`, validated here — configuration is validated
+//! where it enters, so a malformed value is a usage fault, not a wire
+//! error the first tool call would answer.
 
 // Tests are exempt from the panic-family lints through a mechanism, not
 // a convention (the workspace's rule, stated once in the root
@@ -27,8 +31,10 @@
 
 use std::ffi::OsString;
 use std::process::ExitCode;
+use std::str::FromStr;
 
 use rmcp::ServiceExt;
+use todo_domain::RepoSlug;
 use todo_mcp::TodoServer;
 use todo_store::DataRoot;
 
@@ -42,27 +48,44 @@ const USAGE: &str = "\
 todo-mcp — the dacode-todo MCP server over stdio (spec §13).
 
 Usage:
-  todo-mcp --root <DIR>
+  todo-mcp --root <DIR> [--repo <SLUG>]
 
 Options:
       --root <DIR>    The data root holding repos/<slug>/ and the shared
                       registry (required; D4's default location is
                       ~/.local/share/dacode-todo/, resolved by the caller)
+      --repo <SLUG>   The default repository slug (D8): applied whenever
+                      a tool's repo parameter is absent; an explicit
+                      parameter always wins
 
 Exit codes:
   0  the client closed the connection after a completed handshake
   1  the serve loop failed: the transport, the service, or a peer that
      closes before the initialize handshake completes
-  2  usage: a bad flag or a missing --root
+  2  usage: a bad flag, a missing --root, or a malformed --repo value
 ";
+
+/// The parsed startup configuration: the data root and the optional
+/// default repo slug.
+#[derive(Debug, PartialEq, Eq)]
+struct Config {
+    /// The data root (§7/§13/D4): every store and the shared registry
+    /// live under it, validated nowhere here — the store reports a
+    /// missing one as its honest `io` fault.
+    root: OsString,
+    /// The default repo slug (the committed D8): applied whenever a
+    /// tool's `repo` parameter is absent; an explicit parameter always
+    /// wins. `None` when the flag was not given.
+    default_repo: Option<RepoSlug>,
+}
 
 /// Entry point. `clippy::exit` is denied workspace-wide — the binary
 /// decides what is fatal by return value, never by aborting the process
 /// behind the runtime's back.
 #[tokio::main]
 async fn main() -> ExitCode {
-    match parse_root(std::env::args_os().skip(1)) {
-        Ok(root) => serve(DataRoot::new(root)).await,
+    match parse_args(std::env::args_os().skip(1)) {
+        Ok(config) => serve(DataRoot::new(config.root), config.default_repo).await,
         Err(message) => {
             // The message, a blank line, then the usage text (the cli's
             // convention).
@@ -80,8 +103,8 @@ async fn main() -> ExitCode {
 /// `connection closed: initialize request`): the server never got
 /// initialized, and hiding that behind exit 0 would report a session
 /// that never existed.
-async fn serve(root: DataRoot) -> ExitCode {
-    let server = TodoServer::new(root);
+async fn serve(root: DataRoot, default_repo: Option<RepoSlug>) -> ExitCode {
+    let server = TodoServer::new(root, default_repo);
     match server.serve(rmcp::transport::stdio()).await {
         Ok(service) => match service.waiting().await {
             Ok(_) => ExitCode::SUCCESS,
@@ -97,18 +120,23 @@ async fn serve(root: DataRoot) -> ExitCode {
     }
 }
 
-/// Parses `--root <DIR>` from the argument vector — program name
-/// excluded, the shape `lexopt::Parser::from_args` wants. lexopt (U14)
-/// is pedantic: anything but `--root` and its value is a usage fault,
-/// never a guess, and the root is validated nowhere here — the store
-/// reports a missing one as its honest `io` fault.
-fn parse_root<I>(args: I) -> Result<OsString, String>
+/// Parses `--root <DIR>` and the optional `--repo <SLUG>` from the
+/// argument vector — program name excluded, the shape
+/// `lexopt::Parser::from_args` wants. lexopt (U14) is pedantic:
+/// anything but the two flags and their values is a usage fault,
+/// never a guess. The root is validated nowhere here — the store
+/// reports a missing one as its honest `io` fault — while the slug is
+/// validated at the parse: configuration is validated where it
+/// enters, so a malformed `--repo` value is a usage fault (exit 2),
+/// not a wire error.
+fn parse_args<I>(args: I) -> Result<Config, String>
 where
     I: IntoIterator,
     I::Item: Into<OsString>,
 {
     let mut parser = lexopt::Parser::from_args(args);
     let mut root: Option<OsString> = None;
+    let mut repo: Option<RepoSlug> = None;
     while let Some(arg) = parser
         .next()
         .map_err(|error| format!("todo-mcp: {error}"))?
@@ -121,13 +149,30 @@ where
                         .map_err(|error| format!("todo-mcp: {error}"))?,
                 );
             }
+            lexopt::Arg::Long("repo") => {
+                let value = parser
+                    .value()
+                    .map_err(|error| format!("todo-mcp: {error}"))?;
+                let text = value.to_str().ok_or_else(|| {
+                    "todo-mcp: the value of option '--repo <SLUG>' is not valid UTF-8".to_owned()
+                })?;
+                let slug = RepoSlug::from_str(text)
+                    .map_err(|error| format!("todo-mcp: --repo: {error}"))?;
+                repo = Some(slug);
+            }
             unexpected => {
                 let error = unexpected.unexpected();
                 return Err(format!("todo-mcp: {error}"));
             }
         }
     }
-    root.ok_or_else(|| "todo-mcp: the required option '--root <DIR>' was not provided".to_owned())
+    let root = root.ok_or_else(|| {
+        "todo-mcp: the required option '--root <DIR>' was not provided".to_owned()
+    })?;
+    Ok(Config {
+        root,
+        default_repo: repo,
+    })
 }
 
 #[cfg(test)]
@@ -141,7 +186,7 @@ mod tests {
     #[test]
     fn a_missing_root_is_a_usage_fault() {
         assert_eq!(
-            parse_root(Vec::<OsString>::new()),
+            parse_args(Vec::<OsString>::new()),
             Err("todo-mcp: the required option '--root <DIR>' was not provided".to_owned())
         );
     }
@@ -149,7 +194,7 @@ mod tests {
     #[test]
     fn an_unknown_flag_is_a_usage_fault() {
         assert_eq!(
-            parse_root(["--bogus", "x"]),
+            parse_args(["--bogus", "x"]),
             Err("todo-mcp: invalid option '--bogus'".to_owned())
         );
     }
@@ -157,7 +202,7 @@ mod tests {
     #[test]
     fn a_stray_positional_is_a_usage_fault() {
         assert_eq!(
-            parse_root(["camera"]),
+            parse_args(["camera"]),
             Err("todo-mcp: unexpected argument \"camera\"".to_owned())
         );
     }
@@ -165,8 +210,54 @@ mod tests {
     #[test]
     fn the_happy_path_takes_the_root_value() {
         assert_eq!(
-            parse_root(["--root", "/tmp/data"]),
-            Ok(OsString::from("/tmp/data"))
+            parse_args(["--root", "/tmp/data"]),
+            Ok(Config {
+                root: OsString::from("/tmp/data"),
+                default_repo: None
+            })
+        );
+    }
+
+    #[test]
+    fn a_missing_repo_value_is_a_usage_fault() {
+        assert_eq!(
+            parse_args(["--root", "/tmp/data", "--repo"]),
+            Err("todo-mcp: missing argument for option '--repo'".to_owned())
+        );
+    }
+
+    #[test]
+    fn a_malformed_repo_slug_is_a_usage_fault() {
+        // Configuration is validated where it enters: a malformed slug
+        // is a usage fault (exit 2), never a wire error the first tool
+        // call would answer.
+        assert_eq!(
+            parse_args(["--root", "/tmp/data", "--repo", "Bad!"]),
+            Err("todo-mcp: --repo: invalid repository slug: \"Bad!\"".to_owned())
+        );
+    }
+
+    #[test]
+    fn the_happy_path_takes_the_root_and_repo_values() {
+        assert_eq!(
+            parse_args(["--root", "/tmp/data", "--repo", "fixture"]),
+            Ok(Config {
+                root: OsString::from("/tmp/data"),
+                default_repo: Some(RepoSlug::from_str("fixture").unwrap()),
+            })
+        );
+    }
+
+    #[test]
+    fn the_repo_flag_orders_freely_around_the_root_flag() {
+        // lexopt walks the vector, not a fixed flag order, so either
+        // order parses to the same configuration.
+        assert_eq!(
+            parse_args(["--repo", "fixture", "--root", "/tmp/data"]),
+            Ok(Config {
+                root: OsString::from("/tmp/data"),
+                default_repo: Some(RepoSlug::from_str("fixture").unwrap()),
+            })
         );
     }
 }

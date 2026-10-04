@@ -11,8 +11,10 @@
 //!
 //! # The shapes
 //!
-//! `task_list`'s params take `repo` as a required `String` and `epic`
-//! as a plain `String` parsed with `FromStr` — a malformed value is
+//! `task_list`'s params take `repo` as an optional `String` (the
+//! committed D8: absent means the configured default repo, an
+//! explicit value always wins) and `epic` as a plain `String` parsed
+//! with `FromStr` — a malformed value is
 //! §6.1's `invalid` through the carrier before the store is touched
 //! (the registry.rs/query.rs precedent) — while `status` and `kind`
 //! are typed enums: a wrong spelling is rmcp's own codeless argument
@@ -78,7 +80,7 @@ use todo_store::Registry;
 use crate::dto::{
     DecisionDto, DecisionStatusDto, DocDto, EpicDto, RepoDto, StatusDto, TaskDto, TaskKindDto,
 };
-use crate::{ServerState, TodoServer, ToolError, error_carrier, structured};
+use crate::{ServerState, TodoServer, ToolError, error_carrier, repo_of, structured};
 
 // =================================================================
 // The params structs
@@ -90,8 +92,8 @@ use crate::{ServerState, TodoServer, ToolError, error_carrier, structured};
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct TaskListParams {
-    /// The repository's stable slug key (§7): ASCII lowercase segments joined by single hyphens; the repo whose graph is queried.
-    pub repo: String,
+    /// The repository's stable slug key (§7): ASCII lowercase segments joined by single hyphens; the repo whose graph is queried; absent means the configured default repo; an explicit value always wins.
+    pub repo: Option<String>,
     /// The optional epic filter (§6): the scope becomes that epic's tasks in their induced canonical order, e.g. `camera:E1`.
     pub epic: Option<String>,
     /// The optional status filter: one of the six lifecycle statuses, ANDed with the other filters.
@@ -106,24 +108,24 @@ pub(crate) struct TaskListParams {
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct EpicListParams {
-    /// The repository's stable slug key (§7): ASCII lowercase segments joined by single hyphens; the repo whose graph is queried.
-    pub repo: String,
+    /// The repository's stable slug key (§7): ASCII lowercase segments joined by single hyphens; the repo whose graph is queried; absent means the configured default repo; an explicit value always wins.
+    pub repo: Option<String>,
 }
 
 /// `decision_list`'s parameters (§6): the repository whose decisions are listed.
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct DecisionListParams {
-    /// The repository's stable slug key (§7): ASCII lowercase segments joined by single hyphens; the repo whose graph is queried.
-    pub repo: String,
+    /// The repository's stable slug key (§7): ASCII lowercase segments joined by single hyphens; the repo whose graph is queried; absent means the configured default repo; an explicit value always wins.
+    pub repo: Option<String>,
 }
 
 /// `doc_list`'s parameters (§6): the repository whose docs are listed.
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct DocListParams {
-    /// The repository's stable slug key (§7): ASCII lowercase segments joined by single hyphens; the repo whose graph is queried.
-    pub repo: String,
+    /// The repository's stable slug key (§7): ASCII lowercase segments joined by single hyphens; the repo whose graph is queried; absent means the configured default repo; an explicit value always wins.
+    pub repo: Option<String>,
 }
 
 /// `graph_show`'s parameters (§6.2): the dump's scope — neither
@@ -329,7 +331,7 @@ fn answer_task_list(
     state: &mut ServerState,
     params: &TaskListParams,
 ) -> Result<TaskListDto, ToolError> {
-    let slug = parse_value(&params.repo)?;
+    let slug = repo_of(state, params.repo.as_deref())?;
     let epic = params
         .epic
         .as_deref()
@@ -353,7 +355,7 @@ fn answer_epic_list(
     state: &mut ServerState,
     params: &EpicListParams,
 ) -> Result<EpicListDto, ToolError> {
-    let slug = parse_value(&params.repo)?;
+    let slug = repo_of(state, params.repo.as_deref())?;
     let handle = state.resolve(&slug)?;
     let graph = handle.graph();
     // The None arm is unreachable: every id came off the graph's own
@@ -376,7 +378,7 @@ fn answer_decision_list(
     state: &mut ServerState,
     params: &DecisionListParams,
 ) -> Result<DecisionListDto, ToolError> {
-    let slug = parse_value(&params.repo)?;
+    let slug = repo_of(state, params.repo.as_deref())?;
     let handle = state.resolve(&slug)?;
     let graph = handle.graph();
     // The None arm is unreachable: every id came off the graph's own
@@ -399,7 +401,7 @@ fn answer_doc_list(
     state: &mut ServerState,
     params: &DocListParams,
 ) -> Result<DocListDto, ToolError> {
-    let slug = parse_value(&params.repo)?;
+    let slug = repo_of(state, params.repo.as_deref())?;
     let handle = state.resolve(&slug)?;
     let graph = handle.graph();
     // The None arm is unreachable: every id came off the graph's own

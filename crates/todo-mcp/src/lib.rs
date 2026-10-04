@@ -64,6 +64,7 @@
 
 use std::collections::BTreeMap;
 use std::collections::btree_map::Entry;
+use std::str::FromStr;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use rmcp::ServerHandler;
@@ -77,6 +78,7 @@ use todo_domain::{DomainError, RepoSlug, ValueError};
 use todo_store::{DataRoot, Registry, Store, StoreError};
 
 mod dto;
+mod edges;
 mod listing;
 mod nodes;
 mod query;
@@ -102,12 +104,19 @@ const INSTRUCTIONS: &str = "You are connected to a deterministic task-graph serv
     message.";
 
 /// The server's mutable state, held behind one lock (§8): the injected
-/// data root and the open per-repo handles.
+/// data root, the configured default repo slug and the open per-repo
+/// handles.
 struct ServerState {
     /// The injected data root (D4): every store and the shared registry
     /// live under it. The location is the caller's configuration
     /// (§13/D8), never a heuristic this crate grows.
     root: DataRoot,
+    /// The configured default repo slug (the committed D8): applied by
+    /// [`repo_of`] whenever a tool's `repo` parameter is absent — an
+    /// explicit parameter always wins. `None` until the binary passes
+    /// the `--repo` flag's parsed value; the default is configuration,
+    /// never a cwd heuristic.
+    default_repo: Option<RepoSlug>,
     /// The open, locked store per registered repo, keyed by slug and
     /// iterated in sorted-slug order (`BTreeMap`) — U20(b)'s
     /// foundation: the registry queries answer from these handles
@@ -131,24 +140,29 @@ pub struct TodoServer {
 }
 
 impl TodoServer {
-    /// A server serving every store under `root`.
-    pub fn new(root: DataRoot) -> Self {
+    /// A server serving every store under `root`, with an optional
+    /// default repo slug (the committed D8): the `--repo` startup
+    /// flag's parsed value, applied whenever a tool's `repo` parameter
+    /// is absent — an explicit parameter always wins.
+    pub fn new(root: DataRoot, default_repo: Option<RepoSlug>) -> Self {
         // The router composes across impl blocks (`ToolRouter::merge`):
         // the cluster files' routers — `registry.rs`'s `tool_router`,
         // `query.rs`'s `query_router`, `listing.rs`'s
-        // `listing_router`, `nodes.rs`'s `nodes_router` — each cluster
-        // file owning its own block and no cluster editing another's.
-        // Merge order is wire-invisible: the router is a name-keyed
-        // map and `list_all` sorts by name (§6.3), so later clusters
-        // follow the same pattern.
+        // `listing_router`, `nodes.rs`'s `nodes_router`, `edges.rs`'s
+        // `edges_router` — each cluster file owning its own block and
+        // no cluster editing another's. Merge order is wire-invisible:
+        // the router is a name-keyed map and `list_all` sorts by name
+        // (§6.3), so later clusters follow the same pattern.
         let mut tool_router = Self::tool_router();
         tool_router.merge(Self::query_router());
         tool_router.merge(Self::listing_router());
         tool_router.merge(Self::nodes_router());
+        tool_router.merge(Self::edges_router());
         Self {
             tool_router,
             state: Arc::new(Mutex::new(ServerState {
                 root,
+                default_repo,
                 handles: BTreeMap::new(),
             })),
         }
@@ -207,6 +221,24 @@ impl ServerState {
                 Ok(entry.insert(Box::new(store)))
             }
         }
+    }
+}
+
+/// The repo dimension every relaxed tool shares (the committed D8):
+/// an explicit parameter always wins — `Some` parses, and a malformed
+/// slug is §6.1's `invalid` (U9's mapping of the domain's
+/// `ValueError`) before the store is touched — while an absent one
+/// answers the configured default, or `invalid` when no default
+/// exists. The tool body owns the absent case because the input
+/// schema is static and cannot express "required iff no default":
+/// that is instance state, not a shape, so the schema cannot carry
+/// the rejection and the body must.
+pub(crate) fn repo_of(state: &ServerState, repo: Option<&str>) -> Result<RepoSlug, ToolError> {
+    match repo {
+        Some(value) => RepoSlug::from_str(value).map_err(ToolError::from),
+        None => state.default_repo.clone().ok_or_else(|| {
+            ToolError::invalid("the repo parameter is absent and no default repo is configured")
+        }),
     }
 }
 

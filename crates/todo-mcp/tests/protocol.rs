@@ -235,11 +235,16 @@ mod protocol {
                 "graph_show",
                 "next_items",
                 "next_task",
+                "repo_list",
                 "repo_register",
+                "repo_set_path",
+                "repo_show",
                 "status_summary",
                 "task_add",
+                "task_link",
                 "task_list",
                 "task_show",
+                "task_unlink",
                 "task_update"
             ],
             "the router composes every landed cluster, sorted by name"

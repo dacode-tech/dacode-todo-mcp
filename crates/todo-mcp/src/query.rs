@@ -21,9 +21,11 @@
 //! doc states (t28's ruling: a schema describing that field must say
 //! so).
 //!
-//! The params structs take `repo` as a required `String` (§6's `repo?`
-//! is D8's default-slug case, t37's to relax — required→optional is
-//! backward-compatible for callers) and the id parameters as plain
+//! The params structs take `repo` as an optional `String` — the
+//! committed D8's default-slug case: absent means the configured
+//! default repo, an explicit value always wins ([`crate::repo_of`];
+//! relaxed from required, backward-compatible for callers) — and the
+//! id parameters as plain
 //! `String`s parsed with `FromStr`: a malformed value is §6.1's
 //! `invalid` through the carrier before the store is touched, never a
 //! codeless rmcp argument fault (the registry.rs precedent — a typed
@@ -57,7 +59,7 @@ use todo_domain::{
 };
 
 use crate::dto::{DecisionDto, DeferredDto, TaskDto};
-use crate::{ServerState, TodoServer, ToolError, error_carrier, structured};
+use crate::{ServerState, TodoServer, ToolError, error_carrier, repo_of, structured};
 
 /// `next_items`'s batch cap when the parameter is absent (§5.2: the
 /// default is the wire's; the domain always sees an explicit limit).
@@ -72,8 +74,8 @@ const DEFAULT_LIMIT: u64 = 10;
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct NextTaskParams {
-    /// The repository's stable slug key (§7): ASCII lowercase segments joined by single hyphens; the repo whose graph is queried.
-    pub repo: String,
+    /// The repository's stable slug key (§7): ASCII lowercase segments joined by single hyphens; the repo whose graph is queried; absent means the configured default repo; an explicit value always wins.
+    pub repo: Option<String>,
     /// The optional epic filter (§6): the scope becomes that epic's tasks, e.g. `camera:E1`.
     pub epic: Option<String>,
 }
@@ -83,8 +85,8 @@ pub(crate) struct NextTaskParams {
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct NextItemsParams {
-    /// The repository's stable slug key (§7): ASCII lowercase segments joined by single hyphens; the repo whose graph is queried.
-    pub repo: String,
+    /// The repository's stable slug key (§7): ASCII lowercase segments joined by single hyphens; the repo whose graph is queried; absent means the configured default repo; an explicit value always wins.
+    pub repo: Option<String>,
     /// The optional epic filter (§6): the scope becomes that epic's actionable tasks; mutually exclusive with `task`.
     pub epic: Option<String>,
     /// The optional task scope (§5.2): the batch becomes that task's transitive dependents, each marked actionable or held; mutually exclusive with `epic`.
@@ -98,8 +100,8 @@ pub(crate) struct NextItemsParams {
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct StatusSummaryParams {
-    /// The repository's stable slug key (§7): ASCII lowercase segments joined by single hyphens; the repo whose graph is queried.
-    pub repo: String,
+    /// The repository's stable slug key (§7): ASCII lowercase segments joined by single hyphens; the repo whose graph is queried; absent means the configured default repo; an explicit value always wins.
+    pub repo: Option<String>,
     /// The optional epic filter (§6): the scope becomes that epic, its tasks and the decisions gating them.
     pub epic: Option<String>,
 }
@@ -108,8 +110,8 @@ pub(crate) struct StatusSummaryParams {
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct TaskShowParams {
-    /// The repository's stable slug key (§7): ASCII lowercase segments joined by single hyphens; the repo whose graph is queried.
-    pub repo: String,
+    /// The repository's stable slug key (§7): ASCII lowercase segments joined by single hyphens; the repo whose graph is queried; absent means the configured default repo; an explicit value always wins.
+    pub repo: Option<String>,
     /// The task's id, e.g. `camera:U7`.
     pub task: String,
 }
@@ -119,8 +121,8 @@ pub(crate) struct TaskShowParams {
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct DecisionShowParams {
-    /// The repository's stable slug key (§7): ASCII lowercase segments joined by single hyphens; the repo whose graph is queried.
-    pub repo: String,
+    /// The repository's stable slug key (§7): ASCII lowercase segments joined by single hyphens; the repo whose graph is queried; absent means the configured default repo; an explicit value always wins.
+    pub repo: Option<String>,
     /// The decision's id, e.g. `camera:D3`.
     pub decision: String,
 }
@@ -325,7 +327,7 @@ fn answer_next_task(
     state: &mut ServerState,
     params: &NextTaskParams,
 ) -> Result<NextTaskDto, ToolError> {
-    let slug = parse_value(&params.repo)?;
+    let slug = repo_of(state, params.repo.as_deref())?;
     let epic = params
         .epic
         .as_deref()
@@ -345,7 +347,7 @@ fn answer_next_items(
     state: &mut ServerState,
     params: &NextItemsParams,
 ) -> Result<NextItemsDto, ToolError> {
-    let slug = parse_value(&params.repo)?;
+    let slug = repo_of(state, params.repo.as_deref())?;
     let epic = params
         .epic
         .as_deref()
@@ -378,7 +380,7 @@ fn answer_status_summary(
     state: &mut ServerState,
     params: &StatusSummaryParams,
 ) -> Result<StatusSummaryDto, ToolError> {
-    let slug = parse_value(&params.repo)?;
+    let slug = repo_of(state, params.repo.as_deref())?;
     let epic = params
         .epic
         .as_deref()
@@ -397,7 +399,7 @@ fn answer_task_show(
     state: &mut ServerState,
     params: &TaskShowParams,
 ) -> Result<TaskDto, ToolError> {
-    let slug = parse_value(&params.repo)?;
+    let slug = repo_of(state, params.repo.as_deref())?;
     let task = parse_value::<TaskId>(&params.task)?;
     let handle = state.resolve(&slug)?;
     let node = handle.graph().task(&task).ok_or_else(|| {
@@ -413,7 +415,7 @@ fn answer_decision_show(
     state: &mut ServerState,
     params: &DecisionShowParams,
 ) -> Result<DecisionDto, ToolError> {
-    let slug = parse_value(&params.repo)?;
+    let slug = repo_of(state, params.repo.as_deref())?;
     let decision = parse_value::<DecisionId>(&params.decision)?;
     let handle = state.resolve(&slug)?;
     let node = handle.graph().decision(&decision).ok_or_else(|| {

@@ -1,7 +1,10 @@
-//! The registry cluster's first tool (§7): `repo_register`, its wire
-//! DTOs and the §8-serialized store work underneath. t37 extends this
-//! file with `repo_set_path`, `repo_list` and `repo_show`, answered
-//! from the handles the server already holds (U20(b)).
+//! The registry cluster (§7): `repo_register`, `repo_set_path`,
+//! `repo_list` and `repo_show`, their wire DTOs and the
+//! §8-serialized store work underneath. The three later tools answer
+//! from the handles the server already holds (U20(b)): the registry
+//! is the membership source, the handles the answer source, and a
+//! repo never queried before pays one open — cached from then on —
+//! never a cold open per query.
 //!
 //! The wire DTOs are server-local: named fields in declaration order
 //! (D14 — `preserve_order` carries it to the wire), the params struct
@@ -17,8 +20,10 @@ use rmcp::{tool, tool_router};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use todo_domain::{Repo, RepoSlug};
+use todo_store::Registry;
 
-use crate::{TodoServer, error_carrier, structured, time};
+use crate::dto::RepoDto;
+use crate::{ServerState, TodoServer, ToolError, error_carrier, repo_of, structured, time};
 
 /// `repo_register`'s parameters (§7): the caller-chosen stable slug —
 /// the key, never minted from the name — plus the mutable attributes.
@@ -70,6 +75,83 @@ impl From<Repo> for RepoRegistered {
     }
 }
 
+/// `repo_set_path`'s parameters (§7): the repo whose checkout moved, and its new path.
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct RepoSetPathParams {
+    /// The repository's stable slug key (§7): ASCII lowercase segments joined by single hyphens; the repo whose checkout path moves; absent means the configured default repo; an explicit value always wins.
+    pub repo: Option<String>,
+    /// The checkout's new filesystem path — an attribute, not the key (§7): the slug survives, the path follows the checkout.
+    pub path: String,
+}
+
+/// `repo_list`'s parameters (§6): none — the listing is global, so the tool takes an empty object and rejects any argument.
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct RepoListParams {}
+
+/// `repo_show`'s parameters (§6): the repository to show.
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct RepoShowParams {
+    /// The repository's stable slug key (§7): ASCII lowercase segments joined by single hyphens; the repo to show; absent means the configured default repo; an explicit value always wins.
+    pub repo: Option<String>,
+}
+
+/// `repo_list`'s answer (§6): every registered repo, ascending by slug.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
+pub(crate) struct RepoListDto {
+    /// Every registered repo, ascending by slug — the registry's own order, each row read from the repo node through the server's held handles.
+    pub repos: Vec<RepoDto>,
+}
+
+// =================================================================
+// The answer helpers — parse, resolve, stamp, mutate
+// =================================================================
+
+/// `repo_set_path`'s answer: parse, resolve, stamp, move. The `Repo`
+/// node carries no `updated` field (§3) — the audit instant rides the
+/// event line alone — and `registered_at` is fixed, so the response
+/// is clock-free.
+fn answer_repo_set_path(
+    state: &mut ServerState,
+    params: &RepoSetPathParams,
+) -> Result<RepoDto, ToolError> {
+    let slug = repo_of(state, params.repo.as_deref())?;
+    let handle = state.resolve(&slug)?;
+    let repo = handle.set_repo_path(params.path.clone(), time::now())?;
+    Ok(RepoDto::from(&repo))
+}
+
+/// `repo_list`'s answer: the registry's slugs, each resolved through
+/// the handle cache — U20(b) exactly. A handles hit returns the
+/// cached handle; a miss consults the registry (an unlisted slug
+/// cannot occur here — the slug came from the registry) and opens
+/// once, then caches, so the cold open is paid once per repo per
+/// process, never per query. One store is resolved at a time, in the
+/// registry's sorted order — t31's one-lock-at-a-time discipline,
+/// inherited through resolve's per-slug loop.
+fn answer_repo_list(state: &mut ServerState) -> Result<RepoListDto, ToolError> {
+    let registry = Registry::load(&state.root)?;
+    let mut repos = Vec::new();
+    for slug in registry.slugs() {
+        let handle = state.resolve(slug)?;
+        repos.push(RepoDto::from(handle.graph().repo()));
+    }
+    Ok(RepoListDto { repos })
+}
+
+/// `repo_show`'s answer: parse, resolve, convert — the same resolve
+/// path `repo_list` rows and every query take.
+fn answer_repo_show(
+    state: &mut ServerState,
+    params: &RepoShowParams,
+) -> Result<RepoDto, ToolError> {
+    let slug = repo_of(state, params.repo.as_deref())?;
+    let handle = state.resolve(&slug)?;
+    Ok(RepoDto::from(handle.graph().repo()))
+}
+
 #[tool_router(router = tool_router, vis = "pub(crate)")]
 impl TodoServer {
     /// Register a repository under its stable slug key: the store is created under the data root, the registry lists it, and the response is the new state.
@@ -116,6 +198,59 @@ impl TodoServer {
                 structured("repo_register", RepoRegistered::from(repo))
             }
             Err(error) => Ok(error_carrier(error.code(), &error.to_string())),
+        }
+    }
+
+    /// Move a repository's checkout path (§7): the slug is the key, the path an attribute — the audited verb, its own event line; the response is the new state.
+    #[tool(
+        name = "repo_set_path",
+        output_schema = rmcp::handler::server::tool::schema_for_type::<RepoDto>(),
+        annotations(open_world_hint = false)
+    )]
+    async fn repo_set_path(
+        &self,
+        Parameters(params): Parameters<RepoSetPathParams>,
+    ) -> Result<CallToolResult, ErrorData> {
+        // §8's serialization point: the guard is dropped at the end of
+        // this sync body — no `.await` follows it.
+        let mut state = self.lock_state();
+        match answer_repo_set_path(&mut state, &params) {
+            Ok(output) => structured("repo_set_path", output),
+            Err(error) => Ok(error_carrier(&error.code, &error.message)),
+        }
+    }
+
+    /// Every registered repository, ascending by slug — the registry's membership, each row read from the repo node through the server's held handles.
+    #[tool(
+        name = "repo_list",
+        output_schema = rmcp::handler::server::tool::schema_for_type::<RepoListDto>(),
+        annotations(read_only_hint = true, open_world_hint = false)
+    )]
+    async fn repo_list(
+        &self,
+        Parameters(_params): Parameters<RepoListParams>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let mut state = self.lock_state();
+        match answer_repo_list(&mut state) {
+            Ok(output) => structured("repo_list", output),
+            Err(error) => Ok(error_carrier(&error.code, &error.message)),
+        }
+    }
+
+    /// One repository's node: the slug, the display name, the checkout path and the registration instant.
+    #[tool(
+        name = "repo_show",
+        output_schema = rmcp::handler::server::tool::schema_for_type::<RepoDto>(),
+        annotations(read_only_hint = true, open_world_hint = false)
+    )]
+    async fn repo_show(
+        &self,
+        Parameters(params): Parameters<RepoShowParams>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let mut state = self.lock_state();
+        match answer_repo_show(&mut state, &params) {
+            Ok(output) => structured("repo_show", output),
+            Err(error) => Ok(error_carrier(&error.code, &error.message)),
         }
     }
 }

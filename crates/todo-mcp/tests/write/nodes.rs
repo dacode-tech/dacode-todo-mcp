@@ -37,13 +37,12 @@
 //! regeneration hint is off by one command — the gates' ritual line
 //! names both targets.
 
-use std::str::FromStr;
-
 use serde_json::json;
-use todo_domain::{Date, DecisionStatus, Priority, RepoSlug, Status};
-use todo_store::{DataRoot, Store};
+use todo_domain::{Date, DecisionStatus, Priority, Status};
+use todo_store::Store;
 
 use crate::common::{assert_carrier, assert_golden, call, drive, fixture, structured};
+use crate::reopened;
 
 // =================================================================
 // The suite-local helpers — the stamp extractors and the
@@ -146,14 +145,6 @@ fn assert_argument_fault(response: &str, field: &str) {
         "{response}"
     );
     assert!(text.contains(field), "{response}");
-}
-
-/// Reopens the fixture's store in-process after the drive — the server
-/// has exited, its locks released — for the persistence assertions.
-fn reopened(root: &std::path::Path) -> todo_store::JsonlStore {
-    DataRoot::new(root)
-        .open(&RepoSlug::from_str("fixture").unwrap())
-        .unwrap()
 }
 
 // =================================================================

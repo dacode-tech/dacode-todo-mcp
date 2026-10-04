@@ -265,14 +265,19 @@ fn tools_list_advertises_output_schemas_with_single_line_descriptions() {
             "graph_show",
             "next_items",
             "next_task",
+            "repo_list",
             "repo_register",
+            "repo_set_path",
+            "repo_show",
             "status_summary",
             "task_add",
+            "task_link",
             "task_list",
             "task_show",
+            "task_unlink",
             "task_update"
         ],
-        "all twenty landed tools, sorted by name"
+        "all twenty-five landed tools, sorted by name"
     );
     for tool in tools {
         assert!(

@@ -1,5 +1,8 @@
-//! The read suites' shared halves: the golden-file helper, the fixture
-//! store and the stdio drive.
+//! The read and write suites' shared halves: the golden-file helper,
+//! the fixture store and the stdio drive. The write suites (t36's
+//! node CRUD, t37's edges) import these helpers alongside the read
+//! ones — the edges suite also drives with a configured default repo
+//! — so "read" in the lift's history below is provenance, not scope.
 //!
 //! The golden helper is a copy of
 //! `crates/todo-store/tests/common/mod.rs`, kept verbatim per the cli
@@ -192,9 +195,10 @@ fn bounded(line: &str) -> String {
 }
 
 // =================================================================
-// The shared suite helpers (lifted from read/query.rs: every read
-// suite needs exactly these three, and a second verbatim copy was
-// the cost the lift ends)
+// The shared suite helpers (lifted from read/query.rs, where a second
+// verbatim copy was the cost the lift ends; the write suites import
+// them alongside the read ones, so the sharing is every suite's, not
+// the read ones' alone)
 // =================================================================
 
 /// One `tools/call` request line with a fixed id.
@@ -709,7 +713,16 @@ pub(crate) struct Driven {
 /// request is written, so the response order is the request order by
 /// construction (see the module docs for why that matters).
 pub(crate) fn drive(root: &Path, requests: &[String]) -> Driven {
-    let mut child = spawn(root);
+    drive_with(root, None, requests)
+}
+
+/// [`drive`]'s variant with a default repo slug: the binary is
+/// spawned with `--repo <slug>` (the committed D8's startup flag), so
+/// the driven session sees the configured default — the tool calls
+/// themselves decide whether to rely on it or pass an explicit repo,
+/// which always wins.
+pub(crate) fn drive_with(root: &Path, repo: Option<&RepoSlug>, requests: &[String]) -> Driven {
+    let mut child = spawn(root, repo);
     let mut stdin = child.stdin.take().expect("the child's stdin");
     let mut stdout = BufReader::new(child.stdout.take().expect("the child's stdout"));
     let mut stderr = child.stderr.take().expect("the child's stderr");
@@ -750,11 +763,14 @@ pub(crate) fn drive(root: &Path, requests: &[String]) -> Driven {
     }
 }
 
-/// Spawns the real binary with `--root`.
-fn spawn(root: &Path) -> Child {
-    Command::new(env!("CARGO_BIN_EXE_todo-mcp"))
-        .arg("--root")
-        .arg(root)
+/// Spawns the real binary with `--root` and the optional `--repo`.
+fn spawn(root: &Path, repo: Option<&RepoSlug>) -> Child {
+    let mut command = Command::new(env!("CARGO_BIN_EXE_todo-mcp"));
+    command.arg("--root").arg(root);
+    if let Some(slug) = repo {
+        command.arg("--repo").arg(slug.as_str());
+    }
+    command
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
