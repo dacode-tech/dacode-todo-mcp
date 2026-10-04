@@ -2243,7 +2243,9 @@ Oldest first. One line per delivery, with the commit hash once committed.
        f99 (the server's next owner or a decision), U13/U24/U25
        (the ledger and the splits), U18 (parked, after M4's
        importer check), U21/U22 (the user's), U27 (the store's
-       next owner).
+       next owner). The U26 fix landed as `d3eb929` (dual-reviewed,
+       both trailers); the gate's consolidation and board movement
+       as `6383c9b`.
 
 ## 4. Follow-ups
 
