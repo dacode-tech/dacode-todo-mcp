@@ -2990,8 +2990,9 @@ protocol 10 (needles moved, count unchanged), wire 5 and write 26
 unchanged. Mutations M1–M5 run, observed, reverted, sha-verified; the
 named kill sets were supersets as usual (M2's includes the two
 write-suite payload assertions; M1/M3's include the domain-agreement
-and filter tests). Every gate green. The tree is left dirty for dual
-review; the next step is **g9**, the M3 exit gate.
+and filter tests). Every gate green. Landed as `cf8e996` (the D17
+sign-off record as `2a7749e`); the next step is **g9**, the M3 exit
+gate.
 
 ### 2026-10-04 — t39 landed: the server wired into its own harness, smoked by a real client
 
