@@ -914,7 +914,8 @@ fn naive_gates(
 /// canonical order (production's by design — `tests/order.rs` pins it
 /// independently), each row's blockers built by the naive two-run
 /// builder below, never through [`Graph::blockers_of`] or
-/// [`Graph::task_list`].
+/// [`Graph::task_list`], and its priority read off the node by hand
+/// (D17's echo).
 fn naive_rows(graph: &Graph, epic: Option<&EpicId>) -> Vec<TaskRow> {
     let order = match epic {
         None => graph.canonical_order(),
@@ -922,9 +923,13 @@ fn naive_rows(graph: &Graph, epic: Option<&EpicId>) -> Vec<TaskRow> {
     };
     order
         .into_iter()
-        .map(|id| TaskRow {
-            blocked_by: naive_blockers(graph, &id),
-            task: id,
+        .map(|id| {
+            let priority = graph.task(&id).and_then(|node| node.priority);
+            TaskRow {
+                blocked_by: naive_blockers(graph, &id),
+                task: id,
+                priority,
+            }
         })
         .collect()
 }
@@ -1170,6 +1175,45 @@ fn summary_rows_carry_every_blockers_current_status() {
             b_decision(1, DecisionStatus::Signed)
         ]
     );
+}
+
+#[test]
+fn summary_rows_carry_each_tasks_priority() {
+    // D17's echo, the positive cases: each `task_list` row carries its
+    // own task's agent-set priority, read off the node — high, low and
+    // null all pinned, and a mutation moves the row (a priority set
+    // through the update API reaches the next query's rows). The order
+    // purity is select's pin, not this one's.
+    let mut graph = graph_with_epics(1);
+    let mut high = task_node(1, 1, Status::Open);
+    high.priority = Some(Priority::High);
+    graph.insert_task(high).unwrap();
+    let mut low = task_node(2, 1, Status::Open);
+    low.priority = Some(Priority::Low);
+    graph.insert_task(low).unwrap();
+    graph.insert_task(task_node(3, 1, Status::Open)).unwrap();
+
+    let rows = graph.task_list(&TaskFilter::default()).unwrap();
+    let priority_of = |rows: &[TaskRow], n: u64| {
+        rows.iter()
+            .find(|row| row.task == task_id(n))
+            .unwrap_or_else(|| panic!("U{n} is in the listing"))
+            .priority
+    };
+    assert_eq!(priority_of(&rows, 1), Some(Priority::High));
+    assert_eq!(priority_of(&rows, 2), Some(Priority::Low));
+    assert_eq!(priority_of(&rows, 3), None);
+
+    // A re-triage moves the row: setting U3's priority through the
+    // update API reaches the next query's rows — the echo is read at
+    // query time, never frozen.
+    graph
+        .update_task(task_id(3), at(11), |task| {
+            task.priority = Some(Priority::Medium);
+        })
+        .unwrap();
+    let rows = graph.task_list(&TaskFilter::default()).unwrap();
+    assert_eq!(priority_of(&rows, 3), Some(Priority::Medium));
 }
 
 // ---------------------------------------------------------------------

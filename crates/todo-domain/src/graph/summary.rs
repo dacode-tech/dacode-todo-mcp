@@ -38,13 +38,13 @@
 //! epic's tasks (judgment call (d)). Docs are `0`: a doc has no epic
 //! field, so no epic scope holds one.
 //!
-//! The row is exactly the signed payload: the task, its `blocked_by`
-//! ids, every blocker's status — and nothing else. The blocked-by
-//! order is the contract [`crate::NextItem::blocked_by`] has always
-//! carried: the task's own predecessors first, then its epic's
-//! decision gates, each run in [`BlockEnd`] order, deduplicated at
-//! the first occurrence and deliberately **not** merged into one
-//! globally sorted list.
+//! The row is the signed payload: the task, its `blocked_by`
+//! ids, every blocker's status — and, since D17, the task's
+//! agent-set `priority`. The blocked-by order is the contract
+//! [`crate::NextItem::blocked_by`] has always carried: the task's own
+//! predecessors first, then its epic's decision gates, each run in
+//! [`BlockEnd`] order, deduplicated at the first occurrence and
+//! deliberately **not** merged into one globally sorted list.
 //!
 //! # Scope and totality
 //!
@@ -101,12 +101,13 @@
 //!   diff to the scope-collection walk;
 //!   `summary_epic_scope_membership` pins the reading taken, so a
 //!   veto is a diff, not a discovery.
-//! - **(e) The row payload is exactly the signed text.** The task, its
-//!   `blocked_by` ids, every blocker's status — and nothing else: no
-//!   own status, no kind, no weight, no actionable mark. A field
-//!   beyond the signed text is a wire change M3 would have to declare
-//!   (`items`'s judgment call (h)'s class). The `Epic` arm of
-//!   [`Blocker`] is unrepresentable by type — §5.1's three edge
+//! - **(e) The row payload is the signed text.** The task, its
+//!   `blocked_by` ids, every blocker's status — and, since D17, the
+//!   task's agent-set `priority`: no own status, no kind, no weight,
+//!   no actionable mark. A field beyond the signed text is a wire
+//!   change M3 would have to declare (`items`'s judgment call (h)'s
+//!   class) — D17 is that declaration for this one field. The `Epic`
+//!   arm of [`Blocker`] is unrepresentable by type — §5.1's three edge
 //!   shapes make a `blocks` source a task or a decision only — the
 //!   `items` judgment-call-(d) narrowing, not repeated as a runtime
 //!   arm.
@@ -131,7 +132,7 @@ use std::collections::BTreeSet;
 
 use crate::error::DomainError;
 use crate::id::{DecisionId, EpicId, TaskId};
-use crate::status::{DecisionStatus, Status};
+use crate::status::{DecisionStatus, Priority, Status};
 
 use super::edges::BlockEnd;
 use super::select::DeferredSummary;
@@ -292,11 +293,12 @@ impl StatusSummary {
     }
 }
 
-/// One `task_list` row (§6, D16): the task and its `blocked_by`
-/// annotation. Exactly the signed payload — the task, its blocker
-/// ids, every blocker's status — and nothing else: no own status, no
-/// kind, no weight, no actionable mark; a field beyond the signed text
-/// is a wire change M3 would have to declare (judgment call (e)).
+/// One `task_list` row (§6, D16): the task, its `blocked_by`
+/// annotation and its `priority`. The signed payload — the task, its
+/// blocker ids, every blocker's status, and the task's agent-set
+/// `priority` (D17) — and nothing else: no own status, no kind, no
+/// weight, no actionable mark; a field beyond the signed text is a
+/// wire change M3 would have to declare (judgment call (e)).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TaskRow {
     /// The task this row is about.
@@ -306,6 +308,9 @@ pub struct TaskRow {
     /// runs, deduplicated at the first occurrence — each blocker
     /// carrying its current status.
     pub blocked_by: Vec<Blocker>,
+    /// The task's agent-set `priority` (D17), read off the node —
+    /// display-only, never an ordering input (D11, §11).
+    pub priority: Option<Priority>,
 }
 
 /// One blocker of a [`TaskRow`]: the id and the **current** status of

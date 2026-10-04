@@ -45,7 +45,10 @@ mod protocol {
         `deferred` require a `note`; signing a decision requires a \
         `resolution`. Writes return the new state. Errors carry a stable code \
         in `structuredContent.code` — branch on the code, never parse the \
-        message.";
+        message. Tasks carry an agent-set `priority` (high, medium, low) — set \
+        it when triaging, prefer higher priority when choosing among \
+        actionable rows yourself; the server's order is dependency-driven and \
+        ignores it by design.";
 
     /// The initialize request every handshake test opens with —
     /// protocol 2025-11-25, the version this server declares.

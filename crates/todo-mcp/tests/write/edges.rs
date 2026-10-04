@@ -492,7 +492,7 @@ fn the_default_slug_is_applied_when_absent_and_overridden_when_present() {
     // pins the same bytes).
     assert_eq!(
         structured(&driven.responses[1]),
-        json!({"task": null, "deferred": {"total": 1, "ready": 0}})
+        json!({"task": null, "priority": null, "deferred": {"total": 1, "ready": 0}})
     );
     // The explicit wins: alpha's epics.
     assert_eq!(
@@ -556,10 +556,10 @@ fn the_client_flow_repo_list_epic_list_next_task() {
         ])
     );
     // next_task: the chosen epic's answer — E2's first actionable
-    // task with its deferred summary.
+    // task with its priority (D17) and the deferred summary.
     assert_eq!(
         structured(&driven.responses[2]),
-        json!({"task": "fixture:U9", "deferred": {"total": 2, "ready": 1}})
+        json!({"task": "fixture:U9", "priority": "high", "deferred": {"total": 2, "ready": 1}})
     );
 }
 

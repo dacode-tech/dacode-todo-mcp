@@ -64,7 +64,10 @@ fn summary(total: u64, ready: u64) -> DeferredSummary {
     DeferredSummary { total, ready }
 }
 
-/// An expected row, spelled the way the field docs read.
+/// An expected row, spelled the way the field docs read. The expected
+/// priority is `None` because every graph this helper serves is built
+/// from [`task_node`], which sets no priority — the positive echo
+/// cases have their own test.
 fn row(
     task: u64,
     blocked_by: Vec<BlockEnd>,
@@ -78,6 +81,7 @@ fn row(
         blocks: blocks.into_iter().map(task_id).collect(),
         weight,
         actionable,
+        priority: None,
     }
 }
 
@@ -159,6 +163,40 @@ fn items_limit_truncates_and_never_reorders() {
         assert_eq!(batch.deferred, summary(1, 1), "limit {limit}");
     }
     assert_eq!(ids(&graph.next_items(1)), vec![task_id(1)]);
+}
+
+#[test]
+fn items_rows_carry_each_tasks_priority() {
+    // D17's echo, the positive cases: each row carries its own task's
+    // agent-set priority, read off the node — high, low and null all
+    // pinned, in both the repo scope and the task scope. The order
+    // purity is select's pin, not this one's.
+    let mut graph = graph_with_epics(1);
+    let mut high = task_node(1, 1, Status::Open);
+    high.priority = Some(Priority::High);
+    graph.insert_task(high).unwrap();
+    let mut low = task_node(2, 1, Status::Open);
+    low.priority = Some(Priority::Low);
+    graph.insert_task(low).unwrap();
+    graph.insert_task(task_node(3, 1, Status::Open)).unwrap();
+    let answer = graph.next_items(u64::MAX);
+    assert_eq!(
+        ids(&answer),
+        vec![task_id(1), task_id(2), task_id(3)],
+        "the premise: all three are actionable, in canonical order"
+    );
+    assert_eq!(answer.items[0].priority, Some(Priority::High));
+    assert_eq!(answer.items[1].priority, Some(Priority::Low));
+    assert_eq!(answer.items[2].priority, None);
+
+    // The task scope echoes too: U1's dependents U2 and U3, held by
+    // the open U1, each carrying its own priority.
+    graph.link_blocks(task_edge(1, 2)).unwrap();
+    graph.link_blocks(task_edge(1, 3)).unwrap();
+    let scoped = graph.next_items_of_task(&task_id(1), u64::MAX).unwrap();
+    assert_eq!(ids(&scoped), vec![task_id(2), task_id(3)]);
+    assert_eq!(scoped.items[0].priority, Some(Priority::Low));
+    assert_eq!(scoped.items[1].priority, None);
 }
 
 // ---------------------------------------------------------------------
@@ -832,6 +870,8 @@ fn naive_rows(graph: &Graph, scope: &Scope, limit: u64) -> Vec<NextItem> {
             blocks,
             weight: naive_dependents(graph, id).len() as u64,
             actionable,
+            // The echo (D17), recomputed by hand off the node.
+            priority: task.priority,
         });
         remaining -= 1;
     }

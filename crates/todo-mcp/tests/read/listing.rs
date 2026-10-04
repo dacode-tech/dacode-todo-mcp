@@ -534,6 +534,43 @@ fn the_epic_scope_is_the_subtree_plus_its_gating_decisions() {
 }
 
 // =================================================================
+// The priority echo (D17)
+// =================================================================
+
+/// `task_list`'s rows echo the agent-set priority — the dashboard
+/// column, D17's stated motivation: the fixture's U1/U9/U10/U11 pin
+/// high/high/medium/low beside the nulls, and an unset priority
+/// serializes as `null` with the key present, never omitted (the
+/// `skip_serializing_if` drift dies on the key-presence half —
+/// `serde_json`'s indexing answers `Null` for a missing key too).
+#[test]
+fn task_list_rows_carry_their_priority() {
+    let root = fixture();
+    let driven = drive(
+        root.path(),
+        &[call(2, "task_list", r#"{"repo":"fixture"}"#)],
+    );
+    let wire = structured(&driven.responses[0]);
+    let rows = wire["tasks"].as_array().expect("the rows are an array");
+    let row_of = |id: &str| {
+        rows.iter()
+            .find(|row| row["task"] == json!(id))
+            .unwrap_or_else(|| panic!("the row for {id} is in the listing"))
+    };
+    assert_eq!(row_of("fixture:U1")["priority"], json!("high"));
+    assert_eq!(row_of("fixture:U9")["priority"], json!("high"));
+    assert_eq!(row_of("fixture:U10")["priority"], json!("medium"));
+    assert_eq!(row_of("fixture:U11")["priority"], json!("low"));
+    // The null spelling: present, null.
+    let plain = row_of("fixture:U12")
+        .as_object()
+        .expect("a row is an object")
+        .clone();
+    assert!(plain.contains_key("priority"), "the key is present");
+    assert_eq!(plain["priority"], json!(null));
+}
+
+// =================================================================
 // The all-repos scope
 // =================================================================
 
@@ -713,13 +750,18 @@ fn the_same_request_twice_answers_byte_identical_responses() {
 // =================================================================
 
 /// Asserts one wire row list against the domain's answer, row for
-/// row, each blocker's shape, id and status included.
+/// row, each blocker's shape, id and status included, and each row's
+/// priority (D17).
 fn assert_task_rows(wire: &Value, answer: &[TaskRow]) {
     let rows = wire.as_array().expect("the rows are an array");
     assert_eq!(rows.len(), answer.len());
     for (row, expected) in rows.iter().zip(answer) {
         assert_eq!(row["task"], json!(expected.task.to_string()));
         assert_eq!(row["blocked_by"], json!(blocker_dtos(&expected.blocked_by)));
+        assert_eq!(
+            row["priority"],
+            json!(expected.priority.map(|p| p.as_str()))
+        );
     }
 }
 

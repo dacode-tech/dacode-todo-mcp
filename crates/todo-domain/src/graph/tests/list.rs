@@ -701,10 +701,12 @@ fn list_the_epic_filter_walks_the_induced_order() {
                     id: task_id(7),
                     status: Status::Closed,
                 }],
+                priority: None,
             },
             TaskRow {
                 task: task_id(6),
                 blocked_by: Vec::new(),
+                priority: None,
             },
         ],
         "the epic filter answers rows in the induced order"

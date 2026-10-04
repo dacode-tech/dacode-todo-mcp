@@ -78,7 +78,8 @@ use todo_domain::{
 use todo_store::Registry;
 
 use crate::dto::{
-    DecisionDto, DecisionStatusDto, DocDto, EpicDto, RepoDto, StatusDto, TaskDto, TaskKindDto,
+    DecisionDto, DecisionStatusDto, DocDto, EpicDto, PriorityDto, RepoDto, StatusDto, TaskDto,
+    TaskKindDto,
 };
 use crate::{ServerState, TodoServer, ToolError, error_carrier, repo_of, structured};
 
@@ -153,13 +154,15 @@ pub(crate) struct TaskListDto {
     pub tasks: Vec<TaskRowDto>,
 }
 
-/// One `task_list` row (§6, D16): the task's id plus its blocked-by annotation — the domain's `TaskRow` mirrored, nothing else.
+/// One `task_list` row (§6, D16/D17): the task's id, its blocked-by annotation and its priority — the domain's `TaskRow` mirrored, nothing else.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
 pub(crate) struct TaskRowDto {
     /// The task this row is about, e.g. `camera:U7`.
     pub task: String,
     /// What holds the task back, per the domain's two-run rule: its own predecessors, then its epic's decision gates — each blocker carrying its current status.
     pub blocked_by: Vec<BlockerDto>,
+    /// The task's agent-set priority (D17) — high, medium, low or null; display-only, never an ordering input.
+    pub priority: Option<PriorityDto>,
 }
 
 impl From<TaskRow> for TaskRowDto {
@@ -167,6 +170,7 @@ impl From<TaskRow> for TaskRowDto {
         Self {
             task: row.task.to_string(),
             blocked_by: row.blocked_by.iter().map(BlockerDto::from).collect(),
+            priority: row.priority.map(PriorityDto::from),
         }
     }
 }

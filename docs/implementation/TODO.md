@@ -83,7 +83,11 @@ opencode smoke + U16b** (§3): the server wired into this repo's own
 harness config (`agent-rules.yaml`'s mcp entry, the orchestrator's
 native todo tool denied), and a **real opencode session** driving
 the full lifecycle through the wire — the first client this server
-has ever had that was not a test harness. The next step is **g9**,
+has ever had that was not a test harness — and **t40, D17's echo**
+(§3): `priority` on `next_task`'s answer and the `next_items`/
+`task_list` rows, the handling sentence in the base instructions,
+four goldens moved as additive fields, and the
+order-still-priority-free pin. The next step is **g9**,
 the M3 exit gate.
 M1 is closed. The domain layer (§3's value types and closure discipline,
 §5.1's graph, §5.2's canonical order), the storage engine (the signed D1
@@ -102,7 +106,7 @@ shell, which is M3's business.
 
 | Blocking | What | Action |
 |---|---|---|
-| — | nothing blocks M3: the rmcp ask, U20 and D16 were all signed 2026-10-03 (§3); the wire's shapes are settled (D14/D15/D16) and the dependency is approved (§6.3) | run **g9**, the exit gate — t32–t39 done (§3) |
+| — | nothing blocks M3: the rmcp ask, U20 and D16 were all signed 2026-10-03 (§3); the wire's shapes are settled (D14/D15/D16, and **D17** signed 2026-10-04 — priority on the triage surfaces, the order untouched) | build — **g9**, the exit gate; t32–t40 done (§3) |
 
 (Open but non-blocking: **U18** (a live view for progress and whether the
 server is shared per user, deferred until after M4's importer check, and
@@ -130,7 +134,7 @@ exit criteria: spec §14. Priority is derived from the Gated-on column by
 | M0 | spec settled: §12 items 1–3 signed (done 2026-09-25); Cargo workspace skeleton with the lint regime; all gates green | — | done 2026-09-25 |
 | M1 | domain model + storage engine: graph, statuses, persistence behind the `Store` trait, golden files | — | done 2026-09-30 — g5 ran green: every code gate, five goldens byte-identical, `cargo doc` clean, pitfalls consolidated |
 | M2 | queries: repo/epic selection, dependency resolution, deterministic `next_task`; registry with path updates | **D16** adds one task if signed; no dispatched task waits on it | done 2026-10-02 — **g7 ran green**: every code gate, the five goldens byte-identical under `UPDATE_GOLDEN=1`, `cargo doc` warning-free under both invocations for the first time (f48 settled), §5.2's selection re-proven a pure function of state, the f41 sweep exercised for the first time (f44/f45 promoted to U21/U22, the rest verified open with named consumers), and M2's lessons consolidated into `.agents/pitfalls.md` (P-LIVE-007/-008, the citation rule, the coverage-pin rule). The five deliveries — t27 selection, f47's pins, t28 batch, t29 listing, t30 doc riders, t31 registry queries — are §3's entries; D16 stayed unsigned throughout and nothing waited on it — **signed (a) 2026-10-03, after closure**, its aggregation task landing under M3's goal |
-| M3 | MCP server: §6's tool surface over the wire (import_md excepted — M4's, per D12), protocol-level tests, default-repo slug config (D8), smoke against a real client | gates cleared 2026-10-03: the **rmcp ask** signed (rmcp 3.5.0 + `serde_json/preserve_order`, §6.3), **U20** resolved (b) — the registry format stays and the server answers `repo_list` from handles — and **D16** signed (a), adding the domain aggregation task to the decomposition; D14/D15 settled the wire's key order and error carrier on 2026-09-30 | decomposed 2026-10-03 — **g8** holds **t32–t39** plus the **g9** exit gate: t32 the D16 domain aggregation, t33 rmcp + the skeleton (the initialize handshake, our serverInfo, U16a's instructions, the §8 concurrency core, `repo_register` as the pipeline proof), t34/t35 the read tools in two clusters (query, then listing), t36 the node-CRUD mutations, t37 edges + registry-from-handles (U20b) + the default slug (D8), t38 the wire golden suite + concurrency proof (D14/D15's pins), t39 the opencode smoke + U16b. Dispatch order t32 → t33 → … → t39 → g9; import_md stays M4's — pulling a minimal dacode-dialect importer into M3's tail is a one-task change if real-board data in the smoke test is wanted — **t32–t39 all landed; g9, the exit gate, is the remaining step** |
+| M3 | MCP server: §6's tool surface over the wire (import_md excepted — M4's, per D12), protocol-level tests, default-repo slug config (D8), smoke against a real client | gates cleared 2026-10-03: the **rmcp ask** signed (rmcp 3.5.0 + `serde_json/preserve_order`, §6.3), **U20** resolved (b) — the registry format stays and the server answers `repo_list` from handles — and **D16** signed (a), adding the domain aggregation task to the decomposition; D14/D15 settled the wire's key order and error carrier on 2026-09-30 | decomposed 2026-10-03 — **g8** holds **t32–t39** plus the **g9** exit gate: t32 the D16 domain aggregation, t33 rmcp + the skeleton (the initialize handshake, our serverInfo, U16a's instructions, the §8 concurrency core, `repo_register` as the pipeline proof), t34/t35 the read tools in two clusters (query, then listing), t36 the node-CRUD mutations, t37 edges + registry-from-handles (U20b) + the default slug (D8), t38 the wire golden suite + concurrency proof (D14/D15's pins), t39 the opencode smoke + U16b. Dispatch order t32 → t33 → … → t39 → g9; import_md stays M4's — pulling a minimal dacode-dialect importer into M3's tail is a one-task change if real-board data in the smoke test is wanted — **t32–t40 all landed (t40 is D17's echo, signed 2026-10-04, so M3 closes with the final v1 surface rather than amending it immediately after closure)** |
 | M4 | adoption: the dacode-dialect importer first (**D12**, amending D7), its board the only fixture checked in per §10; camera and ikvm-html imported from their live boards and never copied into this repo; the three repos tracked for real | — | not started |
 | M5 | packaging, docs, cwd auto-detection (deferred by D8), polish | — | not started |
 
@@ -2203,6 +2207,46 @@ Oldest first. One line per delivery, with the commit hash once committed.
        the change gates every future session's tool surface). No
        Rust moved: every code gate `skipped` by construction, proven
        by an empty diff over `*.rs`/`Cargo.*`. U16 struck (§4).
+- 2026-10-04 — **M3 t40: D17's echo — `priority` on the triage
+       surfaces.** The agent-set priority (D11's vocabulary, D17's
+       echo) now appears where an agent or a dashboard picks by:
+       `next_task`'s answer carries the chosen task's priority beside
+       its id, `next_items` rows and `task_list` rows carry each
+       row's. The domain row types (`NextTask`, `NextItem`,
+       `TaskRow`) gained `priority: Option<Priority>` — read off the
+       node, never derived — and the wire DTOs mirror it with
+       `TaskDto`'s existing spelling (`null` when unset, the key
+       never omitted). The base instructions gained D17's handling
+       sentence (set it when triaging, prefer higher priority when
+       choosing among actionable rows yourself; the server's order is
+       dependency-driven and ignores it by design), and the protocol
+       suite's frozen copy moved with it. The selection order is
+       untouched — D6's canonical order stays dependency-driven — and
+       the order-still-priority-free pin (a graph with differing
+       priorities answers all three surfaces in the same order as its
+       priority-free twin) plus mutation M5 (a priority-preferring
+       `select_from`) make that a checked fact: the pin dies on its
+       `next_task` assertion, beside the t27 priority pin and the
+       `next_task`/first-row cross-pin. The fixture widened to three
+       distinct values (U9 high, U10 medium, U11 low), so the moved
+       goldens pin high/medium/low beside the nulls: **four goldens
+       moved as additive fields — `next_task.v1`, `next_items.v1`,
+       `task_list.v1`, and `graph_show.v1` (the widening reaches the
+       dump's task nodes); `task_show.v1` measured byte-identical**
+       (it pins U1/U2, untouched). Two files outside the spec's owned
+       set were forced by the echo and are flagged for review
+       ratification (the f71 precedent): `graph/list.rs` (the
+       `TaskRow` construction site) and `tests/write/edges.rs` (two
+       `next_task` payload assertions). 183 domain tests (+4), the
+       read suite 27→30, wire 5 and write 26 unchanged; every gate
+       green; M1–M5 run, observed and reverted sha-verified. One
+       accepted residual, recorded: the wire suite has no
+       order-vs-priority coverage of its own (the fixture's first
+       canonical task is also its highest-priority one, so a
+       wire-side re-sort would move no golden) — the domain's
+       purity pin and the seeded agreement net are the guards, and
+       the fixture's next touch should misalign one priority
+       against its canonical position to close the gap.
 
 ## 4. Follow-ups
 
@@ -2785,7 +2829,17 @@ Unowned work. Take the next unused `U` id; never renumber, never reuse.
       named isolation variants (without the `repo_list()` call;
       with a bounded sleep before the open) are documented on the
       hammer's test for whoever next sees it. The flake remains
-      t39's smoke session's watch item.
+      t39's smoke session's watch item. **Recurred 2026-10-04, during
+      t40's review**: one failure in six `cargo test -p todo-mcp`
+      runs — the same test, the same "store is locked: repo camera"
+      panic, green on every immediate re-run, exactly the recorded
+      signature. First documented recurrence since t38's
+      unreproduced disposition, which was conditioned on
+      reproduction — so the condition is now met and the two
+      isolation variants (without the `repo_list()` call; with a
+      bounded sleep before the open) are the next owner's first
+      move, at g9 or a dedicated task. The t39 smoke itself passed
+      clean; the recurrence was a review-side test run.
 - [ ] **U22 · `progress.py` does not render open decisions.** f45,
       promoted at the g7 sweep for the same reason: the page reads board
       §2/§4/§5 and the tracker, so an open D-entry has no row — measured
@@ -2878,6 +2932,67 @@ Newest first. One entry per session, written for someone who was not
 here. The final entry of a session is the handover
 (`.agents/skills/todo-next-imp/SKILL.md` defines the shape).
 
+### 2026-10-04 — t40 landed: D17's echo, priority on the triage surfaces
+
+The user signed **D17** ("let the agent decide") and this session
+executed its implementation task, `tmp/t40-spec.md` (gitignored
+scratch), against the amended spec rows (§5.2's batch description,
+§6's `next_task`/`next_items`/`task_list` rows, §11's priority
+bullet) and the D17 dossier in `decisions.md`.
+
+The echo: `priority: Option<Priority>` on the domain row types
+(`NextTask` beside the task field, `NextItem` and `TaskRow` appended
+after their existing fields) and `Option<PriorityDto>` on the wire
+DTOs in `TaskDto`'s spelling — `null` when unset, the key never
+omitted, pinned by key-presence assertions so a `skip_serializing_if`
+drift dies. The row constructors read the field off the node; no new
+state, no derivation, no ordering change. The base instructions
+gained D17's handling sentence and the protocol suite's frozen copy
+moved with it (the exact-byte initialize pins enforce the sync).
+
+The order is untouched, and that is now a checked fact: the
+order-still-priority-free pin builds a graph whose tasks hold
+differing priorities and asserts all three surfaces answer in the
+same order as the priority-free twin; mutation M5 (a
+priority-preferring `select_from`) dies on it — on its `next_task`
+assertion — beside the t27 priority pin and the `next_task`/first-row
+cross-pin. The wire suite stays green under M5 (measured: the
+fixture's U9 is both canonical-first and highest-priority, so the
+goldens do not move under that mutant — the pin is the killer, not
+the fixture). Calibrating M5 found a trap worth naming: `Priority`'s
+derived `Ord` is declaration order (`High < Medium < Low`), so a
+"prefer higher" written as `>` prefers low — the mutant's rank is
+spelled out.
+
+The compatibility event: the fixture widened to three distinct
+values (U9 high, U10 medium, U11 low — D2), and **four goldens moved
+as additive fields** — `next_task.v1` (`"priority":"high"` beside the
+id, `null` on the None answer), `next_items.v1` and `task_list.v1`
+(per-row `"priority"`), and `graph_show.v1` (the widening reaches the
+dump's U9/U10/U11 task nodes; two of its nine lines change).
+`task_show.v1` measured byte-identical — it pins U1/U2, untouched —
+and the other thirteen goldens are byte-identical (checked with
+`git diff --exit-code` over the unmoved set).
+
+Two spec divergences, both resolved toward the gate per the f71
+precedent and flagged for the reviewers' ratification: the owned-file
+set omits `crates/todo-domain/src/graph/list.rs` (the `TaskRow`
+construction site — the field addition forces the edit) and
+`crates/todo-mcp/tests/write/edges.rs` (two `next_task` payload
+assertions the echo moves). The task prompt's "clean tree at 5a848b8"
+and "committed D17 dossier" were also off: the D17 spec/board/decisions
+amendments were already in the working tree, uncommitted — left in
+place, since the orchestrator's commit carries them with the code.
+
+Counts: 183 domain tests (179 + 4: the echo per surface, the purity
+pin), the read suite 27→30 (the echo tests + the null-spelling pin),
+protocol 10 (needles moved, count unchanged), wire 5 and write 26
+unchanged. Mutations M1–M5 run, observed, reverted, sha-verified; the
+named kill sets were supersets as usual (M2's includes the two
+write-suite payload assertions; M1/M3's include the domain-agreement
+and filter tests). Every gate green. The tree is left dirty for dual
+review; the next step is **g9**, the M3 exit gate.
+
 ### 2026-10-04 — t39 landed: the server wired into its own harness, smoked by a real client
 
 The session opened on the user's go: t39's spec and implementation,
@@ -2925,11 +3040,14 @@ which is a wire-visible change and therefore a decision, not a
 patch.
 
 Handover: t39 is committed (review-exempt class, no trailers — the
-dual review is recorded in the tracker evidence); **g9, the M3 exit
-gate, is the next step** — every code gate, the golden ritual, the
-f41 sweep, and M3's closure on the board. D17 (priorities) waits on
-the user's pick. The smoke store lives at `tmp/todo-data` (fresh on
-clone; the config entry recreates it on demand).
+dual review is recorded in the tracker evidence); **D17 signed
+2026-10-04** ("let the agent decide": `priority` echoed on
+`next_task`'s answer and the `next_items`/`task_list` rows, the
+order untouched, the handling rule in the base instructions) — its
+task **t40** lands under g8 before the g9 exit gate, moving the three
+tools' goldens as additive fields. The smoke store lives at
+`tmp/todo-data` (fresh on clone; the config entry recreates it on
+demand).
 
 ### 2026-10-04 — t38 landed: the wire suite's cross-cutting pins, U26 unreproduced
 

@@ -58,7 +58,7 @@ use todo_domain::{
     OpenTotals, StatusCounts, StatusSummary, TaskId, ValueError,
 };
 
-use crate::dto::{DecisionDto, DeferredDto, TaskDto};
+use crate::dto::{DecisionDto, DeferredDto, PriorityDto, TaskDto};
 use crate::{ServerState, TodoServer, ToolError, error_carrier, repo_of, structured};
 
 /// `next_items`'s batch cap when the parameter is absent (§5.2: the
@@ -131,11 +131,13 @@ pub(crate) struct DecisionShowParams {
 // The output DTOs
 // =================================================================
 
-/// `next_task`'s answer (§5.2): the scope's first actionable task and the scope's deferred summary.
+/// `next_task`'s answer (§5.2): the scope's first actionable task, its priority and the scope's deferred summary.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
 pub(crate) struct NextTaskDto {
     /// The first actionable task in the queried scope's canonical order, or null when the scope holds none — an answer, not an error.
     pub task: Option<String>,
+    /// The chosen task's agent-set priority (D17), echoed beside its id — high, medium, low or null; display-only, never an ordering input.
+    pub priority: Option<PriorityDto>,
     /// The deferred summary of the queried scope: how many deferred tasks it holds and how many are worth revisiting now.
     pub deferred: DeferredDto,
 }
@@ -144,6 +146,7 @@ impl From<NextTask> for NextTaskDto {
     fn from(answer: NextTask) -> Self {
         Self {
             task: answer.task.map(|id| id.to_string()),
+            priority: answer.priority.map(PriorityDto::from),
             deferred: DeferredDto::from(answer.deferred),
         }
     }
@@ -167,7 +170,7 @@ impl From<NextItems> for NextItemsDto {
     }
 }
 
-/// One `next_items` row (§5.2): a task in the scope's derived order, its adjacency annotations, its derived weight and its readiness mark.
+/// One `next_items` row (§5.2): a task in the scope's derived order, its adjacency annotations, its derived weight, its readiness mark and its priority.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
 pub(crate) struct NextItemDto {
     /// The task this row is about, e.g. `camera:U7`.
@@ -180,6 +183,8 @@ pub(crate) struct NextItemDto {
     pub weight: u64,
     /// Whether the task may be picked up now: status open or in_work with every predecessor finished.
     pub actionable: bool,
+    /// The task's agent-set priority (D17) — high, medium, low or null; display-only, never an ordering input.
+    pub priority: Option<PriorityDto>,
 }
 
 impl From<NextItem> for NextItemDto {
@@ -190,6 +195,7 @@ impl From<NextItem> for NextItemDto {
             blocks: row.blocks.iter().map(ToString::to_string).collect(),
             weight: row.weight,
             actionable: row.actionable,
+            priority: row.priority.map(PriorityDto::from),
         }
     }
 }

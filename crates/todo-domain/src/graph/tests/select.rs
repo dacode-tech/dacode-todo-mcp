@@ -14,7 +14,7 @@
 //! module's — the only promotion this suite needed was `run_sequence`'s
 //! visibility.
 
-use crate::{DeferredSummary, NextTask};
+use crate::{DeferredSummary, NextItems, NextTask, TaskFilter, TaskRow};
 
 use super::seeded::{Rng, run_sequence};
 use super::*;
@@ -33,10 +33,14 @@ const GRAPH_SEEDS: [u64; 5] = [11, 30, 44, 50, 60];
 /// stays cheap.
 const SELECTION_STEPS: u64 = 300;
 
-/// Asserts one scope's whole answer against expected values.
+/// Asserts one scope's whole answer against expected values. The
+/// expected priority is `None` because every graph this helper serves
+/// is built from [`task_node`], which sets no priority — the positive
+/// echo cases have their own test.
 fn assert_answer(graph: &Graph, scope: Option<u64>, task: Option<u64>, total: u64, ready: u64) {
     let expected = NextTask {
         task: task.map(task_id),
+        priority: None,
         deferred: DeferredSummary { total, ready },
     };
     match scope {
@@ -295,12 +299,14 @@ fn select_nothing_actionable_is_an_answer_not_an_error() {
     // actionable": every shape below answers, none errs.
 
     // The empty graph, and the full value it answers with — the
-    // summary rides the None answer (D2).
+    // summary rides the None answer (D2), and so does the priority
+    // echo (D17: `None` when the answer is `None`).
     let graph = empty_graph();
     assert_eq!(
         graph.next_task(),
         NextTask {
             task: None,
+            priority: None,
             deferred: DeferredSummary { total: 0, ready: 0 },
         }
     );
@@ -501,7 +507,10 @@ fn select_until_priority_and_relates_never_enter() {
     assert_answer(&past, None, Some(2), 1, 1);
 
     // `priority`: a high-priority task later in canonical order does
-    // not beat the low-priority first one.
+    // not beat the low-priority first one — and the answer carries
+    // the chosen task's priority (D17's echo) while the order ignores
+    // it, which is the two halves of the field's contract in one
+    // assertion.
     let mut graph = graph_with_epics(1);
     let mut low = task_node(1, 1, Status::Open);
     low.priority = Some(Priority::Low);
@@ -509,8 +518,17 @@ fn select_until_priority_and_relates_never_enter() {
     let mut high = task_node(2, 1, Status::Open);
     high.priority = Some(Priority::High);
     graph.insert_task(high).unwrap();
-    assert_answer(&graph, None, Some(1), 0, 0);
-    assert_answer(&graph, Some(1), Some(1), 0, 0);
+    let expected = NextTask {
+        task: Some(task_id(1)),
+        priority: Some(Priority::Low),
+        deferred: DeferredSummary { total: 0, ready: 0 },
+    };
+    assert_eq!(graph.next_task(), expected, "repo scope");
+    assert_eq!(
+        graph.next_task_of_epic(&epic_id(1)).unwrap(),
+        expected,
+        "epic scope"
+    );
 
     // `relates`: annotating changes neither the answer nor the
     // summary. The lower-numbered end is `deferred`, not `closed` — a
@@ -534,6 +552,128 @@ fn select_until_priority_and_relates_never_enter() {
         related.next_task_of_epic(&epic_id(1)).unwrap(),
         before_epic,
         "relates moved the scoped answer"
+    );
+}
+
+#[test]
+fn select_the_answer_carries_the_chosen_tasks_priority() {
+    // D17's echo, the positive cases: the answer's priority is the
+    // chosen task's, read off the node — a High chosen task, a
+    // null-priority chosen task, and a None answer (the negative half
+    // lives in `select_nothing_actionable_is_an_answer_not_an_error`'s
+    // full-value literal).
+    let mut graph = graph_with_epics(1);
+    let mut high = task_node(1, 1, Status::Open);
+    high.priority = Some(Priority::High);
+    graph.insert_task(high).unwrap();
+    let expected = NextTask {
+        task: Some(task_id(1)),
+        priority: Some(Priority::High),
+        deferred: DeferredSummary { total: 0, ready: 0 },
+    };
+    assert_eq!(graph.next_task(), expected, "repo scope");
+    assert_eq!(
+        graph.next_task_of_epic(&epic_id(1)).unwrap(),
+        expected,
+        "epic scope"
+    );
+
+    // A chosen task carrying no priority echoes `None` — the field is
+    // present and null, never defaulted.
+    let mut plain = graph_with_epics(1);
+    plain.insert_task(task_node(1, 1, Status::Open)).unwrap();
+    assert_eq!(plain.next_task().priority, None);
+    assert_eq!(
+        plain.next_task_of_epic(&epic_id(1)).unwrap().priority,
+        None,
+        "epic scope"
+    );
+
+    // A None answer echoes `None` (D3).
+    let gated = graph_with_epics(1);
+    assert_eq!(gated.next_task().priority, None);
+}
+
+#[test]
+fn select_the_order_stays_priority_free_across_the_triage_surfaces() {
+    // D17's (b)-guard, the required order-purity pin: a graph whose
+    // tasks hold differing priorities answers `next_task`,
+    // `next_items` and `task_list` in the SAME canonical order as its
+    // priority-free twin — the twin differs only in the priority
+    // fields, so any priority-reading sort moves one of the three
+    // orders and fails here. The graph is shaped so it would: U1 (low)
+    // leads U3 (high) in canonical order, and the task scope's rows
+    // [U5 (low), U6 (high)] would flip under a high-first sort.
+    let build = |priorities: [Option<Priority>; 6]| {
+        let mut graph = graph_with_epics(2);
+        // E1: U1–U4, no edges — the repo batch's head.
+        for (n, priority) in priorities.iter().take(4).enumerate() {
+            let mut task = task_node(n as u64 + 1, 1, Status::Open);
+            task.priority = *priority;
+            graph.insert_task(task).unwrap();
+        }
+        // E2: the U4→U5→U6 chain gives the task scope of U4 two rows
+        // whose priorities disagree with their canonical positions.
+        let mut u5 = task_node(5, 2, Status::Open);
+        u5.priority = priorities[4];
+        graph.insert_task(u5).unwrap();
+        let mut u6 = task_node(6, 2, Status::Open);
+        u6.priority = priorities[5];
+        graph.insert_task(u6).unwrap();
+        graph.link_blocks(task_edge(4, 5)).unwrap();
+        graph.link_blocks(task_edge(5, 6)).unwrap();
+        graph
+    };
+    let graph = build([
+        Some(Priority::Low),
+        None,
+        Some(Priority::High),
+        None,
+        Some(Priority::Low),
+        Some(Priority::High),
+    ]);
+    let twin = build([None; 6]);
+
+    // The premise, named: the graph really carries differing
+    // priorities, in the positions a priority sort would move.
+    let batch = graph.next_items(u64::MAX);
+    assert_eq!(batch.items[0].priority, Some(Priority::Low));
+    assert_eq!(batch.items[2].priority, Some(Priority::High));
+    assert_eq!(twin.next_items(u64::MAX).items[0].priority, None);
+
+    // The three surfaces, in the same order as the twin.
+    assert_eq!(
+        graph.next_task().task,
+        twin.next_task().task,
+        "next_task moved"
+    );
+    let ids = |answer: &NextItems| {
+        answer
+            .items
+            .iter()
+            .map(|row| row.task.clone())
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(
+        ids(&graph.next_items(u64::MAX)),
+        ids(&twin.next_items(u64::MAX)),
+        "the repo batch moved"
+    );
+    assert_eq!(
+        ids(&graph.next_items_of_epic(&epic_id(1), u64::MAX).unwrap()),
+        ids(&twin.next_items_of_epic(&epic_id(1), u64::MAX).unwrap()),
+        "the epic batch moved"
+    );
+    assert_eq!(
+        ids(&graph.next_items_of_task(&task_id(4), u64::MAX).unwrap()),
+        ids(&twin.next_items_of_task(&task_id(4), u64::MAX).unwrap()),
+        "the task batch moved"
+    );
+    let row_ids = |rows: &[TaskRow]| rows.iter().map(|row| row.task.clone()).collect::<Vec<_>>();
+    assert_eq!(
+        row_ids(&graph.task_list(&TaskFilter::default()).unwrap()),
+        row_ids(&twin.task_list(&TaskFilter::default()).unwrap()),
+        "the listing moved"
     );
 }
 
@@ -769,8 +909,14 @@ fn naive_select(graph: &Graph, scope: Option<&EpicId>) -> NextTask {
         deferred.total += 1;
         deferred.ready += u64::from(naive_until_satisfied(graph, task));
     }
+    // The echo, recomputed by hand: the chosen task's priority read
+    // off the node through the public accessor.
+    let priority = answer
+        .as_ref()
+        .and_then(|id| graph.task(id).and_then(|node| node.priority));
     NextTask {
         task: answer,
+        priority,
         deferred,
     }
 }

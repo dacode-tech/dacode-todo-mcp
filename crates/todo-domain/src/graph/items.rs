@@ -1,8 +1,8 @@
 //! Batch selection (spec §5.2): the `next_items` surface — up to
 //! `limit` rows in three scopes (repo, epic, task), each annotated with
-//! its direct blocked-by/blocks ids, a derived weight and the
-//! actionable-or-held mark, plus the deferred summary [`Graph::next_task`]
-//! also carries.
+//! its direct blocked-by/blocks ids, a derived weight, the
+//! actionable-or-held mark and its agent-set `priority` (D17), plus
+//! the deferred summary [`Graph::next_task`] also carries.
 //!
 //! **The batch only.** The listing reads — `task_list`'s filters and
 //! the three thin listings — are `list`, which follows this module's
@@ -175,7 +175,7 @@ use std::collections::BTreeSet;
 
 use crate::error::DomainError;
 use crate::id::{EpicId, TaskId};
-use crate::status::Status;
+use crate::status::{Priority, Status};
 
 use super::edges::BlockEnd;
 use super::select::DeferredSummary;
@@ -233,6 +233,10 @@ pub struct NextItem {
     /// where the batch admits actionable nodes only; the mark carries
     /// information in task scope, where held dependents stay listed.
     pub actionable: bool,
+    /// The task's agent-set `priority` (D17), read off the node —
+    /// display-only, never an ordering input (D11, §11): the batch is
+    /// chosen before the annotation is attached, so it cannot reorder.
+    pub priority: Option<Priority>,
 }
 
 impl Graph {
@@ -336,12 +340,17 @@ impl Graph {
             .collect();
         let blocks = self.task_successors(id);
         let weight = self.dependents_of(id).len() as u64;
+        // The echo (D17): read off the node, never derived. The
+        // missing-node arm is unreachable for the reason above and
+        // answers `None` rather than inventing a priority.
+        let priority = self.task(id).and_then(|node| node.priority);
         NextItem {
             task: id.clone(),
             blocked_by,
             blocks,
             weight,
             actionable,
+            priority,
         }
     }
 

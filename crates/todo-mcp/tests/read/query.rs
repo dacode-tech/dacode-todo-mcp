@@ -467,6 +467,7 @@ fn the_wire_agrees_with_the_domain_over_the_same_fixture() {
     let answer = graph.next_task();
     let wire = structured(&driven.responses[0]);
     assert_eq!(wire["task"], json!(answer.task.map(|id| id.to_string())));
+    assert_eq!(wire["priority"], json!(answer.priority.map(|p| p.as_str())));
     assert_eq!(wire["deferred"]["total"], json!(answer.deferred.total));
     assert_eq!(wire["deferred"]["ready"], json!(answer.deferred.ready));
 
@@ -475,6 +476,7 @@ fn the_wire_agrees_with_the_domain_over_the_same_fixture() {
         .unwrap();
     let wire = structured(&driven.responses[1]);
     assert_eq!(wire["task"], json!(answer.task.map(|id| id.to_string())));
+    assert_eq!(wire["priority"], json!(answer.priority.map(|p| p.as_str())));
     assert_eq!(wire["deferred"]["total"], json!(answer.deferred.total));
     assert_eq!(wire["deferred"]["ready"], json!(answer.deferred.ready));
 
@@ -653,6 +655,89 @@ fn the_two_run_blocked_by_order_reaches_the_wire() {
 }
 
 // =================================================================
+// The priority echo (D17)
+// =================================================================
+
+/// The triage surfaces echo the agent-set priority: `next_task`'s
+/// answer carries the chosen task's (U9 high on the repo scope, null
+/// on the gated E1 scope's None answer), and every `next_items` row
+/// carries its own — the fixture's U9/U10/U11 pin high/medium/low
+/// beside the nulls, in the repo batch and the task-scoped one. The
+/// domain agreement test pins the same fields against the domain's
+/// own answers; this pins the values an agent picks by.
+#[test]
+fn next_task_and_next_items_rows_carry_their_priority() {
+    let root = fixture();
+    let driven = drive(
+        root.path(),
+        &[
+            call(2, "next_task", r#"{"repo":"fixture"}"#),
+            call(3, "next_task", r#"{"repo":"fixture","epic":"fixture:E1"}"#),
+            call(4, "next_items", r#"{"repo":"fixture"}"#),
+            call(5, "next_items", r#"{"repo":"fixture","task":"fixture:U1"}"#),
+        ],
+    );
+    // next_task: the chosen task's priority beside its id, and None
+    // on the None answer.
+    let wire = structured(&driven.responses[0]);
+    assert_eq!(wire["task"], json!("fixture:U9"));
+    assert_eq!(wire["priority"], json!("high"));
+    let wire = structured(&driven.responses[1]);
+    assert_eq!(wire["task"], json!(null));
+    assert_eq!(wire["priority"], json!(null));
+
+    // next_items: the repo batch's first three rows pin the three
+    // distinct values, the task scope's rows the nulls.
+    let wire = structured(&driven.responses[2]);
+    let rows = wire["items"].as_array().expect("the batch is an array");
+    assert_eq!(rows[0]["task"], json!("fixture:U9"));
+    assert_eq!(rows[0]["priority"], json!("high"));
+    assert_eq!(rows[1]["task"], json!("fixture:U10"));
+    assert_eq!(rows[1]["priority"], json!("medium"));
+    assert_eq!(rows[2]["task"], json!("fixture:U11"));
+    assert_eq!(rows[2]["priority"], json!("low"));
+    assert_eq!(rows[3]["priority"], json!(null));
+    let wire = structured(&driven.responses[3]);
+    let rows = wire["items"].as_array().expect("the batch is an array");
+    assert_eq!(rows[0]["task"], json!("fixture:U2"));
+    assert_eq!(rows[0]["priority"], json!(null));
+    assert_eq!(rows[1]["task"], json!("fixture:U3"));
+    assert_eq!(rows[1]["priority"], json!(null));
+}
+
+/// The null spelling: an unset priority serializes as `null`, and the
+/// key is present — never omitted. `serde_json`'s indexing answers
+/// `Null` for a missing key too, so the pin is the key's presence in
+/// the parsed object: a `skip_serializing_if` drift on the DTO field
+/// omits the key and fails here, where a value comparison alone
+/// would not notice.
+#[test]
+fn an_unset_priority_serializes_as_null_never_omitted() {
+    let root = fixture();
+    let driven = drive(
+        root.path(),
+        &[
+            call(2, "next_task", r#"{"repo":"fixture","epic":"fixture:E1"}"#),
+            call(3, "next_items", r#"{"repo":"fixture"}"#),
+        ],
+    );
+    // The None answer's priority: present and null.
+    let wire = structured(&driven.responses[0])
+        .as_object()
+        .expect("the answer is an object")
+        .clone();
+    assert!(wire.contains_key("priority"), "the key is present");
+    assert_eq!(wire["priority"], json!(null));
+    // A null-priority row: present and null (U12 carries none).
+    let batch = structured(&driven.responses[1]);
+    let rows = batch["items"].as_array().expect("the batch is an array");
+    let row = rows[3].as_object().expect("a row is an object").clone();
+    assert_eq!(row["task"], json!("fixture:U12"));
+    assert!(row.contains_key("priority"), "the key is present");
+    assert_eq!(row["priority"], json!(null));
+}
+
+// =================================================================
 // The assertion helpers
 // =================================================================
 
@@ -702,6 +787,10 @@ fn assert_next_items(wire: &Value, answer: &todo_domain::NextItems) {
         assert_eq!(row["blocks"], json!(blocks));
         assert_eq!(row["weight"], json!(expected.weight));
         assert_eq!(row["actionable"], json!(expected.actionable));
+        assert_eq!(
+            row["priority"],
+            json!(expected.priority.map(|p| p.as_str()))
+        );
     }
 }
 

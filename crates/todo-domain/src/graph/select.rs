@@ -35,8 +35,9 @@
 //! so tasks under a `closed`, `blocked` or `deferred` epic are still
 //! actionable. Nor do `until` — metadata, and selection reads no
 //! calendar (§3, §8) — the agent-set `priority` — display-only (D11,
-//! §11), and promoting it would amend the signed D6 tiebreaker — or
-//! `relates`, an annotation with no ordering semantics (§5.1).
+//! §11), echoed on the answer (D17) and never an ordering input, since
+//! promoting it would amend the signed D6 tiebreaker — or `relates`, an
+//! annotation with no ordering semantics (§5.1).
 //!
 //! "Nothing is actionable" is `task: None`, not an error: §6.1's code
 //! list is closed and holds no code for it. The deferred summary rides
@@ -104,7 +105,7 @@
 
 use crate::error::DomainError;
 use crate::id::{EpicId, TaskId};
-use crate::status::Status;
+use crate::status::{Priority, Status};
 
 use super::edges::BlockEnd;
 use super::state::Graph;
@@ -117,6 +118,11 @@ pub struct NextTask {
     /// order, or `None` when the scope holds none — an answer, not an
     /// error (§6.1's code list is closed and has no code for it).
     pub task: Option<TaskId>,
+    /// The chosen task's agent-set `priority` (D17), read off the node
+    /// and echoed beside its id — display-only, never an ordering
+    /// input (D11, §11). `None` when the answer is `None` or the task
+    /// carries no priority.
+    pub priority: Option<Priority>,
     /// The deferred summary of the queried scope, present
     /// unconditionally — including on a `None` answer.
     pub deferred: DeferredSummary,
@@ -205,9 +211,14 @@ impl Graph {
     /// actionable id, and the summary counted over the same list.
     fn select_from(&self, order: &[TaskId]) -> NextTask {
         let mut task = None;
+        let mut priority = None;
         for id in order {
             if self.is_actionable(id) {
                 task = Some(id.clone());
+                // `is_actionable` accepted this id, so the lookup
+                // cannot miss; a miss would leave the echo unset
+                // rather than panicking.
+                priority = self.task(id).and_then(|node| node.priority);
                 break;
             }
         }
@@ -219,7 +230,11 @@ impl Graph {
             deferred.total += 1;
             deferred.ready += u64::from(self.is_until_satisfied(&candidate.id));
         }
-        NextTask { task, deferred }
+        NextTask {
+            task,
+            priority,
+            deferred,
+        }
     }
 
     /// Whether every endpoint in one adjacency list is finished.

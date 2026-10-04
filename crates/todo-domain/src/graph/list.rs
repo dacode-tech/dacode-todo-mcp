@@ -192,8 +192,9 @@ impl Graph {
     /// [`Graph::canonical_order_of_epic`] — the induced order — with
     /// one. The answer is the scope's canonical order filtered, never
     /// re-sorted; each surviving id becomes one row, its `blocked_by`
-    /// annotation built by [`Graph::blockers_of`] (D16) after the
-    /// filter has chosen it.
+    /// annotation built by [`Graph::blockers_of`] (D16) and its
+    /// `priority` read off the node (D17) after the filter has chosen
+    /// it.
     ///
     /// The filters AND and each is total; a combination that matches
     /// nothing — a contradictory one like a non-deferred `status` with
@@ -213,9 +214,14 @@ impl Graph {
             .filter(|id| self.matches_filter(id, filter))
             .map(|id| {
                 let blocked_by = self.blockers_of(&id);
+                // The echo (D17): read off the node, never derived. The
+                // missing-node arm is unreachable (judgment call (e))
+                // and answers `None` rather than inventing a priority.
+                let priority = self.task(&id).and_then(|node| node.priority);
                 TaskRow {
                     task: id,
                     blocked_by,
+                    priority,
                 }
             })
             .collect())

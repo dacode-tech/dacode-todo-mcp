@@ -101,7 +101,10 @@ const INSTRUCTIONS: &str = "You are connected to a deterministic task-graph serv
     `deferred` require a `note`; signing a decision requires a \
     `resolution`. Writes return the new state. Errors carry a stable code \
     in `structuredContent.code` — branch on the code, never parse the \
-    message.";
+    message. Tasks carry an agent-set `priority` (high, medium, low) — set \
+    it when triaging, prefer higher priority when choosing among \
+    actionable rows yourself; the server's order is dependency-driven and \
+    ignores it by design.";
 
 /// The server's mutable state, held behind one lock (§8): the injected
 /// data root, the configured default repo slug and the open per-repo

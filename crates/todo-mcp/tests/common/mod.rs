@@ -283,7 +283,9 @@ fn reference(kind: ReferenceKind, target: &str, note: Option<&str>) -> Reference
 /// - **E2 "Runway"** (in_work) is ungated: eleven actionable tasks
 ///   (U9–U19) so the wire's default limit of ten is visible as a cap,
 ///   plus the deferred pair — U20 held (its until-target U9 is open),
-///   U21 ready (its until-target U6 is closed).
+///   U21 ready (its until-target U6 is closed). U9/U10/U11 carry
+///   high/medium/low (D17) so the triage surfaces' priority echo pins
+///   three distinct values beside the nulls.
 /// - **D3** is signed and gates U10 — a finished decision predecessor
 ///   a listed row records; **S1** is a doc; U1↔U6 is a `relates`
 ///   annotation.
@@ -515,30 +517,41 @@ fn build_fixture(root: &DataRoot) {
 
     let u9 = store
         .add_task(
-            draft(&runway.id, "Land the runway", TaskKind::Debt, Status::Open),
+            TaskDraft {
+                priority: Some(Priority::High),
+                ..draft(&runway.id, "Land the runway", TaskKind::Debt, Status::Open)
+            },
             at(9),
         )
         .expect("U9 lands");
     let u10 = store
         .add_task(
-            draft(
-                &runway.id,
-                "Wire the encoder",
-                TaskKind::Finding,
-                Status::Open,
-            ),
+            TaskDraft {
+                priority: Some(Priority::Medium),
+                ..draft(
+                    &runway.id,
+                    "Wire the encoder",
+                    TaskKind::Finding,
+                    Status::Open,
+                )
+            },
             at(10),
         )
         .expect("U10 lands");
     for step in 11..=19 {
         store
             .add_task(
-                draft(
-                    &runway.id,
-                    &format!("Runway step {step}"),
-                    TaskKind::Task,
-                    Status::Open,
-                ),
+                TaskDraft {
+                    // U11's low completes the fixture's three distinct
+                    // values (D17); the rest carry none.
+                    priority: (step == 11).then_some(Priority::Low),
+                    ..draft(
+                        &runway.id,
+                        &format!("Runway step {step}"),
+                        TaskKind::Task,
+                        Status::Open,
+                    )
+                },
                 at(step),
             )
             .expect("the runway task lands");
