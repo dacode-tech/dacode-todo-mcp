@@ -10,7 +10,7 @@
 # ─── Template Versioning ───────────────────────────────────────────────
 version:
   template: "0.1"          # Inherited from the dacode agent-rules layout
-  custom: 10               # Local adjustment counter
+  custom: 11               # Local adjustment counter
 
 # ─── Project Identity ──────────────────────────────────────────────────
 project:
@@ -223,6 +223,14 @@ roles:
     alias: heavy
     mode: primary
     purpose: "Decompose work, route, spawn workers/reviewers, commit."
+    # U16b: the role that gets the todo-mcp server loses the native
+    # todo tool, so the two surfaces cannot mix. This opencode version
+    # exposes no todoread tool (the TUI renders the list), so the
+    # write half is the pair's whole gateable surface. The live-view
+    # instruction moved with it — see orchestrator.md's tracking
+    # section. Takes effect for NEW sessions only.
+    permission:
+      todowrite: deny
   implementer:
     agent: "dacode-todo-mcp-implementer"
     layers: [_common, _search, _rust]
@@ -362,6 +370,26 @@ mcp:
                    "dacode-todo-mcp-reviewer-secondary", "explore"]
       env:
         AST_GREP_CONFIG: "sgconfig.yml"
+
+    todo-mcp:
+      # THIS PROJECT'S SERVER, wired into its own harness (t39, U16b).
+      # cargo run from the project root (opencode spawns MCP servers
+      # with cwd there — serena's --project-from-cwd precedent), so the
+      # relative --root resolves against this checkout. tmp/ is
+      # gitignored scratch: pre-dogfooding the store holds smoke data
+      # only; M5's packaging (spec §13) moves the entry to the global
+      # config with the durable store location. No --repo default (D8):
+      # this instance has no dogfooding repo, so every call names its
+      # repo explicitly.
+      command: ["cargo", "run", "-p", "todo-mcp", "--",
+                "--root", "tmp/todo-data"]
+      enabled: true
+      global: false
+      # The orchestrator alone: it is the integration point once
+      # dogfooding is ever decided, and the smoke exercises it. The
+      # other roles route findings through the orchestrator into
+      # tasks.py today; widening later is a config edit.
+      enable_for: ["dacode-todo-mcp"]
 
 # ─── Session Integrity: canary + context health ───────────────────────
 session:

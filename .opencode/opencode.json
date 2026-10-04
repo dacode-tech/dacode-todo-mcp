@@ -28,11 +28,25 @@
       "environment": {
         "AST_GREP_CONFIG": "sgconfig.yml"
       }
+    },
+    "todo-mcp": {
+      "type": "local",
+      "command": [
+        "cargo",
+        "run",
+        "-p",
+        "todo-mcp",
+        "--",
+        "--root",
+        "tmp/todo-data"
+      ],
+      "enabled": true
     }
   },
   "permission": {
     "serena*": "deny",
-    "ast_grep*": "deny"
+    "ast_grep*": "deny",
+    "todo-mcp*": "deny"
   },
   "provider": {
     "alibaba-token-plan-cn": {

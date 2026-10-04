@@ -78,8 +78,13 @@ JSON-RPC id, never position; the consistency burst with the write
 ids asserted as a set and the reopen showing the exact graph; the
 write-then-read race asserted as the pre-state or the write's own
 post-state, both disjuncts observed), and the U26 hammer —
-**unreproduced** (the disposition is U26's entry). The next step is
-t39's dispatch: the opencode smoke + U16b.
+**unreproduced** (the disposition is U26's entry) — and **t39, the
+opencode smoke + U16b** (§3): the server wired into this repo's own
+harness config (`agent-rules.yaml`'s mcp entry, the orchestrator's
+native todo tool denied), and a **real opencode session** driving
+the full lifecycle through the wire — the first client this server
+has ever had that was not a test harness. The next step is **g9**,
+the M3 exit gate.
 M1 is closed. The domain layer (§3's value types and closure discipline,
 §5.1's graph, §5.2's canonical order), the storage engine (the signed D1
 JSONL event log behind the `Store` trait
@@ -97,11 +102,9 @@ shell, which is M3's business.
 
 | Blocking | What | Action |
 |---|---|---|
-| — | nothing blocks M3: the rmcp ask, U20 and D16 were all signed 2026-10-03 (§3); the wire's shapes are settled (D14/D15/D16) and the dependency is approved (§6.3) | build — t39 next; t32–t38 done (§3) |
+| — | nothing blocks M3: the rmcp ask, U20 and D16 were all signed 2026-10-03 (§3); the wire's shapes are settled (D14/D15/D16) and the dependency is approved (§6.3) | run **g9**, the exit gate — t32–t39 done (§3) |
 
-(Open but non-blocking: **U16** (ship base instructions with the server and
-gate the client's native todo off, M3 — its mechanism is measured rather than
-assumed, spec §6.3), **U18** (a live view for progress and whether the
+(Open but non-blocking: **U18** (a live view for progress and whether the
 server is shared per user, deferred until after M4's importer check, and
 holding the **D13** reservation), and **U21**/**U22**, promoted out of the
 g7 sweep — the duplicate-key check for `agent-rules.yaml` (f44) and
@@ -109,7 +112,9 @@ g7 sweep — the duplicate-key check for `agent-rules.yaml` (f44) and
 must outlive the branch. Resolved: U2/U4/U5/U6/U7/
 U8/U9/U10/U11/U12/U14/U17 and now **U15** and **U19**, both taken by t30 —
 U17's mapping is settled and **D16 closed its one open piece** (signed
-2026-10-03); **U20** resolved (b) 2026-10-03; U3 superseded by D12.
+2026-10-03); **U20** resolved (b) 2026-10-03; **U16 resolved 2026-10-04**
+— both halves, t33's instructions and t39's gating + smoke (§4); U3
+superseded by D12.
 U13 is acknowledged debt, re-measured at the M2 decomposition and again at
 g7 — unchanged; t31 grew `layout.rs` to 543 production lines, still under the
 600 target, so the ledger does not move but the file is now close to it.)
@@ -125,7 +130,7 @@ exit criteria: spec §14. Priority is derived from the Gated-on column by
 | M0 | spec settled: §12 items 1–3 signed (done 2026-09-25); Cargo workspace skeleton with the lint regime; all gates green | — | done 2026-09-25 |
 | M1 | domain model + storage engine: graph, statuses, persistence behind the `Store` trait, golden files | — | done 2026-09-30 — g5 ran green: every code gate, five goldens byte-identical, `cargo doc` clean, pitfalls consolidated |
 | M2 | queries: repo/epic selection, dependency resolution, deterministic `next_task`; registry with path updates | **D16** adds one task if signed; no dispatched task waits on it | done 2026-10-02 — **g7 ran green**: every code gate, the five goldens byte-identical under `UPDATE_GOLDEN=1`, `cargo doc` warning-free under both invocations for the first time (f48 settled), §5.2's selection re-proven a pure function of state, the f41 sweep exercised for the first time (f44/f45 promoted to U21/U22, the rest verified open with named consumers), and M2's lessons consolidated into `.agents/pitfalls.md` (P-LIVE-007/-008, the citation rule, the coverage-pin rule). The five deliveries — t27 selection, f47's pins, t28 batch, t29 listing, t30 doc riders, t31 registry queries — are §3's entries; D16 stayed unsigned throughout and nothing waited on it — **signed (a) 2026-10-03, after closure**, its aggregation task landing under M3's goal |
-| M3 | MCP server: §6's tool surface over the wire (import_md excepted — M4's, per D12), protocol-level tests, default-repo slug config (D8), smoke against a real client | gates cleared 2026-10-03: the **rmcp ask** signed (rmcp 3.5.0 + `serde_json/preserve_order`, §6.3), **U20** resolved (b) — the registry format stays and the server answers `repo_list` from handles — and **D16** signed (a), adding the domain aggregation task to the decomposition; D14/D15 settled the wire's key order and error carrier on 2026-09-30 | decomposed 2026-10-03 — **g8** holds **t32–t39** plus the **g9** exit gate: t32 the D16 domain aggregation, t33 rmcp + the skeleton (the initialize handshake, our serverInfo, U16a's instructions, the §8 concurrency core, `repo_register` as the pipeline proof), t34/t35 the read tools in two clusters (query, then listing), t36 the node-CRUD mutations, t37 edges + registry-from-handles (U20b) + the default slug (D8), t38 the wire golden suite + concurrency proof (D14/D15's pins), t39 the opencode smoke + U16b. Dispatch order t32 → t33 → … → t39 → g9; import_md stays M4's — pulling a minimal dacode-dialect importer into M3's tail is a one-task change if real-board data in the smoke test is wanted |
+| M3 | MCP server: §6's tool surface over the wire (import_md excepted — M4's, per D12), protocol-level tests, default-repo slug config (D8), smoke against a real client | gates cleared 2026-10-03: the **rmcp ask** signed (rmcp 3.5.0 + `serde_json/preserve_order`, §6.3), **U20** resolved (b) — the registry format stays and the server answers `repo_list` from handles — and **D16** signed (a), adding the domain aggregation task to the decomposition; D14/D15 settled the wire's key order and error carrier on 2026-09-30 | decomposed 2026-10-03 — **g8** holds **t32–t39** plus the **g9** exit gate: t32 the D16 domain aggregation, t33 rmcp + the skeleton (the initialize handshake, our serverInfo, U16a's instructions, the §8 concurrency core, `repo_register` as the pipeline proof), t34/t35 the read tools in two clusters (query, then listing), t36 the node-CRUD mutations, t37 edges + registry-from-handles (U20b) + the default slug (D8), t38 the wire golden suite + concurrency proof (D14/D15's pins), t39 the opencode smoke + U16b. Dispatch order t32 → t33 → … → t39 → g9; import_md stays M4's — pulling a minimal dacode-dialect importer into M3's tail is a one-task change if real-board data in the smoke test is wanted — **t32–t39 all landed; g9, the exit gate, is the remaining step** |
 | M4 | adoption: the dacode-dialect importer first (**D12**, amending D7), its board the only fixture checked in per §10; camera and ikvm-html imported from their live boards and never copied into this repo; the three repos tracked for real | — | not started |
 | M5 | packaging, docs, cwd auto-detection (deferred by D8), polish | — | not started |
 
@@ -2149,6 +2154,55 @@ Oldest first. One line per delivery, with the commit hash once committed.
        src, golden, domain, store or cli change; `Cargo.toml` and
        `Cargo.lock` byte-identical at the end. f95–f98 recorded.
        Landed as `709fbdb`.
+- 2026-10-04 — **M3 t39: the opencode smoke + U16b — the server wired
+       into its own harness and proven by a real client.** The
+       orchestrator did the work itself (the routing rule: interactive
+       client sessions do not survive a subagent boundary), from
+       `tmp/t39-spec.md`. The wiring: `agent-rules.yaml`'s mcp block
+       gains the `todo-mcp` entry — `cargo run -p todo-mcp -- --root
+       tmp/todo-data`, the relative root resolving against the project
+       root where opencode spawns MCP servers (the serena
+       `--project-from-cwd` precedent), gitignored scratch
+       pre-dogfooding with §13's global-config + durable-location
+       move named as M5's — enabled for the orchestrator alone (the
+       integration point; the other roles route findings through it
+       into `tasks.py`, and widening later is a config edit), and no
+       `--repo` default (D8: no dogfooding repo exists to default
+       to). U16b: `todowrite: deny` on the orchestrator's permission
+       block — the role that gets the server loses the native todo
+       tool so the two surfaces cannot mix; this opencode version
+       (1.18.34) exposes no `todoread` tool (measured against the
+       binary: zero `todoread` hits), so the write half is the pair's
+       whole gateable surface — and `orchestrator.md`'s live-view
+       paragraph moved with the gate (the live view for that role is
+       messages + `tasks.py`; the server is the work surface only
+       once dogfooding is decided, which it is not). The smoke: a
+       real `opencode run --agent dacode-todo-mcp --format json
+       --print-logs` session — the full orchestrator prompt, the
+       fresh config, the MCP handshake at session start — drove the
+       complete lifecycle through the server's tools only:
+       `repo_register` (slug `smoke`) → `epic_add` → `task_add` ×2 →
+       `task_link` (U2 blocks U1) → `repo_list` → `epic_list` →
+       `next_task`, which answered **`smoke:U2`**, the
+       dependency-correct task (U1 is held by the edge). Eight
+       tool_use events across seven distinct tools, every one in the
+       `todo-mcp_*` namespace, zero native-todo or file calls — the
+       deny held by construction. Post-session `todo-cli verify
+       --root tmp/todo-data --slug smoke`: exit 0, status ok (2
+       tasks, 1 blocks edge, 1403 log bytes) — also U26's watch
+       point passed clean: a real client did what the harness does
+       and the store survived. The first real-client compatibility
+       note is **f99**: opencode's schema validator emits 52
+       "unknown format uint64 ignored in schema" warnings against the
+       server's schemars-1 `u64` fields — harmless today (ignored),
+       but a strict-mode client could hard-error on the same schemas;
+       the fix is the server's next owner's. Dual review ok (both
+       reviewers, one round, bound to the five file shas — the
+       config change is `.agents/`-class, review-exempt by the
+       harness rule, but the tracker note asked for eyes on it and
+       the change gates every future session's tool surface). No
+       Rust moved: every code gate `skipped` by construction, proven
+       by an empty diff over `*.rs`/`Cargo.*`. U16 struck (§4).
 
 ## 4. Follow-ups
 
@@ -2518,7 +2572,7 @@ Unowned work. Take the next unused `U` id; never renumber, never reuse.
        discovered. Both fixed in the same commit, on f55's sweep-the-class
        rule rather than deferred to a board item, since t30 *is* the store
        touch a deferral would wait for.
-- [ ] **U16 · Ship base instructions with the server, and stop the harness
+- [x] **U16 · Ship base instructions with the server, and stop the harness
       using its own todo handling.** Stated by the user 2026-09-30; lands
       with M3 and needs U2's fourth question answered first. Two halves, and
       the second is the one that decides whether the server gets used at all.
@@ -2539,6 +2593,26 @@ Unowned work. Take the next unused `U` id; never renumber, never reuse.
       papering over it: for a client we do not configure, two todo systems are
       visible and the only discriminator is the instruction text. §9's
       no-dogfooding-before-M3 rule still governs this repo's own tracking.
+      **Resolved 2026-10-04, both halves.** (a) landed at t33 (the
+      instructions text in `lib.rs`, measured honourable in both
+      handshakes per §6.3). (b) landed at t39, **narrowed to the
+      orchestrator role** — the one role the server is enabled for —
+      rather than "every role": a role that gets no server and loses
+      its todo tool would have no todo surface at all, and the
+      implementer/reviewer/explore roles keep theirs (no server, no
+      competing surface, so U16's mixing failure mode cannot arise
+      for them). The `todoread` half of "the pair" does not exist as
+      a tool in opencode 1.18.34 (measured against the binary), so
+      `todowrite: deny` is the pair's whole gateable surface. The
+      limit recorded as asked: `.mcp.json` (the Claude-Code-compatible
+      adapter) hands the server to any client session ungated — it
+      has no per-role mechanism — so for a client we do not
+      configure, two todo systems remain visible and the instruction
+      text is the only discriminator, exactly as the entry predicted.
+      The smoke (§3's t39 entry) is the proof the wired
+      configuration works end to end. §9's no-dogfooding rule still
+      governs: the board + `tasks.py` remain this repo's trackers of
+      record.
 - [x] **U17 · Decide which harness tools become MCP tools.** The intent,
       stated 2026-09-30: the tooling we use for todo handling belongs inside
       the server, so another project's agents get it over the wire instead of
@@ -2803,6 +2877,59 @@ Deliberate shortcuts, acknowledged rather than fixed. Same id rules as §4.
 Newest first. One entry per session, written for someone who was not
 here. The final entry of a session is the handover
 (`.agents/skills/todo-next-imp/SKILL.md` defines the shape).
+
+### 2026-10-04 — t39 landed: the server wired into its own harness, smoked by a real client
+
+The session opened on the user's go: t39's spec and implementation,
+plus two side orders — the findings-folding convention (landed as
+`a86b1cc`: an f-id is for what survives the branch; scratch-spec
+divergences fold into the task's evidence line) and a priorities
+proposal drafted as **D17** for the user's sign-off (presented in
+chat; D11's signed "priority never reorders" stands until then).
+
+t39 itself: the orchestrator did the work (interactive, per the
+routing rule), from `tmp/t39-spec.md`. The config change — the
+`todo-mcp` mcp entry, the orchestrator's `todowrite: deny`, the
+live-view paragraph rewrite, `version.custom` 10→11, re-sync — then
+the smoke. The transcript's meaningful exchanges (the full JSON
+event stream is `tmp/t39-smoke-transcript.json`, gitignored; the
+connection log `tmp/t39-smoke-stderr.log`):
+
+- `repo_register` → `{"slug":"smoke","name":"Smoke fixture",
+  "path":"/tmp/smoke-fixture","registered_at":"2026-10-04T20:20:50.470659000Z"}`
+- `epic_add` → `{"id":"smoke:E1","repo":"smoke","title":"Bring-up",…}`
+- `task_add` ×2 → `smoke:U1` ("First task"), `smoke:U2` ("Second task")
+- `task_link` → `{"edge":"blocks","from":"smoke:U2","to":"smoke:U1"}`
+- `repo_list` → `{"repos":[{"slug":"smoke",…}]}`
+- `epic_list` → `{"epics":[{"id":"smoke:E1","title":"Bring-up"}]}`
+- `next_task` → `{"task":"smoke:U2","deferred":{"total":0,"ready":0}}`
+  — the dependency-correct answer: U2 blocks U1, so U1 is held.
+
+The connection evidence is the log's eight
+`evaluated permission=todo-mcp_* … action=allow` lines (there is no
+literal "MCP connection" line — the spec's phrasing diverged from
+what the log shows, folded here per the new rule). Post-session
+`todo-cli verify`: exit 0, status ok. Dual review ok in one round
+(both reviewers; five lows and two meds, all record-keeping — the
+uint64 note became f99, the U16 resolution and the task-tracking
+exception landed with this commit).
+
+**f99** — the first real client's compatibility note: opencode's
+schema validator emits 52 "unknown format uint64 ignored in schema"
+warnings against the server's schemars-1 `u64` fields
+(`NextItemDto.weight`, the D16 count DTOs). Harmless today — the
+validator ignores what it does not know — but a strict-mode client
+could hard-error on the same schemas. The fix (if ever needed) is
+the server's: a schema-level integer spelling the validator knows,
+which is a wire-visible change and therefore a decision, not a
+patch.
+
+Handover: t39 is committed (review-exempt class, no trailers — the
+dual review is recorded in the tracker evidence); **g9, the M3 exit
+gate, is the next step** — every code gate, the golden ritual, the
+f41 sweep, and M3's closure on the board. D17 (priorities) waits on
+the user's pick. The smoke store lives at `tmp/todo-data` (fresh on
+clone; the config entry recreates it on demand).
 
 ### 2026-10-04 — t38 landed: the wire suite's cross-cutting pins, U26 unreproduced
 

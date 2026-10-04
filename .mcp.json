@@ -25,6 +25,18 @@
       "env": {
         "AST_GREP_CONFIG": "sgconfig.yml"
       }
+    },
+    "todo-mcp": {
+      "type": "stdio",
+      "command": "cargo",
+      "args": [
+        "run",
+        "-p",
+        "todo-mcp",
+        "--",
+        "--root",
+        "tmp/todo-data"
+      ]
     }
   }
 }

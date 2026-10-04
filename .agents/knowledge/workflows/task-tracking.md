@@ -23,7 +23,10 @@ work.
 **Use all three.** The todo tool is how the user watches progress without
 asking. `tasks.py` is how the *next* session knows what was half-done.
 The board is the only one a reviewer can see, because the other two are
-session-local or gitignored.
+session-local or gitignored. One per-role exception since t39/U16b: the
+orchestrator's todo tool is denied (the todo-mcp server is that role's
+wired todo surface), so for that role the live view is the messages
+plus `tasks.py` — the other roles keep all three.
 
 An instruction to "update the TODO" is ambiguous between the last two.
 If context does not settle it, **ask**.
