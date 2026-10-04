@@ -2071,7 +2071,7 @@ Oldest first. One line per delivery, with the commit hash once committed.
        it), and both reviewers re-bound ok on identical final-byte
        shas. f92/f93 recorded (the two kill-set divergences). No
        domain, store or cli change; `Cargo.lock` untouched. Landed
-       as `«t37-hash»`.
+       as `29a735b`.
 
 ## 4. Follow-ups
 
@@ -2711,6 +2711,83 @@ Deliberate shortcuts, acknowledged rather than fixed. Same id rules as §4.
 Newest first. One entry per session, written for someone who was not
 here. The final entry of a session is the handover
 (`.agents/skills/todo-next-imp/SKILL.md` defines the shape).
+
+### 2026-10-04 — t37 landed: edges, registry-from-handles, the default slug
+
+The session continued from t36's landing: the user said go, the spec
+was pre-written at `tmp/t37-spec.md` (13 decisions, 14 required
+tests, 6 mandatory mutations, baseline shas pinned at `3099515`),
+and the implementer landed in one round. Dual review ran over two
+rounds plus a binding round: round 1 primary ok (four lows) /
+secondary changes_requested (three meds, five lows); the orchestrator
+applied the combined fixes (the t11/t30/t35/t36 precedent), and both
+reviewers re-bound ok on identical final-byte shas computed
+independently at verdict time. §3's entry carries the delivery.
+
+Three things the fix round discovered, worth more than the fixes:
+
+- **The common test module cannot host write-only helpers.** The
+  `reopened` lift's first attempt (into `common/mod.rs`, the obvious
+  home) failed clippy: the read target compiles that module and sees
+  a write-only helper dead. The honest home is the write target's
+  own root (`tests/write.rs`), compiled by no other target — the
+  pattern is now precedent in t38's note, and `drive_with` survives
+  in common only because `drive` delegates to it internally.
+- **The self-annotation pin corrected by the test itself.** The
+  orchestrator's first pin asserted `relates_of(U1)` empty after the
+  self-annotation — the domain stores it and lists it ("inert" means
+  it gates nothing, not that it is absent), and the failing test
+  said so. The honest pin (`relates_of(U1) == [U1]`) is what landed.
+- **f68's flake is real.** Three recurrences in ~83 protocol-target
+  runs during the secondary's review — `store is locked: repo
+  camera` after the server exits, green on every immediate re-run.
+  f68's designed panic captured it; **U26** opens riding t38's
+  concurrency work with the two suspects named (the drive's
+  `wait_with_output` reaping vs the flock outliving it; the
+  in-process `repo_list()` one line earlier, t31's
+  self-contention shape).
+
+Findings: **f92/f93** (the sixth consecutive task spec with a
+kill-set claim that did not reproduce — M1's named test 7 survives
+the routing swap because the relates forbidden-pair message also
+carries `invalid`; M2/M5's supersets), **f94** (EdgeDto's three
+field docs keep the vacuous "canonical id spelling" phrase — true
+given the round-trip, swept on the next touch, the third re-bind
+round declined under the t15 stopping rule). **U23 closed** (the
+swapped-store fixture pinning the resolve cross-check — the
+primary's own seventh mutation proved the pin genuine). **U26
+opened** (the flake). The t36 hand-off's common/mod.rs debts landed
+(the `--repo` drive variant, the stale-claim sweep reworded
+count-free).
+
+**Handover.** Workspace: `main`, clean after the board commit, four
+crates, **411** tests, rustc 1.98.1, MSRV 1.95; `Cargo.lock` 93
+packages (unchanged). **Next step: dispatch t38** — the wire golden
+suite + concurrency proof: D14's pin (losing
+`serde_json/preserve_order` fails a golden, proven by mutation), the
+D15 carrier conformance across every tool, concurrent dispatch
+serialized per §8 (rmcp spawns each request; the server's state
+stays consistent and out-of-order responses tolerated), twice-run
+byte-identity. Its spec wants pre-writing; the surfaces it inherits
+are all landed (twenty-five tools, seventeen goldens, the carrier,
+the fixture). **t38's tracker note carries three hand-offs**: U26
+(the flake — the wire suite owns the drive's reaping semantics and
+the two-threaded proof is the machinery that makes the window
+reproducible or closes it), the clock-grep wording (name the
+PRIMITIVE grep — a `time::now` grep hits every call site by
+design), and the write-root helper precedent. **Blocked on you:
+nothing.** Non-blocking and yours: U16 (t39's half), U21, U22, U18
+(parked), U24/U25 (the two over-target splits, riding their next
+owners), f94 (edges.rs's next touch), and the two one-line spec
+asks — §10's gate enumeration and §6.3:474's feature condition
+(f69). **Unverified:** no client has talked to this server; the
+wire is measured by test harnesses only — the opencode smoke is
+t39, the last task before the g9 exit gate. Tracker:
+`tools/tasks.py check` exits 0 on the two expected lines (g8 open
+with t38 next; g3 stands). Doc gates: check-links,
+`attention.py --check`, `agents-sync.py --check` green;
+agents-index untouched (no indexed doc moved in the code commit;
+this board commit backfills the hash).
 
 ### 2026-10-04 — t36 landed: the node-CRUD mutation tools
 
