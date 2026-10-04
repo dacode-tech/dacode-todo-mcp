@@ -156,8 +156,11 @@ LANES: list[tuple[str, list[str]]] = [
                                          "f58", "f59", "f60", "f61", "f62",
                                          "f63", "f64", "f65"]),
     ("M3 · the wire (§6/§6.3)", ["g8", "t32", "t33", "t34", "t35", "t36",
-                                 "t37", "t38", "t39", "g9", "M3", "U20"]),
-    ("later", ["U16", "M4", "U18", "M5"]),
+                                 "t37", "t38", "t39", "t40", "g9", "M3",
+                                 "U20", "D17", "U26", "U27"]),
+    ("M3 findings (open unless noted)", ["f66", "f67", "f68", "f69", "f70",
+                                         "f94", "f99", "f100"]),
+    ("later", ["M4", "U18", "M5"]),
 ]
 
 # GATING edges carry the citation that makes them an edge rather than a guess.
@@ -211,8 +214,6 @@ GATING: list[tuple[str, str, str]] = [
     ("t23", "f42", "promoting the renderer found the shadowed config key"),
     ("t23", "f43", "cross-checking the rendered rows against the board found the dropped items"),
     ("f42", "U21", "f42's generalisation — the duplicate-key check — is U21 now, promoted from f44 at the g7 sweep"),
-    ("U2", "U16", "U16's instruction mechanism rests on U2's fourth question"),
-    ("U16", "M3", "U16 lands with M3, and §9 still bars dogfooding before it"),
     ("U17", "D16", "U17's one unsettled piece — the progress roll-up — is drafted as D16"),
     ("D16", "M3", "a signed (a) or (b) adds one domain aggregation task to M3's decomposition (board §1, g6 closed at g7)"),
     ("t32", "t34", "status_summary's domain surface is what t34's wire tool serialises"),
@@ -255,7 +256,6 @@ EXTRA: dict[str, tuple[str, str, str]] = {
     "D16": ("decision", "done", "D16 · the progress roll-up (signed (a) 2026-10-03)"),
     "U13": ("debt", "pending", "U13 · two store files over the 600-line target"),
     "U15": ("follow-up", "pending", "U15 · scope Store::snapshot's 'changes nothing on disk'"),
-    "U16": ("follow-up", "pending", "U16 · server base instructions + the client's native todo off"),
     "U17": ("follow-up", "pending", "U17 · which harness tools become MCP tools"),
     "U18": ("follow-up", "pending", "U18 · live view / shared per-user server (after M4)"),
     "U19": ("follow-up", "pending", "U19 · one word in repair.rs's module doc (f35 promoted)"),
@@ -269,21 +269,15 @@ EXTRA: dict[str, tuple[str, str, str]] = {
 
 # What each open item waits on, for the table. Absent = "nothing declared".
 WAITS: dict[str, str] = {
-    "f4": "M3's wire mapping",
     "f25": "the log backend settling (M3)",
     "f57": "a tests-only commit (the t21/f47 shape); its three seams are measured in the finding",
     "f58": "the next owner of crates/todo-store/src/log.rs — one sentence in open_log's doc fixes all three pointers",
     "U13": "the next commit that grows either file, or M3 — whichever comes first",
-    "U16": "lands with M3 (t33's instructions, t39's gating); its mechanism is measured (spec §6.3)",
     "U18": "M4's importer check, by the user's own deferral",
-    "g8": "t32–t39, then g9",
     "U21": "a user call: land the duplicate-key check in agents-sync.py, or decline it (board U21)",
     "U22": "a user call: draw open D-entries on the page, or disclaim them in the footer (board U22)",
-    "f59": "M3, where the server holds handles and the fd ceiling stops being theoretical",
     "f60": "the next owner of crates/todo-store/src/registry.rs",
     "f61": "t13's owner: does verify gain the same slug cross-check, or is the query side the only reader that refuses?",
-    "f63": "M3, with t31's measurement as its input (a lock-free reader needs an unsigned §4.3 reading)",
-    "f64": "whoever re-runs the measurement at M3 — the caveats are the point",
     "f65": "a user call: give board §4 items a Gates field attention.py reads, or document that P3 does not mean 'no deadline'",
     "f50": "the next owner of tests/seeded.rs for the generator half — the naive-helper lift landed with t29",
     "f54": "the next owner of tests/mod.rs (= f50's)",

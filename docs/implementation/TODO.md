@@ -15,80 +15,27 @@ blocking. Rules, which `tools/attention.py` and the reviewers enforce:
 
 ## 1. Current state
 
-**Phase: M2 closed 2026-10-02 — g7, the exit gate, ran green on the final
-tree.** The query layer is five tasks under tracker **g6** — t27–t31, plus
-f47's tests-only commit — each one commit with its own file; §2's M2 row
-names them and §3 carries the deliveries. The gate ran every code gate (fmt,
-check, **322** workspace tests, clippy, `cargo doc` warning-free under
-**both** invocations for the first time — f48 settled: the doc gate now runs
-`--document-private-items`, and the one private-module link the flag exposed
-is fixed, mutation-proven in both directions), the five goldens
-byte-identical under `UPDATE_GOLDEN=1`, §5.2's selection re-proven a pure
-function of state (no clock, no rand, no map iteration over the domain's
-src), the U13 ledger re-measured and unmoved, and the **f41 sweep exercised
-for the first time**: every open tracker item read against the tree —
-f48/f49/f51 and the citation rule (f62) closed by this gate, **f44/f45
-promoted to U21/U22** (user decisions that must outlive the branch), the
-rest verified deliberately open with their named consumers. M2's lessons
-consolidated into `.agents/pitfalls.md`: P-LIVE-007/-008 plus the citation
-rule and the coverage-pin-constants rule (four new entries, 5.5–5.8; the
-live file reset, next id P-LIVE-009). One decision is open out of the M2
-decomposition — **D16**, the progress roll-up — and nothing waited on it;
-it was **signed (a) on 2026-10-03**, after the gate. **M3 is next, and
-unblocked**: on 2026-10-03 the user signed all three of its gates — the
-**rmcp dependency ask** (rmcp 3.5.0 with `server`/`macros`/
-`transport-io` plus `serde_json` with `preserve_order` per D14, recorded
-in spec §6.3), **U20** resolved (b) (the registry format stays; the
-server answers `repo_list` from handles it holds), and **D16** (a)
-(`status_summary` and the `task_list` annotation in §6, with the
-arithmetic as signed text; §12 closed again). M3 is decomposed (**g8**:
-t32–t39 plus the **g9** exit gate) and its landed tasks are:
-**t32, D16's domain aggregation** (§3) — `status_summary` and
-`task_list`'s annotated rows in `todo-domain` — **t33, rmcp + the
-skeleton** (§3): the dependency line, the initialize handshake with our
-own serverInfo and U16a's instructions, the §8 concurrency core, and
-`repo_register` end-to-end — and **t34, the query read tools** (§3):
-`next_task`, `next_items`, `status_summary`, `task_show` and
-`decision_show` over the wire, with the first per-tool goldens — and
-**t35, the listing read tools** (§3): `task_list` with D16's annotated
-rows, `epic_list`, `decision_list`, `doc_list` and `graph_show` (§6.2's
-dump), five more goldens, and the one domain rider
-`Graph::gating_decisions_of_epic` — and **t36, the node-CRUD mutation
-tools** (§3): `epic_add`/`epic_update`, `task_add`/`task_update`,
-`decision_add`/`decision_update`,
-`doc_register`/`doc_set_path`/`doc_update` over the wire, the
-closure discipline carried by D15's carrier, and the first writer
-goldens (`epic_add.v1`, `epic_update.v1` — the clock-free pair) — and
-**t37, the edges + registry + config cluster** (§3):
-`task_link`/`task_unlink` (f4's criterion at the wire: an untyped pair
-`BlocksEdge::from_ends` rejects as `invalid`), `repo_set_path`,
-`repo_list`/`repo_show` through the resolve path (U20(b)), the
-default-repo slug (the committed D8: a `--repo` startup flag, the
-explicit parameter always wins, the repo-field relaxation across the
-three previous clusters), five more goldens (all five tools
-clock-free), and U23 closed by the swapped-store fixture test — and
-**t38, the wire suite's cross-cutting pins** (§3): the
-tests-only fifth target `tests/wire.rs` — the D15 carrier
-conformance sweep over twenty-four tools, the full response set's
-twice-run byte-identity (seventeen clock-free byte-exact, eight
-normalized — f95: `repo_register`'s `registered_at` joins the
-needles, the spec's 18/7 split was off by one), the §8 concurrency
-proof over a suite-local rapid-fire drive (responses matched by
-JSON-RPC id, never position; the consistency burst with the write
-ids asserted as a set and the reopen showing the exact graph; the
-write-then-read race asserted as the pre-state or the write's own
-post-state, both disjuncts observed), and the U26 hammer —
-**unreproduced** (the disposition is U26's entry) — and **t39, the
-opencode smoke + U16b** (§3): the server wired into this repo's own
-harness config (`agent-rules.yaml`'s mcp entry, the orchestrator's
-native todo tool denied), and a **real opencode session** driving
-the full lifecycle through the wire — the first client this server
-has ever had that was not a test harness — and **t40, D17's echo**
-(§3): `priority` on `next_task`'s answer and the `next_items`/
-`task_list` rows, the handling sentence in the base instructions,
-four goldens moved as additive fields, and the
-order-still-priority-free pin. The next step is **g9**,
-the M3 exit gate.
+**Phase: M3 closed 2026-10-04 — g9, the exit gate, ran green on the final
+tree.** The MCP wire is nine deliveries under tracker **g8** — t32–t40,
+each one commit with its own file; §2's M3 row names them and §3 carries
+the deliveries. The gate ran every code gate (fmt, check, **423**
+workspace tests, clippy, `cargo doc` warning-free under both
+invocations), the golden ritual over all three golden dirs
+byte-identical, the §6 tool-surface check (25 tools over the wire, the
+only exception `import_md` — M4's per D12, exactly the gate's
+criterion), the smoke evidence (t39's real opencode session), the f41
+sweep (f4/f59/f63/f64/f68/f70/f73/f97/f100 and the ratified deviations
+closed; the spec-divergence records superseded by the folding
+convention; the rest verified open with named consumers), **U26
+reproduced, isolated and fixed** (the gate's own experiment: the
+in-process open/close plus a millisecond-scale deferred kernel-side
+flock release; a bounded `locked` retry, dual-reviewed; **U27** opened
+for the store-side question), and M3's lessons consolidated into
+`.agents/pitfalls.md` (1.2, 2.2's extension, 3.3, 3.4, 4.6, 5.9, 5.10;
+top rules 13–14). **M4 is next**: the dacode-dialect importer first
+(D12), its board the only fixture checked in per §10; camera and
+ikvm-html imported from their live boards and never copied into this
+repo; the three repos tracked for real.
 M1 is closed. The domain layer (§3's value types and closure discipline,
 §5.1's graph, §5.2's canonical order), the storage engine (the signed D1
 JSONL event log behind the `Store` trait
@@ -106,7 +53,7 @@ shell, which is M3's business.
 
 | Blocking | What | Action |
 |---|---|---|
-| — | nothing blocks M3: the rmcp ask, U20 and D16 were all signed 2026-10-03 (§3); the wire's shapes are settled (D14/D15/D16, and **D17** signed 2026-10-04 — priority on the triage surfaces, the order untouched) | build — **g9**, the exit gate; t32–t40 done (§3) |
+| — | nothing blocks M4: the importer's scope and order are signed (D12, amending D7 — dacode first, camera and ikvm-html as live-test subjects whose boards are never copied in), and the server it imports into is closed at g9 | decompose M4 — the importer, the checked-in dacode fixture, and the three repos tracked for real |
 
 (Open but non-blocking: **U18** (a live view for progress and whether the
 server is shared per user, deferred until after M4's importer check, and
@@ -134,7 +81,7 @@ exit criteria: spec §14. Priority is derived from the Gated-on column by
 | M0 | spec settled: §12 items 1–3 signed (done 2026-09-25); Cargo workspace skeleton with the lint regime; all gates green | — | done 2026-09-25 |
 | M1 | domain model + storage engine: graph, statuses, persistence behind the `Store` trait, golden files | — | done 2026-09-30 — g5 ran green: every code gate, five goldens byte-identical, `cargo doc` clean, pitfalls consolidated |
 | M2 | queries: repo/epic selection, dependency resolution, deterministic `next_task`; registry with path updates | **D16** adds one task if signed; no dispatched task waits on it | done 2026-10-02 — **g7 ran green**: every code gate, the five goldens byte-identical under `UPDATE_GOLDEN=1`, `cargo doc` warning-free under both invocations for the first time (f48 settled), §5.2's selection re-proven a pure function of state, the f41 sweep exercised for the first time (f44/f45 promoted to U21/U22, the rest verified open with named consumers), and M2's lessons consolidated into `.agents/pitfalls.md` (P-LIVE-007/-008, the citation rule, the coverage-pin rule). The five deliveries — t27 selection, f47's pins, t28 batch, t29 listing, t30 doc riders, t31 registry queries — are §3's entries; D16 stayed unsigned throughout and nothing waited on it — **signed (a) 2026-10-03, after closure**, its aggregation task landing under M3's goal |
-| M3 | MCP server: §6's tool surface over the wire (import_md excepted — M4's, per D12), protocol-level tests, default-repo slug config (D8), smoke against a real client | gates cleared 2026-10-03: the **rmcp ask** signed (rmcp 3.5.0 + `serde_json/preserve_order`, §6.3), **U20** resolved (b) — the registry format stays and the server answers `repo_list` from handles — and **D16** signed (a), adding the domain aggregation task to the decomposition; D14/D15 settled the wire's key order and error carrier on 2026-09-30 | decomposed 2026-10-03 — **g8** holds **t32–t39** plus the **g9** exit gate: t32 the D16 domain aggregation, t33 rmcp + the skeleton (the initialize handshake, our serverInfo, U16a's instructions, the §8 concurrency core, `repo_register` as the pipeline proof), t34/t35 the read tools in two clusters (query, then listing), t36 the node-CRUD mutations, t37 edges + registry-from-handles (U20b) + the default slug (D8), t38 the wire golden suite + concurrency proof (D14/D15's pins), t39 the opencode smoke + U16b. Dispatch order t32 → t33 → … → t39 → g9; import_md stays M4's — pulling a minimal dacode-dialect importer into M3's tail is a one-task change if real-board data in the smoke test is wanted — **t32–t40 all landed (t40 is D17's echo, signed 2026-10-04, so M3 closes with the final v1 surface rather than amending it immediately after closure)** |
+| M3 | MCP server: §6's tool surface over the wire (import_md excepted — M4's, per D12), protocol-level tests, default-repo slug config (D8), smoke against a real client | gates cleared 2026-10-03: the **rmcp ask** signed (rmcp 3.5.0 + `serde_json/preserve_order`, §6.3), **U20** resolved (b) — the registry format stays and the server answers `repo_list` from handles — and **D16** signed (a), adding the domain aggregation task to the decomposition; D14/D15 settled the wire's key order and error carrier on 2026-09-30; **D17** signed 2026-10-04 (priority on the triage surfaces) | done 2026-10-04 — **g9 ran green**: every code gate (423 workspace tests), the golden ritual byte-identical over all three golden dirs, the §6 tool-surface check (25 tools over the wire, `import_md` the only exception — exactly the criterion), the smoke evidence recorded (t39's real opencode session), U26 reproduced/isolated/fixed at the gate itself (U27 opened for the store-side question), the f41 sweep exercised, and M3's lessons consolidated into `.agents/pitfalls.md`. The nine deliveries — t32 aggregation, t33 skeleton, t34/t35 the read tools, t36 the mutations, t37 edges + registry + the default slug, t38 the wire suite, t39 the smoke + U16b, t40 D17's echo — are §3's entries |
 | M4 | adoption: the dacode-dialect importer first (**D12**, amending D7), its board the only fixture checked in per §10; camera and ikvm-html imported from their live boards and never copied into this repo; the three repos tracked for real | — | not started |
 | M5 | packaging, docs, cwd auto-detection (deferred by D8), polish | — | not started |
 
@@ -2247,6 +2194,56 @@ Oldest first. One line per delivery, with the commit hash once committed.
        purity pin and the seeded agreement net are the guards, and
        the fixture's next touch should misalign one priority
        against its canonical position to close the gap.
+- 2026-10-04 — **M3 g9: the exit gate — and U26 reproduced, isolated
+       and fixed inside it.** The gate ran every line of its verify
+       method on the committed tree: fmt, check, **423** workspace
+       tests (0 failed, 1 ignored — the store's measurement test),
+       clippy on a forced recompile, `cargo doc` warning-free under
+       both invocations, the golden ritual byte-identical over all
+       three golden dirs (store, cli, mcp), the §6 tool-surface
+       check (a live `tools/list` drive: 25 tools, the spec's table
+       diffed, `import_md` the only exception — M4's per D12,
+       exactly the criterion), the smoke evidence (t39, §3), the
+       f41 sweep, and the consolidation. The gate's own experiment
+       was U26's: the flake reproduced (1-in-30 and 1-in-10
+       full-crate runs), an lsof+ps diagnostic found no fd holder
+       anywhere with the server dead, a retry-loop diagnostic
+       measured the lock still held 1.33ms past the refusal, and
+       the no-in-process-open variant ran 40/40 clean — the cause
+       isolated as the in-process `repo_list()`'s open/close plus a
+       deferred kernel-side flock release. The fix is tests-only,
+       in the flaking sequence itself (this entry's own U26 rule):
+       a bounded retry on `locked` at the final open — the initial
+       open plus five retries 2ms apart, a ~10ms window against the
+       measured ~1.3ms lifetime — in both sites (the protocol test
+       and the wire hammer, mirrored; protocol.rs is self-contained
+       by the t38 ruling). With the fix: 40/40 full-crate runs
+       clean. Dual-reviewed at the gate over two rounds (both
+       reviewers; the fix round was doc-only — the hammer's header
+       rewritten to post-fix detector semantics, the measurements
+       moved from the source comments to U26's ledger, the import
+       merged). **U27** opened for the store-side question the fix
+       deliberately does not answer. The consolidation: seven new
+       pitfalls entries (1.2 the Ord trap, 2.2's deferred-release
+       extension, 3.3 the single-line output-doc rule, 3.4 the
+       id-matching drive rule, 4.6 the per-target test homes, 5.9
+       the spec-local id rule, 5.10 the premise assertion) and top
+       rules 13–14; f70/f73/f97/f100 closed into it. The sweep:
+       f4 (consumed at t37, its wire criterion landed), f59/f63/f64
+       (consumed by U20(b)'s answer), f68 (closed with U26), the
+       ratified deviations f71/f74/f77/f80, and the spec-divergence
+       records f66/f75–f98 superseded by the folding convention
+       (a86b1cc) — the records stand in their tasks' evidence, no
+       action owed. Deliberately open with named consumers: f25
+       (the log backend), f50/f54 (tests/seeded.rs and tests/mod.rs
+       owners), f57/f58/f60 (the store's next touches — f58 rides
+       U27's lock.rs question), f61 (the cli's next owner), f65
+       (the user's, with U21/U22), f67 (select.rs's next owner),
+       f69 (spec §6.3's next touch), f94 (edges.rs's next touch),
+       f99 (the server's next owner or a decision), U13/U24/U25
+       (the ledger and the splits), U18 (parked, after M4's
+       importer check), U21/U22 (the user's), U27 (the store's
+       next owner).
 
 ## 4. Follow-ups
 
@@ -2796,7 +2793,7 @@ Unowned work. Take the next unused `U` id; never renumber, never reuse.
       duplicate key anywhere in the file — proved by feeding it a copy
       with one spliced in, `--check` still green on the real config — or
       the check is declined and this item records that decision.
-- [ ] **U26 · The protocol suite's post-exit store open flakes
+- [x] **U26 · The protocol suite's post-exit store open flakes
       (`store is locked`).** f68's one-off flake recurred three times
       in ~83 executions of the protocol target during t37's review —
       `repo_register_creates_a_real_store_and_returns_the_new_state`
@@ -2839,7 +2836,53 @@ Unowned work. Take the next unused `U` id; never renumber, never reuse.
       isolation variants (without the `repo_list()` call; with a
       bounded sleep before the open) are the next owner's first
       move, at g9 or a dedicated task. The t39 smoke itself passed
-      clean; the recurrence was a review-side test run.
+      clean; the recurrence was a review-side test run. **Closed at
+      g9 (2026-10-04): reproduced, isolated, fixed.** The gate ran
+      the isolation the board prescribed, in-tree with sha-verified
+      reverts: the baseline reproduced at 1-in-30 and 1-in-10
+      full-crate runs (the exact signature, captured by the designed
+      panic); an lsof+ps diagnostic at the failure found **no fd
+      holder anywhere** and the server dead (reaped by the drive's
+      `wait()`); a retry-loop diagnostic measured the lock **still
+      held 1.33ms past the refusal** — a transient; and the variant
+      with every in-process open removed (no `repo_list`, only the
+      final open) ran **40/40 clean** where the full sequence
+      flaked. The cause: the in-process `repo_list()` opens and
+      closes the store's lock, the kernel's flock teardown outlives
+      the close by a millisecond-scale lifetime (the release is
+      deferred kernel-side — inferred from the measurements; the
+      store's code is innocent, the handle drops synchronously), and
+      the immediate re-open races the deferred release. The fix is
+      tests-only, in the flaking sequence itself (this entry's own
+      rule): a bounded retry on `locked` at the final open — the
+      initial open plus five retries 2ms apart, a ~10ms window
+      against the measured ~1.3ms lifetime — in both sites with the
+      shape (the protocol test and the wire target's hammer,
+      mirrored; protocol.rs is self-contained by the t38 ruling, so
+      the retry is duplicated rather than lifted into `common/`).
+      With the fix: **40/40 full-crate runs clean**. Dual-reviewed
+      at the gate (both reviewers, one round plus the doc fixes).
+      The store-side question the fix deliberately does NOT answer
+      is **U27**: whether `FileLock::acquire` itself should retry
+      briefly on `WouldBlock`, making every caller robust to the
+      deferred release — deferred because it changes `locked`'s
+      timing semantics for all callers on one-platform,
+      one-workload evidence.
+- [ ] **U27 · Should `FileLock::acquire` retry briefly on
+      `WouldBlock`?** Opened at g9 out of U26's closure: the
+      kernel's flock teardown can outlive the fd close by a
+      millisecond-scale lifetime (U26's measurements), so a caller
+      that opens a store immediately after another process closed it
+      can see a spurious `locked` — the store's own users hit this
+      (the protocol suite did), not just tests. A bounded retry
+      inside `acquire` would make every caller robust, but it
+      changes `locked`'s timing contract: a genuinely contended
+      store would report `locked` only after the retry window, and
+      the error's meaning shifts from "a writer is active" to "a
+      writer stayed active past the window". The decision needs
+      multi-platform evidence (this is one macOS workload) and must
+      reconcile `lock.rs`'s module doc, which states the release is
+      the close. The store's next owner's, or a dedicated task's.
 - [ ] **U22 · `progress.py` does not render open decisions.** f45,
       promoted at the g7 sweep for the same reason: the page reads board
       §2/§4/§5 and the tracker, so an open D-entry has no row — measured
@@ -2931,6 +2974,47 @@ Deliberate shortcuts, acknowledged rather than fixed. Same id rules as §4.
 Newest first. One entry per session, written for someone who was not
 here. The final entry of a session is the handover
 (`.agents/skills/todo-next-imp/SKILL.md` defines the shape).
+
+### 2026-10-04 — g9 ran green: M3 is closed
+
+The session opened on the user's "let's run g9". The gate ran its
+whole verify method on the committed tree (f262db2): every code gate
+(423 workspace tests, 0 failed), the golden ritual byte-identical
+over all three golden dirs, the §6 tool-surface check via a live
+`tools/list` drive (25 tools; `import_md` the only spec-only name —
+M4's per D12, exactly the gate's criterion), the smoke evidence
+(t39's, already recorded), the f41 sweep, and the consolidation.
+
+The gate's own work was **U26**: the flake reproduced on demand
+(1-in-30, then 1-in-10 full-crate runs), and the isolation
+experiment the board prescribed ran in-tree with sha-verified
+reverts — the lsof+ps diagnostic (no fd holder anywhere, the server
+dead), the retry-loop measurement (the lock still held 1.33ms past
+the refusal), and variant A (every in-process open removed: 40/40
+clean). The cause: the in-process `repo_list()`'s open/close plus a
+deferred kernel-side flock release. The fix — a bounded `locked`
+retry at the final open, both sites, tests-only — ran 40/40 clean
+and was dual-reviewed over two rounds (the second doc-only: the
+hammer's header rewritten to post-fix semantics, the measurements
+moved to U26's ledger per the no-measurement rule). **U27** opened
+for the store-side question (`FileLock::acquire`'s WouldBlock retry
+— a timing-contract change needing multi-platform evidence).
+
+The consolidation promoted seven entries (1.2, 2.2's extension, 3.3,
+3.4, 4.6, 5.9, 5.10; top rules 13–14) and closed f70/f73/f97/f100
+into them. The sweep closed f4, f59, f63, f64, f68, the ratified
+deviations, and the spec-divergence records (superseded by the
+folding convention); the rest verified open with named consumers.
+
+Handover: **M3 is closed; M4 is next** — the dacode-dialect importer
+first (D12), its board the only fixture checked in per §10, camera
+and ikvm-html as live-test subjects never copied in, the three repos
+tracked for real. The decomposition is the next session's first act
+(a g10 goal, the importer tasks, the fixture question). Nothing
+blocks it. The open user calls are unchanged: U21, U22, U18 (parked
+until after M4's importer check), U27 (new — the store's next
+owner), and the small rider set (f57/f58/f60/f61/f67/f94/f99, the
+U13/U24/U25 ledger and splits).
 
 ### 2026-10-04 — t40 landed: D17's echo, priority on the triage surfaces
 

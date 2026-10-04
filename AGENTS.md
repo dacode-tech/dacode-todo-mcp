@@ -17,25 +17,21 @@ If `MYAGENTS.md` exists at the repo root, it is untracked, personal, and
 
 ## Project State
 
-**Phase: M3 (the MCP wire) is next — all its gates cleared 2026-10-03.**
+**Phase: M3 (the MCP wire) is closed — g9 ran green 2026-10-04; M4 (the
+importer) is next.**
 An MCP server that replaces
 markdown TODO boards with a deterministic task graph: tasks are typed
 nodes, dependencies are typed edges, everything lives in local
 per-repo non-relational stores (D4), and "what is next in repo X under
 epic Y" is a query, not a prose parse. Rust, rmcp, stdio transport.
 
-§12 is closed: the last open item, **D16** (the progress roll-up), was
-signed (a) on 2026-10-03 — `status_summary` and the `task_list`
-annotation are in §6 with the arithmetic as signed text — and **D13
-stays reserved** for the transport question board U18 defers. The same
-exchange cleared M3's other two gates: the **rmcp dependency ask** was
-granted (rmcp 3.5.0 with `server`/`macros`/`transport-io` plus
-`serde_json` with `preserve_order` per D14, recorded in spec §6.3) and
-**U20** resolved (b) — the registry format stays, and the server
-answers `repo_list` from the handles it holds.
-Everything else is signed: all eleven decisions on 2026-09-25, D12 added
-2026-09-29, and D14/D15 on 2026-09-30 out of U2's rmcp survey (the
-wire's canonical key order and §6.1's error carrier)
+§12 is closed: **D17** (priority on the triage surfaces — the echo on
+`next_task`/`next_items`/`task_list`, the order untouched) was signed
+2026-10-04, the last decision of M3, and **D13 stays reserved** for the
+transport question board U18 defers. Everything else is signed: all
+eleven decisions on 2026-09-25, D12 added 2026-09-29, D14/D15 on
+2026-09-30 out of U2's rmcp survey (the wire's canonical key order and
+§6.1's error carrier), and D16 on 2026-10-03 (the progress roll-up)
 (`docs/implementation/decisions.md`); the spec is normative
 throughout, and signed shapes move only by a new user decision (new
 D-entries), never by edit. M0 landed 2026-09-25: four crates, the
@@ -48,11 +44,19 @@ gate green at the g5 exit. M2 landed 2026-10-02: the query layer — §5.2's
 selection (`graph/select.rs`), batch (`graph/items.rs`) and listing
 (`graph/list.rs`) surfaces, plus the registry queries
 (`DataRoot::repo_list`/`repo_show`) — 322 tests, every gate green at the
-g7 exit, M2's lessons consolidated into `.agents/pitfalls.md`.
-`todo-mcp` is still an M0 shell: the wire is M3's, whose shapes spec
-§6.3 measured against rmcp 3.5.0 and whose gates are now all cleared.
-M3 is decomposed (tracker **g8**: **t32–t39** plus the **g9** exit
-gate); the next step is t32's dispatch. Run
+g7 exit, M2's lessons consolidated into `.agents/pitfalls.md`. M3 landed
+2026-10-04: the wire — 25 tools over rmcp (every §6 tool except
+`import_md`, M4's per D12), 17 wire goldens, the D14/D15 pins, the §8
+concurrency proof, the default-repo slug (D8), and a real opencode
+session as the smoke (the server is wired into this repo's own harness
+config, the orchestrator's native todo tool denied per U16b) — 423
+tests, every gate green at the g9 exit, U26 reproduced/isolated/fixed
+at the gate (U27 carries the store-side question), M3's lessons
+consolidated into `.agents/pitfalls.md`. **M4 is next**: the
+dacode-dialect importer first (D12), its board the only fixture
+checked in per §10, camera and ikvm-html as live-test subjects never
+copied into this repo, the three repos tracked for real — the
+decomposition is the next session's first act. Run
 `tools/attention.py` for the current picture rather than trusting this
 paragraph.
 
