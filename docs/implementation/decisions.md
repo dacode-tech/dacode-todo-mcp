@@ -35,6 +35,7 @@ and the meta block below; keep the shapes it parses.
 | ~~**D14**~~ | The wire's canonical JSON key order | (a) enable `serde_json/preserve_order` here, with a golden pinning the wire bytes | medium | M3 | resolved (a) 2026-09-30 — user decision, with the wire golden named as part of it |
 | ~~**D15**~~ | Where a §6.1 code lives on the wire | (a) `structuredContent.code` via `structured_error`, §6.1 naming the carrier | medium | M3 | resolved (a) 2026-09-30 — user decision |
 | ~~**D16**~~ | The progress roll-up: a tool, a field, or a client concern | (a) a `status_summary(repo?, epic?)` tool, plus `blocked_by` on `task_list` rows whichever option wins | medium | M2 | resolved (a) 2026-10-03 — signed after M2 closed at g7; the domain aggregation task lands under M3's goal |
+| ~~**D17**~~ | Priority on the triage surfaces | (a+) echo `priority` on `next_task`'s answer and the `next_items`/`task_list` rows; the agent decides, the order untouched | medium | M3 | resolved 2026-10-04 — user decision, "let the agent decide" |
 
 ---
 
@@ -898,3 +899,72 @@ is signed text rather than an implementation's opinion; delete §12 item
 (a) or (b) is signed, the M2 tracker gains a domain aggregation task
 under g6; if (c) is signed, U17's resolution records that the roll-up
 stays a script and no task is added.
+
+---
+### D17 — Priority on the triage surfaces
+
+**Resolved 2026-10-04 — the triage-surface shape, signed by the user
+("let the agent decide").** `priority` is echoed on the surfaces an
+agent or a dashboard actually picks by: `next_task`'s answer carries
+the chosen task's `priority` beside its id, `next_items` rows carry
+each task's `priority`, and `task_list` rows carry it too (the
+dashboard column — the user's stated motivation). The selection order
+is untouched: D6's canonical order stays dependency-driven, priority
+never enters it, and the base instructions state the handling rule —
+set priority when triaging, prefer higher priority when choosing
+among actionable rows yourself, the server's order ignores the field
+by design. Work order executed in the same change: §5.2's batch
+description and §6's tool table rows amended, §11's non-goals bullet
+concretized to the named surfaces, §12's preamble records the
+signing, this row struck. The implementation task lands under M3's
+goal before the g9 exit gate, so M3 closes with the final v1 surface
+rather than amending it immediately after closure.
+
+**Gates** M3 · **Resolved** 2026-10-04 · drafted and signed in one
+exchange, out of the user's priorities ask · **Confidence: medium**
+
+**Current (before this decision).** D11 signed `priority` as
+agent-set triage metadata, "echoed in item payloads, never an
+ordering input" — and the echo landed on the detail view only:
+`task_show`'s `TaskDto` carries it. Measured at the t39+1 session:
+`next_items` rows carry task/blocked_by/blocks/weight/actionable and
+no priority; `next_task`'s answer is a bare id; `task_list` rows are
+id plus blocked-by. The one surface an agent picks by — the batch —
+cannot see the field. The base instructions (t33, U16a) do not
+mention priority at all.
+
+**Options.**
+
+- **(a) Instructions-only** — the base instructions gain the handling
+  rule; no wire change. Cheapest, but leaves the batch blind: the
+  agent is told to prefer higher priority and cannot see any
+  priority.
+- **(a+, signed)** — the instructions rule **plus** the echo on the
+  three triage surfaces (`next_task`'s answer, `next_items` rows,
+  `task_list` rows). The server informs the decision; the agent
+  makes it; the order stays D6-pure. The dashboard motivation is
+  served by the same fields.
+- **(b) Priority enters selection** — `next_task`/`next_items` rank
+  actionable candidates by priority. This is the path D11's sign-off
+  pre-named ("promotion into the tiebreaker would be a new decision
+  amending D6"). Declined: the canonical order would become sensitive
+  to mutable agent input, and `next_task`'s answer would change
+  whenever an agent re-triages — the auditability argument for D6
+  weakens for no gain the agent cannot get from (a+)'s visible rows.
+- **(c) Priority as a query filter** — a `priority` parameter on
+  `task_list`/`next_items`, like status/kind. Not taken now; it is
+  caller-side triage over the same rows and can ride a later
+  decision if a client wants it.
+
+**Recommendation was (a+)**, on the user's own framing: "let the
+agent decide" means the server's job is to inform the decision, not
+make it.
+
+**On sign-off:** amend §5.2's batch description and §6's tool table
+(the `next_task`, `next_items`, `task_list` rows); concretize §11's
+priority bullet to the named surfaces; record the signing in §12's
+preamble; strike this row; TODO.md §1/§2/§6. The implementation task
+echoes the field through the domain row types (`NextItem`, `TaskRow`,
+`NextTask`) and the wire DTOs, moves the pinned goldens for the three
+tools (additive fields — a compatibility event, called out in the
+commit), and extends the base instructions with the handling rule.

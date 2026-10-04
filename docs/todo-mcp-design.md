@@ -291,10 +291,15 @@ answer out, on every run and every platform.
 Batch selection (D11, amended same day at the user's direction):
 `next_items(repo?, epic?, task?, limit?)` returns up to `limit`
 (default 10) actionable nodes in canonical order, each annotated with
-its direct blocked-by/blocks ids and a derived weight = count of
-transitive dependents. Annotations never reorder; ordering is computed
+its direct blocked-by/blocks ids, a derived weight = count of
+transitive dependents, and its agent-set `priority` (D17) — the
+triage metadata an agent (or a dashboard) picks by, echoed on the row
+because the batch is the decision surface. Annotations never
+reorder; ordering is computed
 server-side, in `todo-domain`, never in the client (§2). `next_task`
-is the limit=1 case. With `task`, the scope becomes that item's
+is the limit=1 case, and its answer carries the chosen task's
+`priority` beside its id (D17) — so "the next task is low priority"
+is visible without a second call. With `task`, the scope becomes that item's
 transitive dependents — the work hanging off a non-top-level item —
 in the same canonical order, each marked immediately actionable or
 still held by other predecessors.
@@ -346,11 +351,11 @@ Sketch (names are the proposal; rmcp's tool macros will shape schemas):
 | `repo_register` / `repo_list` / `repo_show` | registry CRUD (§7) |
 | `repo_set_path` | a checkout moved; update the path attribute |
 | `epic_add` / `epic_list` / `epic_update` | top-level grouping per repo |
-| `task_add` / `task_show` / `task_list` | task CRUD; `task_list` filters by repo, epic, status, kind, and — for deferred items — until-satisfied (`ready`); rows carry each task's `blocked_by` ids with every blocker's status (D16) |
+| `task_add` / `task_show` / `task_list` | task CRUD; `task_list` filters by repo, epic, status, kind, and — for deferred items — until-satisfied (`ready`); rows carry each task's `blocked_by` ids with every blocker's status (D16) and each task's `priority` (D17) |
 | `task_update` | status + fields, with the closure discipline above |
 | `task_link` / `task_unlink` | `blocks` / `relates` edges (task and decision sources); cycle-checked |
-| `next_task` | **the question the system exists for** (§5.2) |
-| `next_items` | ranked actionable batch — repo/epic-scoped, or task-scoped (its dependents) — with blocked-by/blocks annotations, derived weight and the deferred summary (§5.2, D11 amended) |
+| `next_task` | **the question the system exists for** (§5.2); the answer carries the task's `priority` (D17) |
+| `next_items` | ranked actionable batch — repo/epic-scoped, or task-scoped (its dependents) — with blocked-by/blocks annotations, derived weight, each row's `priority` (D17) and the deferred summary (§5.2, D11 amended) |
 | `status_summary` | the roll-up (D16): counts by kind and status for the scope, plus D9's deferred `{total, ready}` — the arithmetic is signed below |
 | `decision_add` / `decision_list` / `decision_show` / `decision_update` | decision dossiers (D10); `decision_update` to `signed`/`superseded` requires `resolution` — the closure discipline applied to decisions |
 | `doc_register` / `doc_list` / `doc_set_path` / `doc_update` | registered-document records for stable citation (D10); `doc_set_path` is audited like `repo_set_path` |
@@ -713,8 +718,12 @@ shapes this project is judged by:
 - Not a general graph database: the schema is the domain model, fixed.
 - No scheduling, no time estimates, no effort scoring in v1 — ordering
   is dependency-driven (§5.2). The agent-set `priority` field (D11,
-  introduced by decision, not by accretion) is triage metadata shown
-  in payloads; it never reorders selection.
+  introduced by decision, not by accretion) is triage metadata echoed
+  on the triage surfaces — `next_task`'s answer, `next_items` and
+  `task_list` rows, and `task_show` (D17); it never reorders
+  selection, and the base instructions say so: the agent prefers
+  higher priority when choosing among actionable rows itself, the
+  server's order ignores the field by design.
 - No live sync with markdown files (§9).
 - Decision culture moves into the server (D10): `D`/`B` dossiers
   become structured decision nodes whose open state can block work;
@@ -730,13 +739,15 @@ confidence and an `On sign-off:` work order. Agents propose; the user
 decides. An item is deleted from this list when its decision is signed:
 items 1–11 on 2026-09-25, D12 on 2026-09-29, D14/D15 on 2026-09-30 —
 the two that came out of U2's rmcp survey (§6.3), settling the wire's
-canonical key order and the carrier a §6.1 code travels in — and D16 on
+canonical key order and the carrier a §6.1 code travels in — D16 on
 2026-10-03, the progress roll-up, which put `status_summary` and the
-`task_list` annotation into the table above. The sections they settled
-are normative above, and a future change to a signed shape
-is a new decision, not an edit (the D6/D11 priority boundary is the
-worked example). Numbers are never reused, and **D13 is reserved** for
-the transport question board U18 defers — a shared per-user server
+`task_list` annotation into the table above, and D17 on 2026-10-04,
+the triage surfaces — `priority` echoed on `next_task`'s answer and
+the `next_items`/`task_list` rows, the order untouched. The sections
+they settled are normative above, and a future change to a signed
+shape is a new decision, not an edit (the D6/D11 priority boundary is
+the worked example). Numbers are never reused, and **D13 is reserved**
+for the transport question board U18 defers — a shared per-user server
 instance against the signed D5 stdio — which is not drafted because
 nothing there starts before M4's importer check.
 
