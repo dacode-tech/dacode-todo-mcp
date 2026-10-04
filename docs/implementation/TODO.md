@@ -2768,9 +2768,25 @@ suite + concurrency proof: D14's pin (losing
 D15 carrier conformance across every tool, concurrent dispatch
 serialized per §8 (rmcp spawns each request; the server's state
 stays consistent and out-of-order responses tolerated), twice-run
-byte-identity. Its spec wants pre-writing; the surfaces it inherits
-are all landed (twenty-five tools, seventeen goldens, the carrier,
-the fixture). **t38's tracker note carries three hand-offs**: U26
+byte-identity. **Its spec is written** — `tmp/t38-spec.md`, this
+session's last act (8 decisions, 5 required tests, 4+1 mandatory
+mutations, the baseline pinned at `24153f7`): a **tests-only task**
+(the t21/f19/f57 shape — no production code moves unless U26's fix
+demands it, and a tests-only commit still carries both trailers)
+whose deliverables are the carrier conformance sweep (twenty-four
+tools, `repo_list`'s exclusion documented), the twice-run
+byte-identity modulo the one honest clock (eighteen clock-free
+responses byte-exact, seven stamped ones normalized), the
+rapid-fire concurrency proof (responses matched by JSON-RPC id, the
+write ids asserted as a set, the reopen proving consistency, the
+write-then-read race asserted as a disjunction), D14's pin by the
+feature-drop mutation over all seventeen goldens, and **U26's
+reproduce-or-close hammer** (the flaky sequence at fifty rounds, the
+two suspects varied independently, the disposition — fix or the
+recorded numbers — stated by the report, not presumed). The surfaces
+it inherits are all landed (twenty-five tools, seventeen goldens,
+the carrier, the fixture). **t38's tracker note carries three
+hand-offs**: U26
 (the flake — the wire suite owns the drive's reaping semantics and
 the two-threaded proof is the machinery that makes the window
 reproducible or closes it), the clock-grep wording (name the
