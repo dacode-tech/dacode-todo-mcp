@@ -2148,7 +2148,7 @@ Oldest first. One line per delivery, with the commit hash once committed.
        (77+5), 416 workspace (411+5), the gate run four times. No
        src, golden, domain, store or cli change; `Cargo.toml` and
        `Cargo.lock` byte-identical at the end. f95–f98 recorded.
-       Tree left dirty for dual review.
+       Landed as `709fbdb`.
 
 ## 4. Follow-ups
 
@@ -2855,9 +2855,11 @@ goldens, `common/mod.rs`, `tests/write.rs` and `tests/protocol.rs`
 are byte-identical; `Cargo.toml`/`Cargo.lock` restored and
 sha-verified after every mutation.
 
-Handover: the tree is dirty with exactly one new file
-(`crates/todo-mcp/tests/wire.rs`) awaiting dual review; on ok, the
-orchestrator commits with both trailers and dispatches **t39** — the
+Handover: t38 is committed as `709fbdb` after a two-round dual
+review — the fix round was docs-and-comment-only (f98's survivor
+count corrected to five, the wire doc comments made count-free, the
+U26 entry's machine named), and both reviewers re-bound ok on the
+final bytes. The next step is **t39** — the
 opencode smoke + U16b (the mcp entry in the generated config, the
 native todo pair gated off, a real client session with the transcript
 as evidence) — which is also U26's next watch point. The g9 exit gate
@@ -3029,8 +3031,10 @@ first), U24/U25 (the two over-target splits, riding their next
 owners), and the two one-line spec asks — §10's gate enumeration and
 §6.3:474's feature condition (f69). **Unverified:** no client has
 talked to this server; the wire is measured by test harnesses only —
-the opencode smoke is t39. Tracker: `tools/tasks.py check` exits 0
-on the two expected lines (g8 open with t37 next; g3 stands). Doc
+the opencode smoke is t39. Tracker: `tools/tasks.py check` exits 1
+on the two expected lines only (g8 open with t37 next; g3 stands —
+an open goal is a structural exit, not a failure; corrected in
+t38's backfill, the claim as first written did not reproduce). Doc
 gates: check-links, `attention.py --check`, `agents-sync.py --check`
 green; agents-index untouched (no indexed doc moved in the code
 commit; this board commit backfills the hash).
