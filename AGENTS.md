@@ -18,9 +18,11 @@ If `MYAGENTS.md` exists at the repo root, it is untracked, personal, and
 ## Project State
 
 **Phase: M4 (adoption) is decomposed 2026-10-05 and ungated — the
-dialect study ran, D18 is signed (a), and t42 (the parser) has landed
-— parse_board is total over the live board — leaving t43 (the D18
-mapping) as the next dispatch.**
+dialect study ran, D18 is signed (a), t42 (the parser) has landed
+— parse_board is total over the live board — and t43 (the D18
+mapping) has landed — the ImportPlan + apply_plan with id
+reproduction pinned at the live board's scale — leaving t44 (the
+import_md wire tool) as the next dispatch.**
 An MCP server that replaces
 markdown TODO boards with a deterministic task graph: tasks are typed
 nodes, dependencies are typed edges, everything lives in local

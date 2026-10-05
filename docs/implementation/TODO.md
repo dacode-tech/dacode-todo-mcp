@@ -43,7 +43,16 @@ domain/store change — and `parse_board` is **total over the live board**
 summary matching the board's own header, B 21/21, A 27+21/28). The
 strictness rule fired on six real live-board shapes the study's
 inventory missed — all widened as measured grammar, each pinned by test.
-**Nothing blocks t43** (the D18 mapping, ungated since the signing). The
+**t43 — the D18 mapping — landed 2026-10-06**: the AST mapped into an
+executable `ImportPlan` (an ordered op list of domain drafts + edges
+carrying the ids the store will allocate — D18's id reproduction made
+mechanical, the sort load-bearing because §6's file order is not
+id-sorted, measured) plus `apply_plan` over the `Store` trait with a
+non-empty refusal and a per-add id check; the D18 conventions
+operationalized with nine veto-able readings, each pinned by test; the
+id-reproduction property pinned at the live board's scale (170 U, 21 B,
+28 A, 15 sub-steps, 7 M, 50 docs, loop-generated with planted
+inversions). **Nothing blocks t44** (the `import_md` wire tool). The
 importer lives in `todo-mcp` as a module —
 §2's signed four-member workspace stands, no new crate, no new
 dependency (the dialect is line-anchored, measured).
@@ -83,7 +92,7 @@ shell, which is M3's business.
 
 | Blocking | What | Action |
 |---|---|---|
-| — | nothing blocks M4: D18 is signed (a) 2026-10-05, the importer's scope and order are signed (D12, amending D7), the server it imports into is closed at g9, and t42 (the parser) is landed | dispatch t43 (the D18 mapping) — the second task of the decomposed tree |
+| — | nothing blocks M4: D18 is signed (a) 2026-10-05, the importer's scope and order are signed (D12, amending D7), the server it imports into is closed at g9, and t42 (the parser) and t43 (the mapping) are landed | dispatch t44 (the `import_md` wire tool) — the third task of the decomposed tree |
 
 (Open but non-blocking: **U18** (a live view for progress and whether the
 server is shared per user, deferred until after M4's importer check, and
@@ -112,7 +121,7 @@ exit criteria: spec §14. Priority is derived from the Gated-on column by
 | M1 | domain model + storage engine: graph, statuses, persistence behind the `Store` trait, golden files | — | done 2026-09-30 — g5 ran green: every code gate, five goldens byte-identical, `cargo doc` clean, pitfalls consolidated |
 | M2 | queries: repo/epic selection, dependency resolution, deterministic `next_task`; registry with path updates | **D16** adds one task if signed; no dispatched task waits on it | done 2026-10-02 — **g7 ran green**: every code gate, the five goldens byte-identical under `UPDATE_GOLDEN=1`, `cargo doc` warning-free under both invocations for the first time (f48 settled), §5.2's selection re-proven a pure function of state, the f41 sweep exercised for the first time (f44/f45 promoted to U21/U22, the rest verified open with named consumers), and M2's lessons consolidated into `.agents/pitfalls.md` (P-LIVE-007/-008, the citation rule, the coverage-pin rule). The five deliveries — t27 selection, f47's pins, t28 batch, t29 listing, t30 doc riders, t31 registry queries — are §3's entries; D16 stayed unsigned throughout and nothing waited on it — **signed (a) 2026-10-03, after closure**, its aggregation task landing under M3's goal |
 | M3 | MCP server: §6's tool surface over the wire (import_md excepted — M4's, per D12), protocol-level tests, default-repo slug config (D8), smoke against a real client | gates cleared 2026-10-03: the **rmcp ask** signed (rmcp 3.5.0 + `serde_json/preserve_order`, §6.3), **U20** resolved (b) — the registry format stays and the server answers `repo_list` from handles — and **D16** signed (a), adding the domain aggregation task to the decomposition; D14/D15 settled the wire's key order and error carrier on 2026-09-30; **D17** signed 2026-10-04 (priority on the triage surfaces) | done 2026-10-04 — **g9 ran green**: every code gate (423 workspace tests), the golden ritual byte-identical over all three golden dirs, the §6 tool-surface check (25 tools over the wire, `import_md` the only exception — exactly the criterion), the smoke evidence recorded (t39's real opencode session), U26 reproduced/isolated/fixed at the gate itself (U27 opened for the store-side question), the f41 sweep exercised, and M3's lessons consolidated into `.agents/pitfalls.md`. The nine deliveries — t32 aggregation, t33 skeleton, t34/t35 the read tools, t36 the mutations, t37 edges + registry + the default slug, t38 the wire suite, t39 the smoke + U16b, t40 D17's echo — are §3's entries |
-| M4 | adoption: the dacode-dialect importer first (**D12**, amending D7), its board the only fixture checked in per §10; camera and ikvm-html imported from their live boards and never copied into this repo; the three repos tracked for real | — (D18 signed (a) 2026-10-05, the same day it was drafted) | in progress — **t42 the parser landed 2026-10-05** (parse_board total over the live board, probe-verified); next: t43 the D18 mapping → t44 the `import_md` wire tool → t45 the checked-in fixture + e2e golden → t46 camera → t47 ikvm-html → t48 the three repos tracked for real → g11 the exit gate (dispatch order; t46/t47 swappable, both after t45) |
+| M4 | adoption: the dacode-dialect importer first (**D12**, amending D7), its board the only fixture checked in per §10; camera and ikvm-html imported from their live boards and never copied into this repo; the three repos tracked for real | — (D18 signed (a) 2026-10-05, the same day it was drafted) | in progress — **t42 the parser landed 2026-10-05** (parse_board total over the live board, probe-verified), **t43 the D18 mapping landed 2026-10-06** (the ImportPlan + apply_plan, id reproduction pinned at scale); next: t44 the `import_md` wire tool → t45 the checked-in fixture + e2e golden → t46 camera → t47 ikvm-html → t48 the three repos tracked for real → g11 the exit gate (dispatch order; t46/t47 swappable, both after t45) |
 | M5 | packaging, docs, cwd auto-detection (deferred by D8), polish | — | not started |
 
 ## 3. Done
@@ -2384,6 +2393,74 @@ Oldest first. One line per delivery, with the commit hash once committed.
         (todo-mcp 131 = 85 + 46 import), clippy, `cargo doc`
         warning-free under both invocations. Landed as `faeca22`.
 
+- 2026-10-06 — **M4 t43: the D18 mapping** — the second code task of
+        M4, and the semantic half of the importer:
+        `crates/todo-mcp/src/import/dacode/{map,plan,resolve}.rs`
+        mapping t42's frozen AST into an executable **`ImportPlan`** —
+        an ordered op list (`epics → decisions → docs → tasks →
+        edges`) of domain drafts + `BlocksEdge`s, each op carrying the
+        id the store **will** allocate, which is D18's
+        id-reproduction convention made mechanical — plus
+        `apply_plan` over `&mut dyn Store` (refusing a non-empty
+        graph or raised counters up front, and comparing every add's
+        returned id with the op's constructed id, a named error
+        naming both on mismatch). The sort is load-bearing, not a
+        no-op: §6's file order is **not** id-sorted (three inversions
+        measured: U77 after U90, U111 after U114, U126 after U132),
+        and the B summary and A dossier orders are unsorted too — the
+        plan sorts by numeric id, and the id-reproduction test plants
+        inversions at the live board's scale (170 U, 21 B, 28 A, 15
+        sub-steps, 7 M, 50 docs, loop-generated) asserting the
+        store's ids are exactly `U1`–`U170`, `D1`–`D21`, `E1`–`E9`,
+        `S1`–`S50` and the non-U tasks after them in the documented
+        order. The D18 conventions operationalized: the status
+        mapping with a precedence rule (the checkbox governs
+        closed-ness; the first status-bearing marker in emission
+        order refines open states; a ✅ on an unchecked item is
+        prose — the live board's 304 ✅s include struck prose);
+        sub-step status inheriting the parent milestone's checkbox
+        (M0's complete sub-steps carry no Gate-cell marks —
+        measured); the mechanical-edge rule (B's Gates milestone →
+        `decision→epic`, A's `Depends on` B ids → `decision→task` and
+        A ids → `task→task`, `blocked on` by target kind); each
+        recognized-but-unresolvable assertion (milestone assertions,
+        unknown ids) → one `finding`-kind task; `B1a` → a closed task
+        under `Follow-ups` referencing `B1`; timestamps (dossier
+        dates → `T00:00:00.000000000Z`, everything else a
+        caller-passed `imported_at`); docs with `doc_paths` as a
+        required parameter (the three board files do not carry the
+        doc filenames — t44/t45 supply the key→path map; a register
+        key with no path is a named error). **Nine veto-able
+        readings, each pinned by a test** (D18's own rule), recorded
+        in the module docs. 27 map tests (73 in the import target);
+        the five mandatory mutations run with kill sets re-derived
+        independently by the primary reviewer. Dual review over two
+        rounds to sign-off, both bound to the final bytes: round 1
+        found the references reading unpinned (both reviewers
+        deleted the reference pushes and watched the suite stay
+        green), the edge timestamps unpinned, a false D18 citation
+        (the synthetic epics' description wording is the mapping's
+        own, not the signed text's — the f62/5.6 class), the refusal
+        gap (a used-then-emptied store passing — both reviewers from
+        different angles), and three live-prose lifts in the corpus;
+        all landed in the fix round with the probes pinned as tests.
+        One ownership deviation, ratified by both: `resolve.rs` —
+        map.rs hit 1024 lines after fmt and the 1000 cap is
+        unwaivable, so the split landed at the spec's own named seam
+        (node mapping vs edge/finding resolution). Every gate green
+        on the final tree: fmt, check, **496** workspace tests
+        (todo-mcp 158 = 131 + 27), clippy, `cargo doc` warning-free
+        under both invocations; the 13 frozen baselines (ast.rs and
+        every parser file) byte-identical; `Cargo.lock` unmoved. Two
+        follow-ups opened: **U29** (map.rs over the 600-line target,
+        the recorded exception) and **U30** (a t42 strictness gap the
+        primary found: duplicate B/A dossier ids pass the set
+        cross-check — no seen-map, unlike U ids — and would land a
+        duplicated decision; frozen code, the parser files' next
+        owner). The refusal's wire code is a t44 spec input,
+        recorded in the tracker. Landed as `<HASH>` (backfilled
+        below).
+
 
 
 ## 4. Follow-ups
@@ -3130,12 +3207,91 @@ Deliberate shortcuts, acknowledged rather than fixed. Same id rules as §4.
       (`doc_register`/`doc_set_path`/`doc_update` and their
       conversions) into its own module — a named diff for whoever
       next owns the file.
+- [ ] **U29 · `todo-mcp/src/import/dacode/map.rs` is over the
+      600-line target.** 758 production lines (the awk measure; the
+      file holds no test module). Over target because the mapping's
+      dispatch pins the whole node half of D18's conventions — the
+      status precedence, the drafts' fields, the doc register, the
+      synthetic epics — in one file beside the plan's construction;
+      the edge/finding resolution already split into `resolve.rs`
+      (300) at the spec's named seam when the unwaivable 1000 cap
+      forced it. The cap holds. The split, if the mapping grows
+      another population (a camera/ikvm dialect reusing the shape),
+      is the doc-register half into its own module — a named diff
+      for whoever next owns the file.
+- [ ] **U30 · Duplicate B/A dossier ids pass `parse_board`.** The
+      cross-file set checks collapse duplicates (a set cannot see
+      them) and the B/A parsers keep no seen-map, unlike the U-id and
+      doc-key registers — so a board holding one B id twice parses
+      clean and `map_board` lands a duplicated decision with the
+      index pointing at the last copy. Found by t43's primary
+      reviewer (probed empirically); unreachable on the live board
+      (the registers are unique) and not fixable in t43 (the parser
+      files are frozen baselines). The fix is a seen-map in
+      `decisions.rs`/`deltas.rs` plus a duplicate-id named error —
+      whoever next owns those files; t45's fixture import is the
+      natural consumer (a corrupted fixture would otherwise import
+      silently wrong).
 
 ## 6. Session log
 
 Newest first. One entry per session, written for someone who was not
 here. The final entry of a session is the handover
 (`.agents/skills/todo-next-imp/SKILL.md` defines the shape).
+
+### 2026-10-06 — t43 dispatched and landed: the D18 mapping, id reproduction pinned at scale
+
+The session opened on the user's "ok, go ahead" — the word that
+dispatched t43 against the spec authored the previous exchange (and the
+sibling dacode repo's 22/23 strike committed there as `c5dd47d` at the
+user's ask, both trees clean since). One implementer round, one review
+fix round, then dual sign-off — the shortest delivery of M4 so far,
+because the spec was authored against a frozen AST and the measured
+facts (the §6 inversions) were settled before dispatch. The narrative
+is §3's t43 entry. What the session leaves behind:
+
+- **The importer's semantic half is done**: parse (t42) → map (t43) →
+  apply, all pinned. What remains of M4 is the wire (t44), the fixture
+  (t45), the other two dialects (t46/t47) and the cutover (t48).
+- **The review's round 1 was the load-bearing one again**: both
+  reviewers independently deleted the references push and watched the
+  suite stay green (the reading was pinned in prose, not in a test);
+  the secondary caught the edge timestamps unpinned the same way, a
+  false D18 citation (the f62/5.6 class — the synthetic epics'
+  description wording presented as signed text when decisions.md says
+  only "descriptions carry their provenance"), and three live-prose
+  lifts in the corpus; both found the refusal gap from different
+  angles (a used-then-emptied store passing the node-count check).
+  All landed with the probes pinned as tests.
+- **Two follow-ups opened**: U29 (map.rs over target, the recorded
+  exception) and U30 (the t42 duplicate-id strictness gap the primary
+  probed — frozen code, the parser files' next owner). The refusal's
+  wire code is a t44 spec input (a new §6.1 code would be a spec
+  change; the honest t44 default is mapping the refusal to an
+  existing code and flagging the question).
+- **One spec claim corrected at review time**: the literal
+  "cut at the first emoji" title rule empties 16 live leading-flag
+  titles (U25/U37/U56… measured) — leading flags are stripped before
+  the cut, reported not worked around.
+
+**Handover.** Workspace: `main`, clean at the t43 commit; four crates;
+rustc 1.98.1; 496 tests, all green. Landed: t43 — the D18 mapping
+(`map.rs`/`plan.rs`/`resolve.rs`, 27 map tests, the ImportPlan +
+apply_plan, id reproduction pinned at the live board's scale; §3's
+entry carries the detail). Next step: **dispatch t44 — the
+`import_md` wire tool** (params, the store writes through
+`map_board` + `apply_plan`, every fault carrying its §6.1 code via
+D15's carrier, the wire golden), authored against t43's public
+surface and the refusal's wire-code question recorded above.
+Alternative considered and declined: t45 first (the fixture) — the
+wire tool is what the fixture's e2e drives, and its params decide the
+fixture's shape. Blocked on you: nothing. Unverified: the importer
+end-to-end against the real board (t45's fixture e2e — the mapping is
+pinned at synthetic scale, and the parser is total over the live
+board, but the two have not run composed on the real files; t45 is
+that pin). Tracker: `tasks.py check` exits 1 on exactly the two
+expected lines (g10 in flight, g3 standing); t43 closed with
+evidence.
 
 ### 2026-10-05 — t42 dispatched and landed: the dacode dialect parser, total over the live board
 

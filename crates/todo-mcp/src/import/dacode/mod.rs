@@ -1,10 +1,11 @@
-//! The dacode dialect parser (t42): the three board files — TODO.md,
-//! the B decisions appendix, the A design-deltas appendix — as a
-//! dialect AST, strictly. The dialect inventory and the mapping
-//! conventions are the dacode-dialect decision's
-//! (`docs/implementation/decisions.md`); this
-//! module owns the shapes below, and the mapping to domain types is
-//! t43's, after dual review of this.
+//! The dacode dialect importer (t42's parser, t43's mapping): the
+//! three board files — TODO.md, the B decisions appendix, the A
+//! design-deltas appendix — as a dialect AST, strictly, then the AST
+//! mapped into an executable plan of domain drafts and edges. The
+//! dialect inventory and the mapping conventions are the
+//! dacode-dialect decision's (`docs/implementation/decisions.md`);
+//! this module owns the shapes below, and the mapping lives in
+//! `map.rs`/`plan.rs`.
 //!
 //! Strictness is the load-bearing rule: a register line that
 //! does not parse is a named error, never a silent skip — a parser
@@ -19,7 +20,10 @@
 //! The parsers are pure functions of text: no I/O, no clock, no
 //! store, no new dependencies — file reading is the tool's
 //! (t44). The AST carries no line numbers on entries (board ids are
-//! the stable keys); errors carry 1-based lines.
+//! the stable keys); errors carry 1-based lines. The mapping
+//! (`map_board` + `apply_plan`) is equally pure on its own half: the
+//! plan is built from the AST and caller-passed parameters alone, and
+//! only the executor touches a store.
 //!
 //! Judgment calls (the task spec's (a)–(e)), bound where they apply:
 //!
@@ -50,6 +54,9 @@ mod deltas;
 mod doc_register;
 mod error;
 mod items;
+mod map;
+mod plan;
+mod resolve;
 mod table;
 
 use std::collections::BTreeSet;
@@ -61,6 +68,8 @@ pub use ast::{
     SummaryStatus, TodoMd, UItem,
 };
 pub use error::ImportError;
+pub use map::map_board;
+pub use plan::{ImportOptions, ImportPlan, PlanOp, apply_plan};
 
 pub use board::parse_todo_md;
 pub use decisions::parse_b_decisions;

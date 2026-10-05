@@ -1,14 +1,23 @@
-//! The dacode importer's named errors (t42): every failure is a
-//! variant carrying the 1-based line number where parsing failed,
-//! plus the id or key where relevant — the audit surface, the store's
-//! `corrupt_store` offset discipline.
+//! The dacode importer's named errors (t42, extended by the mapping):
+//! every failure is a variant carrying the 1-based line number where
+//! parsing failed, plus the id or key where relevant — the audit
+//! surface, the store's `corrupt_store` offset discipline.
 //!
 //! One variant carries no line, deliberately: `IdSetMismatch` fails
 //! *between* files, so there is no failure line, and the id is the
 //! stable key — the board's own "cite the id rather than a line
 //! number" rule. The absence errors (`MissingSection`,
 //! `MissingB1a`, `MissingRegister`) carry the line the walk ended on,
-//! which is where the absence was established.
+//! which is where the absence was established. The mapping's variants
+//! (`MissingDocPath`, `BadDate`, `UnresolvedParent`, `BadReference`,
+//! `StoreNotEmpty`, `IdMismatch`) carry no line either: they fire
+//! over the parsed AST or the store, which carry none — the id or key
+//! is the stable key, the same rule. The two apply-time variants
+//! travel as `StoreError` through a conversion built at
+//! `apply_plan`'s refusal sites, not a `From` impl here: a total
+//! impl would make every parse variant convertible into the store's
+//! `corrupt_store`, which is the repair-associated code, and no
+//! parse failure is a store fault.
 
 use std::fmt;
 
@@ -123,6 +132,59 @@ pub enum ImportError {
         /// Which registers disagree, named.
         detail: String,
     },
+    /// A doc-register key has no path in the import options — a doc
+    /// with no path is an omission, not a skip, so the mapping refuses
+    /// the whole board rather than dropping the doc.
+    MissingDocPath {
+        /// The register key that has no path.
+        key: String,
+    },
+    /// A board date is shape-valid (the parser checks `YYYY-MM-DD`)
+    /// but not a real calendar date — `2026-02-30` parses as a shape
+    /// and fails as a day.
+    BadDate {
+        /// The date as written.
+        date: String,
+    },
+    /// A sub-step's id names a milestone §5 does not carry, so the
+    /// gate task has no parent epic to live under — the mapping
+    /// refuses the board rather than inventing a parent.
+    UnresolvedParent {
+        /// The sub-step id.
+        id: String,
+        /// The milestone it names.
+        milestone: String,
+    },
+    /// The domain rejected a reference target the mapping tried to
+    /// construct — reachable only through a pathological dossier span
+    /// (an anchor in a section string, which the domain rejects for
+    /// non-`doc` kinds); the ids and doc keys the parser validated
+    /// cannot be rejected.
+    BadReference {
+        /// The rejected target.
+        target: String,
+        /// Why the domain rejected it.
+        detail: String,
+    },
+    /// `apply_plan` refused the store: its graph holds nodes or its
+    /// allocation counters have burned numbers — importing into a
+    /// used store would corrupt the id reproduction. Nothing was
+    /// written.
+    StoreNotEmpty {
+        /// The slug of the store that was refused.
+        slug: String,
+    },
+    /// The store allocated an id that disagrees with the one the plan
+    /// constructed for the same op — the reproduction broke mid-walk.
+    /// Catches a slug mismatch (the store allocates under its own
+    /// slug), an offset counter, and a plan whose ops no longer match
+    /// their positions.
+    IdMismatch {
+        /// The id the plan constructed.
+        expected: String,
+        /// The id the store allocated.
+        found: String,
+    },
 }
 
 impl fmt::Display for ImportError {
@@ -187,6 +249,36 @@ impl fmt::Display for ImportError {
                 write!(
                     f,
                     "the id '{id}' does not agree across the registers: {detail}"
+                )
+            }
+            ImportError::MissingDocPath { key } => {
+                write!(
+                    f,
+                    "the doc register key '{key}' has no path in the import options"
+                )
+            }
+            ImportError::BadDate { date } => {
+                write!(f, "the board date '{date}' is not a real calendar date")
+            }
+            ImportError::UnresolvedParent { id, milestone } => {
+                write!(
+                    f,
+                    "the sub-step '{id}' names the milestone '{milestone}', which §5 does not carry"
+                )
+            }
+            ImportError::BadReference { target, detail } => {
+                write!(f, "the reference target '{target}' was rejected: {detail}")
+            }
+            ImportError::StoreNotEmpty { slug } => {
+                write!(
+                    f,
+                    "the import into '{slug}' was refused: the store is not empty or has burned ids"
+                )
+            }
+            ImportError::IdMismatch { expected, found } => {
+                write!(
+                    f,
+                    "the import's id reproduction broke: the store allocated {found}, the plan constructed {expected}"
                 )
             }
         }
