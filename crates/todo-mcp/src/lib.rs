@@ -11,6 +11,18 @@
 //! shape `todo-store`'s own lib.rs provisioned for M3's server — so no
 //! engine type, error or feature flag is held or named here.
 //!
+//! # The importer (§9, D12)
+//!
+//! The crate also hosts the board importer: [`import::dacode`] is the
+//! dacode dialect's parser, a pure function of text with no I/O, no
+//! clock and no store — file reading belongs to the `import_md` tool
+//! (t44), the mapping to domain types to t43, and camera/ikvm-html
+//! arrive as sibling dialect modules later. A dialect parser is not a
+//! wire surface: it decides nothing, it recognizes — a register line
+//! that does not parse is a named error, never a silent skip, because
+//! an importer that quietly drops an item reports less than the truth
+//! while still looking complete.
+//!
 //! # The concurrency core (§8)
 //!
 //! rmcp dispatches every request in its own `tokio::spawn` (spec
@@ -79,6 +91,7 @@ use todo_store::{DataRoot, Registry, Store, StoreError};
 
 mod dto;
 mod edges;
+pub mod import;
 mod listing;
 mod nodes;
 mod query;

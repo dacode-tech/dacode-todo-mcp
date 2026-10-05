@@ -34,8 +34,17 @@ The full inventory is **D18's evidence base** in `decisions.md`.
 `Follow-ups`, id reproduction by import order (no Store/domain
 change). §9's mapping table and §10's fixture bullet carry the rows;
 the conventions stay task-spec level, pinned by t43's tests.
-**Nothing blocks M4** — t42 (the parser) first, then t43 (the
-mapping, now ungated). The importer lives in `todo-mcp` as a module —
+**t42 — the dacode dialect parser — landed 2026-10-05**: the
+three-file line parser into a dialect AST (registers, items, statuses,
+tables, dependency columns, the recognized prose assertions), strict
+named errors for unknown register shapes, pure std, no new deps, no
+domain/store change — and `parse_board` is **total over the live board**
+(probe-verified: U=170, M=7, 15 sub-steps, 42 docs = 23 expanded + 19
+summary matching the board's own header, B 21/21, A 27+21/28). The
+strictness rule fired on six real live-board shapes the study's
+inventory missed — all widened as measured grammar, each pinned by test.
+**Nothing blocks t43** (the D18 mapping, ungated since the signing). The
+importer lives in `todo-mcp` as a module —
 §2's signed four-member workspace stands, no new crate, no new
 dependency (the dialect is line-anchored, measured).
 
@@ -74,7 +83,7 @@ shell, which is M3's business.
 
 | Blocking | What | Action |
 |---|---|---|
-| — | nothing blocks M4: D18 is signed (a) 2026-10-05, the importer's scope and order are signed (D12, amending D7), and the server it imports into is closed at g9 | dispatch t42 (the parser) — the first task of the decomposed tree |
+| — | nothing blocks M4: D18 is signed (a) 2026-10-05, the importer's scope and order are signed (D12, amending D7), the server it imports into is closed at g9, and t42 (the parser) is landed | dispatch t43 (the D18 mapping) — the second task of the decomposed tree |
 
 (Open but non-blocking: **U18** (a live view for progress and whether the
 server is shared per user, deferred until after M4's importer check, and
@@ -103,7 +112,7 @@ exit criteria: spec §14. Priority is derived from the Gated-on column by
 | M1 | domain model + storage engine: graph, statuses, persistence behind the `Store` trait, golden files | — | done 2026-09-30 — g5 ran green: every code gate, five goldens byte-identical, `cargo doc` clean, pitfalls consolidated |
 | M2 | queries: repo/epic selection, dependency resolution, deterministic `next_task`; registry with path updates | **D16** adds one task if signed; no dispatched task waits on it | done 2026-10-02 — **g7 ran green**: every code gate, the five goldens byte-identical under `UPDATE_GOLDEN=1`, `cargo doc` warning-free under both invocations for the first time (f48 settled), §5.2's selection re-proven a pure function of state, the f41 sweep exercised for the first time (f44/f45 promoted to U21/U22, the rest verified open with named consumers), and M2's lessons consolidated into `.agents/pitfalls.md` (P-LIVE-007/-008, the citation rule, the coverage-pin rule). The five deliveries — t27 selection, f47's pins, t28 batch, t29 listing, t30 doc riders, t31 registry queries — are §3's entries; D16 stayed unsigned throughout and nothing waited on it — **signed (a) 2026-10-03, after closure**, its aggregation task landing under M3's goal |
 | M3 | MCP server: §6's tool surface over the wire (import_md excepted — M4's, per D12), protocol-level tests, default-repo slug config (D8), smoke against a real client | gates cleared 2026-10-03: the **rmcp ask** signed (rmcp 3.5.0 + `serde_json/preserve_order`, §6.3), **U20** resolved (b) — the registry format stays and the server answers `repo_list` from handles — and **D16** signed (a), adding the domain aggregation task to the decomposition; D14/D15 settled the wire's key order and error carrier on 2026-09-30; **D17** signed 2026-10-04 (priority on the triage surfaces) | done 2026-10-04 — **g9 ran green**: every code gate (423 workspace tests), the golden ritual byte-identical over all three golden dirs, the §6 tool-surface check (25 tools over the wire, `import_md` the only exception — exactly the criterion), the smoke evidence recorded (t39's real opencode session), U26 reproduced/isolated/fixed at the gate itself (U27 opened for the store-side question), the f41 sweep exercised, and M3's lessons consolidated into `.agents/pitfalls.md`. The nine deliveries — t32 aggregation, t33 skeleton, t34/t35 the read tools, t36 the mutations, t37 edges + registry + the default slug, t38 the wire suite, t39 the smoke + U16b, t40 D17's echo — are §3's entries |
-| M4 | adoption: the dacode-dialect importer first (**D12**, amending D7), its board the only fixture checked in per §10; camera and ikvm-html imported from their live boards and never copied into this repo; the three repos tracked for real | — (D18 signed (a) 2026-10-05, the same day it was drafted) | not started — **decomposed 2026-10-05**: t42 the parser → t43 the D18 mapping → t44 the `import_md` wire tool → t45 the checked-in fixture + e2e golden → t46 camera → t47 ikvm-html → t48 the three repos tracked for real → g11 the exit gate (dispatch order; t46/t47 swappable, both after t45) |
+| M4 | adoption: the dacode-dialect importer first (**D12**, amending D7), its board the only fixture checked in per §10; camera and ikvm-html imported from their live boards and never copied into this repo; the three repos tracked for real | — (D18 signed (a) 2026-10-05, the same day it was drafted) | in progress — **t42 the parser landed 2026-10-05** (parse_board total over the live board, probe-verified); next: t43 the D18 mapping → t44 the `import_md` wire tool → t45 the checked-in fixture + e2e golden → t46 camera → t47 ikvm-html → t48 the three repos tracked for real → g11 the exit gate (dispatch order; t46/t47 swappable, both after t45) |
 | M5 | packaging, docs, cwd auto-detection (deferred by D8), polish | — | not started |
 
 ## 3. Done
@@ -2309,9 +2318,72 @@ Oldest first. One line per delivery, with the commit hash once committed.
        the decisions.md row struck with its resolution banner; the
        conventions (status mapping, timestamps, the mechanical-edge
        rule, `B1a`, the not-imported surfaces) stay task-spec level,
-        pinned by t43's tests. t43 is unblocked; nothing blocks M4.
-        No Rust moved. Landed as `b8bd5da` (review-exempt, no
-        trailer; the index backfill as `8a49a4b`).
+         pinned by t43's tests. t43 is unblocked; nothing blocks M4.
+         No Rust moved. Landed as `b8bd5da` (review-exempt, no
+         trailer; the index backfill as `8a49a4b`).
+
+- 2026-10-05 — **M4 t42: the dacode dialect parser** — the first code
+        of M4, and the risk mass of the importer: the three-file
+        line parser into a dialect AST, in
+        `crates/todo-mcp/src/import/dacode/` (ten files, all under the
+        600-line target; `lib.rs` gains `pub mod import;` — the only
+        existing file touched). Pure std, no new dependency
+        (`Cargo.lock` byte-identical), no domain/store change, no
+        mapping (t43's), no wire surface (t44's), no goldens (t45's).
+        The design: three per-file parsers plus `parse_board` with
+        cross-file id set checks (B set-equality; A one-directional —
+        every index/applied-table id must have a dossier, dossiers may
+        exceed the index, `A28` measured); the AST carries board order
+        in `Vec`s, no serde, ids as the stable keys with 1-based line
+        numbers on every named error; **strictness is the load-bearing
+        rule** — register lines must parse or error (the
+        anti-silent-omission discipline), unknown tables and prose are
+        body, tables are recognized by header shape not position
+        (measured: tables live inside §6 item bodies); markers (the
+        four emoji, `blocked on <id>`, `gates/Blocking/due by M<n>`)
+        are extracted only from checkbox items with their raw lines,
+        `before M<n>` deliberately not recognized per D18. 46 tests,
+        all synthetic corpora (the real files are t45's fixture — the
+        review caught and removed pasted live-board prose twice). The
+        five mandatory mutations run and re-run across rounds with
+        matching kill sets. **The strictness rule earned its keep
+        immediately**: a live-board probe (temporary, removed) fired on
+        six real shapes the dialect study's inventory missed — §2's B20
+        row carrying a fifth trailing cell, B20's prose Status tail,
+        B11's `D` appendix doc in a Gates cell, the A file's second
+        `| # | Section | Applied | Date | Note |` table (21 rows)
+        holding `A28` which the 27-row index lacks, a raw pipe inside
+        a code span, and A11's arrow status intro with the
+        `APPLIED via A<n>, <date>` form — all widened as measured
+        grammar, each pinned by test, plus two implementer-disclosed
+        widenings (wrapped table rows, wrapped bold runs — 120 of 170
+        live items) that the live board requires. **One cross-repo
+        event**: the doc-register contradiction check (a doc both
+        expanded and still-summary) fired on the live board's §4 —
+        docs 22/23 were expanded per the board's own count paragraphs
+        and expanded list but never struck in the M1 row, the board's
+        own recorded "two edits" drift — and rather than relax the
+        check, the M1 row was struck in the sibling dacode repo (their
+        tree left dirty for their owner, the t16 precedent). With that
+        one-line fix, `parse_board` is **total over the live board**:
+        U=170, M=7, 15 sub-steps, 42 docs (23 expanded + 19 summary,
+        matching the board's own "19 of 42" header), §2/B/A
+        21/21/21/27/21/28, markers 154/151/31/16/4/0. Dual review over
+        five rounds to sign-off, both reviewers bound to the final
+        bytes: the primary caught the row-wrap silently swallowing
+        register lines (a truncated row absorbed a following milestone
+        — fixed with a register-construct termination rule); the
+        secondary caught an id-shape off-by-one accepting two trailing
+        letters at every id gate, stale docs contradicting the fix
+        round's code, measurements in doc comments, and the pasted
+        live-board prose; the last rounds swept a false empirical
+        claim (the "live A25 header carries prose" rationale, false —
+        no live A header carries post-date prose) and its duplicate —
+        the class-sweep lesson twice in one review. Every gate green
+        on the final tree: fmt, check, **469** workspace tests
+        (todo-mcp 131 = 85 + 46 import), clippy, `cargo doc`
+        warning-free under both invocations. Landed as `<HASH>`
+        (backfilled below).
 
 
 
@@ -3065,6 +3137,67 @@ Deliberate shortcuts, acknowledged rather than fixed. Same id rules as §4.
 Newest first. One entry per session, written for someone who was not
 here. The final entry of a session is the handover
 (`.agents/skills/todo-next-imp/SKILL.md` defines the shape).
+
+### 2026-10-05 — t42 dispatched and landed: the dacode dialect parser, total over the live board
+
+The session opened on the user's "let's continue from the last session.
+Next is a spec as per handover" — the word that dispatched t42. The task
+spec was authored at `tmp/t42-spec.md` against D18's inventory and the
+§9 rows, with the live board's shapes re-measured first (the study's
+"'blocked on <id>' ×10" corrected in the spec before dispatch: the ten
+live occurrences are prose, the id-bearing form appears once, in the A
+appendix — the f62/5.6 class caught at spec time rather than review
+time). Three implementer rounds (initial, the six-shape fix round, the
+final probe round), then five review rounds to dual sign-off; the
+narrative is §3's t42 entry. What the session leaves behind:
+
+- **The parser is total over the live board** — the strongest single
+  fact of the delivery, probe-verified by the implementer, both
+  reviewers and the orchestrator independently, with the counts
+  cross-checked against the board's own header (19 of 42) and register
+  (U1–U170). t45's fixture work inherits a parser that already parses
+  the real files.
+- **The sibling dacode repo carries one uncommitted edit of ours**:
+  docs 22/23 struck in §4's M1 row (their own recorded drift — the
+  count paragraphs and expanded list said expanded, the row was never
+  struck). Their tree is dirty for their owner to review and commit;
+  reverting is a one-line strike if they disagree. t45's fixture
+  snapshot should be taken from the fixed files.
+- **The review earned five rounds**, and each one found something real:
+  the primary's row-wrap swallowing register lines (a silent-omission
+  shape in the parser itself), the secondary's id-shape off-by-one at
+  every id gate, the pasted live-board prose in a test corpus (twice —
+  the second time as two verbatim titles the first sweep missed), the
+  spec-local D-id citations reaching committed files (the f70 class),
+  and a false empirical claim with a duplicate (the class-sweep lesson
+  applied twice). One process note recorded for the pattern: the
+  primary's round-3 sha list did not reproduce against the tree (its
+  substantive checks did) — sha reports are claims like any other, and
+  the final rounds required both reviewers to paste `shasum` output
+  computed on the repo files, verified against the orchestrator's own.
+- **Dispositioned, not fixed**: five measured-shape pins in the test
+  corpora carry short live-prose fragments (a struck Depends-on tail,
+  `plain | compressed`, `APPLIED via A16`, a B20 status tail shape) —
+  ruled dialect evidence, not prose lifts; t45's fixture will carry the
+  real files wholesale anyway.
+
+**Handover.** Workspace: `main`, clean at the t42 commit; four crates;
+rustc 1.98.1; 469 tests, all green. Landed: t42 — the dacode dialect
+parser (`crates/todo-mcp/src/import/dacode/`, ten files, 46 tests,
+`parse_board` total over the live board; §3's entry carries the
+detail). Next step: **dispatch t43 — the D18 mapping** (dialect AST →
+domain drafts + edges: the status mapping, timestamps, evidence
+bounding, the mechanical-edge rule, the synthetic epics, id
+reproduction), authored against D18's conventions (decisions.md) and
+t42's AST; its task spec settles the mapping semantics the parser
+deliberately left open. Alternative considered and declined: t44 first
+(the wire tool) — the mapping is the semantic risk and the AST it
+consumes is now frozen. Blocked on you: nothing for t43; the sibling
+dacode repo's dirty file (the 22/23 strike) is yours to review and
+commit. Unverified: nothing new — the parser's totality is
+probe-verified; the mapping (t43) and the wire tool (t44) are unstarted
+by design. Tracker: `tasks.py check` exits 1 on exactly the two
+expected lines (g10 in flight, g3 standing); t42 closed with evidence.
 
 ### 2026-10-05 — M4 decomposed: the dialect study, D18 drafted, t42–t48 + g11
 
