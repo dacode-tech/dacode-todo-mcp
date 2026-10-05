@@ -2309,9 +2309,9 @@ Oldest first. One line per delivery, with the commit hash once committed.
        the decisions.md row struck with its resolution banner; the
        conventions (status mapping, timestamps, the mechanical-edge
        rule, `B1a`, the not-imported surfaces) stay task-spec level,
-       pinned by t43's tests. t43 is unblocked; nothing blocks M4.
-       No Rust moved. Landed as `<hash>` (backfilled at the next
-       board touch).
+        pinned by t43's tests. t43 is unblocked; nothing blocks M4.
+        No Rust moved. Landed as `b8bd5da` (review-exempt, no
+        trailer; the index backfill as `8a49a4b`).
 
 
 
@@ -2953,6 +2953,27 @@ Unowned work. Take the next unused `U` id; never renumber, never reuse.
       multi-platform evidence (this is one macOS workload) and must
       reconcile `lock.rs`'s module doc, which states the release is
       the close. The store's next owner's, or a dedicated task's.
+- [ ] **U28 · `progress.py` goes dynamic — the server as its data
+      source, after M4.** Opened 2026-10-05 on the user's question:
+      the page's hardcoded tables (`LANES`, `GATING`, `EXTRA`,
+      `WAITS`) are a hand-maintained shadow of the server's own
+      model — lanes ↔ epics, gating rows ↔ `blocks` edges, waits ↔
+      `blocked`/`blocked_by`, extra entities ↔ nodes, the open-items
+      table ↔ `status_summary` (D16). **No new §6 tool is needed**
+      (`graph_show`/`status_summary`/`task_list` already return the
+      shape, and §11 keeps rendering a client's job); what is
+      missing is the **dogfooding cutover** — this repo's own
+      tracking living in the server, which §9 has sanctioned since
+      M3 closed and nobody has scheduled. After it, `progress.py`
+      becomes a thin client and the four tables retire. Deferred by
+      the user until after M4 proves the MVP (the importer + the
+      three repos tracked for real, t48). Depends on **U18**'s
+      territory either way: a per-render stdio spawn works under
+      signed D5; a shared long-running instance is **D13**'s
+      reserved question. One gap to carry into the design: the
+      `GATING` rows' citation column (the *why* of an edge) has no
+      server equivalent — the blocked task's `note` is the nearest
+      home.
 - [ ] **U22 · `progress.py` does not render open decisions.** f45,
       promoted at the g7 sweep for the same reason: the page reads board
       §2/§4/§5 and the tracker, so an open D-entry has no row — measured
@@ -3094,17 +3115,30 @@ its resolution banner, and the conventions stay task-spec level
 (pinned by t43's tests, veto-able as readings). t43 is unblocked;
 nothing blocks M4.
 
+The session's third act came out of the user's question: can
+`progress.py` retrieve its information dynamically instead of the
+hardcoded `LANES`/`GATING`/`EXTRA`/`WAITS` tables — perhaps with the
+server behind it, as a follow-up after the MVP is proven? The answer
+is **U28**: the tables are a hand-maintained shadow of the server's
+own model (lanes ↔ epics, gating rows ↔ `blocks` edges, waits ↔
+`blocked`/`blocked_by`, extra entities ↔ nodes), no new §6 tool is
+needed, and the missing piece is the dogfooding cutover §9 has
+sanctioned since M3 closed — recorded on the board, deferred until
+after M4, depending on U18/D13's transport territory either way.
+
 Handover: **M4 is decomposed and ungated; the next act is dispatching
 t42 (the parser).** Workspace: main, four crates, rustc 1.98.1, 423
 tests, clean. Landed: the decomposition as `230d49c` (+ the index
-backfill `8b37055`), the D18 sign-off execution as this session's
-second docs commit. Next step: **dispatch t42** — the dacode
+backfill `8b37055`), the D18 sign-off execution as `b8bd5da` (+ the
+index backfill `8a49a4b`), U28 as this session's last board edit.
+Next step: **dispatch t42** — the dacode
 dialect parser, `crates/todo-mcp/src/import/`, strict line-oriented
 parsing into a dialect AST, no new deps; its task spec is authored
 against D18's inventory (decisions.md) and the §9 mapping rows. Then
 t43 (the mapping, ungated since D18 signed). Blocked on you: nothing.
-Non-blocking: U21/U22 (user calls), U18 (parked until after M4's
-importer check, holds the D13 reservation), U27 (the store's next
+Non-blocking: U21/U22 (user calls), U18 and **U28** (both parked
+until after M4's importer check — the live view/transport question
+and the progress.py-goes-dynamic cutover), U27 (the store's next
 owner), the rider set (f57/f58/f60/f61/f67/f94/f99, U13/U24/U25).
 Unverified: nothing new — the study's claims are all commands
 re-runnable against the live board; the importer itself is unstarted

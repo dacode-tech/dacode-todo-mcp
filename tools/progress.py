@@ -297,6 +297,7 @@ WAITS: dict[str, str] = {
     "f65": "a user call: give board §4 items a Gates field attention.py reads, or document that P3 does not mean 'no deadline'",
     "f50": "the next owner of tests/seeded.rs for the generator half — the naive-helper lift landed with t29",
     "f54": "the next owner of tests/mod.rs (= f50's)",
+    "U28": "M4 proving the MVP (the importer + t48), then the dogfooding cutover; U18's transport question decides how the client talks to the server",
 }
 
 COLOR = {
