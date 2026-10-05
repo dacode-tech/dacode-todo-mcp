@@ -2382,8 +2382,7 @@ Oldest first. One line per delivery, with the commit hash once committed.
         the class-sweep lesson twice in one review. Every gate green
         on the final tree: fmt, check, **469** workspace tests
         (todo-mcp 131 = 85 + 46 import), clippy, `cargo doc`
-        warning-free under both invocations. Landed as `<HASH>`
-        (backfilled below).
+        warning-free under both invocations. Landed as `faeca22`.
 
 
 
