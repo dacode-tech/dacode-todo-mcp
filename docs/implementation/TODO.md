@@ -16,7 +16,7 @@ blocking. Rules, which `tools/attention.py` and the reviewers enforce:
 ## 1. Current state
 
 **Phase: M4 decomposed 2026-10-05 — the dialect study ran as a
-measurement, D18 is drafted, and the task tree (t42–t48 + g11 under
+measurement, D18 is signed, and the task tree (t42–t48 + g11 under
 g10) is on the board.** The study measured the dacode board rather
 than reading it: a **three-file system** under `docs/implementation/`
 (`TODO.md` 10,811 lines / 1.1 MB, `appendices/B-decisions.md` 3,071,
@@ -28,12 +28,14 @@ checkbox + ✅/▶️/⚠️/🧠 with day-precision dates, and dependency
 structure split between table columns (B's `Gates`, A's
 `Depends on`) and prose ("blocked on <id>" ×10, "before M<n>" ×47).
 The full inventory is **D18's evidence base** in `decisions.md`.
-**D18 — the dacode-dialect mapping — is the one open vote**: §9's
-signed table covers `U`/`B`/milestones/dependency-prose but not the
-five populations the study found (the `A`-delta register, the
-sub-steps, the doc register, the epic for parentless `U` items, id
-reproduction). **t42 (the parser) is not gated** and may proceed;
-t43+ wait on the vote. The importer lives in `todo-mcp` as a module —
+**D18 — the dacode-dialect mapping — is signed (a) 2026-10-05**:
+`A`-deltas → tasks under the synthetic `Spec deltas` epic, sub-steps
+→ `gate`-kind tasks, docs → doc nodes, parentless `U` items under
+`Follow-ups`, id reproduction by import order (no Store/domain
+change). §9's mapping table and §10's fixture bullet carry the rows;
+the conventions stay task-spec level, pinned by t43's tests.
+**Nothing blocks M4** — t42 (the parser) first, then t43 (the
+mapping, now ungated). The importer lives in `todo-mcp` as a module —
 §2's signed four-member workspace stands, no new crate, no new
 dependency (the dialect is line-anchored, measured).
 
@@ -72,7 +74,7 @@ shell, which is M3's business.
 
 | Blocking | What | Action |
 |---|---|---|
-| **D18** | the dacode-dialect mapping — the importer's semantics for the five populations §9's signed table does not cover (the `A`-delta register, sub-steps, docs, parentless `U` items, id reproduction); drafted with the measured inventory and a recommendation (A-deltas → tasks) | **vote** — `decisions.md` D18 / §12 item 18; t42 (the parser) may proceed now, t43+ are gated |
+| — | nothing blocks M4: D18 is signed (a) 2026-10-05, the importer's scope and order are signed (D12, amending D7), and the server it imports into is closed at g9 | dispatch t42 (the parser) — the first task of the decomposed tree |
 
 (Open but non-blocking: **U18** (a live view for progress and whether the
 server is shared per user, deferred until after M4's importer check, and
@@ -101,7 +103,7 @@ exit criteria: spec §14. Priority is derived from the Gated-on column by
 | M1 | domain model + storage engine: graph, statuses, persistence behind the `Store` trait, golden files | — | done 2026-09-30 — g5 ran green: every code gate, five goldens byte-identical, `cargo doc` clean, pitfalls consolidated |
 | M2 | queries: repo/epic selection, dependency resolution, deterministic `next_task`; registry with path updates | **D16** adds one task if signed; no dispatched task waits on it | done 2026-10-02 — **g7 ran green**: every code gate, the five goldens byte-identical under `UPDATE_GOLDEN=1`, `cargo doc` warning-free under both invocations for the first time (f48 settled), §5.2's selection re-proven a pure function of state, the f41 sweep exercised for the first time (f44/f45 promoted to U21/U22, the rest verified open with named consumers), and M2's lessons consolidated into `.agents/pitfalls.md` (P-LIVE-007/-008, the citation rule, the coverage-pin rule). The five deliveries — t27 selection, f47's pins, t28 batch, t29 listing, t30 doc riders, t31 registry queries — are §3's entries; D16 stayed unsigned throughout and nothing waited on it — **signed (a) 2026-10-03, after closure**, its aggregation task landing under M3's goal |
 | M3 | MCP server: §6's tool surface over the wire (import_md excepted — M4's, per D12), protocol-level tests, default-repo slug config (D8), smoke against a real client | gates cleared 2026-10-03: the **rmcp ask** signed (rmcp 3.5.0 + `serde_json/preserve_order`, §6.3), **U20** resolved (b) — the registry format stays and the server answers `repo_list` from handles — and **D16** signed (a), adding the domain aggregation task to the decomposition; D14/D15 settled the wire's key order and error carrier on 2026-09-30; **D17** signed 2026-10-04 (priority on the triage surfaces) | done 2026-10-04 — **g9 ran green**: every code gate (423 workspace tests), the golden ritual byte-identical over all three golden dirs, the §6 tool-surface check (25 tools over the wire, `import_md` the only exception — exactly the criterion), the smoke evidence recorded (t39's real opencode session), U26 reproduced/isolated/fixed at the gate itself (U27 opened for the store-side question), the f41 sweep exercised, and M3's lessons consolidated into `.agents/pitfalls.md`. The nine deliveries — t32 aggregation, t33 skeleton, t34/t35 the read tools, t36 the mutations, t37 edges + registry + the default slug, t38 the wire suite, t39 the smoke + U16b, t40 D17's echo — are §3's entries |
-| M4 | adoption: the dacode-dialect importer first (**D12**, amending D7), its board the only fixture checked in per §10; camera and ikvm-html imported from their live boards and never copied into this repo; the three repos tracked for real | **D18** — the dacode-dialect mapping, drafted 2026-10-05 out of the dialect study; gates t43+ (t42, the parser, is not gated) | not started — **decomposed 2026-10-05**: t42 the parser → t43 the D18 mapping → t44 the `import_md` wire tool → t45 the checked-in fixture + e2e golden → t46 camera → t47 ikvm-html → t48 the three repos tracked for real → g11 the exit gate (dispatch order; t46/t47 swappable, both after t45) |
+| M4 | adoption: the dacode-dialect importer first (**D12**, amending D7), its board the only fixture checked in per §10; camera and ikvm-html imported from their live boards and never copied into this repo; the three repos tracked for real | — (D18 signed (a) 2026-10-05, the same day it was drafted) | not started — **decomposed 2026-10-05**: t42 the parser → t43 the D18 mapping → t44 the `import_md` wire tool → t45 the checked-in fixture + e2e golden → t46 camera → t47 ikvm-html → t48 the three repos tracked for real → g11 the exit gate (dispatch order; t46/t47 swappable, both after t45) |
 | M5 | packaging, docs, cwd auto-detection (deferred by D8), polish | — | not started |
 
 ## 3. Done
@@ -2288,11 +2290,30 @@ Oldest first. One line per delivery, with the commit hash once committed.
        mapping (gated on D18) → t44 the `import_md` wire tool → t45
        the checked-in fixture + e2e golden → t46 camera → t47
        ikvm-html → t48 the three repos tracked for real → g11 the
-       exit gate. The importer lives in `todo-mcp` as a module (§2's
+       exit gate.        The importer lives in `todo-mcp` as a module (§2's
        signed four-member workspace stands; no new dependency — the
        dialect is line-anchored, measured). No Rust moved: `git
        diff` over `*.rs`/`Cargo.*` empty by construction. Landed as
-       `<hash>` (backfilled at the next board touch).
+       `230d49c` (review-exempt, no trailer; the index backfill +
+       P-LIVE-009 as `8b37055`).
+
+- 2026-10-05 — **M4 t49: D18's sign-off executed** — the user signed
+       option (a) in-thread ("let's do option (a) with 'A-deltas →
+       tasks'"), the same day the decision was drafted. The work
+       order, executed in one change: §9's mapping table gains the
+       five dacode rows (sub-steps → `gate`-kind tasks, `A`-deltas →
+       tasks under the synthetic `Spec deltas` epic, parentless `U`
+       items under `Follow-ups`, docs → doc nodes, id reproduction by
+       import order); §10's fixture bullet names the three files;
+       §12 item 18 deleted with the preamble recording the signing;
+       the decisions.md row struck with its resolution banner; the
+       conventions (status mapping, timestamps, the mechanical-edge
+       rule, `B1a`, the not-imported surfaces) stay task-spec level,
+       pinned by t43's tests. t43 is unblocked; nothing blocks M4.
+       No Rust moved. Landed as `<hash>` (backfilled at the next
+       board touch).
+
+
 
 ## 4. Follow-ups
 
@@ -3064,20 +3085,32 @@ t44 the `import_md` wire tool → t45 the checked-in fixture + e2e
 golden → t46 camera → t47 ikvm-html → t48 the three repos tracked
 for real → g11 the exit gate. progress.py's tables moved with it.
 
-Handover: **M4 is decomposed; the next act is the user's D18 vote,
-then t42.** Workspace: main, four crates, rustc 1.98.1, 423 tests,
-clean. Landed: this decomposition commit (docs + tracker + progress
-tables; no Rust moved — `git diff` over `*.rs`/`Cargo.*` empty by
-construction). Next step: the user votes **D18** (`decisions.md`,
-rendered by `tools/attention.py`); **t42 (the parser) is not gated**
-and may be dispatched in parallel with the vote — its spec is
-authored against D18's inventory either way. Then t43 once D18
-signs. Blocked on you: D18 only. Non-blocking: U21/U22 (user calls),
-U18 (parked until after M4's importer check, holds the D13
-reservation), U27 (the store's next owner), the rider set
-(f57/f58/f60/f61/f67/f94/f99, U13/U24/U25). Unverified: nothing new
-— the study's claims are all commands re-runnable against the live
-board; the importer itself is unstarted (M4's work).
+The user then signed **D18 option (a)** in-thread — A-deltas → tasks
+— the same day it was drafted. The work order executed in one change
+(t49): §9's mapping table carries the five dacode rows, §10's
+fixture bullet names the three files, §12 item 18 is deleted with the
+preamble recording the signing, the decisions.md row is struck with
+its resolution banner, and the conventions stay task-spec level
+(pinned by t43's tests, veto-able as readings). t43 is unblocked;
+nothing blocks M4.
+
+Handover: **M4 is decomposed and ungated; the next act is dispatching
+t42 (the parser).** Workspace: main, four crates, rustc 1.98.1, 423
+tests, clean. Landed: the decomposition as `230d49c` (+ the index
+backfill `8b37055`), the D18 sign-off execution as this session's
+second docs commit. Next step: **dispatch t42** — the dacode
+dialect parser, `crates/todo-mcp/src/import/`, strict line-oriented
+parsing into a dialect AST, no new deps; its task spec is authored
+against D18's inventory (decisions.md) and the §9 mapping rows. Then
+t43 (the mapping, ungated since D18 signed). Blocked on you: nothing.
+Non-blocking: U21/U22 (user calls), U18 (parked until after M4's
+importer check, holds the D13 reservation), U27 (the store's next
+owner), the rider set (f57/f58/f60/f61/f67/f94/f99, U13/U24/U25).
+Unverified: nothing new — the study's claims are all commands
+re-runnable against the live board; the importer itself is unstarted
+(M4's work). One known cosmetic defect: `230d49c`'s message body
+mangled its § signs to "SS" (P-LIVE-009 records the `commit -F`
+workaround); fixing it needs `--amend`, the user's call.
 
 ### 2026-10-04 — g9 ran green: M3 is closed
 

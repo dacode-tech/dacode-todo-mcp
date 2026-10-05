@@ -671,6 +671,31 @@ repository) maps them once, read-only:
 - dependency prose ("gates M2", "blocked on D4") → **`blocks` edges**
   where mechanical, findings where not
 
+The dacode dialect's five uncovered populations (D18, signed
+2026-10-05 — the measured inventory behind these rows is the
+decision's evidence base in `decisions.md`):
+
+- milestone sub-steps (`M0.1`–`M0.4`, `M1.1`–`M1.11`) → **`gate`-kind
+  tasks under their milestone epic**, the sub-step table's Gate column
+  mapping to `verify`; letter-suffix sub-sub-steps stay body prose
+- `A`-deltas → **tasks** (kind `task`) under a synthetic `Spec
+  deltas` epic: `APPLIED` → `closed` (evidence = the application
+  record), `SIGNED OFF` → `open`, `HALF-APPLIED` → `in_work`; the
+  approving `B`-decision's `Depends on` relation becomes a
+  `decision → task` blocks edge
+- parentless `U` items (that board's §6 is "not tied to a milestone")
+  → tasks under a synthetic **`Follow-ups`** epic, `A`-deltas under a
+  synthetic **`Spec deltas`** epic — §3 requires every task to carry
+  a parent epic
+- the doc register → **doc nodes** (the board's §4 register, in its
+  deterministic order; path repo-relative; `version` carries the
+  depth marker)
+- id reproduction — the registers are contiguous, so importing in
+  board id order lets the server's own never-reuse allocation
+  reproduce the board's numbering (`U1`–`U170`, `D1`–`D21`); non-`U`
+  tasks number after the highest board `U` in the documented add
+  order, each carrying its original id in `references`
+
 Import, then cut over: after an import is verified against its board,
 the server is that repo's state of record and the markdown board keeps
 only the narrative the server does not model (session logs stay files).
@@ -702,16 +727,17 @@ shapes this project is judged by:
   §6.1's error carrier is still `structuredContent.code`, since a build
   that lost either would still compile and still parse.
 - **Determinism tests**: run twice, compare bytes (§8).
-- **Importer fixtures** (D12): the real committed `TODO.md` snapshot of
-  the **dacode** sibling board, checked into
-  `crates/<importer>/tests/fixtures/` with the expected graph beside it.
-  It is the only sibling content this repository holds — `camera` and
-  `ikvm-html` are other products and are exercised by pointing the
-  importer at their live boards instead, which no test can pin because a
-  live board legitimately changes between runs. If that proves too weak
-  at M4, the remedy is a **synthetic** fixture written in this repo in
-  the camera dialect (hand-authored, no copied content), not committing
-  their boards.
+- **Importer fixtures** (D12, D18): the real committed snapshots of
+  the **dacode** sibling board's **three files** — `TODO.md`,
+  `appendices/B-decisions.md`, `appendices/A-design-deltas.md` —
+  checked into `crates/<importer>/tests/fixtures/` with the expected
+  graph beside it. It is the only sibling content this repository
+  holds — `camera` and `ikvm-html` are other products and are
+  exercised by pointing the importer at their live boards instead,
+  which no test can pin because a live board legitimately changes
+  between runs. If that proves too weak at M4, the remedy is a
+  **synthetic** fixture written in this repo in the camera dialect
+  (hand-authored, no copied content), not committing their boards.
 
 ## 11. Non-Goals
 
@@ -744,26 +770,20 @@ items 1–11 on 2026-09-25, D12 on 2026-09-29, D14/D15 on 2026-09-30 —
 the two that came out of U2's rmcp survey (§6.3), settling the wire's
 canonical key order and the carrier a §6.1 code travels in — D16 on
 2026-10-03, the progress roll-up, which put `status_summary` and the
-`task_list` annotation into the table above, and D17 on 2026-10-04,
-the triage surfaces — `priority` echoed on `next_task`'s answer and
-the `next_items`/`task_list` rows, the order untouched. The sections
-they settled are normative above, and a future change to a signed
+`task_list` annotation into the table above, D17 on 2026-10-04,
+the triage surfaces — `priority` echoed on `next_task`'s answer and the
+`next_items`/`task_list` rows, the order untouched — and D18 on
+2026-10-05, the dacode-dialect mapping, drafted and signed in one
+exchange out of the M4 dialect study, settling the five populations
+§9's table did not cover. The sections they
+settled are normative above, and a future change to a signed
 shape is a new decision, not an edit (the D6/D11 priority boundary is
 the worked example). Numbers are never reused, and **D13 is reserved**
 for the transport question board U18 defers — a shared per-user server
 instance against the signed D5 stdio — which is not drafted because
-nothing there starts before M4's importer check. **D18 was drafted
-2026-10-05** out of the M4 dialect study — the first item opened since
-the list closed — and awaits the user's vote.
+nothing there starts before M4's importer check.
 
-18. **The dacode-dialect mapping** — the importer's semantics for the
-    five populations §9's mapping table does not cover: the `A`-delta
-    register (tasks under a synthetic epic, recommended, vs decision
-    nodes), the milestone sub-step tables, the doc register, the epic
-    for parentless `U` items, and the id-reproduction convention.
-    Drafted as **D18** with the measured dialect inventory as its
-    evidence base; gates the importer's mapping task and everything
-    after it (the parser is not gated).
+None — the list is closed.
 
 ## 13. Packaging and Distribution
 

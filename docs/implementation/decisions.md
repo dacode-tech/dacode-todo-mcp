@@ -11,9 +11,7 @@ and the meta block below; keep the shapes it parses.
 
 <!-- attention-meta — machine-readable; read by tools/attention.py.
      D1–D12 resolved 2026-09-25/2026-09-29, D14 and D15 resolved 2026-09-30,
-     D16 resolved 2026-10-03, D17 resolved 2026-10-04.
-     D18 was drafted 2026-10-05 out of the M4 dialect study and awaits the
-     user's vote; its action type is declared in its detail entry.
+     D16 resolved 2026-10-03, D17 resolved 2026-10-04, D18 resolved 2026-10-05.
      D13 is reserved for the transport question board U18 defers, and is not
      drafted, so it has no action line either.
 -->
@@ -38,7 +36,7 @@ and the meta block below; keep the shapes it parses.
 | ~~**D15**~~ | Where a §6.1 code lives on the wire | (a) `structuredContent.code` via `structured_error`, §6.1 naming the carrier | medium | M3 | resolved (a) 2026-09-30 — user decision |
 | ~~**D16**~~ | The progress roll-up: a tool, a field, or a client concern | (a) a `status_summary(repo?, epic?)` tool, plus `blocked_by` on `task_list` rows whichever option wins | medium | M2 | resolved (a) 2026-10-03 — signed after M2 closed at g7; the domain aggregation task lands under M3's goal |
 | ~~**D17**~~ | Priority on the triage surfaces | (a+) echo `priority` on `next_task`'s answer and the `next_items`/`task_list` rows; the agent decides, the order untouched | medium | M3 | resolved 2026-10-04 — user decision, "let the agent decide" |
-| **D18** | The dacode-dialect mapping (amends §9) | (a) A-deltas → tasks under a synthetic epic; sub-steps → gate tasks; docs → doc nodes; ids reproduced by import order | medium | M4 | drafted 2026-10-05 — awaiting the user's vote |
+| ~~**D18**~~ | The dacode-dialect mapping (amends §9) | (a) A-deltas → tasks under a synthetic epic; sub-steps → gate tasks; docs → doc nodes; ids reproduced by import order | medium | M4 | resolved (a) 2026-10-05 — user decision, "let's do option (a)" |
 
 ---
 
@@ -974,6 +972,22 @@ commit), and extends the base instructions with the handling rule.
 
 ### D18 — The dacode-dialect mapping (amends §9's mapping table)
 
+**Resolved 2026-10-05 — option (a), signed by the user ("let's do
+option (a) with 'A-deltas → tasks'").** The five populations map as
+proposed: `A`-deltas → tasks under the synthetic `Spec deltas` epic
+(the contested choice — the queue-visibility argument carried),
+sub-steps → `gate`-kind tasks under their milestone epic, docs → doc
+nodes, parentless `U` items under the synthetic `Follow-ups` epic,
+and id reproduction by import order, which the contiguity measurement
+makes possible with no Store or domain change. Work order executed in
+the same change: §9's mapping table gains the five dacode rows, §10's
+fixture bullet names the three files, §12 item 18 deleted and the
+preamble records the signing, this row struck. The conventions
+recorded below (status mapping, timestamps, the mechanical-edge rule,
+`B1a`, the not-imported surfaces) stay task-spec level — each pinned
+by a test in the mapping task (t43), veto-able as readings. The
+parser (t42) was never gated; t43 is unblocked by this signing.
+
 **Drafted 2026-10-05 — out of the M4 dialect study; awaiting the user's
 vote.** §9's mapping table was written against the dialects' shared
 vocabulary and covers four shapes: `U` items → tasks, `D`/`B`
@@ -986,8 +1000,8 @@ an epic parent, §3), and the id-reproduction convention. The importer
 cannot produce a graph without choosing for all five; this decision is
 that choice.
 
-**Gates** M4 · **Action** vote · **Confidence: medium** · drafted
-2026-10-05, the first item opened since §12 closed
+**Gates** M4 · **Resolved** 2026-10-05 · drafted and signed in one
+exchange, out of the M4 dialect study · **Confidence: medium**
 
 **The measured dialect (the study, 2026-10-05 — the importer's
 evidence base).** The dacode board is a **three-file system** under
