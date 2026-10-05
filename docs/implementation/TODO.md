@@ -2458,8 +2458,7 @@ Oldest first. One line per delivery, with the commit hash once committed.
         cross-check — no seen-map, unlike U ids — and would land a
         duplicated decision; frozen code, the parser files' next
         owner). The refusal's wire code is a t44 spec input,
-        recorded in the tracker. Landed as `<HASH>` (backfilled
-        below).
+        recorded in the tracker. Landed as `f3d08c6`.
 
 
 
