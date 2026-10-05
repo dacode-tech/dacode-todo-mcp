@@ -652,7 +652,10 @@ Determinism is the product property; everything else is a feature:
 The three sibling boards are the migration source and the acceptance
 test. Each has a slightly different dialect — camera and ikvm-html:
 `U` follow-ups, `D` decisions, `M` milestones, session logs; dacode:
-`U`/`B`/`A` registers plus milestone sub-steps — and the importer
+`U`/`B`/`A` registers plus milestone sub-steps, spread across three
+files (`TODO.md` plus the B and A appendices — measured 2026-10-05;
+the registers are contiguous, which is what lets import order
+reproduce the board's numbering) — and the importer
 (D7 as amended by **D12**: the **dacode** dialect first, because its
 board carries the deeper structure and the more complex references,
 which is the hard half of the mapping below; camera and ikvm-html
@@ -749,9 +752,18 @@ shape is a new decision, not an edit (the D6/D11 priority boundary is
 the worked example). Numbers are never reused, and **D13 is reserved**
 for the transport question board U18 defers — a shared per-user server
 instance against the signed D5 stdio — which is not drafted because
-nothing there starts before M4's importer check.
+nothing there starts before M4's importer check. **D18 was drafted
+2026-10-05** out of the M4 dialect study — the first item opened since
+the list closed — and awaits the user's vote.
 
-None — the list is closed.
+18. **The dacode-dialect mapping** — the importer's semantics for the
+    five populations §9's mapping table does not cover: the `A`-delta
+    register (tasks under a synthetic epic, recommended, vs decision
+    nodes), the milestone sub-step tables, the doc register, the epic
+    for parentless `U` items, and the id-reproduction convention.
+    Drafted as **D18** with the measured dialect inventory as its
+    evidence base; gates the importer's mapping task and everything
+    after it (the parser is not gated).
 
 ## 13. Packaging and Distribution
 

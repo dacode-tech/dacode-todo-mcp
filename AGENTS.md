@@ -17,15 +17,21 @@ If `MYAGENTS.md` exists at the repo root, it is untracked, personal, and
 
 ## Project State
 
-**Phase: M3 (the MCP wire) is closed — g9 ran green 2026-10-04; M4 (the
-importer) is next.**
+**Phase: M4 (adoption) is decomposed 2026-10-05 — the dialect study
+ran, D18 is drafted and awaits the user's vote; t42 (the parser) is
+not gated, t43+ are.**
 An MCP server that replaces
 markdown TODO boards with a deterministic task graph: tasks are typed
 nodes, dependencies are typed edges, everything lives in local
 per-repo non-relational stores (D4), and "what is next in repo X under
 epic Y" is a query, not a prose parse. Rust, rmcp, stdio transport.
 
-§12 is closed: **D17** (priority on the triage surfaces — the echo on
+§12 carries one open item: **D18** (the dacode-dialect mapping — the
+importer's semantics for the five populations §9's signed table does
+not cover), drafted 2026-10-05 out of the M4 dialect study and
+awaiting the user's vote; it gates the importer's mapping task (t43)
+and everything after it, while the parser (t42) is not gated. **D17**
+(priority on the triage surfaces — the echo on
 `next_task`/`next_items`/`task_list`, the order untouched) was signed
 2026-10-04, the last decision of M3, and **D13 stays reserved** for the
 transport question board U18 defers. Everything else is signed: all

@@ -160,7 +160,9 @@ LANES: list[tuple[str, list[str]]] = [
                                  "U20", "D17", "U26", "U27"]),
     ("M3 findings (open unless noted)", ["f66", "f67", "f68", "f69", "f70",
                                          "f94", "f99", "f100"]),
-    ("later", ["M4", "U18", "M5"]),
+    ("M4 · adoption (§9/§10)", ["g10", "t41", "t42", "t43", "t44", "t45",
+                                "t46", "t47", "t48", "g11", "D18", "M4"]),
+    ("later", ["U18", "M5"]),
 ]
 
 # GATING edges carry the citation that makes them an edge rather than a guess.
@@ -228,6 +230,14 @@ GATING: list[tuple[str, str, str]] = [
     ("t30", "t31", "g6's dispatch order: the store riders before the registry queries"),
     ("g7", "g6", "g6's note: M2 stays open until g7 passes (the g5/g4 precedent)"),
     ("M4", "U18", "U18 is deferred by the user until after M4's importer check"),
+    ("D18", "t43", "board §1: t43+ wait on D18's vote; t42 the parser is not gated (g10's decomposition)"),
+    ("t42", "t43", "the dialect AST is what the mapping consumes (g10's dispatch order)"),
+    ("t43", "t44", "the mapped drafts are what the wire tool drives through the store"),
+    ("t44", "t45", "the tool is what the fixture e2e drives end to end"),
+    ("t45", "t46", "the fixture proves the pipeline before the live dialects build on it (g10's dispatch order)"),
+    ("t46", "t47", "g10's dispatch order; swappable with t46"),
+    ("t47", "t48", "the live imports are what tracking-for-real registers"),
+    ("t48", "g11", "the adoption evidence is the M4 exit gate's criterion"),
 ]
 
 # Open tracker nodes drawn as one node, because they are one class. Members are
@@ -265,6 +275,11 @@ EXTRA: dict[str, tuple[str, str, str]] = {
     "U8": ("decision", "done", "U8 · the first external dependencies (resolved)"),
     "U14": ("decision", "done", "U14 · todo-cli's argument parser (resolved: lexopt)"),
     "D12": ("decision", "done", "D12 · dacode-first importer (signed)"),
+    # Same class as D16 above: not a board item, so this status is
+    # authoritative rather than derived — flip it to done when D18 is
+    # signed (f45 records that the page cannot derive an open decision
+    # from decisions.md itself).
+    "D18": ("decision", "pending", "D18 · the dacode-dialect mapping (drafted 2026-10-05, awaiting the vote)"),
 }
 
 # What each open item waits on, for the table. Absent = "nothing declared".
@@ -281,6 +296,7 @@ WAITS: dict[str, str] = {
     "f65": "a user call: give board §4 items a Gates field attention.py reads, or document that P3 does not mean 'no deadline'",
     "f50": "the next owner of tests/seeded.rs for the generator half — the naive-helper lift landed with t29",
     "f54": "the next owner of tests/mod.rs (= f50's)",
+    "D18": "the user's vote (decisions.md D18; t43+ are gated on it, t42 is not)",
 }
 
 COLOR = {

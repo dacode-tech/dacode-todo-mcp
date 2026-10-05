@@ -11,7 +11,9 @@ and the meta block below; keep the shapes it parses.
 
 <!-- attention-meta — machine-readable; read by tools/attention.py.
      D1–D12 resolved 2026-09-25/2026-09-29, D14 and D15 resolved 2026-09-30,
-     D16 resolved 2026-10-03.
+     D16 resolved 2026-10-03, D17 resolved 2026-10-04.
+     D18 was drafted 2026-10-05 out of the M4 dialect study and awaits the
+     user's vote; its action type is declared in its detail entry.
      D13 is reserved for the transport question board U18 defers, and is not
      drafted, so it has no action line either.
 -->
@@ -36,6 +38,7 @@ and the meta block below; keep the shapes it parses.
 | ~~**D15**~~ | Where a §6.1 code lives on the wire | (a) `structuredContent.code` via `structured_error`, §6.1 naming the carrier | medium | M3 | resolved (a) 2026-09-30 — user decision |
 | ~~**D16**~~ | The progress roll-up: a tool, a field, or a client concern | (a) a `status_summary(repo?, epic?)` tool, plus `blocked_by` on `task_list` rows whichever option wins | medium | M2 | resolved (a) 2026-10-03 — signed after M2 closed at g7; the domain aggregation task lands under M3's goal |
 | ~~**D17**~~ | Priority on the triage surfaces | (a+) echo `priority` on `next_task`'s answer and the `next_items`/`task_list` rows; the agent decides, the order untouched | medium | M3 | resolved 2026-10-04 — user decision, "let the agent decide" |
+| **D18** | The dacode-dialect mapping (amends §9) | (a) A-deltas → tasks under a synthetic epic; sub-steps → gate tasks; docs → doc nodes; ids reproduced by import order | medium | M4 | drafted 2026-10-05 — awaiting the user's vote |
 
 ---
 
@@ -968,3 +971,136 @@ echoes the field through the domain row types (`NextItem`, `TaskRow`,
 `NextTask`) and the wire DTOs, moves the pinned goldens for the three
 tools (additive fields — a compatibility event, called out in the
 commit), and extends the base instructions with the handling rule.
+
+### D18 — The dacode-dialect mapping (amends §9's mapping table)
+
+**Drafted 2026-10-05 — out of the M4 dialect study; awaiting the user's
+vote.** §9's mapping table was written against the dialects' shared
+vocabulary and covers four shapes: `U` items → tasks, `D`/`B`
+decisions → decision nodes, milestones → epics, dependency prose →
+edges where mechanical. The study measured the dacode board and found
+**five populations no signed row covers**: the `A`-delta register, the
+milestone sub-step tables, the doc register, the parentless `U` items
+(§6 is explicitly "not tied to a milestone" while every task requires
+an epic parent, §3), and the id-reproduction convention. The importer
+cannot produce a graph without choosing for all five; this decision is
+that choice.
+
+**Gates** M4 · **Action** vote · **Confidence: medium** · drafted
+2026-10-05, the first item opened since §12 closed
+
+**The measured dialect (the study, 2026-10-05 — the importer's
+evidence base).** The dacode board is a **three-file system** under
+`docs/implementation/`:
+
+- `TODO.md` — 10,811 lines / 1.1 MB: §1 a current-state banner plus a
+  blocker table; §2 the decisions summary table; §3 the delta queue;
+  §4 the doc-depth register; §5 the milestones `M0`–`M6` with
+  sub-step tables; §6 the `U` items in ~45 thematic/session
+  subsections.
+- `appendices/B-decisions.md` — 3,071 lines: a sign-off summary
+  (`| # | Decision | Recommendation | Confidence | Gates |`) and 21
+  dossiers (`### N. [B<N>] Title — ✅ RESOLVED date: outcome`).
+- `appendices/A-design-deltas.md` — 3,792 lines: an index
+  (`| # | Section | Delta | Depends on | Recommend |`) and 28
+  dossiers (`### A<N> — sections: title — ✅ APPLIED date`).
+
+Registers, all stable and never renumbered, all **contiguous**
+(measured): `U1`–`U170` (75 unchecked, 95 checked, zero gaps);
+`B1`–`B21` plus the oddball `B1a` (a prose sub-entry, "done");
+`A1`–`A28`; milestones `M0`–`M6` (seven, not six — `M6` native nodes)
+with sub-steps `M0.1`–`M0.4` and `M1.1`–`M1.11` (15 table rows, each
+with a Gate column: docs-only / dual review / 🧠-then-dual-review) and
+letter-suffix sub-sub-steps `M1.1a`–`M1.1g` at prose level; 50 docs
+(42 content + 7 appendices + README) with
+`migrated summary; expand during implementation` markers (19 of 42
+still summaries). `f`/`g`/`t` ids are cited in prose but live in that
+repo's gitignored tracker — not board items.
+
+Status vocabulary: checkboxes `[ ]`/`[x]`; inline strikethrough for
+supersession (never whole items); emoji — ✅ (304 occurrences:
+resolved/complete/discharged/applied), ▶️ (24: started), ⚠️ (275:
+caveat/half-applied), 🧠 (53: brainstorm-gated); table statuses
+("✅ resolved", "⚠️ resolved, half-applied", "✅ APPLIED date",
+"✅ SIGNED OFF date", "⚠️ HALF-APPLIED"); day-precision dates
+(`YYYY-MM-DD`) throughout.
+
+Dependency structures: **structured** — B's `Gates` column (doc
+numbers plus a milestone: "02, 03 → M0"), A's `Depends on` column
+(B ids), §1's blocker-table rows; **semi-mechanical prose** —
+"blocked on <id>" ×10, "gates M<n>" ×8, "Blocking M<n>" ×5,
+"due by M<n>" ×2; **non-mechanical** — "before M<n>" ×47 (temporal,
+mostly not edge-shaped). Cross-referencing is heavy: 1,170 `U`-id
+mentions, 30 distinct doc links. An HTML `attention-meta` comment
+block declares per-item action types — tool metadata, not domain
+state.
+
+**The proposal.** Four of the five populations have one sane answer
+each and are proposed as a block; the contested one is the `A`-delta
+register, which has two.
+
+1. **Milestones `M0`–`M6` → epics `E1`–`E7`** (board order; §9's
+   signed row). **Sub-steps → `gate`-kind tasks under their milestone
+   epic** — the board's own words make them checkpoints ("the live
+   schedule is §5's sub-step table"), the row's Gate column maps to
+   `verify`, and epics cannot nest (§3), so a second epic level is
+   not available. Letter suffixes (`M1.1a`–`g`) stay body prose.
+2. **`U` items → tasks under a synthetic `Follow-ups` epic** (`E8`)
+   — the board itself says §6 is "not tied to a milestone", and §3
+   requires every task to carry a parent epic. **`A`-deltas → tasks
+   under a synthetic `Spec deltas` epic** (`E9`) per the contested
+   choice below. Both epics' descriptions carry their provenance.
+3. **Docs → doc nodes** — the §4 register's 50 (README, 00-overview,
+   parts 1–6 numeric, appendices A–G) in that deterministic order;
+   path repo-relative; `version` carries the depth marker
+   ("summary"/"expanded") — the one version-like fact the board
+   holds (a convention detail the task spec may simplify).
+4. **Id reproduction** — the registers are contiguous, so importing
+   in board id order lets the server's own never-reuse allocation
+   reproduce `U1`–`U170` and `D1`–`D21` exactly, with **no
+   explicit-id insert surface and no Store/domain change**. Non-`U`
+   tasks (sub-steps, then `A`-deltas, then `B1a`) number after `U170`
+   in the documented add order, each carrying its original id in
+   `references` (kind `other`, target `A14`).
+5. **The `A`-delta register — the contested choice.**
+   - **(a, recommended) tasks** (kind `task`) under the `Spec deltas`
+     epic: `APPLIED` → `closed` (evidence = the application record),
+     `SIGNED OFF` → `open`, `HALF-APPLIED` → `in_work`. The board's
+     §3 **is a work queue** — "4 of 27 applied" is owed transcription
+     work, and after cutover the server must answer "what spec work
+     is owed" from `task_list`. A's `Depends on` column becomes
+     `decision → task` blocks edges (a legal §5.1 shape), so the
+     approving B-decision gates its delta exactly as the board
+     asserts.
+   - **(b) decision nodes** `D22`–`D49`: dossier-shaped and
+     parent-free, but an approved-but-unapplied delta would map to an
+     **open** decision — telling every cold session "the user needs to
+     decide this" about something already decided, and rendering the
+     queue as votes owed rather than work owed. The semantics invert;
+     that is the argument against.
+
+**Conventions under the signed umbrella** (task-spec level, each
+pinned by a test, veto-able as readings): status mapping — `[ ]` →
+`open`, `[x]` with a ✅ discharge marker → `closed` (evidence = the
+discharge prose, bounded; `[x]` without a marker → `closed` with
+evidence "imported checked"), ▶️ → `in_work`, 🧠 → `deferred` (note =
+the gating prose), "blocked on <id>" → `blocked` (note = the prose),
+⚠️ → prose, never a status; timestamps — board dates →
+`T00:00:00.000000000Z`, and a caller-passed `imported_at` for
+created-stamps with no board date, so the fixture stays deterministic
+(§8); the mechanical-edge rule — B's `Gates` column (milestone half
+only; §5.1 has no decision→doc edge, so doc-gating stays references),
+A's `Depends on`, and "blocked on <id>" become edges, and each
+**recognized but unresolvable** dependency assertion (one that names
+ids but cannot become a legal edge) becomes one `finding`-kind task
+rather than a silent omission — vague temporal prose is not
+recognized and stays body text; `B1a` → a closed task under
+`Follow-ups` referencing `B1`; the `attention-meta` block and §1's
+narrative are not imported (the blocker table duplicates per-item
+state and is superseded weekly).
+
+**On sign-off:** amend §9's mapping table with the dacode rows
+(A-deltas, sub-steps, docs, the synthetic epics, id reproduction);
+§10's fixture bullet names the three files; delete §12 item 18;
+strike this row; TODO.md §1/§2/§6. The importer's mapping task (t43)
+is gated on this decision; the parser (t42) is not.
