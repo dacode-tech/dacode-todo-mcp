@@ -52,7 +52,24 @@
 
 ## Entries
 
-_Empty — reset at the M2 exit gate (g7), 2026-10-02._
+### P-LIVE-009: non-ASCII in inline `git commit -m` strings gets mangled
+- **Scope**: every commit on this host (zsh + the bash tool's string
+  handling); this repo's messages use `§` liberally
+- **Discovered**: t41, 2026-10-05
+- **Symptom**: `§9` and `§2` in a commit message body landed as
+  `SS9`/`SS2` (commit `230d49c`) — the section sign did not survive
+  the inline `-m` string
+- **Root cause**: the multi-line `-m` argument passed through the
+  shell mangled the UTF-8 section sign
+- **Workaround**: write any commit message containing non-ASCII via a
+  file — the file tool writes it, `git commit -F <file>` consumes it;
+  never inline `-m`
+- **Obsoleted by**: nothing planned — a process constraint; retire
+  only if an inline `-m` commit with `§` is observed landing correctly
+- **Source**: struggle
+
+_Empty otherwise — reset at the M2 exit gate (g7, 2026-10-02) and
+again at the M3 exit gate (g9, 2026-10-04)._
 
 `P-LIVE-001` … `P-LIVE-008` were promoted to `.agents/pitfalls.md` (the
 first six at the M1 gate, the last two at the M2 gate) and their ids are
