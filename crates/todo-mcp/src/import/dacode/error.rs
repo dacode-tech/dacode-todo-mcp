@@ -13,11 +13,13 @@
 //! `StoreNotEmpty`, `IdMismatch`) carry no line either: they fire
 //! over the parsed AST or the store, which carry none — the id or key
 //! is the stable key, the same rule. The two apply-time variants
-//! travel as `StoreError` through a conversion built at
-//! `apply_plan`'s refusal sites, not a `From` impl here: a total
-//! impl would make every parse variant convertible into the store's
-//! `corrupt_store`, which is the repair-associated code, and no
-//! parse failure is a store fault.
+//! travel as `ApplyError::Refused` out of `apply_plan`'s refusal
+//! sites — the wire maps a refusal to §6.1's `invalid`, a
+//! client-fixable precondition, not corruption — and not through a
+//! `From` impl into `StoreError` here: a total impl would make every
+//! parse variant convertible into the store's `corrupt_store`, which
+//! is the repair-associated code, and no parse failure is a store
+//! fault.
 
 use std::fmt;
 

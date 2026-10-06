@@ -236,6 +236,7 @@ mod protocol {
                 "epic_list",
                 "epic_update",
                 "graph_show",
+                "import_md",
                 "next_items",
                 "next_task",
                 "repo_list",

@@ -1,8 +1,11 @@
-//! The read and write suites' shared halves: the golden-file helper,
-//! the fixture store and the stdio drive. The write suites (t36's
-//! node CRUD, t37's edges) import these helpers alongside the read
-//! ones — the edges suite also drives with a configured default repo
-//! — so "read" in the lift's history below is provenance, not scope.
+//! The read, write and import suites' shared halves: the golden-file
+//! helper, the fixture store and the stdio drive. The write suites
+//! (t36's node CRUD, t37's edges) import these helpers alongside the
+//! read ones — the edges suite also drives with a configured default
+//! repo — and the import suite (t44) drives its own root, leaving the
+//! fixture half unreferenced in that target (allowed dead, the
+//! section's own note) — so "read" in the lift's history below is
+//! provenance, not scope.
 //!
 //! The golden helper is a copy of
 //! `crates/todo-store/tests/common/mod.rs`, kept verbatim per the cli
@@ -238,20 +241,27 @@ pub(crate) fn assert_carrier(response: &str, code: &str, message: &str) {
 }
 
 // =================================================================
-// The fixture store
+// The fixture store — the read and write suites' half. The import
+// suite drives its own root, so every item in this section is
+// unreferenced in that target: allowed dead per item here rather
+// than split into a second helper file (one shared helper per crate,
+// the module doc's rule).
 // =================================================================
 
 /// The fixture repo's slug — a fixture, not a product.
+#[allow(dead_code)]
 const FIXTURE: &str = "fixture";
 /// The second repo's slug: it sorts before `fixture`, so the
 /// all-repos scope's order `[alpha, fixture]` is visible and
 /// non-trivial — registration order is the reverse.
+#[allow(dead_code)]
 const ALPHA: &str = "alpha";
 
 /// Builds the fixture store under a fresh temp root and returns the
 /// root; the `TempDir` guard keeps the directory alive for the drive,
 /// and the builder drops every store handle before the server spawns
 /// (the advisory lock is per process).
+#[allow(dead_code)]
 pub(crate) fn fixture() -> TempDir {
     let root = TempDir::new().expect("a fresh temp root");
     let data_root = DataRoot::new(root.path());
@@ -261,11 +271,13 @@ pub(crate) fn fixture() -> TempDir {
 }
 
 /// A fixed canonical timestamp.
+#[allow(dead_code)]
 fn ts(value: &str) -> Timestamp {
     Timestamp::parse(value).expect("a fixed canonical timestamp")
 }
 
 /// A valid reference.
+#[allow(dead_code)]
 fn reference(kind: ReferenceKind, target: &str, note: Option<&str>) -> Reference {
     Reference::new(kind, target.to_owned(), note.map(str::to_owned)).expect("a valid reference")
 }
@@ -289,6 +301,7 @@ fn reference(kind: ReferenceKind, target: &str, note: Option<&str>) -> Reference
 /// - **D3** is signed and gates U10 — a finished decision predecessor
 ///   a listed row records; **S1** is a doc; U1↔U6 is a `relates`
 ///   annotation.
+#[allow(dead_code)]
 fn build_fixture(root: &DataRoot) {
     let mut store = root
         .register(Repo {
@@ -657,6 +670,7 @@ fn build_fixture(root: &DataRoot) {
 /// slug — so the pinned `[alpha, fixture]` order is the registry's
 /// slug order, distinguishable from both arrival and timestamp
 /// order. Every repo-scoped request is blind to it.
+#[allow(dead_code)]
 fn build_alpha(root: &DataRoot) {
     let mut store = root
         .register(Repo {

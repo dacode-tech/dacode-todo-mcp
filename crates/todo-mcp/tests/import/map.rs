@@ -10,12 +10,13 @@ use std::str::FromStr;
 
 use todo_domain::{BlocksEdge, EpicDraft, RepoSlug, Status, Timestamp};
 use todo_mcp::import::dacode::{
-    ADossier, ADossierKind, ADossierStatus, AIndexRow, BDossier, BDossierKind, BDossierStatus,
-    BSummaryRow, DacodeBoard, DecisionsAppendix, DeltasAppendix, DocDepth, DocEntry, GatesCell,
-    ImportError, ImportOptions, ImportPlan, Marker, MilestoneItem, PlanOp, SubStep, Subsection,
-    SummaryRow, SummaryStatus, TodoMd, UItem, apply_plan, map_board, parse_board,
+    ADossier, ADossierKind, ADossierStatus, AIndexRow, ApplyError, BDossier, BDossierKind,
+    BDossierStatus, BSummaryRow, DacodeBoard, DecisionsAppendix, DeltasAppendix, DocDepth,
+    DocEntry, GatesCell, ImportError, ImportOptions, ImportPlan, Marker, MilestoneItem, PlanOp,
+    SubStep, Subsection, SummaryRow, SummaryStatus, TodoMd, UItem, apply_plan, map_board,
+    parse_board,
 };
-use todo_store::{DataRoot, Store, StoreError};
+use todo_store::{DataRoot, Store};
 
 // =================================================================
 // The corpus helpers — ASTs built directly, the types being public.
@@ -1283,12 +1284,9 @@ fn apply_refuses_a_non_empty_graph() {
     let error = apply_plan(&plan, &mut store).unwrap_err();
     assert_eq!(
         error,
-        StoreError::CorruptStore {
-            offset: None,
-            detail:
-                "the import into 'dacode' was refused: the store is not empty or has burned ids"
-                    .to_owned(),
-        }
+        ApplyError::Refused(ImportError::StoreNotEmpty {
+            slug: "dacode".to_owned(),
+        })
     );
     // Nothing was written: the graph still holds exactly the one
     // pre-existing epic and nothing else.
@@ -1326,12 +1324,9 @@ fn a_used_then_emptied_store_is_refused() {
     let error = apply_plan(&plan, &mut store).unwrap_err();
     assert_eq!(
         error,
-        StoreError::CorruptStore {
-            offset: None,
-            detail:
-                "the import into 'dacode' was refused: the store is not empty or has burned ids"
-                    .to_owned(),
-        }
+        ApplyError::Refused(ImportError::StoreNotEmpty {
+            slug: "dacode".to_owned(),
+        })
     );
     // Nothing was written: the graph is still empty.
     assert_eq!(store.graph().epics().count(), 0);
@@ -1350,12 +1345,10 @@ fn an_id_mismatch_plan_is_a_named_error() {
     let error = apply_plan(&filtered, &mut store).unwrap_err();
     assert_eq!(
         error,
-        StoreError::CorruptStore {
-            offset: None,
-            detail: "the import's id reproduction broke: the store allocated dacode:E1, \
-                     the plan constructed dacode:E2"
-                .to_owned(),
-        }
+        ApplyError::Refused(ImportError::IdMismatch {
+            expected: "dacode:E2".to_owned(),
+            found: "dacode:E1".to_owned(),
+        })
     );
     // The mismatch fires after the first add landed — apply is not
     // transactional — so exactly one epic is on the store.

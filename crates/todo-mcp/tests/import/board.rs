@@ -34,8 +34,9 @@ Queue prose, not imported.
 ";
 
 /// §4: a small expanded list (with the appendices phrase) and the
-/// milestone table with M0's em-dash cell.
-const SECTION_4: &str = "\
+/// milestone table with M0's em-dash cell. `pub(super)`: the wire
+/// suite builds its malformed-board corpus from this section.
+pub(super) const SECTION_4: &str = "\
 ## 4. Doc depth — 2 of 4 docs still summaries
 
 Already expanded (4): `README`, `00-overview`, **`01`**, and the **seven** appendices (A–G).
@@ -91,8 +92,9 @@ action: U8=ack
 - [ ] **U5 · Fifth item.** ▶️ started, ⚠️ caveat.
 ";
 
-/// The full synthetic TODO.md.
-fn todo_md() -> String {
+/// The full synthetic TODO.md. `pub(super)`: the wire suite's board
+/// tree is built from this corpus.
+pub(super) fn todo_md() -> String {
     format!("{HEAD}{SECTION_4}{SECTION_5}{SECTION_6}")
 }
 
@@ -102,7 +104,9 @@ fn valid_through_5() -> String {
 }
 
 /// A synthetic B appendix aligned with `TODO_MD`'s §2 ids.
-const B_DECISIONS: &str = "\
+/// `pub(super)`: the wire suite's board tree is built from this
+/// corpus.
+pub(super) const B_DECISIONS: &str = "\
 # Appendix B — Open decisions needing sign-off
 
 Prose intro, walked past.
@@ -121,8 +125,9 @@ Dossier body one for B1.
 Dossier body for B2.
 ";
 
-/// A synthetic A appendix.
-const A_DELTAS: &str = "\
+/// A synthetic A appendix. `pub(super)`: the wire suite's board tree
+/// is built from this corpus.
+pub(super) const A_DELTAS: &str = "\
 # Appendix A — Design deltas
 
 Prose intro.

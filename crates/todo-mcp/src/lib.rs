@@ -15,13 +15,13 @@
 //!
 //! The crate also hosts the board importer: [`import::dacode`] is the
 //! dacode dialect's parser, a pure function of text with no I/O, no
-//! clock and no store — file reading belongs to the `import_md` tool
-//! (t44), the mapping to domain types to t43, and camera/ikvm-html
-//! arrive as sibling dialect modules later. A dialect parser is not a
-//! wire surface: it decides nothing, it recognizes — a register line
-//! that does not parse is a named error, never a silent skip, because
-//! an importer that quietly drops an item reports less than the truth
-//! while still looking complete.
+//! clock and no store — file reading belongs to the `import_md` wire
+//! tool (`importer.rs`), the mapping to domain types to t43, and
+//! camera/ikvm-html arrive as sibling dialect modules later. A
+//! dialect parser is not a wire surface: it decides nothing, it
+//! recognizes — a register line that does not parse is a named error,
+//! never a silent skip, because an importer that quietly drops an
+//! item reports less than the truth while still looking complete.
 //!
 //! # The concurrency core (§8)
 //!
@@ -92,6 +92,7 @@ use todo_store::{DataRoot, Registry, Store, StoreError};
 mod dto;
 mod edges;
 pub mod import;
+mod importer;
 mod listing;
 mod nodes;
 mod query;
@@ -165,15 +166,17 @@ impl TodoServer {
         // the cluster files' routers — `registry.rs`'s `tool_router`,
         // `query.rs`'s `query_router`, `listing.rs`'s
         // `listing_router`, `nodes.rs`'s `nodes_router`, `edges.rs`'s
-        // `edges_router` — each cluster file owning its own block and
-        // no cluster editing another's. Merge order is wire-invisible:
-        // the router is a name-keyed map and `list_all` sorts by name
-        // (§6.3), so later clusters follow the same pattern.
+        // `edges_router`, `importer.rs`'s `import_router` — each
+        // cluster file owning its own block and no cluster editing
+        // another's. Merge order is wire-invisible: the router is a
+        // name-keyed map and `list_all` sorts by name (§6.3), so
+        // later clusters follow the same pattern.
         let mut tool_router = Self::tool_router();
         tool_router.merge(Self::query_router());
         tool_router.merge(Self::listing_router());
         tool_router.merge(Self::nodes_router());
         tool_router.merge(Self::edges_router());
+        tool_router.merge(Self::import_router());
         Self {
             tool_router,
             state: Arc::new(Mutex::new(ServerState {

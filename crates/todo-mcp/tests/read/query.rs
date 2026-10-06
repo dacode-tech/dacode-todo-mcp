@@ -263,6 +263,7 @@ fn tools_list_advertises_output_schemas_with_single_line_descriptions() {
             "epic_list",
             "epic_update",
             "graph_show",
+            "import_md",
             "next_items",
             "next_task",
             "repo_list",
@@ -277,7 +278,7 @@ fn tools_list_advertises_output_schemas_with_single_line_descriptions() {
             "task_unlink",
             "task_update"
         ],
-        "all twenty-five landed tools, sorted by name"
+        "all twenty-six landed tools, sorted by name"
     );
     for tool in tools {
         assert!(

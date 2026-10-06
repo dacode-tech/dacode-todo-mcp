@@ -69,7 +69,7 @@ pub use ast::{
 };
 pub use error::ImportError;
 pub use map::map_board;
-pub use plan::{ImportOptions, ImportPlan, PlanOp, apply_plan};
+pub use plan::{ApplyError, ImportOptions, ImportPlan, PlanOp, apply_plan};
 
 pub use board::parse_todo_md;
 pub use decisions::parse_b_decisions;

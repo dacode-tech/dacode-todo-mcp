@@ -64,6 +64,24 @@ use todo_store::{Store, StoreError};
 
 use super::error::ImportError;
 
+/// Why an [`apply_plan`] walk failed: the import's own refusal (a
+/// client-fixable precondition), or a store fault from the walk
+/// itself. The split is the wire contract's seam — the refusal maps
+/// to §6.1's `invalid`, the store fault to the store's own code.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ApplyError {
+    /// The import was refused: a client-fixable precondition failed.
+    Refused(ImportError),
+    /// A store fault: domain rejection, io, corruption.
+    Store(StoreError),
+}
+
+impl From<StoreError> for ApplyError {
+    fn from(error: StoreError) -> Self {
+        Self::Store(error)
+    }
+}
+
 /// The mapping's caller-supplied parameters: the slug the plan's ids
 /// are constructed under, the instant stamped on every op the board
 /// carries no date for, and the doc register's file paths.
@@ -159,14 +177,14 @@ pub enum PlanOp {
 ///
 /// During the walk, every add's returned id is compared with the op's
 /// constructed id; a disagreement is a named error naming both (the
-/// module doc's list of what that catches). Store errors otherwise
-/// propagate unchanged: a domain rejection (the closure discipline,
-/// an unknown parent, a cycle) is atomic per op but not per plan —
-/// the ops before the failing one have landed, and the operator
-/// resolves the half-imported store by removing its directory and
-/// fixing the board. There is no transaction across the [`Store`]
-/// trait and none is invented here.
-pub fn apply_plan(plan: &ImportPlan, store: &mut dyn Store) -> Result<(), StoreError> {
+/// module doc's list of what that catches). Store faults otherwise
+/// travel as [`ApplyError::Store`], unchanged in shape: a domain
+/// rejection (the closure discipline, an unknown parent, a cycle) is
+/// atomic per op but not per plan — the ops before the failing one
+/// have landed, and the operator resolves the half-imported store by
+/// removing its directory and fixing the board. There is no
+/// transaction across the [`Store`] trait and none is invented here.
+pub fn apply_plan(plan: &ImportPlan, store: &mut dyn Store) -> Result<(), ApplyError> {
     let graph = store.graph();
     let counters = graph.counters();
     let held = graph.epics().count()
@@ -209,24 +227,19 @@ pub fn apply_plan(plan: &ImportPlan, store: &mut dyn Store) -> Result<(), StoreE
     Ok(())
 }
 
-/// An apply-time refusal as the store's `corrupt_store`: §4 makes
-/// corruption one named error whether the fault is in the bytes or in
-/// what they contradict, and a store contradicting the import's
-/// preconditions is that family. Built here, at the refusal sites —
-/// the parse variants never travel this path, and which §6.1 code a
-/// refusal should reach a client under is the import tool's mapping
-/// to settle.
-fn refusal(error: ImportError) -> StoreError {
-    StoreError::CorruptStore {
-        offset: None,
-        detail: error.to_string(),
-    }
+/// An apply-time refusal as [`ApplyError::Refused`]: the import's own
+/// precondition failed — a client-fixable state (import into a fresh
+/// repo), which the wire tool maps to §6.1's `invalid`, not
+/// corruption. Built here, at the refusal sites; the parse variants
+/// never travel this path.
+fn refusal(error: ImportError) -> ApplyError {
+    ApplyError::Refused(error)
 }
 
 /// The reproduction check: the id the store allocated for one add
 /// must equal the id the plan constructed for it. The four id types
 /// compare and render the same way, so one check serves all four.
-fn check_id<T: PartialEq + std::fmt::Display>(found: &T, expected: &T) -> Result<(), StoreError> {
+fn check_id<T: PartialEq + std::fmt::Display>(found: &T, expected: &T) -> Result<(), ApplyError> {
     if found == expected {
         return Ok(());
     }
