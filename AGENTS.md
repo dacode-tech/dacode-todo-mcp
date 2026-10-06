@@ -21,10 +21,13 @@ If `MYAGENTS.md` exists at the repo root, it is untracked, personal, and
 dialect study ran, D18 is signed (a), t42 (the parser) has landed
 — parse_board is total over the live board — t43 (the D18
 mapping) has landed — the ImportPlan + apply_plan with id
-reproduction pinned at the live board's scale — and t44 (the
+reproduction pinned at the live board's scale — t44 (the
 import_md wire tool) has landed — the importer cluster with the
-ApplyError refusal seam and the import_md.v1 golden — leaving t45
-(the checked-in dacode fixture + the end-to-end golden) as the next
+ApplyError refusal seam and the import_md.v1 golden — and t45
+(the checked-in dacode fixture + the end-to-end golden) has
+landed — the three real files checked in per D12/§10, the first
+composed run on the real board clean, dacode_dump.v1 pinning the
+expected graph — leaving t46 (the camera dialect) as the next
 dispatch.**
 An MCP server that replaces
 markdown TODO boards with a deterministic task graph: tasks are typed
