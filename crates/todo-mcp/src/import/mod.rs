@@ -4,16 +4,19 @@
 //! the deeper structure and the more complex references (the signed
 //! ordering, with the reasoning, is in
 //! `docs/implementation/decisions.md`);
-//! camera and ikvm-html arrive as sibling modules under this root
-//! when their tasks land, sharing the discipline but no code until
-//! measurement says otherwise: a dialect parser is a pure function of
-//! text — no I/O, no clock, no store — and everything the mapping
-//! stage needs arrives structured, so no consumer ever re-scans
-//! prose.
+//! camera has landed as the second dialect, and ikvm-html arrives as
+//! a sibling module under this root when its task lands. The dialects
+//! share the discipline but no code below the plan types — the
+//! measured shapes differ everywhere else: a dialect parser is a pure
+//! function of text — no I/O, no clock, no store — and everything the
+//! mapping stage needs arrives structured, so no consumer ever
+//! re-scans prose.
 //!
-//! The dacode parser lives in [`dacode`]; its module doc carries the
-//! task's judgment calls and the strictness rule that makes the
-//! importer trustworthy: a register line that does not parse is a
-//! named error, never a silent skip.
+//! The dacode parser lives in [`dacode`] and the camera parser in
+//! [`camera`]; each module doc carries its task's judgment calls and
+//! the strictness rule that makes the importer trustworthy: a
+//! register line that does not parse is a named error, never a silent
+//! skip.
 
+pub mod camera;
 pub mod dacode;
