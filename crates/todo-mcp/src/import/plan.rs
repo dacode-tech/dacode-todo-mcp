@@ -1,36 +1,17 @@
-//! The executable import plan: the ordered op list the dacode mapping
+//! The executable import plan: the ordered op list a dialect mapping
 //! produces, and its executor over the [`Store`] trait.
 //!
-//! # The plan's total order
+//! # The contract
 //!
-//! [`ImportPlan::ops`] is one fixed sequence — the order is the
-//! contract that makes the store's sequential allocation reproduce
-//! the board's numbering (D18's id-reproduction convention):
-//!
-//! 1. **epics** — the §5 milestones sorted by numeric id, then the
-//!    synthetic `Follow-ups` epic, then the synthetic `Spec deltas`
-//!    epic;
-//! 2. **decisions** — the B dossiers sorted by numeric id (the
-//!    appendix's file order is not id order, so the sort is
-//!    load-bearing, not a no-op);
-//! 3. **docs** — the §4 register's own order (the expanded list, then
-//!    the milestone table's rows);
-//! 4. **tasks** — the §6 U items sorted by numeric id, then the §5
-//!    sub-steps sorted by `(milestone, step)`, then the A dossiers
-//!    sorted by numeric id, then `B1a`, then the findings;
-//! 5. **edges** — the B summary's Gates milestone edges (B-id order),
-//!    then the A index's Depends-on edges (A-id order, cell order
-//!    within), then the blocked-on edges (item order, marker order
-//!    within).
-//!
-//! # Id reproduction
-//!
-//! Each add op carries the id the store **will** allocate, constructed
-//! by the mapping from the op's position, because the store allocates
-//! per-kind sequential numbers at insert and the plan's order is the
-//! add order. Edges reference the constructed ids, so the plan is
-//! self-contained: a consumer can inspect or report the ids without
-//! touching a store.
+//! [`ImportPlan::ops`] is one fixed op sequence whose order is the
+//! add order the store's sequential allocation reads — the contract
+//! that makes the store reproduce the board's numbering (D18's
+//! id-reproduction convention). Each add op carries the id the store
+//! **will** allocate, constructed by the mapping from the op's
+//! position, because the store allocates per-kind sequential numbers
+//! at insert and the plan's order is the add order. Edges reference
+//! the constructed ids, so the plan is self-contained: a consumer can
+//! inspect or report the ids without touching a store.
 //!
 //! `apply_plan` enforces the reproduction rather than trusting it:
 //! it refuses a store whose graph holds nodes **or** whose allocation
@@ -47,12 +28,25 @@
 //! §6.1's `unknown_id` naming the epic id — and an edge endpoint
 //! that never landed is the same code from `link_blocks`.
 //!
-//! Degenerate board shapes the mapping cannot turn into valid drafts
-//! (an empty sub-step Gate cell, an empty dossier outcome) are left to
-//! the domain's closure discipline: they surface as the store's
+//! Degenerate board shapes a mapping cannot turn into valid drafts
+//! (an empty gate cell, an empty dossier outcome) are left to the
+//! domain's closure discipline: they surface as the store's
 //! `missing_*` errors at apply, after the earlier ops have landed.
 //! The mapping does not duplicate the domain's validation — the
 //! closure rules have one home.
+//!
+//! Which populations a dialect's plan adds, and in what order, is the
+//! dialect's own: each dialect's `map.rs` module doc carries its
+//! total order.
+//!
+//! One coupling the move inherited and records rather than fixes:
+//! [`ApplyError::Refused`] carries the dacode dialect's `ImportError`,
+//! because the refusal variants it holds (`StoreNotEmpty`,
+//! `IdMismatch`) were dacode's when the executor was written. Both
+//! are store-level facts with dialect-neutral messages, so every
+//! dialect's import surfaces them correctly — but the *type* is one
+//! dialect's. A neutral refusal type is the named debt for whoever
+//! next owns this module.
 
 use std::collections::BTreeMap;
 
@@ -62,7 +56,7 @@ use todo_domain::{
 };
 use todo_store::{Store, StoreError};
 
-use super::error::ImportError;
+use crate::import::dacode::ImportError;
 
 /// Why an [`apply_plan`] walk failed: the import's own refusal (a
 /// client-fixable precondition), or a store fault from the walk
@@ -103,8 +97,8 @@ pub struct ImportOptions {
     pub doc_paths: BTreeMap<String, String>,
 }
 
-/// The executable plan: the ops in the module doc's total order, each
-/// carrying the id the store will allocate for it.
+/// The executable plan: the ops in the dialect's documented total
+/// order, each carrying the id the store will allocate for it.
 ///
 /// `PartialEq` is derived so the twice-map determinism pin is a plain
 /// `assert_eq!` — the same reason the dialect AST derives it.

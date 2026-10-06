@@ -28,10 +28,14 @@ checked-in dacode fixture + the end-to-end golden) has landed
 — the three real files checked in per D12/§10, the first
 composed run on the real board clean, dacode_dump.v1 pinning the
 expected graph — and t46 (the camera dialect) has landed — the
-study first, the sibling module sharing only the plan types, the
+study first, the sibling module, the
 dialect param on import_md, the live probe at 178 tasks with no
-golden per D12 — leaving t47 (the ikvm-html dialect, U31 its
-first spec decision) as the next dispatch.**
+golden per D12 — and t50 (the U31 lift) has landed — the plan
+types and the shared helpers in dialect-neutral homes under
+src/import/ (plan.rs + helpers.rs behind a HelperError seam), zero
+behavior change, U31 resolved — leaving t47 (the ikvm-html
+dialect, its spec written and its study done) as the next
+dispatch.**
 An MCP server that replaces
 markdown TODO boards with a deterministic task graph: tasks are typed
 nodes, dependencies are typed edges, everything lives in local

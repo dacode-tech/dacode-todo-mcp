@@ -30,7 +30,7 @@ use todo_mcp::import::camera::{
     CameraError, Dependency, DependencyKind, MilestoneState, map_camera, parse_camera_board,
     parse_decisions, parse_todo_md,
 };
-use todo_mcp::import::dacode::{ImportOptions, PlanOp, apply_plan};
+use todo_mcp::import::plan::{ImportOptions, PlanOp, apply_plan};
 use todo_store::{DataRoot, Store};
 
 use crate::common::{assert_carrier, call, drive, structured};
@@ -712,7 +712,7 @@ fn the_mapping_pins_statuses_kinds_edges_and_the_oddball_references() {
     // The decision ops: resolved → Signed with the outcome as the
     // resolution and the date as the stamp; open → Open at the import
     // stamp; the recommendation and confidence carried; no options.
-    let decisions: Vec<&todo_mcp::import::dacode::PlanOp> = ops
+    let decisions: Vec<&todo_mcp::import::plan::PlanOp> = ops
         .iter()
         .filter(|op| matches!(op, PlanOp::AddDecision { .. }))
         .collect();

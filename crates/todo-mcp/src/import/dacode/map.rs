@@ -1,14 +1,32 @@
 //! The dacode board → domain mapping: the frozen dialect AST of
 //! `ast.rs` translated into an executable [`ImportPlan`], per the
-//! signed mapping conventions (D18 and §9's dacode rows). The plan's
-//! total order and the id-reproduction contract are `plan.rs`'s
-//! module doc; the edge/finding resolution and its readings are
-//! `resolve.rs`'s; this one owns the node mapping — the conventions
-//! that fill the add ops.
+//! signed mapping conventions (D18 and §9's dacode rows). The
+//! id-reproduction contract is the shared `plan.rs`'s module doc; the
+//! edge/finding resolution and its readings are `resolve.rs`'s; this
+//! one owns the node mapping — the conventions that fill the add ops
+//! — and the plan's total order, below.
 //!
 //! `map_board` is a pure function of `(board, opts)` — no I/O, no
 //! clock, no store, `BTreeMap` throughout — so two runs over one
 //! board yield equal plans (pinned by test).
+//!
+//! # The plan's total order
+//!
+//! 1. **epics** — the §5 milestones sorted by numeric id, then the
+//!    synthetic `Follow-ups` epic, then the synthetic `Spec deltas`
+//!    epic;
+//! 2. **decisions** — the B dossiers sorted by numeric id (the
+//!    appendix's file order is not id order, so the sort is
+//!    load-bearing, not a no-op);
+//! 3. **docs** — the §4 register's own order (the expanded list, then
+//!    the milestone table's rows);
+//! 4. **tasks** — the §6 U items sorted by numeric id, then the §5
+//!    sub-steps sorted by `(milestone, step)`, then the A dossiers
+//!    sorted by numeric id, then `B1a`, then the findings;
+//! 5. **edges** — the B summary's Gates milestone edges (B-id order),
+//!    then the A index's Depends-on edges (A-id order, cell order
+//!    within), then the blocked-on edges (item order, marker order
+//!    within).
 //!
 //! # The conventions (D18, operationalized)
 //!
@@ -63,16 +81,14 @@
 //! draft builders read the same sorted forms, so splitting further
 //! would publish them as shared internals for a modest size win. The
 //! edge/finding resolution already split out to `resolve.rs` (the
-//! natural seam); the next seam, if the file ever approaches the cap
-//! again, is the pure text/status helpers at the file's tail.
+//! natural seam); the tail's pure text/status helpers moved to the
+//! shared `crate::import::helpers` (the U31 lift).
 
 use std::collections::BTreeMap;
-use std::num::NonZeroU64;
 
 use todo_domain::{
     Confidence, DecisionDraft, DecisionId, DecisionStatus, DocDraft, DocId, EpicDraft, EpicId,
-    Reference, ReferenceKind, References, RepoSlug, Status, TaskDraft, TaskId, TaskKind, Timestamp,
-    ValueError,
+    ReferenceKind, References, RepoSlug, Status, TaskDraft, TaskId, TaskKind,
 };
 
 use super::ast::{
@@ -80,8 +96,9 @@ use super::ast::{
     Marker, MilestoneItem, SubStep, UItem,
 };
 use super::error::ImportError;
-use super::plan::{ImportOptions, ImportPlan, PlanOp};
 use super::resolve::{push_edge_ops, push_finding_ops};
+use crate::import::helpers::{HelperError, id_sort_key, midnight, position, references};
+use crate::import::plan::{ImportOptions, ImportPlan, PlanOp};
 
 /// The fixed verify literal for every task the board gives no gate
 /// of its own: the checkbox and discharge marker are the board's
@@ -113,7 +130,7 @@ const MILESTONE_DESCRIPTION: &str = "the dacode board's §5 milestone ";
 /// Maps a parsed dacode board into an executable plan. Pure: the same
 /// board and options yield an equal plan, and nothing is written
 /// anywhere — the plan is executed separately by
-/// [`super::apply_plan`].
+/// [`crate::import::plan::apply_plan`].
 pub fn map_board(board: &DacodeBoard, opts: &ImportOptions) -> Result<ImportPlan, ImportError> {
     let sorted = SortedBoard::build(board);
     let docs = validated_docs(&sorted.docs, opts)?;
@@ -688,61 +705,19 @@ fn a_sections(span: &str) -> Vec<String> {
         .collect()
 }
 
-/// A board date as the midnight UTC timestamp the conventions pin:
-/// `YYYY-MM-DD` → `T00:00:00.000000000Z`. The parser validates the
-/// date's shape; the calendar check happens here, so an impossible
-/// day is a named error.
-fn midnight(date: &str) -> Result<Timestamp, ImportError> {
-    Timestamp::parse(&format!("{date}T00:00:00Z")).map_err(|_| ImportError::BadDate {
-        date: date.to_owned(),
-    })
-}
-
-/// The references for one draft, propagating the domain's rejection
-/// of a target. The mapping's targets are parser-validated ids and
-/// doc keys (non-empty, anchor-free) and the A-delta section strings —
-/// a pathological span could carry an anchor, which the domain
-/// rejects for a non-`doc` kind.
-pub(super) fn references(entries: Vec<(ReferenceKind, String)>) -> Result<References, ImportError> {
-    let mut references = References::new();
-    for (kind, target) in entries {
-        let reference = Reference::new(kind, target.clone(), None)
-            .map_err(|error| bad_reference(&target, &error))?;
-        references
-            .insert(reference)
-            .map_err(|error| bad_reference(&target, &error))?;
+/// The shared helpers' neutral error into this dialect's own,
+/// variant-for-variant — the seam that lets `midnight` and
+/// `references` live in the shared module while every message and
+/// field stays the dialect's.
+impl From<HelperError> for ImportError {
+    fn from(error: HelperError) -> Self {
+        match error {
+            HelperError::BadDate { date } => ImportError::BadDate { date },
+            HelperError::BadReference { target, detail } => {
+                ImportError::BadReference { target, detail }
+            }
+        }
     }
-    Ok(references)
-}
-
-/// The named form of the domain rejecting a reference target.
-fn bad_reference(target: &str, error: &ValueError) -> ImportError {
-    ImportError::BadReference {
-        target: target.to_owned(),
-        detail: error.to_string(),
-    }
-}
-
-/// The 1-based id number for a 0-based position: the plan numbers
-/// every kind from 1, mirroring the store's allocation, so a position
-/// cannot encode zero. `wrapping_add` with the `MAX` fallback keeps
-/// the helper total without a panic path; the fallback is unreachable
-/// at any board's scale.
-pub(super) fn position(index: usize) -> NonZeroU64 {
-    NonZeroU64::new((index as u64).wrapping_add(1)).unwrap_or(NonZeroU64::MAX)
-}
-
-/// The numeric sort key of a board id: the number after the prefix,
-/// with the id itself as the tiebreaker (a letter-suffixed id orders
-/// after its bare base). The parser validates id shapes; a malformed
-/// id sorts first rather than panicking.
-fn id_sort_key(id: &str) -> (u64, &str) {
-    let digits: String = id
-        .chars()
-        .skip(1)
-        .take_while(|c| c.is_ascii_digit())
-        .collect();
-    (digits.parse().unwrap_or(0), id)
 }
 
 /// The sub-step sort key: `(milestone, step)` — the milestone's

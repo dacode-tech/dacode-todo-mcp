@@ -37,7 +37,8 @@ use serde::Serialize;
 use serde_json::{Value, json};
 use tempfile::TempDir;
 use todo_domain::{Decision, Doc, Epic, Graph, Repo, RepoSlug, Task, TaskId, Timestamp};
-use todo_mcp::import::dacode::{DacodeBoard, ImportOptions, apply_plan, map_board, parse_board};
+use todo_mcp::import::dacode::{DacodeBoard, map_board, parse_board};
+use todo_mcp::import::plan::{ImportOptions, apply_plan};
 use todo_store::{BlocksEdgeDto, DataRoot, Store, to_bytes};
 
 use crate::common::{assert_golden, call, drive, structured};

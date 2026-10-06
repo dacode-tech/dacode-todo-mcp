@@ -10,7 +10,7 @@
 //! variants (`BadDate`, `BadReference`) carry no line either: they
 //! fire over the parsed AST, which carries none. The store-refusal
 //! and id-mismatch cases are not here at all: they belong to the
-//! shared `ApplyError` the dacode plan module owns, and a camera
+//! shared `ApplyError` the plan module owns, and a camera
 //! import surfaces them through that type unchanged.
 
 use std::fmt;

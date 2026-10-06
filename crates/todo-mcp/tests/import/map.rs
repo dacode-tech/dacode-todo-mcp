@@ -10,12 +10,12 @@ use std::str::FromStr;
 
 use todo_domain::{BlocksEdge, EpicDraft, RepoSlug, Status, Timestamp};
 use todo_mcp::import::dacode::{
-    ADossier, ADossierKind, ADossierStatus, AIndexRow, ApplyError, BDossier, BDossierKind,
-    BDossierStatus, BSummaryRow, DacodeBoard, DecisionsAppendix, DeltasAppendix, DocDepth,
-    DocEntry, GatesCell, ImportError, ImportOptions, ImportPlan, Marker, MilestoneItem, PlanOp,
-    SubStep, Subsection, SummaryRow, SummaryStatus, TodoMd, UItem, apply_plan, map_board,
-    parse_board,
+    ADossier, ADossierKind, ADossierStatus, AIndexRow, BDossier, BDossierKind, BDossierStatus,
+    BSummaryRow, DacodeBoard, DecisionsAppendix, DeltasAppendix, DocDepth, DocEntry, GatesCell,
+    ImportError, Marker, MilestoneItem, SubStep, Subsection, SummaryRow, SummaryStatus, TodoMd,
+    UItem, map_board, parse_board,
 };
+use todo_mcp::import::plan::{ApplyError, ImportOptions, ImportPlan, PlanOp, apply_plan};
 use todo_store::{DataRoot, Store};
 
 // =================================================================

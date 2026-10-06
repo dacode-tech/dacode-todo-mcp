@@ -34,7 +34,8 @@
 //! must parse wherever it appears.
 //!
 //! The checkbox-item grammar and marker extraction live in `items.rs`;
-//! the wrap rules for table rows live in `table.rs`.
+//! the wrap rules for table rows live in the shared helpers
+//! ([`crate::import::helpers`]).
 
 use std::collections::BTreeMap;
 
@@ -42,9 +43,9 @@ use super::ast::{MilestoneItem, SubStep, Subsection, SummaryRow, SummaryStatus, 
 use super::doc_register;
 use super::error::ImportError;
 use super::items::{ItemKind, PartialItem, finish_item, is_checkbox_line, parse_item_start};
-use super::table::{
-    ARROW, cells, collect_rows, find_table_header, is_b_id, is_header, is_substep_id, split_lines,
-    strip_id_noise, strip_strikes,
+use super::table::{ARROW, is_b_id, is_register_construct, is_substep_id};
+use crate::import::helpers::{
+    cells, collect_rows, find_table_header, is_header, split_lines, strip_id_noise, strip_strikes,
 };
 
 /// §2's decisions-table header.
@@ -163,7 +164,7 @@ fn parse_decisions_section(
             line: end_line,
         });
     };
-    let (rows, _) = collect_rows(lines, header_idx);
+    let (rows, _) = collect_rows(lines, header_idx, is_register_construct);
     for (text, number) in rows {
         let row_cells = cells(&text);
         let (id_cell, title_cell, status_cell, extra) = match row_cells.as_slice() {
@@ -267,7 +268,7 @@ fn collect_substep_rows(
     header_idx: usize,
     todo: &mut TodoMd,
 ) -> Result<usize, ImportError> {
-    let (rows, last) = collect_rows(lines, header_idx);
+    let (rows, last) = collect_rows(lines, header_idx, is_register_construct);
     for (text, number) in rows {
         let row_cells = cells(&text);
         let [id_cell, text_cell, gate_cell] = row_cells.as_slice() else {

@@ -27,9 +27,9 @@
 //! cross-checked against each other.
 
 use super::error::CameraError;
-use super::text::{
-    EM_DASH_SEP, cells, collect_rows, find_table_header, is_d_id, is_day_date, is_m_id,
-    split_lines, strip_id_noise,
+use super::text::{EM_DASH_SEP, is_d_id, is_m_id, is_register_construct};
+use crate::import::helpers::{
+    cells, collect_rows, find_table_header, is_day_date, split_lines, strip_id_noise,
 };
 
 /// The decisions summary table's header.
@@ -140,7 +140,7 @@ fn parse_summary_table(
             line: end_line,
         });
     };
-    let (rows, _) = collect_rows(lines, header_idx);
+    let (rows, _) = collect_rows(lines, header_idx, is_register_construct);
     for (text, number) in rows {
         let row_cells = cells(&text);
         let [

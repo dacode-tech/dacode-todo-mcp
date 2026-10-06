@@ -24,9 +24,9 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use super::ast::{DocDepth, DocEntry, TodoMd};
 use super::error::ImportError;
-use super::table::{
-    EM_DASH, cells, collect_rows, find_table_header, is_m_id, remove_annotations,
-    remove_struck_spans, strip_emphasis,
+use super::table::{EM_DASH, is_m_id, is_register_construct, remove_annotations};
+use crate::import::helpers::{
+    cells, collect_rows, find_table_header, remove_struck_spans, strip_emphasis,
 };
 
 /// §4's milestone-table header.
@@ -54,7 +54,7 @@ pub(crate) fn parse_doc_register(
         });
     };
     let mut summary: Vec<(String, usize, String)> = Vec::new();
-    let (rows, _) = collect_rows(lines, table_idx);
+    let (rows, _) = collect_rows(lines, table_idx, is_register_construct);
     for (text, number) in rows {
         let row_cells = cells(&text);
         let [milestone_cell, middle_cell, _count] = row_cells.as_slice() else {

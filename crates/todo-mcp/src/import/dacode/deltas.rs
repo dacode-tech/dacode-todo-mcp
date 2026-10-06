@@ -29,9 +29,9 @@
 
 use super::ast::{AAppliedRow, ADossier, ADossierKind, ADossierStatus, AIndexRow, DeltasAppendix};
 use super::error::ImportError;
-use super::table::{
-    cells, collect_rows, find_table_header, id_tokens, is_a_id, is_day_date,
-    split_at_dossier_marker, split_lines, strip_id_noise, strip_strikes,
+use super::table::{id_tokens, is_a_id, is_register_construct, split_at_dossier_marker};
+use crate::import::helpers::{
+    cells, collect_rows, find_table_header, is_day_date, split_lines, strip_id_noise, strip_strikes,
 };
 
 /// The A index table's header.
@@ -72,7 +72,7 @@ fn parse_index_table(
             line: end_line,
         });
     };
-    let (rows, _) = collect_rows(lines, header_idx);
+    let (rows, _) = collect_rows(lines, header_idx, is_register_construct);
     for (text, number) in rows {
         let row_cells = cells(&text);
         let [id_cell, section_cell, delta_cell, depends_cell, _recommend] = row_cells.as_slice()
@@ -117,7 +117,7 @@ fn parse_applied_table(
     let Some((header_idx, _, _)) = find_table_header(lines, &APPLIED_HEADER) else {
         return Ok(());
     };
-    let (rows, _) = collect_rows(lines, header_idx);
+    let (rows, _) = collect_rows(lines, header_idx, is_register_construct);
     for (text, number) in rows {
         let row_cells = cells(&text);
         let [id_cell, section_cell, applied_cell, date_cell, note_cell] = row_cells.as_slice()

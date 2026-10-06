@@ -28,8 +28,10 @@ use super::ast::{
 };
 use super::error::ImportError;
 use super::table::{
-    ARROW, EM_DASH, cells, collect_rows, find_table_header, is_a_id, is_b_id, is_day_date, is_m_id,
-    split_at_dossier_marker, split_lines, strip_id_noise, strip_strikes,
+    ARROW, EM_DASH, is_a_id, is_b_id, is_m_id, is_register_construct, split_at_dossier_marker,
+};
+use crate::import::helpers::{
+    cells, collect_rows, find_table_header, is_day_date, split_lines, strip_id_noise, strip_strikes,
 };
 
 /// The B summary table's header.
@@ -64,7 +66,7 @@ fn parse_summary_table(
             line: end_line,
         });
     };
-    let (rows, _) = collect_rows(lines, header_idx);
+    let (rows, _) = collect_rows(lines, header_idx, is_register_construct);
     for (text, number) in rows {
         let row_cells = cells(&text);
         let [

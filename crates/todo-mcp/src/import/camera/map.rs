@@ -1,7 +1,8 @@
 //! The camera board → domain mapping (t46): the dialect AST
 //! translated into the shared executable [`ImportPlan`]. The plan
-//! types, the executor and its `ApplyError` are the dacode plan
-//! module's — the one thing the two dialects share — and this
+//! types, the executor and its `ApplyError` are the shared plan
+//! module's — one of the two code homes the dialects share, the
+//! helpers module being the other — and this
 //! mapping produces that shape; everything else here is camera's
 //! own. The camera `ImportOptions` carries an empty `doc_paths` map:
 //! the shared type requires the field, and camera has no doc
@@ -58,19 +59,18 @@
 //!   from the AST by the parser's design.
 
 use std::collections::BTreeMap;
-use std::num::NonZeroU64;
 
 use todo_domain::{
     BlocksEdge, Confidence, DecisionDraft, DecisionId, DecisionStatus, EpicDraft, EpicId,
-    Reference, ReferenceKind, References, RepoSlug, Status, TaskDraft, TaskId, TaskKind, Timestamp,
-    ValueError,
+    ReferenceKind, References, RepoSlug, Status, TaskDraft, TaskId, TaskKind,
 };
 
 use super::CameraBoard;
 use super::board::{DependencyKind, MilestoneRow, MilestoneState, RegisterItem};
 use super::decisions::{ConfidenceCell, DecisionRow, DecisionStatusCell, Dossier};
 use super::error::CameraError;
-use crate::import::dacode::{ImportOptions, ImportPlan, PlanOp};
+use crate::import::helpers::{HelperError, id_sort_key, midnight, position, references};
+use crate::import::plan::{ImportOptions, ImportPlan, PlanOp};
 
 /// The fixed verify literal for every task the board gives no gate of
 /// its own: the checkbox is the board's closure evidence.
@@ -511,56 +511,19 @@ fn clean_title(raw: &str) -> String {
     trimmed.strip_suffix('.').unwrap_or(trimmed).to_owned()
 }
 
-/// A board date as the midnight UTC timestamp the conventions pin:
-/// `YYYY-MM-DD` → `T00:00:00.000000000Z`. The parser validates the
-/// date's shape; the calendar check happens here, so an impossible
-/// day is a named error.
-fn midnight(date: &str) -> Result<Timestamp, CameraError> {
-    Timestamp::parse(&format!("{date}T00:00:00Z")).map_err(|_| CameraError::BadDate {
-        date: date.to_owned(),
-    })
-}
-
-/// The references for one draft, propagating the domain's rejection
-/// of a target.
-fn references(entries: Vec<(ReferenceKind, String)>) -> Result<References, CameraError> {
-    let mut references = References::new();
-    for (kind, target) in entries {
-        let reference = Reference::new(kind, target.clone(), None)
-            .map_err(|error| bad_reference(&target, &error))?;
-        references
-            .insert(reference)
-            .map_err(|error| bad_reference(&target, &error))?;
+/// The shared helpers' neutral error into this dialect's own,
+/// variant-for-variant — the seam that lets `midnight` and
+/// `references` live in the shared module while every message and
+/// field stays the dialect's.
+impl From<HelperError> for CameraError {
+    fn from(error: HelperError) -> Self {
+        match error {
+            HelperError::BadDate { date } => CameraError::BadDate { date },
+            HelperError::BadReference { target, detail } => {
+                CameraError::BadReference { target, detail }
+            }
+        }
     }
-    Ok(references)
-}
-
-/// The named form of the domain rejecting a reference target.
-fn bad_reference(target: &str, error: &ValueError) -> CameraError {
-    CameraError::BadReference {
-        target: target.to_owned(),
-        detail: error.to_string(),
-    }
-}
-
-/// The 1-based id number for a 0-based position: the plan numbers
-/// every kind from 1, mirroring the store's allocation, so a position
-/// cannot encode zero. `wrapping_add` with the `MAX` fallback keeps
-/// the helper total without a panic path; the fallback is unreachable
-/// at any board's scale.
-fn position(index: usize) -> NonZeroU64 {
-    NonZeroU64::new((index as u64).wrapping_add(1)).unwrap_or(NonZeroU64::MAX)
-}
-
-/// The numeric sort key of a board id: the number after the prefix,
-/// with the id itself as the tiebreaker.
-fn id_sort_key(id: &str) -> (u64, &str) {
-    let digits: String = id
-        .chars()
-        .skip(1)
-        .take_while(|c| c.is_ascii_digit())
-        .collect();
-    (digits.parse().unwrap_or(0), id)
 }
 
 /// Whether the register id is a base id — `U<digits>` exactly, the

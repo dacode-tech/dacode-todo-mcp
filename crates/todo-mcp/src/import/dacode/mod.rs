@@ -4,8 +4,9 @@
 //! mapped into an executable plan of domain drafts and edges. The
 //! dialect inventory and the mapping conventions are the
 //! dacode-dialect decision's (`docs/implementation/decisions.md`);
-//! this module owns the shapes below, and the mapping lives in
-//! `map.rs`/`plan.rs`.
+//! this module owns the shapes below, the mapping lives in
+//! `map.rs`/`resolve.rs`, and the plan types and executor are the
+//! shared `crate::import::plan`'s.
 //!
 //! Strictness is the load-bearing rule: a register line that
 //! does not parse is a named error, never a silent skip — a parser
@@ -28,11 +29,11 @@
 //! Judgment calls (the task spec's (a)–(e)), bound where they apply:
 //!
 //! - (a) AST field granularity: `ast.rs`'s module doc.
-//! - (b) Table-row cell splitting: `table.rs`'s module doc — escaped
-//!   pipes are absent from the dialect, code-span pipes are present,
-//!   so the splitter is code-span aware.
-//! - (c) Line endings: `table.rs`'s `split_lines` — split on `\n`,
-//!   trailing `\r` trimmed.
+//! - (b) Table-row cell splitting: the shared `helpers` module doc —
+//!   escaped pipes are absent from the dialect, code-span pipes are
+//!   present, so the splitter is code-span aware.
+//! - (c) Line endings: the shared `helpers`' `split_lines` — split on
+//!   `\n`, trailing `\r` trimmed.
 //! - (d) Type and field naming: `ast.rs`'s module doc.
 //! - (e) `board.rs` is split by responsibility whenever the file
 //!   budget would otherwise be exceeded: `doc_register.rs` holds §4,
@@ -55,7 +56,6 @@ mod doc_register;
 mod error;
 mod items;
 mod map;
-mod plan;
 mod resolve;
 mod table;
 
@@ -69,7 +69,6 @@ pub use ast::{
 };
 pub use error::ImportError;
 pub use map::map_board;
-pub use plan::{ApplyError, ImportOptions, ImportPlan, PlanOp, apply_plan};
 
 pub use board::parse_todo_md;
 pub use decisions::parse_b_decisions;

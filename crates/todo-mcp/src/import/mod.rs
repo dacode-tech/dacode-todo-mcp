@@ -6,11 +6,13 @@
 //! `docs/implementation/decisions.md`);
 //! camera has landed as the second dialect, and ikvm-html arrives as
 //! a sibling module under this root when its task lands. The dialects
-//! share the discipline but no code below the plan types — the
-//! measured shapes differ everywhere else: a dialect parser is a pure
-//! function of text — no I/O, no clock, no store — and everything the
-//! mapping stage needs arrives structured, so no consumer ever
-//! re-scans prose.
+//! share the discipline and two code homes — [`plan`], the executable
+//! plan's types and executor, and `helpers`, the text/mapping
+//! primitives every dialect's parser and mapping reach for — while
+//! the measured shapes differ everywhere else: a dialect parser is a
+//! pure function of text — no I/O, no clock, no store — and
+//! everything the mapping stage needs arrives structured, so no
+//! consumer ever re-scans prose.
 //!
 //! The dacode parser lives in [`dacode`] and the camera parser in
 //! [`camera`]; each module doc carries its task's judgment calls and
@@ -20,3 +22,5 @@
 
 pub mod camera;
 pub mod dacode;
+pub(crate) mod helpers;
+pub mod plan;

@@ -42,7 +42,7 @@
 //! carries a Status cell with no known spelling; `AAppliedRow` is the
 //! A file's second table; `ADossierStatus::via` carries the
 //! via-form's credit. The wrapped-row and code-span-pipe shapes live
-//! in `table.rs`'s module doc.
+//! in the shared helpers module's doc.
 
 use std::fmt;
 

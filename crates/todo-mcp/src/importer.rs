@@ -56,10 +56,8 @@ use todo_domain::RepoSlug;
 use todo_store::StoreError;
 
 use crate::import::camera::{CameraError, map_camera, parse_camera_board};
-use crate::import::dacode::{
-    ApplyError, DocEntry, ImportError, ImportOptions, ImportPlan, apply_plan, map_board,
-    parse_board,
-};
+use crate::import::dacode::{DocEntry, ImportError, map_board, parse_board};
+use crate::import::plan::{ApplyError, ImportOptions, ImportPlan, apply_plan};
 use crate::{ServerState, TodoServer, ToolError, error_carrier, repo_of, structured, time};
 
 /// The board directory, relative to the repo's registered checkout

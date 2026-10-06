@@ -2,8 +2,9 @@
 //! milestone table, and the §4/§5 checkbox registers — plus the
 //! TODO.md half of the dialect AST, which lives here because the
 //! camera module keeps its parser files and their types together.
-//! The shared text helpers (cell splitting, the table walk, the id
-//! shapes) are `text.rs`'s, split out at the file budget.
+//! The shared text primitives (cell splitting, the table walk) are
+//! [`crate::import::helpers`]'s; `text.rs` keeps the id, checkbox and
+//! register-construct shapes — the dialect's own grammar.
 //!
 //! The walker: section boundaries are `## ` at line start,
 //! identified by the number in the header — never by position. §1
@@ -59,9 +60,10 @@ use std::collections::BTreeMap;
 
 use super::error::CameraError;
 use super::text::{
-    EM_DASH_SEP, cells, clean_id_word, collect_rows, find_table_header, is_checkbox_line,
-    is_day_date, is_id_shaped, is_m_id, is_register_construct, is_u_id, split_lines,
-    strip_id_noise,
+    EM_DASH_SEP, is_checkbox_line, is_id_shaped, is_m_id, is_register_construct, is_u_id,
+};
+use crate::import::helpers::{
+    cells, clean_id_word, collect_rows, find_table_header, is_day_date, split_lines, strip_id_noise,
 };
 
 /// §2's milestones-table header.
@@ -272,7 +274,7 @@ fn parse_milestones(
             line: end_line,
         });
     };
-    let (rows, _) = collect_rows(lines, header_idx);
+    let (rows, _) = collect_rows(lines, header_idx, is_register_construct);
     for (text, number) in rows {
         let row_cells = cells(&text);
         let [milestone_cell, state_cell, _exit] = row_cells.as_slice() else {

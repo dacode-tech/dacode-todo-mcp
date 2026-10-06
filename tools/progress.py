@@ -161,10 +161,10 @@ LANES: list[tuple[str, list[str]]] = [
     ("M3 findings (open unless noted)", ["f66", "f67", "f68", "f69", "f70",
                                          "f94", "f99", "f100"]),
     ("M4 · adoption (§9/§10)", ["g10", "t41", "t42", "t43", "t44", "t45",
-                                "t46", "t47", "t48", "t49", "g11", "D18",
-                                "M4"]),
+                                "t46", "t50", "t47", "t48", "t49", "g11",
+                                "D18", "M4"]),
     ("M4 findings and debt (open unless noted)", ["f101", "f102", "f103",
-                                                  "d4"]),
+                                                  "f104", "d4"]),
     ("later", ["U18", "M5"]),
 ]
 
@@ -238,7 +238,8 @@ GATING: list[tuple[str, str, str]] = [
     ("t43", "t44", "the mapped drafts are what the wire tool drives through the store"),
     ("t44", "t45", "the tool is what the fixture e2e drives end to end"),
     ("t45", "t46", "the fixture proves the pipeline before the live dialects build on it (g10's dispatch order)"),
-    ("t46", "t47", "g10's dispatch order; swappable with t46"),
+    ("t46", "t50", "the lift lands before the third dialect so it builds on the neutral homes (U31's resolution)"),
+    ("t50", "t47", "the ikvm module consumes plan.rs and helpers.rs from their neutral homes"),
     ("t47", "t48", "the live imports are what tracking-for-real registers"),
     ("t48", "g11", "the adoption evidence is the M4 exit gate's criterion"),
 ]

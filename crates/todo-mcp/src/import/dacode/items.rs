@@ -25,9 +25,9 @@
 use super::ast::Marker;
 use super::error::ImportError;
 use super::table::{
-    EM_DASH_SEP, MIDDLE_DOT_SEP, clean_id_word, is_id_shaped, is_m_id, is_register_construct,
-    is_u_id,
+    EM_DASH_SEP, MIDDLE_DOT_SEP, is_id_shaped, is_m_id, is_register_construct, is_u_id,
 };
+use crate::import::helpers::clean_id_word;
 
 /// The ✅ discharge emoji.
 const CHECK_EMOJI: &str = "✅";

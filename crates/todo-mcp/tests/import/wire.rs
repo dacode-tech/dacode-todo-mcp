@@ -25,9 +25,8 @@ use std::str::FromStr;
 use serde_json::{Value, json};
 use tempfile::TempDir;
 use todo_domain::{RepoSlug, Timestamp};
-use todo_mcp::import::dacode::{
-    DacodeBoard, ImportOptions, ImportPlan, PlanOp, map_board, parse_board,
-};
+use todo_mcp::import::dacode::{DacodeBoard, map_board, parse_board};
+use todo_mcp::import::plan::{ImportOptions, ImportPlan, PlanOp};
 use todo_store::{DataRoot, Store};
 
 use super::board::{A_DELTAS, B_DECISIONS, SECTION_4, todo_md};

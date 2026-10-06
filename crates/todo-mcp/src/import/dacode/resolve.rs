@@ -48,8 +48,9 @@ use todo_domain::{
 
 use super::ast::Marker;
 use super::error::ImportError;
-use super::map::{BoardIndex, SortedBoard, VERIFY_LITERAL, position, references};
-use super::plan::{ImportOptions, PlanOp};
+use super::map::{BoardIndex, SortedBoard, VERIFY_LITERAL};
+use crate::import::helpers::{position, references};
+use crate::import::plan::{ImportOptions, PlanOp};
 
 /// The finding ops: one `finding`-kind task per recognized-but-
 /// unresolvable assertion, in the module doc's order.
