@@ -2739,8 +2739,7 @@ Oldest first. One line per delivery, with the commit hash once committed.
         refusal variants are store-level facts with dialect-neutral
         messages, but the type is one dialect's) — named in
         `plan.rs`'s module doc, the neutral refusal type is the
-        debt for its next owner. Landed as
-        <hash-backfill>.
+        debt for its next owner. Landed as `e8813cc`.
 
 
 
