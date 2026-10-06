@@ -19,10 +19,13 @@ If `MYAGENTS.md` exists at the repo root, it is untracked, personal, and
 
 **Phase: M4 (adoption) is decomposed 2026-10-05 and ungated — the
 dialect study ran, D18 is signed (a), t42 (the parser) has landed
-— parse_board is total over the live board — and t43 (the D18
+— parse_board is total over the live board — t43 (the D18
 mapping) has landed — the ImportPlan + apply_plan with id
-reproduction pinned at the live board's scale — leaving t44 (the
-import_md wire tool) as the next dispatch.**
+reproduction pinned at the live board's scale — and t44 (the
+import_md wire tool) has landed — the importer cluster with the
+ApplyError refusal seam and the import_md.v1 golden — leaving t45
+(the checked-in dacode fixture + the end-to-end golden) as the next
+dispatch.**
 An MCP server that replaces
 markdown TODO boards with a deterministic task graph: tasks are typed
 nodes, dependencies are typed edges, everything lives in local

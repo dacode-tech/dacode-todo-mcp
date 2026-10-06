@@ -163,6 +163,7 @@ LANES: list[tuple[str, list[str]]] = [
     ("M4 · adoption (§9/§10)", ["g10", "t41", "t42", "t43", "t44", "t45",
                                 "t46", "t47", "t48", "t49", "g11", "D18",
                                 "M4"]),
+    ("M4 findings (open unless noted)", ["f101", "f102"]),
     ("later", ["U18", "M5"]),
 ]
 
