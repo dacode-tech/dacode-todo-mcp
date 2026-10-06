@@ -71,8 +71,17 @@ first composed run on the real board was clean** (parse, map, apply,
 no refusal, no importer code changed), with the census matching the
 study's predictions exactly (9 epics, 21 decisions, 42 docs, 218
 tasks with the board's `U1`–`U170` reproduced, 43 edges) and the
-wire composition driven end to end beside the golden. **Nothing
-blocks t46** (the camera dialect). The importer lives in
+wire composition driven end to end beside the golden. **t46 — the
+camera dialect — landed 2026-10-06**: the dialect study ran first
+as measurements against the live board (a two-file board, the U
+register in §4/§5, checkbox+strikethrough statuses with no emoji,
+§2's milestone table, decisions.md's summary table with its Gates
+column — every population §9-named, so no new D-entry was owed),
+then the parser + mapping as a sibling module sharing no code with
+dacode except the plan types, the `dialect` param on `import_md`
+(default dacode), and the live import probe (178 tasks, the base
+range reproduced, no golden per D12). **Nothing blocks t47** (the
+ikvm-html dialect). The importer lives in
 `todo-mcp` as a module —
 §2's signed four-member workspace stands, no new crate, no new
 dependency (the dialect is line-anchored, measured).
@@ -112,7 +121,7 @@ shell, which is M3's business.
 
 | Blocking | What | Action |
 |---|---|---|
-| — | nothing blocks M4: D18 is signed (a) 2026-10-05, the importer's scope and order are signed (D12, amending D7), the server it imports into is closed at g9, and t42 (the parser), t43 (the mapping), t44 (the wire tool) and t45 (the fixture + e2e golden) are landed | dispatch t46 (the camera dialect — study + parser + live import) — the fifth task of the decomposed tree |
+| — | nothing blocks M4: D18 is signed (a) 2026-10-05, the importer's scope and order are signed (D12, amending D7), the server it imports into is closed at g9, and t42–t46 are landed (parser, mapping, wire tool, fixture + e2e golden, camera) | dispatch t47 (the ikvm-html dialect — study + parser + live import) — the sixth task of the decomposed tree; **U31** (the dialect-helper duplication) is t47's first spec decision |
 
 (Open but non-blocking: **U18** (a live view for progress and whether the
 server is shared per user, deferred until after M4's importer check, and
@@ -141,7 +150,7 @@ exit criteria: spec §14. Priority is derived from the Gated-on column by
 | M1 | domain model + storage engine: graph, statuses, persistence behind the `Store` trait, golden files | — | done 2026-09-30 — g5 ran green: every code gate, five goldens byte-identical, `cargo doc` clean, pitfalls consolidated |
 | M2 | queries: repo/epic selection, dependency resolution, deterministic `next_task`; registry with path updates | **D16** adds one task if signed; no dispatched task waits on it | done 2026-10-02 — **g7 ran green**: every code gate, the five goldens byte-identical under `UPDATE_GOLDEN=1`, `cargo doc` warning-free under both invocations for the first time (f48 settled), §5.2's selection re-proven a pure function of state, the f41 sweep exercised for the first time (f44/f45 promoted to U21/U22, the rest verified open with named consumers), and M2's lessons consolidated into `.agents/pitfalls.md` (P-LIVE-007/-008, the citation rule, the coverage-pin rule). The five deliveries — t27 selection, f47's pins, t28 batch, t29 listing, t30 doc riders, t31 registry queries — are §3's entries; D16 stayed unsigned throughout and nothing waited on it — **signed (a) 2026-10-03, after closure**, its aggregation task landing under M3's goal |
 | M3 | MCP server: §6's tool surface over the wire (import_md excepted — M4's, per D12), protocol-level tests, default-repo slug config (D8), smoke against a real client | gates cleared 2026-10-03: the **rmcp ask** signed (rmcp 3.5.0 + `serde_json/preserve_order`, §6.3), **U20** resolved (b) — the registry format stays and the server answers `repo_list` from handles — and **D16** signed (a), adding the domain aggregation task to the decomposition; D14/D15 settled the wire's key order and error carrier on 2026-09-30; **D17** signed 2026-10-04 (priority on the triage surfaces) | done 2026-10-04 — **g9 ran green**: every code gate (423 workspace tests), the golden ritual byte-identical over all three golden dirs, the §6 tool-surface check (25 tools over the wire, `import_md` the only exception — exactly the criterion), the smoke evidence recorded (t39's real opencode session), U26 reproduced/isolated/fixed at the gate itself (U27 opened for the store-side question), the f41 sweep exercised, and M3's lessons consolidated into `.agents/pitfalls.md`. The nine deliveries — t32 aggregation, t33 skeleton, t34/t35 the read tools, t36 the mutations, t37 edges + registry + the default slug, t38 the wire suite, t39 the smoke + U16b, t40 D17's echo — are §3's entries |
-| M4 | adoption: the dacode-dialect importer first (**D12**, amending D7), its board the only fixture checked in per §10; camera and ikvm-html imported from their live boards and never copied into this repo; the three repos tracked for real | — (D18 signed (a) 2026-10-05, the same day it was drafted) | in progress — **t42 the parser landed 2026-10-05** (parse_board total over the live board, probe-verified), **t43 the D18 mapping landed 2026-10-06** (the ImportPlan + apply_plan, id reproduction pinned at scale), **t44 the `import_md` wire tool landed 2026-10-06** (the importer cluster, the `ApplyError` refusal seam, the `import_md.v1` golden), **t45 the fixture + e2e golden landed 2026-10-06** (the three real files checked in, the first composed run clean, `dacode_dump.v1` pinning the expected graph); next: t46 camera → t47 ikvm-html → t48 the three repos tracked for real → g11 the exit gate (dispatch order; t46/t47 swappable, both after t45) |
+| M4 | adoption: the dacode-dialect importer first (**D12**, amending D7), its board the only fixture checked in per §10; camera and ikvm-html imported from their live boards and never copied into this repo; the three repos tracked for real | — (D18 signed (a) 2026-10-05, the same day it was drafted) | in progress — **t42 the parser landed 2026-10-05** (parse_board total over the live board, probe-verified), **t43 the D18 mapping landed 2026-10-06** (the ImportPlan + apply_plan, id reproduction pinned at scale), **t44 the `import_md` wire tool landed 2026-10-06** (the importer cluster, the `ApplyError` refusal seam, the `import_md.v1` golden), **t45 the fixture + e2e golden landed 2026-10-06** (the three real files checked in, the first composed run clean, `dacode_dump.v1` pinning the expected graph), **t46 the camera dialect landed 2026-10-06** (the study, the sibling module, the `dialect` param, the live probe — 178 tasks, no golden per D12); next: t47 ikvm-html → t48 the three repos tracked for real → g11 the exit gate (dispatch order; t46/t47 were swappable, t46 taken) |
 | M5 | packaging, docs, cwd auto-detection (deferred by D8), polish | — | not started |
 
 ## 3. Done
@@ -2604,6 +2613,81 @@ Oldest first. One line per delivery, with the commit hash once committed.
         dead spawn had already copied the fixture, which the retry
         verified verbatim and kept. Landed as `d315e9e`.
 
+- 2026-10-06 — **M4 t46: the camera dialect** — the first of the two
+        live-test subjects (D12: its board content is never copied
+        into this repository — no golden, the signed consequence).
+        The **dialect study ran first**, the t41 precedent, as
+        measurements against the live board at
+        `/Users/mouse/RPM/shelly/camera`: a **two-file board**
+        (`TODO.md` + `decisions.md`; `merge-requests.md` and
+        `product-av.md` are not board files); the U register is
+        §4+§5's checkbox items — **base `U1`–`U169` contiguous plus
+        eight oddballs** (U6a–d, U46a–c, the struck `U43
+        (original)` variant; the study's first census undercounted
+        by the seven space-indented suffixed items, corrected at
+        review); **statuses are checkbox + strikethrough only — the
+        emoji census is empty**, exactly §9's signed vocabulary;
+        milestones are §2's table rows (the State cell carries the
+        status); `decisions.md` holds a summary table
+        (Recommendation/Confidence/Gates/Status columns) plus
+        dossiers — 9 decisions, the Gates column nine mechanical
+        `decision→epic` edges; the register dependency prose is
+        tiny (held-back-by ×1, wrapped; blocked-on ×0 — the
+        study's "blocked on U79" lives in §6's narrative, walked
+        past); no doc register → no doc nodes; UB ids are not a
+        register. **Every camera population is §9-named — no new
+        D-entry was owed**; the differences from dacode are shapes
+        and conventions, settled as six veto-able readings each
+        pinned by test. The module (`src/import/camera/`, six
+        files, all under the file budget) **shares no code with
+        dacode except the plan types** — camera's mapping emits the
+        same `ImportPlan` and executes through the same
+        `apply_plan`. The base register reproduces its numbering on
+        import; the oddballs land after it carrying their original
+        ids in references (§9's signed fallback). `import_md` gains
+        a **`dialect` param** (default `dacode` per D12's ordering —
+        the t44 requests and its golden stay byte-identical
+        unedited; an unknown value is `invalid`; §6's signed plural
+        "the sibling markdown boards" is the authority). The **live
+        import probe** ran against the real board and was removed
+        (rg-proven gone; re-run independently by the primary,
+        in-process and over the wire): **178 tasks** (the base range
+        reproduced as `camera:U1`–`U170` — the board grew its own
+        U170 mid-task — plus the eight oddballs carrying their
+        original ids), 8 epics (6 milestones + the `Follow-ups` and
+        `Debt` synthetics), 9 decisions (8 signed + D3 open), 0
+        docs, 10 blocks; plan==plan at live scale. **Measured
+        grammar widened per the t42 precedent**: two of seventeen
+        struck items have an unclosed `~~` (U104, U84) — the
+        leading `~~` alone is the strike, pinned by test. The
+        review earned **three rounds**: round 1 both reviewers
+        changes_requested — the primary's own mutants survived the
+        suite (the unpinned DuplicateId/BadDate/word-boundary/
+        wrapped-join paths) and the secondary found the blocked-on
+        edge with no positive case, `push_finding_ops` firing in no
+        corpus, `import/mod.rs`'s doc falsified by the diff itself
+        (the f55 class, again), the never-fired error variants, a
+        two-word live-prose lift, the untested camera io path, and
+        copied visibility; round 2 landed eleven items including
+        one behavior widening (the phrase scan now skips non-id and
+        boundary-violating occurrences — live-neutral, re-probed by
+        both); round 3 caught a **real defect**: the per-register
+        duplicate check missed a U id duplicated **across §4/§5**
+        (camera's U namespace spans two sections; the probe showed
+        a silent double-import) — the check is hoisted to one
+        namespace and pinned. Every gate green on the final tree:
+        fmt, check, **524** workspace tests (todo-mcp 186 = 8 lib +
+        8 main + 99 import + 10 protocol + 30 read + 5 wire + 26
+        write), clippy, `cargo doc` warning-free under both
+        invocations; both goldens byte-identical (no camera golden
+        exists); all 39 frozen baselines hold — the dacode module,
+        its tests, the t44/t45 suites **unedited**; `Cargo.lock`
+        unmoved. Two follow-ups recorded: **f103** (§2 has no
+        duplicate-M refusal — taste-level, rides the next
+        camera/ikvm touch) and **U31** (the dialect-helper
+        duplication: ikvm-html would make the third copy — t47's
+        first spec decision). Landed as `fe14bc6`.
+
 
 
 ## 4. Follow-ups
@@ -3375,12 +3459,93 @@ Deliberate shortcuts, acknowledged rather than fixed. Same id rules as §4.
       whoever next owns those files; t45's fixture import is the
       natural consumer (a corrupted fixture would otherwise import
       silently wrong).
+- [ ] **U31 · The dialect modules duplicate dacode's helpers —
+      ikvm-html would make the third copy.** t46's camera module was
+      spec-sanctioned to share no code with dacode except the plan
+      types, and the measurement held: `camera/text.rs`'s `cells` is
+      byte-identical to `dacode/table.rs`'s, `collect_rows` differs
+      only in visibility, and `camera/map.rs` re-implements
+      `position`/`references`/`bad_reference`/`midnight`/
+      `id_sort_key` from `dacode/map.rs` (only the error type
+      differs). The deeper half: the shared plan types
+      (`ImportPlan`/`PlanOp`/`ImportOptions`/`apply_plan`/
+      `ApplyError`) — a dialect-neutral contract — are reached
+      through `crate::import::dacode`, one dialect's module, and
+      were frozen out of moving this task. **t47's first spec
+      decision**: lift the genuinely shared helpers and the plan
+      types into a dialect-neutral home under `src/import/`, or
+      accept the copies with the three-copy count in hand — decided
+      deliberately at t47's dispatch, not by default. Found by t46's
+      secondary reviewer; recorded here so the decision outlives the
+      branch.
 
 ## 6. Session log
 
 Newest first. One entry per session, written for someone who was not
 here. The final entry of a session is the handover
 (`.agents/skills/todo-next-imp/SKILL.md` defines the shape).
+
+### 2026-10-06 — t46 dispatched and landed: the camera dialect, the study first, no new decision owed
+
+The session opened on the user's "ok, let's do t46" — the word for
+the camera dialect. The t41 precedent governed the shape: **the
+study ran first**, as measurements against the live board (the
+census, the status vocabulary, the dependency shapes, the file
+layout), and the study's central finding shaped everything after
+it: **every camera population is named by §9's signed mapping
+table** — no new D-entry was owed, and the differences from dacode
+(one file plus decisions.md, table milestones, no emoji, no doc
+register, a two-section U namespace) are shapes and conventions the
+spec settles as veto-able readings. The spec was authored from the
+study (`tmp/t46-spec.md`: 13 decisions, 6 veto-able readings, 7
+required tests, 5 mutations, 39 frozen baselines), then one
+implementer round, two fix rounds, and dual sign-off over three
+review rounds. The narrative is §3's t46 entry. What the session
+leaves behind:
+
+- **The importer now speaks two dialects**: dacode (golden-pinned
+  end to end) and camera (live-probed: 178 tasks, the base range
+  reproduced, no golden per D12). `import_md` takes a `dialect`
+  param whose default keeps the dacode path byte-identical. What
+  remains of M4 is ikvm-html (t47) and the cutover (t48).
+- **The review's three rounds each found something real**: round 1
+  the inert pins (the reviewers' own mutants survived the suite —
+  the unpinned refusals and grammar paths), round 2's behavior
+  widening (the phrase scan skipping non-id occurrences,
+  live-neutral), round 3 a genuine silent-double-import defect (the
+  per-register duplicate check missing a cross-section U id —
+  camera's U namespace spans §4/§5 where dacode's is one register).
+  The cross-section shape is exactly the kind of thing the study's
+  census could not see and the review's probe did.
+- **The live board drifted mid-task** (its own U170 landed): the
+  probe measured 178, the study 177, the first census 170 — all
+  three recorded honestly in the tracker evidence, and the drift is
+  the reminder that the live-test subjects are live.
+- **Two follow-ups recorded**: f103 (§2's duplicate-M gap,
+  taste-level, rides the next camera/ikvm touch) and **U31** (the
+  dialect-helper duplication — t47's first spec decision: lift the
+  shared helpers and the plan types into a dialect-neutral home, or
+  accept the third copy deliberately).
+
+**Handover.** Workspace: `main`, clean at the t46 commit; four
+crates; rustc 1.98.1; 524 tests, all green. Landed: t46 — the camera
+dialect (`src/import/camera/` six files, the `dialect` param on
+`import_md`, 14 tests, the live probe removed; §3's entry carries
+the detail and the census). Next step: **dispatch t47 — the
+ikvm-html dialect** (study + parser + live import against
+`/Users/mouse/RPM/ali/ikvm-html`, the last live-test subject per
+D12): the study measures its board the same way, and **U31 is the
+first spec decision** — the shared helpers and the plan types
+either lift into a dialect-neutral home under `src/import/` or the
+third copy is accepted deliberately. The camera module is the
+pattern; the study's §9-coverage check decides whether a D-entry is
+owed before any code. Alternative considered and declined: t48
+first (the cutover) — the cutover needs all three dialects
+importable, and ikvm-html is the last one. Blocked on you: nothing.
+Unverified: nothing new — camera is live-probed and dacode
+golden-pinned; ikvm-html is unstarted by design. Tracker:
+`tasks.py check` exits 1 on exactly the two expected lines (g10 in
+flight, g3 standing); t46 closed with evidence.
 
 ### 2026-10-06 — t45 dispatched and landed: the fixture checked in, the first composed run clean
 

@@ -23,12 +23,15 @@ dialect study ran, D18 is signed (a), t42 (the parser) has landed
 mapping) has landed — the ImportPlan + apply_plan with id
 reproduction pinned at the live board's scale — t44 (the
 import_md wire tool) has landed — the importer cluster with the
-ApplyError refusal seam and the import_md.v1 golden — and t45
-(the checked-in dacode fixture + the end-to-end golden) has
-landed — the three real files checked in per D12/§10, the first
+ApplyError refusal seam and the import_md.v1 golden — t45 (the
+checked-in dacode fixture + the end-to-end golden) has landed
+— the three real files checked in per D12/§10, the first
 composed run on the real board clean, dacode_dump.v1 pinning the
-expected graph — leaving t46 (the camera dialect) as the next
-dispatch.**
+expected graph — and t46 (the camera dialect) has landed — the
+study first, the sibling module sharing only the plan types, the
+dialect param on import_md, the live probe at 178 tasks with no
+golden per D12 — leaving t47 (the ikvm-html dialect, U31 its
+first spec decision) as the next dispatch.**
 An MCP server that replaces
 markdown TODO boards with a deterministic task graph: tasks are typed
 nodes, dependencies are typed edges, everything lives in local
