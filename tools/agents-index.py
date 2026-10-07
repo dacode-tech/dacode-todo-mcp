@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Generate a top-level index of every AGENTS.md in the tree.
+"""Generate a top-level index of every AGENTS.md in the tree, plus the
+repo-root README.md (the adoption doc — same class of repo-wide
+documentation, and the entry an agent should find when the question is
+"how is this server wired").
 
 Replaces "go and check whether a module has an AGENTS.md" guesswork with
 one table an agent can consult first: where the file is, what it covers,
@@ -55,16 +58,22 @@ def sh(args: list[str], cwd: Path = REPO) -> str:
 
 def discover() -> list[Path]:
     """Walk with pruning rather than rglob: the kernel checkouts under this
-    root hold ~80k files each, and rglob would stat every one of them."""
+    root hold ~80k files each, and rglob would stat every one of them.
+    The root README.md is discovered beside the root AGENTS.md; crate
+    READMEs, if any ever appear, are a separate call."""
     out = []
     for dirpath, dirnames, filenames in os.walk(REPO):
         dirnames[:] = [d for d in dirnames if d not in SKIP_PARTS]
-        if "AGENTS.md" not in filenames:
-            continue
-        p = Path(dirpath) / "AGENTS.md"
-        if p.stat().st_size == 0:
-            continue  # 0-byte placeholder
-        out.append(p.relative_to(REPO))
+        names = ["AGENTS.md"]
+        if Path(dirpath) == REPO:
+            names.append("README.md")
+        for name in names:
+            if name not in filenames:
+                continue
+            p = Path(dirpath) / name
+            if p.stat().st_size == 0:
+                continue  # 0-byte placeholder
+            out.append(p.relative_to(REPO))
     return sorted(out, key=lambda p: (len(p.parts), str(p)))
 
 
@@ -157,7 +166,7 @@ def build() -> str:
         )
 
     groups = [
-        ("Repository-wide", lambda r: r["path"] == "AGENTS.md"),
+        ("Repository-wide", lambda r: r["path"] in ("AGENTS.md", "README.md")),
         ("Crates (`crates/`)", lambda r: r["path"].startswith("crates/")),
         ("Docs (`docs/`)", lambda r: r["path"].startswith("docs/")),
     ]
@@ -166,7 +175,7 @@ def build() -> str:
     out = [
         f"<!-- {BANNER} -->",
         "",
-        "# AGENTS.md index",
+        "# Documentation index",
         "",
         f"{len(rows)} documentation files. **Consult the relevant entry before "
         "working in that area** — do not go looking for whether an `AGENTS.md` "

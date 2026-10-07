@@ -37,7 +37,10 @@ tables deleted, U22 resolved; t55 (U18's shape A, `progress.py
 --serve`) landed 2026-10-08 — the live listener on 127.0.0.1:0 with the
 per-user port publication (a second invocation attaches, a stale one is
 taken over, SIGINT cleans up), f109's census to stderr; t56 (the
-adoption README) is next.** M4 (adoption) is
+adoption README) landed 2026-10-08 — the front door (wiring, store,
+tool surface, dialects), both hygiene tools grown to cover a root
+README; t57 (U21's duplicate-key check) is the last task before g13.**
+M4 (adoption) is
 closed — g11, the exit gate, ran green
 2026-10-07. The gate ran every line of its verify method on the committed
 tree: every code gate (543 workspace tests), the golden ritual
@@ -218,6 +221,7 @@ spec moves only by user decision.
 ```
 .
 ├── AGENTS.md                       # this file
+├── README.md                       # the adoption front door: wiring, store, tools, dialects
 ├── .agents/
 │   ├── config/agent-rules.yaml     # SINGLE SOURCE OF TRUTH: roles, models, commands, gates
 │   ├── roles/                      # prompt layers: _common, _search, _rust, role bodies

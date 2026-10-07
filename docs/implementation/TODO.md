@@ -26,7 +26,10 @@ root, `progress.py` a thin client, U22 resolved) are landed; t55 (U18's
 shape A, `progress.py --serve`) landed 2026-10-08 — the live listener
 on 127.0.0.1:0 with the per-user port publication (a second invocation
 attaches, a stale one is taken over, SIGINT cleans up), f109's census
-to stderr; t56 (the adoption README) is next.**
+to stderr; t56 (the adoption README) landed 2026-10-08 — the front
+door (wiring, store, tool surface, dialects), both hygiene tools grown
+to cover a root README; t57 (U21's duplicate-key check, interleavable)
+is the last task before g13.**
 **t51 — the M5 decomposition — landed 2026-10-07**: the tree is t52
 packaging per §13 (the release binary, the global-config mcp entry
 naming the durable root `~/.local/share/dacode-todo/`, this repo's own
@@ -229,7 +232,7 @@ exit criteria: spec §14. Priority is derived from the Gated-on column by
 | M2 | queries: repo/epic selection, dependency resolution, deterministic `next_task`; registry with path updates | **D16** adds one task if signed; no dispatched task waits on it | done 2026-10-02 — **g7 ran green**: every code gate, the five goldens byte-identical under `UPDATE_GOLDEN=1`, `cargo doc` warning-free under both invocations for the first time (f48 settled), §5.2's selection re-proven a pure function of state, the f41 sweep exercised for the first time (f44/f45 promoted to U21/U22, the rest verified open with named consumers), and M2's lessons consolidated into `.agents/pitfalls.md` (P-LIVE-007/-008, the citation rule, the coverage-pin rule). The five deliveries — t27 selection, f47's pins, t28 batch, t29 listing, t30 doc riders, t31 registry queries — are §3's entries; D16 stayed unsigned throughout and nothing waited on it — **signed (a) 2026-10-03, after closure**, its aggregation task landing under M3's goal |
 | M3 | MCP server: §6's tool surface over the wire (import_md excepted — M4's, per D12), protocol-level tests, default-repo slug config (D8), smoke against a real client | gates cleared 2026-10-03: the **rmcp ask** signed (rmcp 3.5.0 + `serde_json/preserve_order`, §6.3), **U20** resolved (b) — the registry format stays and the server answers `repo_list` from handles — and **D16** signed (a), adding the domain aggregation task to the decomposition; D14/D15 settled the wire's key order and error carrier on 2026-09-30; **D17** signed 2026-10-04 (priority on the triage surfaces) | done 2026-10-04 — **g9 ran green**: every code gate (423 workspace tests), the golden ritual byte-identical over all three golden dirs, the §6 tool-surface check (25 tools over the wire, `import_md` the only exception — exactly the criterion), the smoke evidence recorded (t39's real opencode session), U26 reproduced/isolated/fixed at the gate itself (U27 opened for the store-side question), the f41 sweep exercised, and M3's lessons consolidated into `.agents/pitfalls.md`. The nine deliveries — t32 aggregation, t33 skeleton, t34/t35 the read tools, t36 the mutations, t37 edges + registry + the default slug, t38 the wire suite, t39 the smoke + U16b, t40 D17's echo — are §3's entries |
 | M4 | adoption: the dacode-dialect importer first (**D12**, amending D7), its board the only fixture checked in per §10; camera and ikvm-html imported from their live boards and never copied into this repo; the three repos tracked for real | — (D18 signed (a) 2026-10-05, the same day it was drafted) | in progress — **t42 the parser landed 2026-10-05** (parse_board total over the live board, probe-verified), **t43 the D18 mapping landed 2026-10-06** (the ImportPlan + apply_plan, id reproduction pinned at scale), **t44 the `import_md` wire tool landed 2026-10-06** (the importer cluster, the `ApplyError` refusal seam, the `import_md.v1` golden), **t45 the fixture + e2e golden landed 2026-10-06** (the three real files checked in, the first composed run clean, `dacode_dump.v1` pinning the expected graph), **t46 the camera dialect landed 2026-10-06** (the study, the sibling module, the `dialect` param, the live probe — 178 tasks, no golden per D12), **t50 the U31 lift landed 2026-10-07** (the plan types + shared helpers into dialect-neutral homes under `src/import/`, zero behavior change), **t47 the ikvm-html dialect landed 2026-10-07** (the study, the third sibling module on the neutral homes, the `ikvm-html` dialect value, the live probe — 132 tasks, no golden per D12), **t48 the three repos tracked for real landed 2026-10-07** (registered in the durable D4 root, imported over the wire — every import clean on the first composed run, all three stores verified, the query session recorded: the §9 cutover executed) | done 2026-10-07 — **g11 ran green**: every code gate (fmt, check, **543** workspace tests, clippy on a forced recompile, `cargo doc` warning-free under both invocations), the golden ritual byte-identical over all 24 goldens (19 mcp incl. the fixture golden, 4 store, 1 cli), the §6 tool-surface check (a live `tools/list` drive: exactly the spec table's 26 tools, `import_md` included), the live-run evidence (t46/t47's probes + t48's real imports), **f102 swept** in wire.rs (dual-reviewed, `240e7d2`), the f41 sweep (f99 promoted to **U32**; every other open item verified open with its named consumer intact), and M4's lessons consolidated into `.agents/pitfalls.md` (4.7, 4.8, 5.11–5.13; top rules 15–16) |
-| M5 | packaging, docs, cwd auto-detection (deferred by D8), polish | — (the two shaping calls confirmed 2026-10-07: U28 dogfood, U18 shape A — D13 left reserved) | in progress — **decomposed 2026-10-07 (t51)**: **t52 packaging per §13 landed 2026-10-07** (the release binary + the global-config mcp entry + the durable root, g11's no-live-client caveat closed), **t58 U32's schema-format strip landed 2026-10-07** (the user's in-thread sign: the integer-family format hints stripped from every advertised schema, output and input, the Ajv noise gone from every client session), **t53 cwd auto-detection landed 2026-10-07** (D8's deferred arming: the three-tier default param > flag > cwd, the deterministic longest-ancestor match, the §7 amendment riding), **t54 the U28 dogfooding cutover landed 2026-10-07** (the `own` dialect, wire value `dacode-todo-mcp`: this repo's board imported into the durable root — the census matching the prediction exactly, 8 epics / 32 tasks / 17 decisions / 17 edges; `progress.py` a thin client over a per-render stdio spawn, the four hand-maintained tables deleted, U22 resolved with it; the `--refresh` registry surgery with the crash order pinned by a committed driver), **t55 U18's shape A landed 2026-10-08** (`progress.py --serve`: the live listener on 127.0.0.1:0, the per-user port publication with attach / stale-takeover / SIGINT-cleanup pinned by the committed `tools/progress-serve-check.py` driver, f109's census to stderr), t56 the adoption README, t57 U21's duplicate-key check; dispatch order t52 → t53 → t54 → t55 → t56 with t57 interleavable (t58 slotted before t53 by the user's call); g13 the exit gate, which also closes g3 |
+| M5 | packaging, docs, cwd auto-detection (deferred by D8), polish | — (the two shaping calls confirmed 2026-10-07: U28 dogfood, U18 shape A — D13 left reserved) | in progress — **decomposed 2026-10-07 (t51)**: **t52 packaging per §13 landed 2026-10-07** (the release binary + the global-config mcp entry + the durable root, g11's no-live-client caveat closed), **t58 U32's schema-format strip landed 2026-10-07** (the user's in-thread sign: the integer-family format hints stripped from every advertised schema, output and input, the Ajv noise gone from every client session), **t53 cwd auto-detection landed 2026-10-07** (D8's deferred arming: the three-tier default param > flag > cwd, the deterministic longest-ancestor match, the §7 amendment riding), **t54 the U28 dogfooding cutover landed 2026-10-07** (the `own` dialect, wire value `dacode-todo-mcp`: this repo's board imported into the durable root — the census matching the prediction exactly, 8 epics / 32 tasks / 17 decisions / 17 edges; `progress.py` a thin client over a per-render stdio spawn, the four hand-maintained tables deleted, U22 resolved with it; the `--refresh` registry surgery with the crash order pinned by a committed driver), **t55 U18's shape A landed 2026-10-08** (`progress.py --serve`: the live listener on 127.0.0.1:0, the per-user port publication with attach / stale-takeover / SIGINT-cleanup pinned by the committed `tools/progress-serve-check.py` driver, f109's census to stderr), **t56 the adoption README landed 2026-10-08** (the front door: what the server is, the §13 wiring reproducing t52's live entry verbatim — machine-verified identical, the store location, the tool-surface pointer, the three-repo adoption story, the dialects; `check-links` and `agents-index` grown to cover the root README, so the standing link gate and the doc index both see it), t57 U21's duplicate-key check; dispatch order t52 → t53 → t54 → t55 → t56 with t57 interleavable (t58 slotted before t53 by the user's call); g13 the exit gate, which also closes g3 |
 
 ## 3. Done
 
@@ -3142,6 +3145,55 @@ Oldest first. One line per delivery, with the commit hash once committed.
       favicon probe never pays one, the /health check renamed to what
       it pins, `publish_port` gaining `write_registry`'s fsync so its
       docstring's claim is literal).
+- 2026-10-08 — **M5 t56: the adoption README**: the repo's front door
+      — what the server is (markdown boards as audit trails vs query
+      surfaces; typed nodes and edges; determinism as the product
+      property), the §13 wiring reproducing t52's live global-config
+      entry **verbatim** (machine-verified: both parsed and compared —
+      type, command array, enabled, identical), the store location
+      (§2's D4 root, `todo-cli` as the no-client inspector), the
+      tool-surface pointer (§6's table is authoritative; the README
+      groups, never restates), the three-repo adoption story (§9's
+      cutover, no live two-way sync), the importer dialects (D12: live
+      boards never copied in), the progress page (t55's `--serve`
+      included), and a verifying-the-wiring section whose commands were
+      **run on this machine as the task's verification** — the honest
+      test caught one defect before any reviewer did: the binary has no
+      `--help` flag (its usage prints on argument errors), so the
+      section's first draft instructed a failing command; the section
+      now uses only commands that exit 0, with the `progress.py` probe
+      as the end-to-end binary check. Both hygiene tools grew
+      root-README support (code, dual-reviewed): `check-links`'
+      DEFAULT_FILES gains `README.md` — the standing gate checks the
+      README's links, mutation-proven load-bearing (a planted broken
+      link fails with the extension, passes without it) — and
+      `agents-index`'s `discover()` yields the root README.md (the
+      "new doc indexed" clause of the task's own verify line,
+      mutation-proven the same way: the row disappears without it).
+      The README's own refresh instruction exercised live (the board
+      moved at t55 after the t54 import; `--refresh` re-imported, the
+      page now renders the current board). No Rust moved.
+      Dual-reviewed to sign-off over two rounds: round 1 the primary ok
+      with lows, the secondary changes_requested on one med — both
+      found the same defect, the verifying section promising
+      `repo_list` would answer "the three repos" where the registry
+      holds four (this repo itself, tracked since t54; the README's own
+      adoption section already said "plus this repo itself") — fixed to
+      "the tracked repos (dacode, camera, ikvm-html, and this one)";
+      the round's lows all landed (the fixture-path code span reflowed
+      onto one line — the f12 class, a newline inside a code span
+      renders as a space; the generated index's title widened from
+      "# AGENTS.md index" to "# Documentation index" now that the table
+      carries the README row). The binding round's two lows landed at
+      closure as review-exempt doc fixes, the code files byte-identical
+      to the bound shas: AGENTS.md's Project State moved off "t56 is
+      next" (the board had moved, the state paragraph had not), and the
+      verifying section gained the one live failure mode a reader will
+      actually hit — a live opencode session's server holds the stores'
+      locks for its process lifetime (§8's single-writer discipline;
+      measured on this machine: this session's own server holds all
+      four), so `verify` and the probe answer `store is locked` until
+      that session ends.
 
 
 
@@ -4020,6 +4072,71 @@ Deliberate shortcuts, acknowledged rather than fixed. Same id rules as §4.
 Newest first. One entry per session, written for someone who was not
 here. The final entry of a session is the handover
 (`.agents/skills/todo-next-imp/SKILL.md` defines the shape).
+
+### 2026-10-08 — t56: the adoption README
+
+The session's second delivery (the user's "let's start t56", continuing
+the same session). Orchestrator-authored per the routing table (docs
+are exempt from code review) — except the two hygiene tools the task's
+own verify line forced into scope: "check-links green" and
+"agents-index --check green with the new doc indexed" are only honest
+if the tools actually see a root README, and as built neither did
+(check-links' default scope was `docs/`, `.agents/knowledge/` and the
+root `AGENTS.md`; agents-index discovers `AGENTS.md` files only). Both
+grew minimal root-README support and were dual-reviewed as code; the
+README itself rode the same commit review-exempt.
+
+The honest test — following the README's own verifying section on this
+machine — caught a defect before any reviewer could: the binary has no
+`--help` flag (its usage prints on argument errors), so the section's
+first draft instructed a command that exits non-zero. The section now
+uses only commands that exit 0, with the `progress.py` probe as the
+end-to-end binary check. The wiring match is machine-verified: the
+README's mcp entry parses identically to the live global-config entry
+(type, command array, enabled). The README's own refresh instruction
+was exercised live — the board had moved at t55 after the t54 import,
+so `--refresh` re-imported and the page now renders the current board.
+
+The review round: the primary ok with lows, the secondary
+changes_requested on one med — both found the same defect
+independently, the verifying section promising `repo_list` would
+answer "the three repos" where the registry holds four (this repo
+itself, tracked since t54 — the README's own adoption section already
+said "plus this repo itself", so the honest test contradicted the text
+two sections up). Fixed; the round's lows all landed (the fixture-path
+code span reflowed onto one line — the f12 class again, a newline
+inside a code span renders as a space; the generated index's title
+widened to "# Documentation index" now that the table carries the
+README row). The primary also proved by a scratch commit that the
+post-commit index backfill is mandatory, not optional — the committed
+index goes stale on its own commit because both AGENTS.md's rev and
+the README's untracked marker flip — which is exactly the flow the
+handover plans. The binding round left two lows that landed at closure
+as review-exempt doc fixes, the code files byte-identical to the bound
+shas: the Project State paragraph (still saying "t56 is next" — the
+board had moved and the state paragraph had not) and the verifying
+section's one expected live failure mode, measured rather than guessed
+(the primary caught this session's own server holding all four store
+locks, so `verify` answers `store is locked` while a session that has
+queried is running — the discipline working, worth one sentence so a
+reader does not misread it as broken wiring).
+
+**Handover.** Workspace: `main`, four crates, rustc 1.98.1; this commit
+leaves the tree clean (the index backfill follows, AGENTS.md and
+README.md having moved). Landed this session: t55, t56 (this entry) —
+M5's remaining tree is t57 (U21's duplicate-key check in
+tools/agents-sync.py, independent and small) and g13. Next step: **t57
+— the duplicate-key check**: the loader refuses a duplicate key
+anywhere in agent-rules.yaml, proved by feeding it a copy with one
+spliced in (the negative proof recorded), the real config verified
+clean — f44's generalisation, the failure that bit once as f42 (a
+silently shadowed config block). Its alternative — going straight to
+g13 — is wrong because t57 is a five-line guard with a decided verify
+method and g13 is the exit gate that should see it landed. Blocked on
+you: nothing. Unverified: the t52 staleness caveat still stands (the
+release binary goes stale after pulls until rebuilt); the dogfooding
+store is a derived cache — after any board-only edit, run
+`tools/progress.py --refresh` or the page renders the stale import.
 
 ### 2026-10-08 — t55: U18's shape A — progress.py --serve
 

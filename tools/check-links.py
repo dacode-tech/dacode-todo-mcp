@@ -6,7 +6,7 @@ never committed, which left the B4 hygiene item ("re-run the link check
 after adding/removing docs") un-runnable. This is that walker, kept.
 
 Scope: every ``*.md`` under the given roots (default: ``docs``,
-``.agents/knowledge``, and the root ``AGENTS.md``).
+``.agents/knowledge``, and the root ``AGENTS.md`` and ``README.md``).
 
 Two things are checked per link:
 
@@ -46,7 +46,9 @@ HEADING_RE = re.compile(r"^(#{1,6})\s+(.*?)\s*#*\s*$", re.MULTILINE)
 INLINE_CODE_RE = re.compile(r"(`+)(.+?)\1", re.DOTALL)
 
 DEFAULT_ROOTS = ("docs", ".agents/knowledge")
-DEFAULT_FILES = ("AGENTS.md",)
+# The root README is adoption-facing prose, but its links rot like any
+# other doc's — the standing gate checks it, not just an ad-hoc run.
+DEFAULT_FILES = ("AGENTS.md", "README.md")
 SKIP_PREFIXES = ("http://", "https://", "mailto:", "//")
 
 # Files that must contain no markdown link whatsoever. The spec is cited *by* the
@@ -273,7 +275,7 @@ def main() -> int:
         "roots",
         nargs="*",
         help="directories or files to check (default: docs, .agents/knowledge, "
-        "AGENTS.md)",
+             "AGENTS.md, README.md)",
     )
     parser.add_argument(
         "--quiet", action="store_true", help="only print failures"
