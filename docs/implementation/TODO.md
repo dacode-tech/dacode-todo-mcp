@@ -2964,7 +2964,7 @@ Oldest first. One line per delivery, with the commit hash once committed.
       the tracker evidence); `todo-cli verify` on all three stores
       post-session: exit 0, status ok. **g11's standing caveat — no
       live client has queried the durable root yet — is closed.**
-      Landed as `<hash backfilled>`.
+      Landed as `8b62aad`.
 
 
 
