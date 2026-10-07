@@ -2914,7 +2914,7 @@ Oldest first. One line per delivery, with the commit hash once committed.
       `listing.rs` 689 (t40's echo), `map.rs` 733 (t50's lift, the
       helpers now in `src/import/helpers.rs` at 382), `plan.rs` 244 —
       no new ledger entries, U24/U29's figures refreshed. No Rust
-      moved. Landed as `<hash backfilled>`.
+      moved. Landed as `2352f89`.
 
 
 
