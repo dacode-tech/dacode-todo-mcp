@@ -1,7 +1,9 @@
 //! The wire suite's cross-cutting pins (t38): the proofs that live
-//! above any single tool, over the surface t34–t37 landed — the
-//! committed D15's error carrier, conformance-swept across every tool
-//! that has a carrier-reachable error path; the full response set's
+//! above any single tool, over the surface this suite's request
+//! tables cover — the committed D15's error carrier, conformance-
+//! swept across every tool that has a carrier-reachable error path
+//! in this target (`import_md`'s carrier pins live in the import
+//! target); the full response set's
 //! twice-run byte-identity (§8); the concurrency proof over one
 //! connection (§8: rmcp dispatches each request in its own task, the
 //! server's state mutex serializes the tool bodies, and out-of-order
@@ -400,15 +402,18 @@ const SWEEP: [(&str, &str, &str); 24] = [
 
 /// The carrier conformance sweep: one error path through every tool
 /// that has a carrier-reachable one — the unknown repo (`"nosuch"` →
-/// `unknown_id`) for the twenty-three repo-scoped tools, the
-/// duplicate (the fixture's existing slug) for `repo_register` —
-/// every response asserted to carry the committed D15's carrier in
-/// the same shape. `repo_list` is excluded, and the exclusion is
+/// `unknown_id`) for the repo-scoped tools, the duplicate (the
+/// fixture's existing slug) for `repo_register` — every response
+/// asserted to carry the committed D15's carrier in the same shape.
+/// The membership rule: every §6 tool except `repo_list` and
+/// `import_md`. `repo_list` is excluded, and the exclusion is
 /// deliberate: its cheap fault is the unknown-argument fault, which
 /// is codeless *by design* (§6.1's consequence text — the schema
 /// rejects an unknown field before the tool body runs), and its
 /// carrier paths need a corrupt registry — a fixture this sweep does
-/// not build. Twenty-four tools carry the pin.
+/// not build. `import_md`'s carrier pins live in the import target
+/// (its unknown-repo and refusal paths are asserted there, beside
+/// the goldens that pin its determinism).
 #[test]
 fn every_tools_error_carrier_is_shaped_identically() {
     let root = fixture();
@@ -534,14 +539,16 @@ const TWICE_RUN: [(&str, &str, bool); 25] = [
 ];
 
 /// The full response set's twice-run identity (§8): one representative
-/// happy-path request per tool — all twenty-five — driven twice
-/// across two fresh spawns over two fresh fixtures. The rows flagged
-/// stamped — the task/decision/doc writers, plus `repo_register`,
-/// whose happy response carries the clock in `registered_at` —
-/// compare with the stamped values normalized; every other row
-/// compares byte-exactly. The one honest nondeterminism is the
-/// server's clock, stamped per call; §8's property for a
-/// clock-carrying server is identity modulo it.
+/// happy-path request per tool — every tool in the suite's own
+/// request table, which is every §6 tool except `import_md` (its
+/// determinism is golden-pinned instead, in the import target) —
+/// driven twice across two fresh spawns over two fresh fixtures. The
+/// rows flagged stamped — the task/decision/doc writers, plus
+/// `repo_register`, whose happy response carries the clock in
+/// `registered_at` — compare with the stamped values normalized;
+/// every other row compares byte-exactly. The one honest
+/// nondeterminism is the server's clock, stamped per call; §8's
+/// property for a clock-carrying server is identity modulo it.
 #[test]
 fn the_full_response_set_is_byte_identical_across_two_runs() {
     let requests: Vec<String> = TWICE_RUN
