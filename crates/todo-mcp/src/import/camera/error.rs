@@ -3,9 +3,9 @@
 //! plus the id or key where relevant — the audit surface, the same
 //! discipline the dacode dialect's errors follow.
 //!
-//! Two variants carry no line, deliberately: `IdSetMismatch` fails
-//! *between* the summary table and the dossiers of one file, so there
-//! is no failure line, and the id is the stable key — the board's own
+//! `IdSetMismatch` carries no line, deliberately: it fails *between*
+//! the summary table and the dossiers of one file, so there is no
+//! failure line, and the id is the stable key — the board's own
 //! "cite the id rather than a line number" rule. The mapping's
 //! variants (`BadDate`, `BadReference`) carry no line either: they
 //! fire over the parsed AST, which carries none. The store-refusal

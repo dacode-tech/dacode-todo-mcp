@@ -8,16 +8,16 @@
 //!
 //! The `dialect` parameter selects which sibling board grammar and
 //! file set the tool reads: `dacode` (the default — the absent
-//! parameter keeps every earlier request's meaning) or `camera`, the
-//! first live-test subject. An unknown value is §6.1's `invalid`
-//! naming it. The board's location is not a parameter for either
-//! dialect: the tool resolves the store handle, reads the repo node's
-//! registered checkout path (§7's mutable attribute — one source of
-//! truth, so `repo_set_path` moves the import with the checkout) and
-//! derives the board directory as `<checkout>/docs/implementation` —
-//! both dialects' measured filesystem layout, part of the dialect
-//! like its grammar. The board filenames are constants per dialect
-//! for the same reason.
+//! parameter keeps every earlier request's meaning), `camera` or
+//! `ikvm-html`, the two live-test subjects. An unknown value is
+//! §6.1's `invalid` naming it. The board's location is not a
+//! parameter for any dialect: the tool resolves the store handle,
+//! reads the repo node's registered checkout path (§7's mutable
+//! attribute — one source of truth, so `repo_set_path` moves the
+//! import with the checkout) and derives the board directory as
+//! `<checkout>/docs/implementation` — every dialect's measured
+//! filesystem layout, part of the dialect like its grammar. The
+//! board filenames are constants per dialect for the same reason.
 //!
 //! The dacode path walks the board directory to build the doc
 //! register's file paths: one recursive walk collects `.md` files,
@@ -31,9 +31,9 @@
 //! unregistered); a key with no match is `map_board`'s
 //! `MissingDocPath` refusal, not this layer's (one home); a key
 //! matching more than one file is this layer's `invalid` refusal — a
-//! tree contradiction is refused, never first-wins. The camera path
-//! reads its two board files and maps with an empty `doc_paths` —
-//! camera has no doc register.
+//! tree contradiction is refused, never first-wins. The camera and
+//! ikvm-html paths read their two board files and map with an empty
+//! `doc_paths` — neither board has a doc register.
 //!
 //! Faults carry §6.1 codes through D15's carrier: parse and map
 //! refusals — and the apply refusal, via [`ApplyError::Refused`] —
@@ -57,22 +57,23 @@ use todo_store::StoreError;
 
 use crate::import::camera::{CameraError, map_camera, parse_camera_board};
 use crate::import::dacode::{DocEntry, ImportError, map_board, parse_board};
+use crate::import::ikvm::{IkvmError, map_ikvm, parse_ikvm_board};
 use crate::import::plan::{ApplyError, ImportOptions, ImportPlan, apply_plan};
 use crate::{ServerState, TodoServer, ToolError, error_carrier, repo_of, structured, time};
 
 /// The board directory, relative to the repo's registered checkout
-/// path — both dialects' measured filesystem layout.
+/// path — every dialect's measured filesystem layout.
 const BOARD_DIR: &str = "docs/implementation";
-/// The TODO.md board file, relative to the board directory — both
-/// dialects' first file.
+/// The TODO.md board file, relative to the board directory — every
+/// dialect's first file.
 const TODO_MD: &str = "TODO.md";
 /// The dacode B decisions appendix, relative to the board directory.
 const B_DECISIONS: &str = "appendices/B-decisions.md";
-/// The dacode A design-deltas appendix, relative to the board
-/// directory.
+/// The dacode A design-deltas appendix, relative to the board directory.
 const A_DELTAS: &str = "appendices/A-design-deltas.md";
-/// The camera decisions file, relative to the board directory.
-const CAMERA_DECISIONS: &str = "decisions.md";
+/// The sibling decisions file (camera and ikvm-html), relative to the
+/// board directory.
+const DECISIONS_MD: &str = "decisions.md";
 
 /// `import_md`'s parameters (§6): the repo whose board is imported,
 /// and which sibling dialect's grammar reads it. The board's location
@@ -88,7 +89,7 @@ const CAMERA_DECISIONS: &str = "decisions.md";
 pub(crate) struct ImportMdParams {
     /// The repository's stable slug key (§7): ASCII lowercase segments joined by single hyphens; the repo whose board is imported; absent means the configured default repo; an explicit value always wins.
     pub repo: Option<String>,
-    /// The sibling board dialect to import: `dacode` (the default when absent) or `camera`; any other value is `invalid` naming it.
+    /// The sibling board dialect to import: `dacode` (the default when absent), `camera` or `ikvm-html`; any other value is `invalid` naming it.
     pub dialect: Option<String>,
 }
 
@@ -101,6 +102,9 @@ enum Dialect {
     Dacode,
     /// The camera dialect: TODO.md plus decisions.md, no doc register.
     Camera,
+    /// The ikvm-html dialect: TODO.md plus decisions.md, no doc
+    /// register — the same two files as camera's.
+    IkvmHtml,
 }
 
 impl Dialect {
@@ -112,8 +116,9 @@ impl Dialect {
         match value {
             None | Some("dacode") => Ok(Self::Dacode),
             Some("camera") => Ok(Self::Camera),
+            Some("ikvm-html") => Ok(Self::IkvmHtml),
             Some(other) => Err(ToolError::invalid(&format!(
-                "the dialect '{other}' is not known: 'dacode' or 'camera'"
+                "the dialect '{other}' is not known: 'dacode', 'camera' or 'ikvm-html'"
             ))),
         }
     }
@@ -160,6 +165,16 @@ impl From<CameraError> for ToolError {
     }
 }
 
+/// The ikvm-html error-mapping home, the dacode one's twin: every
+/// [`IkvmError`] — a parse failure or a map failure — is §6.1's
+/// `invalid` (U9: the board text is a value this server parses), its
+/// `Display` passing through unwrapped for the same reasons.
+impl From<IkvmError> for ToolError {
+    fn from(error: IkvmError) -> Self {
+        Self::invalid(&error.to_string())
+    }
+}
+
 // =================================================================
 // The answer helper
 // =================================================================
@@ -181,6 +196,7 @@ fn answer_import_md(
     let plan = match dialect {
         Dialect::Dacode => dacode_plan(&board_dir, &slug)?,
         Dialect::Camera => camera_plan(&board_dir, &slug)?,
+        Dialect::IkvmHtml => ikvm_plan(&board_dir, &slug)?,
     };
     match apply_plan(&plan, handle.as_mut()) {
         Ok(()) => {}
@@ -220,8 +236,13 @@ fn dacode_plan(board_dir: &Path, slug: &RepoSlug) -> Result<ImportPlan, ToolErro
 /// an empty `doc_paths` — camera has no doc register, so the walk is
 /// dacode's alone.
 fn camera_plan(board_dir: &Path, slug: &RepoSlug) -> Result<ImportPlan, ToolError> {
-    let todo_md = read_camera_file(board_dir, TODO_MD, "board file TODO.md")?;
-    let decisions = read_camera_file(board_dir, CAMERA_DECISIONS, "decisions file decisions.md")?;
+    let todo_md = read_sibling_file(board_dir, TODO_MD, "board file TODO.md", "camera")?;
+    let decisions = read_sibling_file(
+        board_dir,
+        DECISIONS_MD,
+        "decisions file decisions.md",
+        "camera",
+    )?;
     let board = parse_camera_board(&todo_md, &decisions)?;
     let opts = ImportOptions {
         slug: slug.clone(),
@@ -229,6 +250,26 @@ fn camera_plan(board_dir: &Path, slug: &RepoSlug) -> Result<ImportPlan, ToolErro
         doc_paths: BTreeMap::new(),
     };
     Ok(map_camera(&board, &opts)?)
+}
+
+/// The ikvm-html path's plan: read the two board files — the same two
+/// filenames as camera's, the dialect's measured layout — parse, map
+/// with an empty `doc_paths` (no doc register here either).
+fn ikvm_plan(board_dir: &Path, slug: &RepoSlug) -> Result<ImportPlan, ToolError> {
+    let todo_md = read_sibling_file(board_dir, TODO_MD, "board file TODO.md", "ikvm")?;
+    let decisions = read_sibling_file(
+        board_dir,
+        DECISIONS_MD,
+        "decisions file decisions.md",
+        "ikvm",
+    )?;
+    let board = parse_ikvm_board(&todo_md, &decisions)?;
+    let opts = ImportOptions {
+        slug: slug.clone(),
+        imported_at: time::now(),
+        doc_paths: BTreeMap::new(),
+    };
+    Ok(map_ikvm(&board, &opts)?)
 }
 
 // =================================================================
@@ -247,13 +288,21 @@ fn read_board_file(board_dir: &Path, relative: &str) -> Result<String, ToolError
     })
 }
 
-/// Reads one camera board file, naming its role the same way — the
-/// role names the file, so the message reads "read the camera board
-/// file TODO.md" / "read the camera decisions file decisions.md".
-fn read_camera_file(board_dir: &Path, relative: &str, role: &str) -> Result<String, ToolError> {
+/// Reads one sibling board file, naming its role in an `io` fault —
+/// the store's attempt-plus-`ErrorKind` convention, never a path: the
+/// client passed the checkout path, and echoing server-side path
+/// derivations is what the path-free discipline bars. The dialect
+/// names the board family, so the message reads "read the camera
+/// board file TODO.md" / "read the ikvm decisions file decisions.md".
+fn read_sibling_file(
+    board_dir: &Path,
+    relative: &str,
+    role: &str,
+    dialect: &str,
+) -> Result<String, ToolError> {
     fs::read_to_string(board_dir.join(relative)).map_err(|error| {
         ToolError::from(StoreError::Io {
-            detail: format!("read the camera {role}: {:?}", error.kind()),
+            detail: format!("read the {dialect} {role}: {:?}", error.kind()),
         })
     })
 }
@@ -355,7 +404,7 @@ fn stem_matches(file: &str, key: &str) -> bool {
 
 #[tool_router(router = import_router, vis = "pub(crate)")]
 impl TodoServer {
-    /// One-shot import of the repo's sibling markdown board — the dialect parameter selects the grammar (dacode by default, camera as the first live-test subject); the files are read from the repo's registered checkout path, parsed strictly, mapped and applied to the repo's empty store — answering the landed counts of epics, decisions, docs, tasks and blocks edges.
+    /// One-shot import of the repo's sibling markdown board — the dialect parameter selects the grammar (dacode by default, camera and ikvm-html as the live-test subjects); the files are read from the repo's registered checkout path, parsed strictly, mapped and applied to the repo's empty store — answering the landed counts of epics, decisions, docs, tasks and blocks edges.
     #[tool(
         name = "import_md",
         output_schema = rmcp::handler::server::tool::schema_for_type::<ImportedDto>(),

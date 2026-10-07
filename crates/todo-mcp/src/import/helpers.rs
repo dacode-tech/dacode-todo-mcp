@@ -5,7 +5,7 @@
 //! The plan types live beside this module in [`crate::import::plan`];
 //! everything else a dialect needs stays in the dialect's module.
 //!
-//! Judgment calls bound here, measured in both dialects so far:
+//! Judgment calls bound here, measured in the dialects so far:
 //!
 //! - (b) escaped pipes are absent from the dialects while pipes do
 //!   occur inside backtick code spans, so the splitter is
@@ -16,6 +16,17 @@
 //!   which then fails its column count and is named.
 //! - (c) input splits on `\n` with a trailing `\r` trimmed, so CRLF
 //!   input parses identically.
+//! - (d) the strike scan is code-span aware, the same rule the cell
+//!   splitter already carries: a `~~` inside a backtick span is
+//!   literal text, not a strike marker (the ikvm-html board's U74
+//!   title discusses `~~` in backticks). [`strike_regions`] is the
+//!   one walk every strike consumer reads — `remove_struck_spans`
+//!   and the ikvm first-sentence scanner — so the rule has one home.
+//!   Backticks toggle the code state wherever they sit, including
+//!   inside a struck span (the `cells` precedent); a struck span
+//!   whose backticks are unbalanced therefore runs to the next `~~`
+//!   outside code or to the end, and a consumer that cannot resolve
+//!   the result names it rather than guessing.
 //!
 //! Known-header tables tolerate blank lines between rows: a table
 //! ends at the first non-blank line that is neither a row nor a row
@@ -181,16 +192,61 @@ pub(crate) fn strip_strikes(text: &str) -> String {
     text.replace("~~", "")
 }
 
-/// Removes struck spans with their content: `~~x~~ y` → ` y`. An
-/// unclosed `~~` strikes to the end of the text.
-pub(crate) fn remove_struck_spans(text: &str) -> String {
-    let mut out = String::new();
-    let mut struck = false;
-    for part in text.split("~~") {
-        if !struck {
-            out.push_str(part);
+/// The byte ranges of the struck spans, markers included: `~~x~~ y`
+/// carries `(0, 5)` — `end` is exclusive, so the space after the
+/// closing marker is not struck. Code-span aware — a `~~` inside a
+/// backtick span is literal text, not a strike marker (judgment call
+/// (d)) — and an unclosed `~~` strikes to the end of the text. The
+/// regions are sorted and disjoint, so a consumer can walk them with
+/// one index.
+pub(crate) fn strike_regions(text: &str) -> Vec<(usize, usize)> {
+    let bytes = text.as_bytes();
+    let mut regions = Vec::new();
+    let mut in_code = false;
+    let mut struck_start: Option<usize> = None;
+    let mut i = 0;
+    while i < bytes.len() {
+        match (bytes.get(i), bytes.get(i + 1)) {
+            (Some(b'`'), _) => {
+                in_code = !in_code;
+                i += 1;
+            }
+            (Some(b'~'), Some(b'~')) => {
+                if !in_code {
+                    match struck_start.take() {
+                        Some(start) => regions.push((start, i + 2)),
+                        None => struck_start = Some(i),
+                    }
+                }
+                i += 2;
+            }
+            _ => i += 1,
         }
-        struck = !struck;
+    }
+    if let Some(start) = struck_start {
+        regions.push((start, text.len()));
+    }
+    regions
+}
+
+/// Removes struck spans with their content: `~~x~~ y` → ` y`. An
+/// unclosed `~~` strikes to the end of the text. Code-span aware —
+/// a `~~` inside a backtick span is literal text, not a strike
+/// marker (the strike regions' own rule, judgment call (d)).
+pub(crate) fn remove_struck_spans(text: &str) -> String {
+    let regions = strike_regions(text);
+    let mut out = String::new();
+    let mut passed = 0;
+    for (offset, ch) in text.char_indices() {
+        while regions.get(passed).is_some_and(|&(_, end)| offset >= end) {
+            passed += 1;
+        }
+        let struck = regions
+            .get(passed)
+            .is_some_and(|&(start, _)| offset >= start);
+        if !struck {
+            out.push(ch);
+        }
     }
     out
 }

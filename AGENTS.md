@@ -33,9 +33,11 @@ dialect param on import_md, the live probe at 178 tasks with no
 golden per D12 — and t50 (the U31 lift) has landed — the plan
 types and the shared helpers in dialect-neutral homes under
 src/import/ (plan.rs + helpers.rs behind a HelperError seam), zero
-behavior change, U31 resolved — leaving t47 (the ikvm-html
-dialect, its spec written and its study done) as the next
-dispatch.**
+behavior change, U31 resolved — and t47 (the ikvm-html dialect)
+has landed — the study, the third sibling module on the neutral
+homes, the ikvm-html dialect value, the live probe at 132 tasks
+with no golden per D12 — leaving t48 (the three repos tracked for
+real, then the cutover) as the next dispatch.**
 An MCP server that replaces
 markdown TODO boards with a deterministic task graph: tasks are typed
 nodes, dependencies are typed edges, everything lives in local

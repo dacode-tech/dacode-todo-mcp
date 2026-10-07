@@ -164,7 +164,7 @@ LANES: list[tuple[str, list[str]]] = [
                                 "t46", "t50", "t47", "t48", "t49", "g11",
                                 "D18", "M4"]),
     ("M4 findings and debt (open unless noted)", ["f101", "f102", "f103",
-                                                  "f104", "d4"]),
+                                                  "f104", "f105", "d4"]),
     ("later", ["U18", "M5"]),
 ]
 
