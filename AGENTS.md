@@ -26,7 +26,10 @@ serving the durable root, the t39 wiring moved, g11's no-live-client
 caveat closed; t58 (U32's schema-format strip, the user's in-thread
 sign) landed 2026-10-07 — the integer-family format hints gone from
 every advertised schema, the client-side validator noise with them;
-t53 (cwd auto-detection) is next.** M4 (adoption) is
+t53 (cwd auto-detection, D8's deferred arming) landed 2026-10-07 —
+the three-tier default (param > flag > cwd), the deterministic
+longest-ancestor match, the §7 amendment; t54 (the U28 dogfooding
+cutover) is next.** M4 (adoption) is
 closed — g11, the exit gate, ran green
 2026-10-07. The gate ran every line of its verify method on the committed
 tree: every code gate (543 workspace tests), the golden ritual

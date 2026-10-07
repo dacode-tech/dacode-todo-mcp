@@ -45,6 +45,19 @@
 //! poison is unreachable; `PoisonError::into_inner` recovers the guard
 //! rather than killing the server if that invariant is ever wrong.
 //!
+//! # The cwd default tier (D8, armed at t53)
+//!
+//! An absent `repo` parameter resolves through three tiers (§7): an
+//! explicit parameter, then the `--repo` flag's configured default,
+//! then the working directory's deterministic match — the registered
+//! checkout whose canonicalized path is the longest component-wise
+//! ancestor of the canonicalized cwd, ties refused. The binary reads
+//! the cwd once at startup and passes it in; this crate never touches
+//! the environment (the private `cwd` module owns the mechanics,
+//! `repo_of` the tier order), and the derived default is fixed per
+//! process at first use (D3) — a `repo_set_path` or a later
+//! `repo_register` does not move it.
+//!
 //! # The error carrier (D15)
 //!
 //! Every tool failure travels through the `error_carrier` helper as
@@ -84,6 +97,7 @@
 
 use std::collections::BTreeMap;
 use std::collections::btree_map::Entry;
+use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
@@ -97,6 +111,7 @@ use serde::Serialize;
 use todo_domain::{DomainError, RepoSlug, ValueError};
 use todo_store::{DataRoot, Registry, Store, StoreError};
 
+mod cwd;
 mod dto;
 mod edges;
 pub mod import;
@@ -130,8 +145,8 @@ const INSTRUCTIONS: &str = "You are connected to a deterministic task-graph serv
     ignores it by design.";
 
 /// The server's mutable state, held behind one lock (§8): the injected
-/// data root, the configured default repo slug and the open per-repo
-/// handles.
+/// data root, the configured default repo slug, the startup-read
+/// working directory and the open per-repo handles.
 struct ServerState {
     /// The injected data root (D4): every store and the shared registry
     /// live under it. The location is the caller's configuration
@@ -140,9 +155,22 @@ struct ServerState {
     /// The configured default repo slug (the committed D8): applied by
     /// [`repo_of`] whenever a tool's `repo` parameter is absent — an
     /// explicit parameter always wins. `None` until the binary passes
-    /// the `--repo` flag's parsed value; the default is configuration,
-    /// never a cwd heuristic.
+    /// the `--repo` flag's parsed value; this tier is configuration,
+    /// and it outranks the cwd-derived tier below (§7).
     default_repo: Option<RepoSlug>,
+    /// The working directory, read once and eagerly by the binary (D1)
+    /// and passed in — `None` when the read failed (a deleted cwd).
+    /// This crate never reads the environment: the cwd tier's
+    /// derivation is a function of this value, so the lib stays
+    /// testable and the binary owns the one env touch.
+    cwd: Option<PathBuf>,
+    /// The cwd default's per-process memo (D3): `Pending` until the
+    /// first default-needing call derives it, then the derived
+    /// [`cwd::MatchOutcome`] — fixed for the process, so a later
+    /// `repo_set_path` or `repo_register` does not move it. An
+    /// errored derivation leaves it `Pending`: the memo caches
+    /// answers, not faults.
+    cwd_default: cwd::CwdDefault,
     /// The open, locked store per registered repo, keyed by slug and
     /// iterated in sorted-slug order (`BTreeMap`) — U20(b)'s
     /// foundation: the registry queries answer from these handles
@@ -167,10 +195,15 @@ pub struct TodoServer {
 
 impl TodoServer {
     /// A server serving every store under `root`, with an optional
-    /// default repo slug (the committed D8): the `--repo` startup
-    /// flag's parsed value, applied whenever a tool's `repo` parameter
-    /// is absent — an explicit parameter always wins.
-    pub fn new(root: DataRoot, default_repo: Option<RepoSlug>) -> Self {
+    /// default repo slug (the committed D8) and the startup-read
+    /// working directory (D1, armed at t53): the `--repo` startup
+    /// flag's parsed value is applied whenever a tool's `repo`
+    /// parameter is absent — an explicit parameter always wins — and
+    /// when no flag is configured, the cwd's deterministic match
+    /// against the registered checkouts (§7) supplies the default
+    /// instead. `cwd` is `None` when the binary's read failed; the
+    /// lib never reads the environment itself.
+    pub fn new(root: DataRoot, default_repo: Option<RepoSlug>, cwd: Option<PathBuf>) -> Self {
         // The router composes across impl blocks (`ToolRouter::merge`):
         // the cluster files' routers — `registry.rs`'s `tool_router`,
         // `query.rs`'s `query_router`, `listing.rs`'s
@@ -191,6 +224,8 @@ impl TodoServer {
             state: Arc::new(Mutex::new(ServerState {
                 root,
                 default_repo,
+                cwd,
+                cwd_default: cwd::CwdDefault::Pending,
                 handles: BTreeMap::new(),
             })),
         }
@@ -252,22 +287,66 @@ impl ServerState {
     }
 }
 
-/// The repo dimension every relaxed tool shares (the committed D8):
-/// an explicit parameter always wins — `Some` parses, and a malformed
-/// slug is §6.1's `invalid` (U9's mapping of the domain's
-/// `ValueError`) before the store is touched — while an absent one
-/// answers the configured default, or `invalid` when no default
-/// exists. The tool body owns the absent case because the input
-/// schema is static and cannot express "required iff no default":
-/// that is instance state, not a shape, so the schema cannot carry
-/// the rejection and the body must.
-pub(crate) fn repo_of(state: &ServerState, repo: Option<&str>) -> Result<RepoSlug, ToolError> {
+/// The repo dimension every relaxed tool shares (the committed D8,
+/// armed at t53): an explicit parameter always wins — `Some` parses,
+/// and a malformed slug is §6.1's `invalid` (U9's mapping of the
+/// domain's `ValueError`) before the store is touched. An absent one
+/// resolves through the remaining tiers: the `--repo` flag's
+/// configured default, else the derived cwd default — derived and
+/// cached at first use (D3), the deterministic longest-ancestor match
+/// of §7 — else §6.1's `invalid`. The tool body owns the absent case
+/// because the input schema is static and cannot express "required
+/// iff no default": that is instance state, not a shape, so the
+/// schema cannot carry the rejection and the body must.
+///
+/// Takes `&mut ServerState` because the cwd tier's first use derives
+/// and caches: the derivation resolves every registered slug through
+/// the handle cache (D5), which opens stores. Every call site already
+/// held `&mut` — they all call [`ServerState::resolve`] after.
+pub(crate) fn repo_of(state: &mut ServerState, repo: Option<&str>) -> Result<RepoSlug, ToolError> {
     match repo {
         Some(value) => RepoSlug::from_str(value).map_err(ToolError::from),
-        None => state.default_repo.clone().ok_or_else(|| {
-            ToolError::invalid("the repo parameter is absent and no default repo is configured")
-        }),
+        None => {
+            // Tier 2: the --repo flag's configured default, fixed at
+            // startup.
+            if let Some(slug) = state.default_repo.clone() {
+                return Ok(slug);
+            }
+            // Tier 3: the derived cwd default, fixed at first use —
+            // the memo caches the outcome, and an errored derivation
+            // leaves it Pending so the next call retries (D3).
+            let outcome = match state.cwd_default.clone() {
+                cwd::CwdDefault::Resolved(outcome) => outcome,
+                cwd::CwdDefault::Pending => {
+                    let outcome = cwd::derive(state)?;
+                    state.cwd_default = cwd::CwdDefault::Resolved(outcome.clone());
+                    outcome
+                }
+            };
+            match outcome {
+                cwd::MatchOutcome::Match(slug) => Ok(slug),
+                cwd::MatchOutcome::NoMatch => Err(ToolError::invalid(
+                    "the repo parameter is absent and neither the --repo flag nor the \
+                     working directory produced a default repo",
+                )),
+                cwd::MatchOutcome::Ambiguous(slugs) => {
+                    Err(ToolError::invalid(&ambiguous_message(&slugs)))
+                }
+            }
+        }
     }
+}
+
+/// The Ambiguous refusal's message (D4): names the tied slugs in the
+/// walk's slug-ascending order, so the client can see exactly what
+/// the working directory matched.
+fn ambiguous_message(slugs: &[RepoSlug]) -> String {
+    let names: Vec<&str> = slugs.iter().map(RepoSlug::as_str).collect();
+    format!(
+        "the repo parameter is absent and the working directory matches multiple \
+         repositories: {}",
+        names.join(", ")
+    )
 }
 
 /// The one error-mapping layer between the crates below and D15's

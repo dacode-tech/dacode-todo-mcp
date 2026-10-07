@@ -41,7 +41,7 @@ Stated user constraints, which are requirements, not proposals:
 5. Repository paths must be updatable — checkouts move on the
    filesystem, and the tracker may be accessed from a repository other
    than the one a task belongs to (id-keyed cross-repo access is v1;
-   cwd auto-detection deferred to M5 by D8).
+   cwd auto-detection deferred to M5 by D8 and armed there, t53).
 
 ## 2. Architecture and Crate Layout
 
@@ -320,11 +320,14 @@ cannot express, and the two wire shapes that survey forced a choice on
 are signed as **D14** and **D15** the same day). Principles that are not
 up for grabs:
 
-- Every tool takes a repository parameter. A server instance may be
-  configured with a default repo slug (D8 amendment: a startup flag or
-  env var in the client's per-project mcp entry, §13); an explicit
-  parameter always wins, and the default is configuration, never a cwd
-  heuristic. Epic is an optional filter wherever tasks are listed. The
+- Every tool takes a repository parameter. An absent one resolves
+  through three tiers (D8, its cwd tier armed at M5/t53): an explicit
+  parameter always wins; else the configured default slug (a startup
+  flag or env var in the client's per-project mcp entry, §13); else
+  the working directory's deterministic match — the registered
+  checkout whose canonicalized path is the longest component-wise
+  ancestor-or-equal of the canonicalized cwd, ties refused (§7). Epic
+  is an optional filter wherever tasks are listed. The
   client flow the user asked for is `repo_list` → `epic_list(repo)` →
   `next_task(repo, epic)`, and the harness asks the user for the epic
   name when the query needs one.
@@ -612,9 +615,21 @@ that changes:
   a repo's locations is part of the audit trail.
 - Accessing the tracker **from** a repo other than the one a task
   belongs to is the normal case, not a special one: queries name the
-  target repo explicitly. Per D8 (signed): cwd auto-detection is
-  deferred to M5; the v1 convenience layer is the per-instance default
-  repo slug (§6, §13) — explicit configuration, never a heuristic.
+  target repo explicitly. Per D8 (signed): cwd auto-detection was
+  deferred to M5 and armed there (t53) as the third default tier. The
+  binary reads the cwd once at startup; the first tool call that needs
+  a default derives it by matching the cwd against every registered
+  checkout's path — both sides canonicalized, a candidate that does
+  not resolve is skipped, a registered store that will not open fails
+  the derivation with its own error (the `repo_list` precedent: the
+  walk reports what it finds or names the fault, never a silent
+  subset), the longest component-wise
+  ancestor-or-equal match wins, a tie between distinct slugs is
+  refused, and the answer is fixed per process (a later
+  `repo_set_path` or `repo_register` does not move it). The configured
+  flag tier (§6, §13) still outranks it, an explicit parameter
+  outranks both, and the `--root` location stays explicit
+  configuration the cwd never finds.
 
 ## 8. Determinism and Concurrency
 
@@ -790,8 +805,10 @@ None — the list is closed.
 One binary, `todo-mcp`, built with `cargo build --release` and wired into
 clients as a local stdio MCP server — in opencode, an `mcp` entry in the
 global config naming the binary and the store location. A per-project
-mcp entry may pass a default repo slug (flag or env — §6, D8);
-explicit tool parameters override it. Store format
+mcp entry may pass a default repo slug (flag or env — §6, D8), and
+absent one, the server derives the default from the directory the
+client spawns it in (§7, D8's cwd tier armed at t53); explicit tool
+parameters override either. Store format
 version travels in the file header, independent of the binary version; a
 binary refuses a store newer than it understands (`version_mismatch`,
 §6.1) rather than guessing. No packaging beyond the binary in v1.

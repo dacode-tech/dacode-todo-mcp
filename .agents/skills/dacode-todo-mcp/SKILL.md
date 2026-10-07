@@ -94,8 +94,8 @@ Settled (D5): the §6 tool list is the v1 surface and `todo-cli` ships;
 the list includes `next_items` (D11) and the decision/doc tools (D10).
 JSON schemas firm up against rmcp's macros in M3. Fixed (§6's frame): tools are thin
 translations over domain operations; every tool takes a repo parameter
-(a per-instance default slug is configuration, never a cwd heuristic —
-D8); epic is a filter parameter wherever tasks are
+(an absent one resolves param > flag > cwd — the cwd tier armed at
+t53, a deterministic longest-ancestor match per §7); epic is a filter parameter wherever tasks are
 listed; errors are structured data with stable codes; every list has a
 documented order. The server speaks stdio transport first — it is what
 opencode and the other clients here use.

@@ -466,7 +466,8 @@ fn the_cycle_rejection_carries_the_cycle_code() {
 /// `next_task` with an epic and no repo answers the default's, and
 /// `epic_list` with `repo: "alpha"` answers alpha's — the explicit
 /// wins. With no `--repo` configured, an absent repo answers
-/// `invalid` ("no default repo is configured").
+/// `invalid` naming both default tiers' failure (the message the
+/// assertion below pins).
 #[test]
 fn the_default_slug_is_applied_when_absent_and_overridden_when_present() {
     let root = fixture();
@@ -500,13 +501,17 @@ fn the_default_slug_is_applied_when_absent_and_overridden_when_present() {
         json!([{"id": "alpha:E1", "title": "Alpha epic"}])
     );
     // No default configured: an absent repo is `invalid` from the
-    // tool body, not a codeless argument fault.
+    // tool body, not a codeless argument fault. The fixture's
+    // registered paths (/repos/*) do not exist, so the cwd tier
+    // derives no default either — the message names both tiers'
+    // failure (t53's D4).
     let bare = fixture();
     let driven_bare = drive(bare.path(), &[call(2, "epic_list", r#"{}"#)]);
     assert_carrier(
         &driven_bare.responses[0],
         "invalid",
-        "the repo parameter is absent and no default repo is configured",
+        "the repo parameter is absent and neither the --repo flag nor the working \
+         directory produced a default repo",
     );
 }
 

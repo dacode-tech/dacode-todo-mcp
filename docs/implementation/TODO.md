@@ -18,9 +18,10 @@ blocking. Rules, which `tools/attention.py` and the reviewers enforce:
 **Phase: M5 (packaging, docs, cross-repo ergonomics, polish) is in
 progress — decomposed 2026-10-07 (t51): t52–t57 + g13 are the tree, and
 the two shaping calls are confirmed — U28 (dogfooding) yes, U18 (the
-live view) shape A with D13 left reserved. t52 (packaging per §13) and
+live view) shape A with D13 left reserved. t52 (packaging per §13),
 t58 (U32's schema-format strip, the user's in-thread sign mid-t53-prep)
-are landed; t53 (cwd auto-detection) is next.**
+and t53 (cwd auto-detection, D8's deferred arming) are landed; t54 (the
+U28 dogfooding cutover) is next.**
 **t51 — the M5 decomposition — landed 2026-10-07**: the tree is t52
 packaging per §13 (the release binary, the global-config mcp entry
 naming the durable root `~/.local/share/dacode-todo/`, this repo's own
@@ -223,7 +224,7 @@ exit criteria: spec §14. Priority is derived from the Gated-on column by
 | M2 | queries: repo/epic selection, dependency resolution, deterministic `next_task`; registry with path updates | **D16** adds one task if signed; no dispatched task waits on it | done 2026-10-02 — **g7 ran green**: every code gate, the five goldens byte-identical under `UPDATE_GOLDEN=1`, `cargo doc` warning-free under both invocations for the first time (f48 settled), §5.2's selection re-proven a pure function of state, the f41 sweep exercised for the first time (f44/f45 promoted to U21/U22, the rest verified open with named consumers), and M2's lessons consolidated into `.agents/pitfalls.md` (P-LIVE-007/-008, the citation rule, the coverage-pin rule). The five deliveries — t27 selection, f47's pins, t28 batch, t29 listing, t30 doc riders, t31 registry queries — are §3's entries; D16 stayed unsigned throughout and nothing waited on it — **signed (a) 2026-10-03, after closure**, its aggregation task landing under M3's goal |
 | M3 | MCP server: §6's tool surface over the wire (import_md excepted — M4's, per D12), protocol-level tests, default-repo slug config (D8), smoke against a real client | gates cleared 2026-10-03: the **rmcp ask** signed (rmcp 3.5.0 + `serde_json/preserve_order`, §6.3), **U20** resolved (b) — the registry format stays and the server answers `repo_list` from handles — and **D16** signed (a), adding the domain aggregation task to the decomposition; D14/D15 settled the wire's key order and error carrier on 2026-09-30; **D17** signed 2026-10-04 (priority on the triage surfaces) | done 2026-10-04 — **g9 ran green**: every code gate (423 workspace tests), the golden ritual byte-identical over all three golden dirs, the §6 tool-surface check (25 tools over the wire, `import_md` the only exception — exactly the criterion), the smoke evidence recorded (t39's real opencode session), U26 reproduced/isolated/fixed at the gate itself (U27 opened for the store-side question), the f41 sweep exercised, and M3's lessons consolidated into `.agents/pitfalls.md`. The nine deliveries — t32 aggregation, t33 skeleton, t34/t35 the read tools, t36 the mutations, t37 edges + registry + the default slug, t38 the wire suite, t39 the smoke + U16b, t40 D17's echo — are §3's entries |
 | M4 | adoption: the dacode-dialect importer first (**D12**, amending D7), its board the only fixture checked in per §10; camera and ikvm-html imported from their live boards and never copied into this repo; the three repos tracked for real | — (D18 signed (a) 2026-10-05, the same day it was drafted) | in progress — **t42 the parser landed 2026-10-05** (parse_board total over the live board, probe-verified), **t43 the D18 mapping landed 2026-10-06** (the ImportPlan + apply_plan, id reproduction pinned at scale), **t44 the `import_md` wire tool landed 2026-10-06** (the importer cluster, the `ApplyError` refusal seam, the `import_md.v1` golden), **t45 the fixture + e2e golden landed 2026-10-06** (the three real files checked in, the first composed run clean, `dacode_dump.v1` pinning the expected graph), **t46 the camera dialect landed 2026-10-06** (the study, the sibling module, the `dialect` param, the live probe — 178 tasks, no golden per D12), **t50 the U31 lift landed 2026-10-07** (the plan types + shared helpers into dialect-neutral homes under `src/import/`, zero behavior change), **t47 the ikvm-html dialect landed 2026-10-07** (the study, the third sibling module on the neutral homes, the `ikvm-html` dialect value, the live probe — 132 tasks, no golden per D12), **t48 the three repos tracked for real landed 2026-10-07** (registered in the durable D4 root, imported over the wire — every import clean on the first composed run, all three stores verified, the query session recorded: the §9 cutover executed) | done 2026-10-07 — **g11 ran green**: every code gate (fmt, check, **543** workspace tests, clippy on a forced recompile, `cargo doc` warning-free under both invocations), the golden ritual byte-identical over all 24 goldens (19 mcp incl. the fixture golden, 4 store, 1 cli), the §6 tool-surface check (a live `tools/list` drive: exactly the spec table's 26 tools, `import_md` included), the live-run evidence (t46/t47's probes + t48's real imports), **f102 swept** in wire.rs (dual-reviewed, `240e7d2`), the f41 sweep (f99 promoted to **U32**; every other open item verified open with its named consumer intact), and M4's lessons consolidated into `.agents/pitfalls.md` (4.7, 4.8, 5.11–5.13; top rules 15–16) |
-| M5 | packaging, docs, cwd auto-detection (deferred by D8), polish | — (the two shaping calls confirmed 2026-10-07: U28 dogfood, U18 shape A — D13 left reserved) | in progress — **decomposed 2026-10-07 (t51)**: **t52 packaging per §13 landed 2026-10-07** (the release binary + the global-config mcp entry + the durable root, g11's no-live-client caveat closed), **t58 U32's schema-format strip landed 2026-10-07** (the user's in-thread sign: the integer-family format hints stripped from every advertised schema, output and input, the Ajv noise gone from every client session), t53 cwd auto-detection (D8's deferred arming, the §7 amendment riding), t54 the U28 dogfooding cutover (this repo registered + imported, `progress.py` a thin client, the four tables retiring, U22 resolved with it), t55 U18's shape A (`progress.py --serve`), t56 the adoption README, t57 U21's duplicate-key check; dispatch order t52 → t53 → t54 → t55 → t56 with t57 interleavable (t58 slotted before t53 by the user's call); g13 the exit gate, which also closes g3 |
+| M5 | packaging, docs, cwd auto-detection (deferred by D8), polish | — (the two shaping calls confirmed 2026-10-07: U28 dogfood, U18 shape A — D13 left reserved) | in progress — **decomposed 2026-10-07 (t51)**: **t52 packaging per §13 landed 2026-10-07** (the release binary + the global-config mcp entry + the durable root, g11's no-live-client caveat closed), **t58 U32's schema-format strip landed 2026-10-07** (the user's in-thread sign: the integer-family format hints stripped from every advertised schema, output and input, the Ajv noise gone from every client session), **t53 cwd auto-detection landed 2026-10-07** (D8's deferred arming: the three-tier default param > flag > cwd, the deterministic longest-ancestor match, the §7 amendment riding), t54 the U28 dogfooding cutover (this repo registered + imported, `progress.py` a thin client, the four tables retiring, U22 resolved with it), t55 U18's shape A (`progress.py --serve`), t56 the adoption README, t57 U21's duplicate-key check; dispatch order t52 → t53 → t54 → t55 → t56 with t57 interleavable (t58 slotted before t53 by the user's call); g13 the exit gate, which also closes g3 |
 
 ## 3. Done
 
@@ -3001,6 +3002,45 @@ Oldest first. One line per delivery, with the commit hash once committed.
       family held 8 of schemars' 12 integer spellings, measured
       against its `primitives.rs` — fixed in round 2; the secondary
       re-bound on the final bytes).
+- 2026-10-07 — **M5 t53: cwd auto-detection — D8's deferred arming**:
+      an absent `repo` parameter now resolves through three tiers
+      (§7, amended by this task as D8's signed work order): an
+      explicit parameter, the `--repo` flag, then the working
+      directory's deterministic match — the registered checkout whose
+      canonicalized path is the longest component-wise
+      ancestor-or-equal of the canonicalized cwd, ties between
+      distinct slugs refused with both named, no match keeping the
+      no-default behavior. The binary reads the cwd once at startup
+      and passes it in (the lib stays env-free); the derivation is
+      lazy — the first default-needing call walks the registry,
+      resolves every slug through the handle cache (t31's cold-open
+      cost, once per process) and caches the answer for the process
+      lifetime (a later `repo_set_path` or `repo_register` does not
+      move it); a registered store that will not open fails the
+      derivation with its own error (the `repo_list` precedent —
+      never a silent subset), and the errored derivation leaves the
+      memo pending so the retry re-fails deterministically. The
+      matcher is a pure function in the new `src/cwd.rs`
+      (canonicalize both sides, skip unresolvable candidates,
+      component-wise never string prefixes); `repo_of` owns the tier
+      order, widened to `&mut` with no cluster-file edits (every call
+      site already held `&mut`). Eleven wire tests in the new
+      `tests/cwd.rs` target (the ten required plus the review round's
+      errored-derivation pin) plus nine unit tests; the six mandatory
+      mutations all killed at their predicted tests; the golden
+      ritual byte-identical; the live smoke — the release binary
+      against the durable root, spawned in the camera checkout —
+      answered `next_task` with no repo parameter `camera:U6`,
+      byte-identical to the explicit `repo: "camera"` call. The spec
+      amendments (§2/§6/§7/§13) execute D8's deferral, ratified at
+      review; two frozen-file message pins updated minimally (the
+      f71 precedent, ratified). 230 todo-mcp tests, 568 workspace.
+      Dual-reviewed to sign-off over two rounds (the round-1 meds —
+      a stale doc quote in a frozen-deviation file and the
+      `default_repo` field doc's pre-amendment framing — fixed; the
+      round-1 lows — §6's "ancestor" precision, §7's fail clause,
+      §13's spawn-directory phrasing, the unpinned errored-derivation
+      path — all landed or dispositioned).
 
 
 
@@ -3873,6 +3913,74 @@ Deliberate shortcuts, acknowledged rather than fixed. Same id rules as §4.
 Newest first. One entry per session, written for someone who was not
 here. The final entry of a session is the handover
 (`.agents/skills/todo-next-imp/SKILL.md` defines the shape).
+
+### 2026-10-07 — t53: cwd auto-detection — D8's deferred arming
+
+The session's second delivery (the user's "ok, let's do U32 first,
+then t53" — t58's entry below carries the first). The t53 spec was
+authored from preparation reads already in hand (spec §7/D8, main.rs,
+lib.rs, registry.rs, the drive harness); the dispatch needed three
+spawn attempts — the first two implementer spawns died degenerately
+(empty, then a two-character return) with a control spawn succeeding
+in between, and the third landed only after the prompt was shortened
+to point at the spec file rather than carry it (P-LIVE-001's recorded
+remedy, now proven a fourth time: the long prompt is the failure
+mode, the spec file is the payload).
+
+The implementer landed the whole task with three honest findings: the
+two frozen-file message pins (the old no-default message was
+byte-pinned in `tests/write/edges.rs` and `tests/import/wire.rs` —
+updated minimally, the f71 precedent, ratified by both reviewers), a
+correction to the spec's J3 (macOS `getcwd` hands a spawned process
+the physical path spelling, so the spec's raw-spawn pin pinned
+nothing — the corrected test registers the raw spelling and lets the
+kernel's resolution do the separating, with M2's kill proving the pin
+live), and the memo widening (D3's `Resolved(Option<RepoSlug>)` sketch
+could not retain the Ambiguous refusal's tied slugs, so the memo
+caches the full `MatchOutcome`).
+
+The review round earned its keep: the primary falsified the matcher's
+tie logic over constructed candidate orderings and found it sound,
+but both reviewers caught the same two stale-doc meds (a retired
+message quoted in a frozen-deviation file's doc comment; the
+`default_repo` field doc still ending "never a cwd heuristic" — the
+pre-amendment framing) plus four lows that all landed: §6's
+"ancestor" → "ancestor-or-equal", §7's fail clause (a store that will
+not open fails the derivation — the `repo_list` precedent, and the
+primary's sharp reason: skipping could flip a refusal into a silent
+match), §13's spawn-directory phrasing, and the errored-derivation
+path pinned by a new eleventh wire test (a corrupted second store
+fails the derivation with `corrupt_store` even when the cwd matches
+the healthy repo; the retry re-fails identically — the memo stays
+pending on faults). One non-blocking low dispositioned rather than
+looped (the t15 stopping rule): lib.rs's module doc says "ancestor"
+where the normative sections carry "ancestor-or-equal" — f106, riding
+lib.rs's next touch, because a one-word edit would have staled the
+just-bound review shas. The skill's map line ("never a cwd heuristic")
+was synced at closure — the primary's named doc-sync, review-exempt.
+
+The live smoke is the arming's proof: the release binary against the
+durable root, spawned in the camera checkout, `next_task` with no
+repo parameter — `camera:U6`, byte-identical to the explicit
+`repo: "camera"` call (tmp/t53-smoke-transcript.txt).
+
+**Handover.** Workspace: `main`, four crates, rustc 1.98.1; this
+commit leaves the tree clean (the index backfill follows, AGENTS.md
+having moved). Landed this session: t58 (U32's schema-format strip)
+and t53 (this entry). Next step: **t54 — the U28 dogfooding cutover**:
+measure this repo's board layout against the importer's grammar
+(camera-shaped, neither dialect's layout constant), extend the
+importer minimally, register dacode-todo-mcp in the durable root and
+import its board, then `progress.py` becomes a thin client over a
+per-render stdio spawn with the four hand-maintained tables retiring
+(U22 resolving with it). Its spec owns the measured questions: the
+refresh cadence (`apply_plan` refuses a non-empty graph, so a refresh
+is a re-register), the GATING citation column's home, what the page
+renders for the gitignored tracker's in-flight items. Blocked on you:
+nothing. Unverified: the t52 staleness caveat still stands (the
+release binary goes stale after pulls until rebuilt — now doubly so
+with t53/t58 in it; the version gate refuses a too-old binary rather
+than guessing).
 
 ### 2026-10-07 — t58: U32's schema-format strip — the client noise is gone
 

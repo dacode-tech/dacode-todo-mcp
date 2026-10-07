@@ -7,12 +7,16 @@
 //!
 //! The data root is explicit configuration (§7/§13/D8): `--root <DIR>`
 //! names the store location; nothing reads the environment, a home
-//! directory or the cwd to find one, and cwd auto-detection is M5's
-//! deferred convenience, never a heuristic this binary grows. The
-//! default repo slug is the same kind of configuration (the committed
-//! D8): `--repo <SLUG>`, validated here — configuration is validated
-//! where it enters, so a malformed value is a usage fault, not a wire
-//! error the first tool call would answer.
+//! directory or the cwd to find one. The default repo slug resolves
+//! in three tiers (the committed D8, its cwd tier armed at M5/t53):
+//! `--repo <SLUG>`, validated here — configuration is validated where
+//! it enters, so a malformed value is a usage fault, not a wire error
+//! the first tool call would answer — else the working directory's
+//! deterministic match against the registered checkouts (§7). The cwd
+//! is read once, here at startup, and passed into the lib as a value
+//! (D1): the lib stays env-free, and a read that fails — a deleted
+//! cwd — passes `None` and derives no default. An explicit tool
+//! parameter outranks both tiers.
 
 // Tests are exempt from the panic-family lints through a mechanism, not
 // a convention (the workspace's rule, stated once in the root
@@ -30,6 +34,7 @@
 )]
 
 use std::ffi::OsString;
+use std::path::PathBuf;
 use std::process::ExitCode;
 use std::str::FromStr;
 
@@ -55,7 +60,8 @@ Options:
                       registry (required; D4's default location is
                       ~/.local/share/dacode-todo/, resolved by the caller)
       --repo <SLUG>   The default repository slug (D8): applied whenever
-                      a tool's repo parameter is absent; an explicit
+                      a tool's repo parameter is absent, outranking the
+                      working-directory match (§7); an explicit
                       parameter always wins
 
 Exit codes:
@@ -85,7 +91,15 @@ struct Config {
 #[tokio::main]
 async fn main() -> ExitCode {
     match parse_args(std::env::args_os().skip(1)) {
-        Ok(config) => serve(DataRoot::new(config.root), config.default_repo).await,
+        Ok(config) => {
+            // The cwd, read once and eagerly (D1): the one environment
+            // touch this binary makes for the default tier, passed in
+            // as a value so the lib stays env-free. `None` when the
+            // read fails — a deleted cwd — and the lib derives no
+            // default from an absent cwd.
+            let cwd = std::env::current_dir().ok();
+            serve(DataRoot::new(config.root), config.default_repo, cwd).await
+        }
         Err(message) => {
             // The message, a blank line, then the usage text (the cli's
             // convention).
@@ -103,8 +117,8 @@ async fn main() -> ExitCode {
 /// `connection closed: initialize request`): the server never got
 /// initialized, and hiding that behind exit 0 would report a session
 /// that never existed.
-async fn serve(root: DataRoot, default_repo: Option<RepoSlug>) -> ExitCode {
-    let server = TodoServer::new(root, default_repo);
+async fn serve(root: DataRoot, default_repo: Option<RepoSlug>, cwd: Option<PathBuf>) -> ExitCode {
+    let server = TodoServer::new(root, default_repo, cwd);
     match server.serve(rmcp::transport::stdio()).await {
         Ok(service) => match service.waiting().await {
             Ok(_) => ExitCode::SUCCESS,

@@ -48,13 +48,18 @@ use todo_store::{DataRoot, Store};
 
 /// How many differing line pairs the mismatch renderer shows at most —
 /// bounded so a whole-file drift cannot flood the failure output.
+// The cwd target drives no goldens, so this half is unreferenced
+// there: allowed dead per item, the fixture half's own remedy.
+#[allow(dead_code)]
 const MAX_DIFF_LINES: usize = 3;
 /// How many characters of each rendered diff line are shown at most.
+#[allow(dead_code)]
 const MAX_LINE_CHARS: usize = 200;
 
 /// Resolves a golden's path from its subject `name` (the part before
 /// the `.golden` suffix), anchored at the crate manifest directory —
 /// never the process cwd, so the tests pass from any invocation root.
+#[allow(dead_code)]
 pub(crate) fn golden_path(name: &str) -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests")
@@ -76,6 +81,7 @@ pub(crate) fn golden_path(name: &str) -> PathBuf {
 /// the regeneration command; a mismatch names the path, both byte
 /// lengths, the first differing byte offset, and a bounded line-level
 /// diff of the first differing region.
+#[allow(dead_code)]
 pub(crate) fn assert_golden(name: &str, actual: &[u8]) {
     let path = golden_path(name);
     if update_requested() {
@@ -97,12 +103,14 @@ pub(crate) fn assert_golden(name: &str, actual: &[u8]) {
 }
 
 /// Whether this run regenerates goldens instead of comparing them.
+#[allow(dead_code)]
 fn update_requested() -> bool {
     std::env::var("UPDATE_GOLDEN").is_ok_and(|value| value == "1")
 }
 
 /// Writes `actual` to `path` via temp+rename in the golden directory,
 /// then reports what was written.
+#[allow(dead_code)]
 fn write_golden(path: &Path, actual: &[u8]) {
     let directory = path
         .parent()
@@ -125,6 +133,7 @@ fn write_golden(path: &Path, actual: &[u8]) {
 
 /// The mismatch failure message: path, both byte lengths, the first
 /// differing byte offset, and the bounded line-level diff.
+#[allow(dead_code)]
 fn mismatch_report(path: &Path, expected: &[u8], actual: &[u8]) -> String {
     let offset = first_difference(expected, actual);
     let mut report = format!(
@@ -140,6 +149,7 @@ fn mismatch_report(path: &Path, expected: &[u8], actual: &[u8]) -> String {
 
 /// The offset of the first differing byte; when one side is a prefix of
 /// the other, the length of the shorter.
+#[allow(dead_code)]
 fn first_difference(expected: &[u8], actual: &[u8]) -> usize {
     expected
         .iter()
@@ -152,6 +162,7 @@ fn first_difference(expected: &[u8], actual: &[u8]) -> usize {
 /// order (deterministic — nothing unordered is iterated), renders at
 /// most [`MAX_DIFF_LINES`] differing pairs, truncates each rendered
 /// line to [`MAX_LINE_CHARS`], and counts the remainder.
+#[allow(dead_code)]
 fn line_diff(expected: &[u8], actual: &[u8]) -> String {
     let expected_text = String::from_utf8_lossy(expected);
     let actual_text = String::from_utf8_lossy(actual);
@@ -188,6 +199,7 @@ fn line_diff(expected: &[u8], actual: &[u8]) -> String {
 
 /// A diff line, cut to [`MAX_LINE_CHARS`] characters with an ellipsis
 /// marking the cut.
+#[allow(dead_code)]
 fn bounded(line: &str) -> String {
     if line.chars().count() <= MAX_LINE_CHARS {
         return line.to_owned();
@@ -739,6 +751,11 @@ pub(crate) struct Driven {
 /// request at a time — each response line is read before the next
 /// request is written, so the response order is the request order by
 /// construction (see the module docs for why that matters).
+// The drive variants are each referenced by some subset of the four
+// targets that compile this module (read, write, import, cwd):
+// `drive_with_cwd` only by cwd, `drive`/`drive_with` by every one
+// but cwd. Allowed dead per item, the fixture half's remedy.
+#[allow(dead_code)]
 pub(crate) fn drive(root: &Path, requests: &[String]) -> Driven {
     drive_with(root, None, requests)
 }
@@ -748,8 +765,41 @@ pub(crate) fn drive(root: &Path, requests: &[String]) -> Driven {
 /// the driven session sees the configured default — the tool calls
 /// themselves decide whether to rely on it or pass an explicit repo,
 /// which always wins.
+#[allow(dead_code)]
 pub(crate) fn drive_with(root: &Path, repo: Option<&RepoSlug>, requests: &[String]) -> Driven {
-    let mut child = spawn(root, repo);
+    drive_inner(root, repo, None, requests)
+}
+
+/// [`drive`]'s variant with a default repo slug and a working
+/// directory (t53's third tier): the binary is spawned with
+/// `--repo <slug>` when given and its cwd set to `cwd`, so the driven
+/// session sees exactly what a client launched inside that checkout
+/// sees — the flag outranks the cwd, an explicit parameter outranks
+/// both, and the cwd's deterministic match (§7) supplies the default
+/// when no flag is given.
+// Only the cwd target drives with a working directory; the read,
+// write and import targets compile this module without referencing
+// this variant (the fixture half's allowed-dead precedent).
+#[allow(dead_code)]
+pub(crate) fn drive_with_cwd(
+    root: &Path,
+    repo: Option<&RepoSlug>,
+    cwd: &Path,
+    requests: &[String],
+) -> Driven {
+    drive_inner(root, repo, Some(cwd), requests)
+}
+
+/// The one drive body every variant shares: spawn, handshake, one
+/// request at a time, collect. The variants differ only in what they
+/// pass to [`spawn`].
+fn drive_inner(
+    root: &Path,
+    repo: Option<&RepoSlug>,
+    cwd: Option<&Path>,
+    requests: &[String],
+) -> Driven {
+    let mut child = spawn(root, repo, cwd);
     let mut stdin = child.stdin.take().expect("the child's stdin");
     let mut stdout = BufReader::new(child.stdout.take().expect("the child's stdout"));
     let mut stderr = child.stderr.take().expect("the child's stderr");
@@ -790,12 +840,17 @@ pub(crate) fn drive_with(root: &Path, repo: Option<&RepoSlug>, requests: &[Strin
     }
 }
 
-/// Spawns the real binary with `--root` and the optional `--repo`.
-fn spawn(root: &Path, repo: Option<&RepoSlug>) -> Child {
+/// Spawns the real binary with `--root`, the optional `--repo` and
+/// the optional working directory — `None` inherits this process's
+/// cwd, the pre-t53 behavior.
+fn spawn(root: &Path, repo: Option<&RepoSlug>, cwd: Option<&Path>) -> Child {
     let mut command = Command::new(env!("CARGO_BIN_EXE_todo-mcp"));
     command.arg("--root").arg(root);
     if let Some(slug) = repo {
         command.arg("--repo").arg(slug.as_str());
+    }
+    if let Some(dir) = cwd {
+        command.current_dir(dir);
     }
     command
         .stdin(Stdio::piped())

@@ -570,10 +570,14 @@ fn the_default_repo_imports_when_the_param_is_absent() {
         driven.stderr
     );
     assert_eq!(driven.responses.len(), 1);
+    // The bare root registers nothing, so the cwd tier derives no
+    // default either — the message names both tiers' failure (t53's
+    // D4).
     assert_carrier(
         &driven.responses[0],
         "invalid",
-        "the repo parameter is absent and no default repo is configured",
+        "the repo parameter is absent and neither the --repo flag nor the working \
+         directory produced a default repo",
     );
 }
 
