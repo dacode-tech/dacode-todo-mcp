@@ -17,10 +17,12 @@ If `MYAGENTS.md` exists at the repo root, it is untracked, personal, and
 
 ## Project State
 
-**Phase: M4 (adoption) is closed — g11, the exit gate, ran green
-2026-10-07 — and M5 (packaging, docs, cross-repo ergonomics if D8
-arms them) is next, its decomposition the next session's first
-act.** The gate ran every line of its verify method on the committed
+**Phase: M5 (packaging, docs, cross-repo ergonomics, polish) is in
+progress — decomposed 2026-10-07 (t51): t52–t57 + g13 are the tree,
+both shaping calls confirmed — U28 (dogfooding) yes, U18 (the live
+view) shape A with D13 left reserved; dispatch t52 (packaging per
+§13) first.** M4 (adoption) is closed — g11, the exit gate, ran green
+2026-10-07. The gate ran every line of its verify method on the committed
 tree: every code gate (543 workspace tests), the golden ritual
 byte-identical over all 24 goldens (19 mcp including the fixture
 golden, 4 store, 1 cli), the §6 tool-surface check (a live
@@ -66,7 +68,8 @@ conventions ride t43's task spec. **D17**
 (priority on the triage surfaces — the echo on
 `next_task`/`next_items`/`task_list`, the order untouched) was signed
 2026-10-04, the last decision of M3, and **D13 stays reserved** for the
-transport question board U18 defers. Everything else is signed: all
+transport question (U18's shape B, the shared per-user server instance,
+declined at the M5 decomposition 2026-10-07). Everything else is signed: all
 eleven decisions on 2026-09-25, D12 added 2026-09-29, D14/D15 on
 2026-09-30 out of U2's rmcp survey (the wire's canonical key order and
 §6.1's error carrier), and D16 on 2026-10-03 (the progress roll-up)
@@ -90,11 +93,18 @@ session as the smoke (the server is wired into this repo's own harness
 config, the orchestrator's native todo tool denied per U16b) — 423
 tests, every gate green at the g9 exit, U26 reproduced/isolated/fixed
 at the gate (U27 carries the store-side question), M3's lessons
-consolidated into `.agents/pitfalls.md`. **M4 is next**: the
-dacode-dialect importer first (D12), its board the only fixture
+consolidated into `.agents/pitfalls.md`. M4 landed 2026-10-07: the
+dacode-dialect importer (D12/D18) with its board the only fixture
 checked in per §10, camera and ikvm-html as live-test subjects never
-copied into this repo, the three repos tracked for real — the
-decomposition is the next session's first act. Run
+copied into this repo, the three repos tracked for real — 543 tests,
+every gate green at the g11 exit, M4's lessons consolidated into
+`.agents/pitfalls.md`. **M5 is in progress**: decomposed 2026-10-07
+(t51) — t52 packaging per §13 (the release binary + the
+global-config mcp entry + the durable root), t53 cwd auto-detection
+(D8's deferred arming), t54 the U28 dogfooding cutover (this repo
+registered + imported, progress.py a thin client), t55 U18's shape A
+(progress.py --serve), t56 the adoption README, t57 U21's
+duplicate-key check; g13 the exit gate, which also closes g3. Run
 `tools/attention.py` for the current picture rather than trusting this
 paragraph.
 

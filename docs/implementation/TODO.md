@@ -15,8 +15,28 @@ blocking. Rules, which `tools/attention.py` and the reviewers enforce:
 
 ## 1. Current state
 
-**Phase: M4 is closed — g11, the exit gate, ran green 2026-10-07; M5
-(packaging, docs, cross-repo ergonomics if D8 arms them) is next.**
+**Phase: M5 (packaging, docs, cross-repo ergonomics, polish) is in
+progress — decomposed 2026-10-07 (t51): t52–t57 + g13 are the tree, and
+the two shaping calls are confirmed — U28 (dogfooding) yes, U18 (the
+live view) shape A with D13 left reserved.**
+**t51 — the M5 decomposition — landed 2026-10-07**: the tree is t52
+packaging per §13 (the release binary, the global-config mcp entry
+naming the durable root `~/.local/share/dacode-todo/`, this repo's own
+wiring moved off the smoke-only `tmp/todo-data` — closing g11's standing
+caveat that no live client has queried the durable root), t53 cwd
+auto-detection (D8's deferred arming, the §7 amendment riding the task),
+t54 the U28 dogfooding cutover (this repo registered and imported,
+`progress.py` a thin client over a per-render stdio spawn, the four
+hand-maintained tables retiring, U22 resolving with it), t55 U18's
+shape A (`progress.py --serve`), t56 the adoption README, t57 U21's
+duplicate-key check; g13 the exit gate, whose closure also closes g3.
+**U28 confirmed (dogfood)** and **U18 confirmed (shape A)** by the user
+2026-10-07: the markdown board + `tasks.py` stay the trackers of record
+(the write surface is unchanged, the cutover reversible), and U18's
+shape B — the shared per-user server instance — is declined with **D13
+left reserved**. U27 and U32 are left as recorded calls (the
+timing-contract question and the wire-visible schema change are
+decisions, not polish).
 The study measured the dacode board
 rather
 than reading it: a **three-file system** under `docs/implementation/`
@@ -153,22 +173,22 @@ shell, which is M3's business.
 
 | Blocking | What | Action |
 |---|---|---|
-| — | nothing blocks M5: M4 is closed at g11 — every code gate (543 workspace tests), the golden ritual byte-identical over all 24 goldens, the §6 tool-surface check (a live tools/list drive: exactly the spec table's 26 tools), the f41 sweep (f102 swept in wire.rs, f99 promoted to U32), M4's lessons consolidated (pitfalls 4.7/4.8/5.11–5.13, top rules 15–16) | decompose M5 (packaging per §13, docs, the D8-deferred cwd auto-detection, polish) — the dogfooding question (U28) and the live view (U18) are the user's opening calls |
+| — | nothing blocks M5's tasks: the decomposition landed (t51) and both shaping calls are confirmed — U28 dogfood, U18 shape A (D13 reserved) | dispatch t52 (packaging per §13) first, then t53 → t54 → t55, t56 last before g13, t57 interleavable |
 
-(Open but non-blocking: **U18** (a live view for progress and whether the
-server is shared per user, deferred until after M4's importer check, and
-holding the **D13** reservation), and **U21**/**U22**, promoted out of the
-g7 sweep — the duplicate-key check for `agent-rules.yaml` (f44) and
-`progress.py`'s blind spot for open decisions (f45), both user calls that
-must outlive the branch. Resolved: U2/U4/U5/U6/U7/
-U8/U9/U10/U11/U12/U14/U17 and now **U15** and **U19**, both taken by t30 —
-U17's mapping is settled and **D16 closed its one open piece** (signed
-2026-10-03); **U20** resolved (b) 2026-10-03; **U16 resolved 2026-10-04**
-— both halves, t33's instructions and t39's gating + smoke (§4); U3
-superseded by D12.
-U13 is acknowledged debt, re-measured at the M2 decomposition and again at
-g7 — unchanged; t31 grew `layout.rs` to 543 production lines, still under the
-600 target, so the ledger does not move but the file is now close to it.)
+(Open but non-blocking: **U27** (the `FileLock::acquire` retry question —
+left at the M5 decomposition as the user's call: the timing-contract
+change needs multi-platform evidence, and no M5 task owns `todo-store`)
+and **U32** (the strict-mode `uint64` schema note — left as recorded
+debt; the fix is a wire-visible decision if ever taken). Scheduled into
+M5: **U21** (t57) and **U22** (t54). Resolved: U2/U4/U5/U6/U7/
+U8/U9/U10/U11/U12/U14/U17, **U15** and **U19** (both taken by t30),
+**U20** (b) 2026-10-03, **U16** 2026-10-04, U3 (superseded by D12), and
+now **U28** and **U18**, both confirmed 2026-10-07 at the M5
+decomposition (t51) — U28 dogfood, U18 shape A with D13 left reserved.
+U13 is acknowledged debt, re-measured at the M5 decomposition: `log.rs`
+812 / `event.rs` 772 unchanged, `layout.rs` 543 under target; U24's
+`listing.rs` moved to 689 (t40's priority echo) and U29's `map.rs` to
+733 (t50's lift), both still over the 600 target with the cap holding.)
 
 ## 2. Milestones
 
@@ -183,7 +203,7 @@ exit criteria: spec §14. Priority is derived from the Gated-on column by
 | M2 | queries: repo/epic selection, dependency resolution, deterministic `next_task`; registry with path updates | **D16** adds one task if signed; no dispatched task waits on it | done 2026-10-02 — **g7 ran green**: every code gate, the five goldens byte-identical under `UPDATE_GOLDEN=1`, `cargo doc` warning-free under both invocations for the first time (f48 settled), §5.2's selection re-proven a pure function of state, the f41 sweep exercised for the first time (f44/f45 promoted to U21/U22, the rest verified open with named consumers), and M2's lessons consolidated into `.agents/pitfalls.md` (P-LIVE-007/-008, the citation rule, the coverage-pin rule). The five deliveries — t27 selection, f47's pins, t28 batch, t29 listing, t30 doc riders, t31 registry queries — are §3's entries; D16 stayed unsigned throughout and nothing waited on it — **signed (a) 2026-10-03, after closure**, its aggregation task landing under M3's goal |
 | M3 | MCP server: §6's tool surface over the wire (import_md excepted — M4's, per D12), protocol-level tests, default-repo slug config (D8), smoke against a real client | gates cleared 2026-10-03: the **rmcp ask** signed (rmcp 3.5.0 + `serde_json/preserve_order`, §6.3), **U20** resolved (b) — the registry format stays and the server answers `repo_list` from handles — and **D16** signed (a), adding the domain aggregation task to the decomposition; D14/D15 settled the wire's key order and error carrier on 2026-09-30; **D17** signed 2026-10-04 (priority on the triage surfaces) | done 2026-10-04 — **g9 ran green**: every code gate (423 workspace tests), the golden ritual byte-identical over all three golden dirs, the §6 tool-surface check (25 tools over the wire, `import_md` the only exception — exactly the criterion), the smoke evidence recorded (t39's real opencode session), U26 reproduced/isolated/fixed at the gate itself (U27 opened for the store-side question), the f41 sweep exercised, and M3's lessons consolidated into `.agents/pitfalls.md`. The nine deliveries — t32 aggregation, t33 skeleton, t34/t35 the read tools, t36 the mutations, t37 edges + registry + the default slug, t38 the wire suite, t39 the smoke + U16b, t40 D17's echo — are §3's entries |
 | M4 | adoption: the dacode-dialect importer first (**D12**, amending D7), its board the only fixture checked in per §10; camera and ikvm-html imported from their live boards and never copied into this repo; the three repos tracked for real | — (D18 signed (a) 2026-10-05, the same day it was drafted) | in progress — **t42 the parser landed 2026-10-05** (parse_board total over the live board, probe-verified), **t43 the D18 mapping landed 2026-10-06** (the ImportPlan + apply_plan, id reproduction pinned at scale), **t44 the `import_md` wire tool landed 2026-10-06** (the importer cluster, the `ApplyError` refusal seam, the `import_md.v1` golden), **t45 the fixture + e2e golden landed 2026-10-06** (the three real files checked in, the first composed run clean, `dacode_dump.v1` pinning the expected graph), **t46 the camera dialect landed 2026-10-06** (the study, the sibling module, the `dialect` param, the live probe — 178 tasks, no golden per D12), **t50 the U31 lift landed 2026-10-07** (the plan types + shared helpers into dialect-neutral homes under `src/import/`, zero behavior change), **t47 the ikvm-html dialect landed 2026-10-07** (the study, the third sibling module on the neutral homes, the `ikvm-html` dialect value, the live probe — 132 tasks, no golden per D12), **t48 the three repos tracked for real landed 2026-10-07** (registered in the durable D4 root, imported over the wire — every import clean on the first composed run, all three stores verified, the query session recorded: the §9 cutover executed) | done 2026-10-07 — **g11 ran green**: every code gate (fmt, check, **543** workspace tests, clippy on a forced recompile, `cargo doc` warning-free under both invocations), the golden ritual byte-identical over all 24 goldens (19 mcp incl. the fixture golden, 4 store, 1 cli), the §6 tool-surface check (a live `tools/list` drive: exactly the spec table's 26 tools, `import_md` included), the live-run evidence (t46/t47's probes + t48's real imports), **f102 swept** in wire.rs (dual-reviewed, `240e7d2`), the f41 sweep (f99 promoted to **U32**; every other open item verified open with its named consumer intact), and M4's lessons consolidated into `.agents/pitfalls.md` (4.7, 4.8, 5.11–5.13; top rules 15–16) |
-| M5 | packaging, docs, cwd auto-detection (deferred by D8), polish | — | not started |
+| M5 | packaging, docs, cwd auto-detection (deferred by D8), polish | — (the two shaping calls confirmed 2026-10-07: U28 dogfood, U18 shape A — D13 left reserved) | in progress — **decomposed 2026-10-07 (t51)**: t52 packaging per §13 (the release binary + the global-config mcp entry + the durable root, closing g11's no-live-client caveat), t53 cwd auto-detection (D8's deferred arming, the §7 amendment riding), t54 the U28 dogfooding cutover (this repo registered + imported, `progress.py` a thin client, the four tables retiring, U22 resolved with it), t55 U18's shape A (`progress.py --serve`), t56 the adoption README, t57 U21's duplicate-key check; dispatch order t52 → t53 → t54 → t55 → t56 with t57 interleavable; g13 the exit gate, which also closes g3 |
 
 ## 3. Done
 
@@ -2879,8 +2899,22 @@ Oldest first. One line per delivery, with the commit hash once committed.
      no sibling content copied in (D12). The cutover state per §9:
      the server is each repo's state of record as of the import
      instant, the markdown boards keep the narrative, and there is no
-     two-way sync (D7) — the stores and boards will drift, and the
-     sibling HEADs above are the drift baseline.
+      two-way sync (D7) — the stores and boards will drift, and the
+      sibling HEADs above are the drift baseline.
+- 2026-10-07 — **M5 t51: the decomposition** — the tracker tree (g12 +
+      t52–t57 + g13), board §2's M5 row naming the ids, and the two
+      shaping calls taken by the user in the opening exchange: **U28
+      confirmed (dogfood)** — t54 lands the cutover with the markdown
+      board + `tasks.py` unchanged as trackers of record — and **U18
+      confirmed (shape A)** — t55 lands `progress.py --serve`, shape B
+      declined with **D13 left reserved**. U21 scheduled as t57, U22
+      resolves with t54; U27 and U32 left as recorded calls with the
+      reasons on their entries. The ledger re-measured: `log.rs` 812 /
+      `event.rs` 772 unchanged, `layout.rs` 543 under target,
+      `listing.rs` 689 (t40's echo), `map.rs` 733 (t50's lift, the
+      helpers now in `src/import/helpers.rs` at 382), `plan.rs` 244 —
+      no new ledger entries, U24/U29's figures refreshed. No Rust
+      moved. Landed as `<hash backfilled>`.
 
 
 
@@ -3331,7 +3365,7 @@ Unowned work. Take the next unused `U` id; never renumber, never reuse.
       aggregation task lands under M3's goal (g6 closed at g7 while the
       vote was open; decisions.md D16 records the deviation). U17 is
       fully answered.
-- [ ] **U18 · A live view for progress, and whether the server is shared per
+- [x] **U18 · A live view for progress, and whether the server is shared per
       user.** Deferred by the user 2026-09-30 until after the primary part is
       implemented and checked against the existing markdown boards (M4's
       importer), so it is recorded with a recommendation rather than left
@@ -3350,6 +3384,15 @@ Unowned work. Take the next unused `U` id; never renumber, never reuse.
       the shared instance. That is a new decision (**D13** when it is taken),
       not an implementation choice, and it belongs at M3/M5 when there is a
       wire to put in front of. Nothing here starts before M4's check.
+      **Confirmed 2026-10-07 (shape A) at the M5 decomposition**: t55 lands
+      the local page server — `progress.py --serve` over the thin-client
+      render, `127.0.0.1:0` with the port published to a per-user runtime
+      file, the default staying a static file with no listener. Shape B is
+      declined: it is D13's reserved question, the spec's precondition for
+      drafting D13 has now passed but nothing in M5 needs a transport past
+      signed D5, and a shared instance is a §8 single-writer commitment this
+      project has never tested — if wanted, it is a new D-entry drafted
+      deliberately, not a rider in the polish milestone.
 - [x] **U19 · One word in `repair.rs`'s module doc.** Its `Err` rationale
       closes with "so a snapshot fault is never reported through it" — true of
       the parse fault that sentence follows, false read broadly, since the
@@ -3432,6 +3475,12 @@ Unowned work. Take the next unused `U` id; never renumber, never reuse.
       duplicate key anywhere in the file — proved by feeding it a copy
       with one spliced in, `--check` still green on the real config — or
       the check is declined and this item records that decision.
+      **Scheduled 2026-10-07: t57 lands the check** — the M5 decomposition
+      dispositioned it into a task rather than closing it wontfix, because
+      the failure is silent in the direction that matters (an edit that
+      appears to land and does not) and it has bitten once already. The
+      disposition is made; the item stays open until t57's commit lands
+      the check (the U15/U19 precedent — the board item rides its task).
 - [x] **U26 · The protocol suite's post-exit store open flakes
       (`store is locked`).** f68's one-off flake recurred three times
       in ~83 executions of the protocol target during t37's review —
@@ -3522,7 +3571,11 @@ Unowned work. Take the next unused `U` id; never renumber, never reuse.
       multi-platform evidence (this is one macOS workload) and must
       reconcile `lock.rs`'s module doc, which states the release is
       the close. The store's next owner's, or a dedicated task's.
-- [ ] **U28 · `progress.py` goes dynamic — the server as its data
+      **Left at the M5 decomposition (2026-10-07)**: no M5 task owns
+      `todo-store`, and the entry's own bar — multi-platform evidence, the
+      `locked` timing-contract reconciliation — makes it a decision, not
+      polish. It stays the next store owner's or a dedicated task's.
+- [x] **U28 · `progress.py` goes dynamic — the server as its data
       source, after M4.** Opened 2026-10-05 on the user's question:
       the page's hardcoded tables (`LANES`, `GATING`, `EXTRA`,
       `WAITS`) are a hand-maintained shadow of the server's own
@@ -3543,6 +3596,16 @@ Unowned work. Take the next unused `U` id; never renumber, never reuse.
       `GATING` rows' citation column (the *why* of an edge) has no
       server equivalent — the blocked task's `note` is the nearest
       home.
+      **Confirmed 2026-10-07 (dogfood) at the M5 decomposition**: t54
+      lands the cutover — this repo registered in the durable root and
+      imported through the measured layout fit, `progress.py` a thin
+      client over a per-render stdio spawn (D5-signed), the four tables
+      retiring. The markdown board + `tasks.py` stay the trackers of
+      record: the write surface and the exit gate are unchanged, so the
+      cutover is reversible. The entry's named design gap — the GATING
+      citation column — and the refresh cadence (a refresh is a
+      re-register, `apply_plan` refusing a non-empty graph) are t54's
+      task-spec questions.
 - [ ] **U22 · `progress.py` does not render open decisions.** f45,
       promoted at the g7 sweep for the same reason: the page reads board
       §2/§4/§5 and the tracker, so an open D-entry has no row — measured
@@ -3554,6 +3617,12 @@ Unowned work. Take the next unused `U` id; never renumber, never reuse.
       `decisions.md` — `attention.py` parses the same table, so the data
       is already machine-readable — or state the scope limit in the page
       footer, so a reader does not take the page for the whole picture.
+      **Scheduled 2026-10-07: resolves with t54** — the cutover's thin
+      client renders open decisions from the server's `decision_list`
+      (this repo's decisions.md D-entries import as decision nodes), so
+      the page gains the rows the finding asked for; if the import's
+      decision statuses prove too coarse for the page, the footer
+      scope-limit is the fallback, settled in t54's spec.
 
 ## 5. Debt
 
@@ -3585,6 +3654,9 @@ Deliberate shortcuts, acknowledged rather than fixed. Same id rules as §4.
       schema. Revisit at M3, whose wire mapping touches the store's error
       surface, or at the next commit that grows either file — whichever
        comes first.
+      **Re-measured at the M5 decomposition (2026-10-07): unchanged —
+      812 and 772** under the same awk measure; `layout.rs` 543, still
+      under target. M3's wire and M4's importer never grew either file.
 - [x] **U23 · The copied-store cross-check on the server's resolve path is
       unpinned.** t34's `ServerState::resolve` gained the one-line check
       `store.graph().repo().slug != slug → corrupt_store`, mirroring
@@ -3606,9 +3678,10 @@ Deliberate shortcuts, acknowledged rather than fixed. Same id rules as §4.
       pinned, and the detail-string re-spelling rides the golden's
       bytes.
 - [ ] **U24 · `todo-mcp/src/listing.rs` is over the 600-line target.**
-      685 production lines (the awk measure; the `#[cfg(test)]` clause
-      does not apply — the file holds no test module; re-measured at
-      t37, 683 + the repo-field relaxation's module-doc rewrap). Over
+      689 production lines (the awk measure; the `#[cfg(test)]` clause
+      does not apply — the file holds no test module; 685 at t35, 683 at
+      t37, and 689 at the M5 decomposition re-measure 2026-10-07 — t40's
+      D17 echo added the priority field to the rows). Over
       target
       because the listing cluster's dispatch pins all five tools,
       their params and their answer DTOs — `graph_show`'s dump
@@ -3629,8 +3702,10 @@ Deliberate shortcuts, acknowledged rather than fixed. Same id rules as §4.
       conversions) into its own module — a named diff for whoever
       next owns the file.
 - [ ] **U29 · `todo-mcp/src/import/dacode/map.rs` is over the
-      600-line target.** 758 production lines (the awk measure; the
-      file holds no test module). Over target because the mapping's
+      600-line target.** 733 production lines (the awk measure; the
+      file holds no test module; 758 before t50's lift moved the shared
+      mapping primitives to `src/import/helpers.rs` — 382, under target
+      — re-measured at the M5 decomposition 2026-10-07). Over target because the mapping's
       dispatch pins the whole node half of D18's conventions — the
       status precedence, the drafts' fields, the doc register, the
       synthetic epics — in one file beside the plan's construction;
@@ -3695,12 +3770,62 @@ Deliberate shortcuts, acknowledged rather than fixed. Same id rules as §4.
       fix, if ever needed, is the server's: a schema-level integer
       spelling the validator knows — a wire-visible change and
       therefore a decision, not a patch.
+      **Left at the M5 decomposition (2026-10-07)**: no strict-mode
+      client exists, so nothing in M5 takes it; the fix stays a
+      wire-visible decision if a real client ever rejects the format.
 
 ## 6. Session log
 
 Newest first. One entry per session, written for someone who was not
 here. The final entry of a session is the handover
 (`.agents/skills/todo-next-imp/SKILL.md` defines the shape).
+
+### 2026-10-07 — t51: the M5 decomposition — U28 and U18 confirmed
+
+The session opened on the user's "ok, confirm. Let's do what you have
+proposed" — the word for t51 and for the two shaping calls the g11
+handover named. Both calls were made in the opening report and
+confirmed: **U28 → dogfood** (the §9 cutover applied to this repo —
+the server becomes the query surface, the markdown board + `tasks.py`
+stay the trackers of record, so the write surface and exit gate are
+unchanged and the cutover is reversible) and **U18 → shape A**
+(`progress.py --serve`; shape B, the shared per-user server instance,
+declined with **D13 left reserved** — the spec's precondition for
+drafting D13 has passed, so the decline is a choice: nothing in M5
+needs a transport past signed D5, and a shared instance is a §8
+single-writer commitment never tested).
+
+The decomposition itself, per the t26/t41 shape: the tracker tree
+**g12 + t52–t57 + g13** with every verify line a runnable command;
+board §2's M5 row naming the ids and the dispatch order (t52 → t53 →
+t54 → t55 → t56, t57 interleavable); the ledger re-measured (U13
+unchanged at 812/772, U24's `listing.rs` 689 — t40's echo, U29's
+`map.rs` 733 — t50's lift, `plan.rs` 244 / `helpers.rs` 382 under
+target, no new entries); U21 scheduled as t57 and U22 resolving with
+t54; U27 and U32 left as recorded calls with the reasons on their
+entries (the timing-contract question and the wire-visible schema
+change are decisions, not polish). No Rust moved — the decomposition
+is docs + tracker + progress tables, review-exempt.
+
+**Handover.** Workspace: `main`, clean before this commit, four
+crates, rustc 1.98.1. Landed: t51 (this entry; the decomposition
+commit + the index/hash backfill that follows). Next step: **dispatch
+t52 — packaging per §13**: `cargo build --release`, the mcp entry in
+the user's global opencode config naming the binary and the durable
+root `~/.local/share/dacode-todo/`, this repo's own t39 wiring moved
+off `tmp/todo-data`, and the smoke — a real client session querying
+the durable root, closing g11's standing caveat. Its alternative —
+t53 first — is wrong because packaging is the milestone's namesake
+deliverable and both the cutover (t54) and the README (t56) document
+what t52 lands. The t52 spec should load the customize-opencode skill
+for the global-config edit and settle the release-binary-vs-cargo-run
+staleness tradeoff with the no-double-server rule. Blocked on you:
+nothing — both shaping calls are taken; U27 and U32 stay open as
+recorded calls, neither gating an M5 task. Unverified: nothing new —
+no code moved; the standing caveats are g11's (no byte-comparison of
+the real dacode store against the golden, camera/ikvm-html
+golden-less per D12, store/board drift per D7, no live client has
+queried the durable root yet — which is exactly what t52 closes).
 
 ### 2026-10-07 — g11: the M4 exit gate ran green — M4 is closed
 
