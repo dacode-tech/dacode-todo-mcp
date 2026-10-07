@@ -407,7 +407,7 @@ impl TodoServer {
     /// One-shot import of the repo's sibling markdown board — the dialect parameter selects the grammar (dacode by default, camera and ikvm-html as the live-test subjects); the files are read from the repo's registered checkout path, parsed strictly, mapped and applied to the repo's empty store — answering the landed counts of epics, decisions, docs, tasks and blocks edges.
     #[tool(
         name = "import_md",
-        output_schema = rmcp::handler::server::tool::schema_for_type::<ImportedDto>(),
+        output_schema = crate::schema::output_for_type::<ImportedDto>(),
         annotations(open_world_hint = false)
     )]
     async fn import_md(

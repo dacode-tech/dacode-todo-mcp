@@ -165,9 +165,10 @@ LANES: list[tuple[str, list[str]]] = [
                                 "D18", "M4"]),
     ("M4 findings and debt (open unless noted)", ["f101", "f102", "f103",
                                                   "f104", "f105", "d4"]),
-    ("M5 · packaging/docs/cutover (§13/§14)", ["t51", "g12", "t52", "t53",
-                                               "t54", "t55", "t56", "t57",
-                                               "g13", "M5", "U18", "U28"]),
+    ("M5 · packaging/docs/cutover (§13/§14)", ["t51", "g12", "t52", "t58",
+                                               "t53", "t54", "t55", "t56",
+                                               "t57", "g13", "M5", "U18",
+                                               "U28"]),
 ]
 
 # GATING edges carry the citation that makes them an edge rather than a guess.
@@ -290,7 +291,7 @@ EXTRA: dict[str, tuple[str, str, str]] = {
     "U22": ("follow-up", "pending", "U22 · open decisions on the page (resolves with t54)"),
     "U27": ("follow-up", "pending", "U27 · FileLock::acquire retry question (left at the M5 decomposition)"),
     "U28": ("follow-up", "done", "U28 · dogfooding confirmed — the cutover is t54 (2026-10-07)"),
-    "U32": ("follow-up", "pending", "U32 · strict-mode uint64 schema note (left as recorded debt)"),
+    "U32": ("follow-up", "done", "U32 · the integer-family format hints stripped from every advertised schema (t58, the user's in-thread sign 2026-10-07)"),
     "U8": ("decision", "done", "U8 · the first external dependencies (resolved)"),
     "U14": ("decision", "done", "U14 · todo-cli's argument parser (resolved: lexopt)"),
     "D12": ("decision", "done", "D12 · dacode-first importer (signed)"),

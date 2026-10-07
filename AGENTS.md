@@ -23,7 +23,10 @@ both shaping calls confirmed — U28 (dogfooding) yes, U18 (the live
 view) shape A with D13 left reserved. t52 (packaging per §13) landed
 2026-10-07 — the release binary named by the global-config mcp entry
 serving the durable root, the t39 wiring moved, g11's no-live-client
-caveat closed; t53 (cwd auto-detection) is next.** M4 (adoption) is
+caveat closed; t58 (U32's schema-format strip, the user's in-thread
+sign) landed 2026-10-07 — the integer-family format hints gone from
+every advertised schema, the client-side validator noise with them;
+t53 (cwd auto-detection) is next.** M4 (adoption) is
 closed — g11, the exit gate, ran green
 2026-10-07. The gate ran every line of its verify method on the committed
 tree: every code gate (543 workspace tests), the golden ritual

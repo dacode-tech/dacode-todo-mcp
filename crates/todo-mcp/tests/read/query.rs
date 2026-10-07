@@ -291,6 +291,108 @@ fn tools_list_advertises_output_schemas_with_single_line_descriptions() {
     assert_no_newline_in_descriptions(&value, "$");
 }
 
+/// `tools/list` advertises no integer-family `format` hint in any
+/// schema — input or output, at any depth (`$defs` included): schemars
+/// emits OpenAPI integer formats JSON Schema validators do not know,
+/// and a strict-mode client could reject the schemas outright (board
+/// U32, resolved 2026-10-07). The walk covers every advertised schema,
+/// so a future `u64` field that bypasses the `schema` module's two
+/// seams fails here — the class is closed by this pin, not by the call
+/// sites. The family list below is this test's own copy, the
+/// independent-oracle pattern, not a constant shared with production.
+#[test]
+fn tools_list_advertises_no_integer_format_hints() {
+    let root = fixture();
+    let request = r#"{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}"#.to_owned();
+    let driven = drive(root.path(), &[request]);
+    assert!(
+        driven.status.success(),
+        "a completed handshake ends 0; stderr: {}",
+        driven.stderr
+    );
+    let value: Value = serde_json::from_str(&driven.responses[0]).expect("tools/list answers JSON");
+    let tools = value["result"]["tools"].as_array().expect("the tool list");
+    let mut offenders: Vec<String> = Vec::new();
+    for tool in tools {
+        let name = tool["name"].as_str().expect("a tool name");
+        for side in ["inputSchema", "outputSchema"] {
+            if let Some(schema) = tool.get(side) {
+                collect_integer_formats(schema, &format!("{name}.{side}"), &mut offenders);
+            }
+        }
+    }
+    assert!(
+        offenders.is_empty(),
+        "integer-family format hints survived the strip: {offenders:?}"
+    );
+}
+
+/// `next_items`'s `limit` keeps its nullable-integer shape —
+/// `["integer", "null"]` with `minimum: 0` — through the `schema_with`
+/// customization that strips its format hint: the customization
+/// delegates to schemars' own `Option<u64>` spelling, and this pin
+/// holds that delegation honest (a bare `u64` schema would drop the
+/// null arm and silently make `limit: null` invalid).
+#[test]
+fn next_items_limit_keeps_its_nullable_integer_shape() {
+    let root = fixture();
+    let request = r#"{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}"#.to_owned();
+    let driven = drive(root.path(), &[request]);
+    assert!(
+        driven.status.success(),
+        "a completed handshake ends 0; stderr: {}",
+        driven.stderr
+    );
+    let value: Value = serde_json::from_str(&driven.responses[0]).expect("tools/list answers JSON");
+    let tools = value["result"]["tools"].as_array().expect("the tool list");
+    let next_items = tools
+        .iter()
+        .find(|tool| tool["name"] == "next_items")
+        .expect("next_items is advertised");
+    let limit = &next_items["inputSchema"]["properties"]["limit"];
+    let types = limit["type"].as_array().expect("limit's type is an array");
+    let spellings: Vec<&str> = types
+        .iter()
+        .map(|kind| kind.as_str().expect("a type spelling"))
+        .collect();
+    assert_eq!(spellings, ["integer", "null"]);
+    assert_eq!(limit["minimum"], json!(0));
+    assert!(
+        limit.get("format").is_none(),
+        "limit carries a format hint: {:?}",
+        limit["format"]
+    );
+}
+
+/// The walk behind the no-format pin: collects every `"format"` key
+/// carrying an integer-family value, with its path, so a failure names
+/// the offender instead of counting.
+fn collect_integer_formats(value: &Value, path: &str, offenders: &mut Vec<String>) {
+    const INTEGER_FORMATS: [&str; 12] = [
+        "int8", "int16", "int32", "int64", "int128", "int", "uint8", "uint16", "uint32", "uint64",
+        "uint128", "uint",
+    ];
+    match value {
+        Value::Object(map) => {
+            for (key, inner) in map {
+                if key == "format"
+                    && let Some(format) = inner.as_str()
+                    && INTEGER_FORMATS.contains(&format)
+                {
+                    offenders.push(format!("{path} (format {format})"));
+                }
+                collect_integer_formats(inner, &format!("{path}.{key}"), offenders);
+            }
+        }
+        Value::Array(items) => {
+            for (index, item) in items.iter().enumerate() {
+                collect_integer_formats(item, &format!("{path}[{index}]"), offenders);
+            }
+        }
+        _ => {}
+    }
+}
+
 // =================================================================
 // The unknown-id codes via the carrier
 // =================================================================

@@ -60,6 +60,13 @@
 //! are rmcp's own unstructured text errors and never reach the tool
 //! body (§6.3), so they arrive codeless by design and no code is
 //! invented for them.
+//!
+//! # The advertised schemas' format discipline (U32)
+//!
+//! schemars emits OpenAPI integer formats (`uint64` and kin) that JSON
+//! Schema validators do not know — opencode's Ajv warns on every
+//! `tools/list` — so every schema this server advertises strips them;
+//! the `schema` module owns the strip and its wire pin.
 
 // Tests are exempt from the panic-family lints through a mechanism, not
 // a convention (the workspace's rule, stated once in the root
@@ -98,6 +105,7 @@ mod listing;
 mod nodes;
 mod query;
 mod registry;
+mod schema;
 mod time;
 
 /// U16(a)'s base instructions: the one text an agent that has never

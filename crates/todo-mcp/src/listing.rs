@@ -603,7 +603,7 @@ impl TodoServer {
     /// The task listing (§6): the scope's tasks in canonical order under the ANDed filters — epic, status, kind, deferred readiness — each row carrying its blocked-by annotation with every blocker's current status.
     #[tool(
         name = "task_list",
-        output_schema = rmcp::handler::server::tool::schema_for_type::<TaskListDto>(),
+        output_schema = crate::schema::output_for_type::<TaskListDto>(),
         annotations(read_only_hint = true, open_world_hint = false)
     )]
     async fn task_list(
@@ -622,7 +622,7 @@ impl TodoServer {
     /// The repo's epics as id+title rows, ascending by id — the listing an agent shows the user when a query needs an epic chosen.
     #[tool(
         name = "epic_list",
-        output_schema = rmcp::handler::server::tool::schema_for_type::<EpicListDto>(),
+        output_schema = crate::schema::output_for_type::<EpicListDto>(),
         annotations(read_only_hint = true, open_world_hint = false)
     )]
     async fn epic_list(
@@ -639,7 +639,7 @@ impl TodoServer {
     /// The repo's decisions as id+title rows, ascending by id.
     #[tool(
         name = "decision_list",
-        output_schema = rmcp::handler::server::tool::schema_for_type::<DecisionListDto>(),
+        output_schema = crate::schema::output_for_type::<DecisionListDto>(),
         annotations(read_only_hint = true, open_world_hint = false)
     )]
     async fn decision_list(
@@ -656,7 +656,7 @@ impl TodoServer {
     /// The repo's docs as id+title rows, ascending by id.
     #[tool(
         name = "doc_list",
-        output_schema = rmcp::handler::server::tool::schema_for_type::<DocListDto>(),
+        output_schema = crate::schema::output_for_type::<DocListDto>(),
         annotations(read_only_hint = true, open_world_hint = false)
     )]
     async fn doc_list(
@@ -673,7 +673,7 @@ impl TodoServer {
     /// The handover dump (§6.2): every registered repo, one repo, or one epic's subtree plus its gating decisions — nodes grouped by epic in canonical order, each carrying its blocked-by/blocks adjacency.
     #[tool(
         name = "graph_show",
-        output_schema = rmcp::handler::server::tool::schema_for_type::<GraphShowDto>(),
+        output_schema = crate::schema::output_for_type::<GraphShowDto>(),
         annotations(read_only_hint = true, open_world_hint = false)
     )]
     async fn graph_show(

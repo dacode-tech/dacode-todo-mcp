@@ -157,7 +157,7 @@ impl TodoServer {
     /// Register a repository under its stable slug key: the store is created under the data root, the registry lists it, and the response is the new state.
     #[tool(
         name = "repo_register",
-        output_schema = rmcp::handler::server::tool::schema_for_type::<RepoRegistered>()
+        output_schema = crate::schema::output_for_type::<RepoRegistered>()
     )]
     async fn repo_register(
         &self,
@@ -204,7 +204,7 @@ impl TodoServer {
     /// Move a repository's checkout path (§7): the slug is the key, the path an attribute — the audited verb, its own event line; the response is the new state.
     #[tool(
         name = "repo_set_path",
-        output_schema = rmcp::handler::server::tool::schema_for_type::<RepoDto>(),
+        output_schema = crate::schema::output_for_type::<RepoDto>(),
         annotations(open_world_hint = false)
     )]
     async fn repo_set_path(
@@ -223,7 +223,7 @@ impl TodoServer {
     /// Every registered repository, ascending by slug — the registry's membership, each row read from the repo node through the server's held handles.
     #[tool(
         name = "repo_list",
-        output_schema = rmcp::handler::server::tool::schema_for_type::<RepoListDto>(),
+        output_schema = crate::schema::output_for_type::<RepoListDto>(),
         annotations(read_only_hint = true, open_world_hint = false)
     )]
     async fn repo_list(
@@ -240,7 +240,7 @@ impl TodoServer {
     /// One repository's node: the slug, the display name, the checkout path and the registration instant.
     #[tool(
         name = "repo_show",
-        output_schema = rmcp::handler::server::tool::schema_for_type::<RepoDto>(),
+        output_schema = crate::schema::output_for_type::<RepoDto>(),
         annotations(read_only_hint = true, open_world_hint = false)
     )]
     async fn repo_show(

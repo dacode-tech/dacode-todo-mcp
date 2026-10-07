@@ -615,7 +615,7 @@ impl TodoServer {
     /// Add an epic: the graph allocates its id, and the response is the new state — an epic carries no timestamps, so the answer is fully deterministic.
     #[tool(
         name = "epic_add",
-        output_schema = rmcp::handler::server::tool::schema_for_type::<EpicDto>(),
+        output_schema = crate::schema::output_for_type::<EpicDto>(),
         annotations(open_world_hint = false)
     )]
     async fn epic_add(
@@ -634,7 +634,7 @@ impl TodoServer {
     /// Patch an epic in place — absent fields untouched, given fields replaced whole — and answer with the new state.
     #[tool(
         name = "epic_update",
-        output_schema = rmcp::handler::server::tool::schema_for_type::<EpicDto>(),
+        output_schema = crate::schema::output_for_type::<EpicDto>(),
         annotations(open_world_hint = false)
     )]
     async fn epic_update(
@@ -651,7 +651,7 @@ impl TodoServer {
     /// Add a task under an epic: the graph allocates its id, the closure discipline is checked over the draft, and the response is the new state with its clock-stamped `created`/`updated`.
     #[tool(
         name = "task_add",
-        output_schema = rmcp::handler::server::tool::schema_for_type::<TaskDto>(),
+        output_schema = crate::schema::output_for_type::<TaskDto>(),
         annotations(open_world_hint = false)
     )]
     async fn task_add(
@@ -668,7 +668,7 @@ impl TodoServer {
     /// Patch a task in place — absent fields untouched, `null` clears an optional one, a value replaces it whole; `epic` reparents, validated like one — and answer with the new state, `updated` clock-stamped.
     #[tool(
         name = "task_update",
-        output_schema = rmcp::handler::server::tool::schema_for_type::<TaskDto>(),
+        output_schema = crate::schema::output_for_type::<TaskDto>(),
         annotations(open_world_hint = false)
     )]
     async fn task_update(
@@ -685,7 +685,7 @@ impl TodoServer {
     /// Add a decision dossier: the graph allocates its id, `signed`/`superseded` require a resolution, and the response is the new state with its clock-stamped `created`/`updated`.
     #[tool(
         name = "decision_add",
-        output_schema = rmcp::handler::server::tool::schema_for_type::<DecisionDto>(),
+        output_schema = crate::schema::output_for_type::<DecisionDto>(),
         annotations(open_world_hint = false)
     )]
     async fn decision_add(
@@ -702,7 +702,7 @@ impl TodoServer {
     /// Patch a decision dossier in place — absent fields untouched, `null` clears an optional one, a value replaces it whole; signing requires a resolution — and answer with the new state, `updated` clock-stamped.
     #[tool(
         name = "decision_update",
-        output_schema = rmcp::handler::server::tool::schema_for_type::<DecisionDto>(),
+        output_schema = crate::schema::output_for_type::<DecisionDto>(),
         annotations(open_world_hint = false)
     )]
     async fn decision_update(
@@ -719,7 +719,7 @@ impl TodoServer {
     /// Register a document for stable citation: the graph allocates its id, and the response is the new state with its clock-stamped `created`/`updated`.
     #[tool(
         name = "doc_register",
-        output_schema = rmcp::handler::server::tool::schema_for_type::<DocDto>(),
+        output_schema = crate::schema::output_for_type::<DocDto>(),
         annotations(open_world_hint = false)
     )]
     async fn doc_register(
@@ -736,7 +736,7 @@ impl TodoServer {
     /// Move a doc's body to a new path — the audited verb (D10): a citation's address change is its own event — and answer with the moved doc's new state, `updated` clock-stamped.
     #[tool(
         name = "doc_set_path",
-        output_schema = rmcp::handler::server::tool::schema_for_type::<DocDto>(),
+        output_schema = crate::schema::output_for_type::<DocDto>(),
         annotations(open_world_hint = false)
     )]
     async fn doc_set_path(
@@ -753,7 +753,7 @@ impl TodoServer {
     /// Patch a doc in place — absent fields untouched, given fields replaced whole; the path moves only through `doc_set_path` — and answer with the new state, `updated` clock-stamped.
     #[tool(
         name = "doc_update",
-        output_schema = rmcp::handler::server::tool::schema_for_type::<DocDto>(),
+        output_schema = crate::schema::output_for_type::<DocDto>(),
         annotations(open_world_hint = false)
     )]
     async fn doc_update(

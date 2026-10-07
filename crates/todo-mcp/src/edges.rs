@@ -244,7 +244,7 @@ impl TodoServer {
     /// Link two nodes: a `blocks` edge (the source holds the target back until it finishes) or a `relates` annotation (undirected, task-to-task); a duplicate is a no-op, and the response is the echo naming the edge acted on.
     #[tool(
         name = "task_link",
-        output_schema = rmcp::handler::server::tool::schema_for_type::<EdgeDto>(),
+        output_schema = crate::schema::output_for_type::<EdgeDto>(),
         annotations(open_world_hint = false)
     )]
     async fn task_link(
@@ -263,7 +263,7 @@ impl TodoServer {
     /// Unlink two nodes: remove a `blocks` edge or a `relates` annotation; a missing edge is a no-op, and the response is the echo naming the edge acted on.
     #[tool(
         name = "task_unlink",
-        output_schema = rmcp::handler::server::tool::schema_for_type::<EdgeDto>(),
+        output_schema = crate::schema::output_for_type::<EdgeDto>(),
         annotations(open_world_hint = false)
     )]
     async fn task_unlink(

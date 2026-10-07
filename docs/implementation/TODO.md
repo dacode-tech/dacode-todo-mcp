@@ -18,8 +18,9 @@ blocking. Rules, which `tools/attention.py` and the reviewers enforce:
 **Phase: M5 (packaging, docs, cross-repo ergonomics, polish) is in
 progress — decomposed 2026-10-07 (t51): t52–t57 + g13 are the tree, and
 the two shaping calls are confirmed — U28 (dogfooding) yes, U18 (the
-live view) shape A with D13 left reserved. t52 (packaging per §13) is
-landed; t53 (cwd auto-detection) is next.**
+live view) shape A with D13 left reserved. t52 (packaging per §13) and
+t58 (U32's schema-format strip, the user's in-thread sign mid-t53-prep)
+are landed; t53 (cwd auto-detection) is next.**
 **t51 — the M5 decomposition — landed 2026-10-07**: the tree is t52
 packaging per §13 (the release binary, the global-config mcp entry
 naming the durable root `~/.local/share/dacode-todo/`, this repo's own
@@ -197,8 +198,8 @@ shell, which is M3's business.
 (Open but non-blocking: **U27** (the `FileLock::acquire` retry question —
 left at the M5 decomposition as the user's call: the timing-contract
 change needs multi-platform evidence, and no M5 task owns `todo-store`)
-and **U32** (the strict-mode `uint64` schema note — left as recorded
-debt; the fix is a wire-visible decision if ever taken). Scheduled into
+— **U32 is resolved** (2026-10-07, the user's in-thread sign: strip the
+integer-family format hints; landed as t58). Scheduled into
 M5: **U21** (t57) and **U22** (t54). Resolved: U2/U4/U5/U6/U7/
 U8/U9/U10/U11/U12/U14/U17, **U15** and **U19** (both taken by t30),
 **U20** (b) 2026-10-03, **U16** 2026-10-04, U3 (superseded by D12), and
@@ -222,7 +223,7 @@ exit criteria: spec §14. Priority is derived from the Gated-on column by
 | M2 | queries: repo/epic selection, dependency resolution, deterministic `next_task`; registry with path updates | **D16** adds one task if signed; no dispatched task waits on it | done 2026-10-02 — **g7 ran green**: every code gate, the five goldens byte-identical under `UPDATE_GOLDEN=1`, `cargo doc` warning-free under both invocations for the first time (f48 settled), §5.2's selection re-proven a pure function of state, the f41 sweep exercised for the first time (f44/f45 promoted to U21/U22, the rest verified open with named consumers), and M2's lessons consolidated into `.agents/pitfalls.md` (P-LIVE-007/-008, the citation rule, the coverage-pin rule). The five deliveries — t27 selection, f47's pins, t28 batch, t29 listing, t30 doc riders, t31 registry queries — are §3's entries; D16 stayed unsigned throughout and nothing waited on it — **signed (a) 2026-10-03, after closure**, its aggregation task landing under M3's goal |
 | M3 | MCP server: §6's tool surface over the wire (import_md excepted — M4's, per D12), protocol-level tests, default-repo slug config (D8), smoke against a real client | gates cleared 2026-10-03: the **rmcp ask** signed (rmcp 3.5.0 + `serde_json/preserve_order`, §6.3), **U20** resolved (b) — the registry format stays and the server answers `repo_list` from handles — and **D16** signed (a), adding the domain aggregation task to the decomposition; D14/D15 settled the wire's key order and error carrier on 2026-09-30; **D17** signed 2026-10-04 (priority on the triage surfaces) | done 2026-10-04 — **g9 ran green**: every code gate (423 workspace tests), the golden ritual byte-identical over all three golden dirs, the §6 tool-surface check (25 tools over the wire, `import_md` the only exception — exactly the criterion), the smoke evidence recorded (t39's real opencode session), U26 reproduced/isolated/fixed at the gate itself (U27 opened for the store-side question), the f41 sweep exercised, and M3's lessons consolidated into `.agents/pitfalls.md`. The nine deliveries — t32 aggregation, t33 skeleton, t34/t35 the read tools, t36 the mutations, t37 edges + registry + the default slug, t38 the wire suite, t39 the smoke + U16b, t40 D17's echo — are §3's entries |
 | M4 | adoption: the dacode-dialect importer first (**D12**, amending D7), its board the only fixture checked in per §10; camera and ikvm-html imported from their live boards and never copied into this repo; the three repos tracked for real | — (D18 signed (a) 2026-10-05, the same day it was drafted) | in progress — **t42 the parser landed 2026-10-05** (parse_board total over the live board, probe-verified), **t43 the D18 mapping landed 2026-10-06** (the ImportPlan + apply_plan, id reproduction pinned at scale), **t44 the `import_md` wire tool landed 2026-10-06** (the importer cluster, the `ApplyError` refusal seam, the `import_md.v1` golden), **t45 the fixture + e2e golden landed 2026-10-06** (the three real files checked in, the first composed run clean, `dacode_dump.v1` pinning the expected graph), **t46 the camera dialect landed 2026-10-06** (the study, the sibling module, the `dialect` param, the live probe — 178 tasks, no golden per D12), **t50 the U31 lift landed 2026-10-07** (the plan types + shared helpers into dialect-neutral homes under `src/import/`, zero behavior change), **t47 the ikvm-html dialect landed 2026-10-07** (the study, the third sibling module on the neutral homes, the `ikvm-html` dialect value, the live probe — 132 tasks, no golden per D12), **t48 the three repos tracked for real landed 2026-10-07** (registered in the durable D4 root, imported over the wire — every import clean on the first composed run, all three stores verified, the query session recorded: the §9 cutover executed) | done 2026-10-07 — **g11 ran green**: every code gate (fmt, check, **543** workspace tests, clippy on a forced recompile, `cargo doc` warning-free under both invocations), the golden ritual byte-identical over all 24 goldens (19 mcp incl. the fixture golden, 4 store, 1 cli), the §6 tool-surface check (a live `tools/list` drive: exactly the spec table's 26 tools, `import_md` included), the live-run evidence (t46/t47's probes + t48's real imports), **f102 swept** in wire.rs (dual-reviewed, `240e7d2`), the f41 sweep (f99 promoted to **U32**; every other open item verified open with its named consumer intact), and M4's lessons consolidated into `.agents/pitfalls.md` (4.7, 4.8, 5.11–5.13; top rules 15–16) |
-| M5 | packaging, docs, cwd auto-detection (deferred by D8), polish | — (the two shaping calls confirmed 2026-10-07: U28 dogfood, U18 shape A — D13 left reserved) | in progress — **decomposed 2026-10-07 (t51)**: **t52 packaging per §13 landed 2026-10-07** (the release binary + the global-config mcp entry + the durable root, g11's no-live-client caveat closed), t53 cwd auto-detection (D8's deferred arming, the §7 amendment riding), t54 the U28 dogfooding cutover (this repo registered + imported, `progress.py` a thin client, the four tables retiring, U22 resolved with it), t55 U18's shape A (`progress.py --serve`), t56 the adoption README, t57 U21's duplicate-key check; dispatch order t52 → t53 → t54 → t55 → t56 with t57 interleavable; g13 the exit gate, which also closes g3 |
+| M5 | packaging, docs, cwd auto-detection (deferred by D8), polish | — (the two shaping calls confirmed 2026-10-07: U28 dogfood, U18 shape A — D13 left reserved) | in progress — **decomposed 2026-10-07 (t51)**: **t52 packaging per §13 landed 2026-10-07** (the release binary + the global-config mcp entry + the durable root, g11's no-live-client caveat closed), **t58 U32's schema-format strip landed 2026-10-07** (the user's in-thread sign: the integer-family format hints stripped from every advertised schema, output and input, the Ajv noise gone from every client session), t53 cwd auto-detection (D8's deferred arming, the §7 amendment riding), t54 the U28 dogfooding cutover (this repo registered + imported, `progress.py` a thin client, the four tables retiring, U22 resolved with it), t55 U18's shape A (`progress.py --serve`), t56 the adoption README, t57 U21's duplicate-key check; dispatch order t52 → t53 → t54 → t55 → t56 with t57 interleavable (t58 slotted before t53 by the user's call); g13 the exit gate, which also closes g3 |
 
 ## 3. Done
 
@@ -2965,6 +2966,41 @@ Oldest first. One line per delivery, with the commit hash once committed.
       post-session: exit 0, status ok. **g11's standing caveat — no
       live client has queried the durable root yet — is closed.**
       Landed as `8b62aad`.
+- 2026-10-07 — **M5 t58: U32's schema-format strip**: the
+      integer-family `format` hints (schemars' OpenAPI spellings)
+      removed from every schema the server advertises, so client-side
+      JSON Schema validators stop warning on every `tools/list` —
+      opencode's Ajv printed `unknown format "uint64" ignored` lines
+      on each session (f99, board U32) — and a strict-mode client
+      cannot reject the schemas. One strip walk in the new
+      `src/schema.rs` (the family: every primitive integer spelling
+      schemars emits, `int8`…`int128`, `uint8`…`uint128`, plus the
+      `isize`/`usize` spellings `int`/`uint`; standard formats like
+      `date-time` survive; `float`/`double` are out of scope because
+      §8 bars floats from the wire), applied at two seams:
+      `crate::schema::output_for_type` replacing rmcp's
+      `schema_for_type` at all 26 `output_schema` sites (six cluster
+      files, same-line replacements, `Arc::make_mut` detaching from
+      rmcp's thread-local cache so the cached schema is never
+      mutated), and `#[schemars(schema_with)]` on
+      `next_items`'s `limit` — the one `u64` input field — delegating
+      to schemars' own `Option<u64>` spelling so nullability is never
+      hand-written. The class is closed from the wire: a `tools/list`
+      test walks every advertised schema (input and output, `$defs`
+      included) with its own independent copy of the family list, so
+      a future integer field that bypasses both seams fails it; a
+      second pin holds `limit`'s nullable-integer shape. No golden
+      moved, no signed §6 surface moved, no §12 item opened (U32
+      resolved by the user's in-thread sign, the f2/U5 precedent).
+      210 todo-mcp tests (205 + 5), 548 workspace; the five mandatory
+      mutations all killed at their predicted tests; the live smoke —
+      release binary rebuilt, a real opencode session through the
+      global-config entry — shows **zero `unknown format` lines**
+      where the t52 transcript held dozens. Dual-reviewed to
+      sign-off over two rounds (the primary's round-1 med — the
+      family held 8 of schemars' 12 integer spellings, measured
+      against its `primitives.rs` — fixed in round 2; the secondary
+      re-bound on the final bytes).
 
 
 
@@ -3808,7 +3844,7 @@ Deliberate shortcuts, acknowledged rather than fixed. Same id rules as §4.
       dacode's `ImportError` (a type-level coupling with
       dialect-neutral messages), named in `plan.rs`'s module doc as
       the debt for its next owner.
-- [ ] **U32 · A strict-mode client could reject the server's `uint64`
+- [x] **U32 · A strict-mode client could reject the server's `uint64`
       schema format.** Promoted from f99 at the g11 sweep (its own
       verify line: "a U-id if it outlives M3" — it has). The first
       real client's compatibility note: opencode's schema validator
@@ -3823,12 +3859,86 @@ Deliberate shortcuts, acknowledged rather than fixed. Same id rules as §4.
       **Left at the M5 decomposition (2026-10-07)**: no strict-mode
       client exists, so nothing in M5 takes it; the fix stays a
       wire-visible decision if a real client ever rejects the format.
+      **Resolved 2026-10-07** — the user's in-thread sign, mid-t53
+      preparation, on the noise itself (every client session's
+      console): strip the integer-family format hints. Landed as t58
+      — the strip in `src/schema.rs` at both seams (every
+      `output_schema` site plus `next_items`'s `limit`), the wire pin
+      closing the class, the live smoke showing zero `unknown format`
+      lines. No §12 item opened: the signed §6 surface, D14's key
+      order and every golden are untouched.
 
 ## 6. Session log
 
 Newest first. One entry per session, written for someone who was not
 here. The final entry of a session is the handover
 (`.agents/skills/todo-next-imp/SKILL.md` defines the shape).
+
+### 2026-10-07 — t58: U32's schema-format strip — the client noise is gone
+
+The session opened on `/todo-next-imp` proposing t53 (cwd
+auto-detection); the user confirmed it, and mid-preparation reported
+the U32 noise — opencode's Ajv validator printing `unknown format
+"uint64" ignored in schema` lines against every `tools/list`, with a
+pasted analysis proposing a server-side strip. The report matched
+f99's recorded diagnosis exactly (52 warnings at the t39 smoke,
+promoted to board U32 at g11, left at the M5 decomposition as "a
+wire-visible decision if ever taken"), so the user's "ok, let's do
+U32 first, then t53" is U32's sign — recorded on the board (§5
+struck), the f2/U5 precedent for in-thread user decisions, no §12
+item opened: the signed §6 surface, D14's key order and every golden
+are untouched.
+
+The measurement pass before any code (the state space, pitfalls 5.1):
+a live `tools/list` drive against the durable root found **26 tools,
+26 `format` keys, all `uint64`** — 25 in output schemas across five
+tools, exactly one in an input schema (`next_items`' `limit`); the
+output schemas nest their DTOs under `$defs`; `Option<u64>`'s
+schemars spelling is `["integer","null"]` + `minimum: 0` + the format
+hint; rmcp's `schema_for_type` returns an `Arc` shared with its
+thread-local cache; schemars' `extend` attribute can insert but never
+remove a key, while `schema_with` replaces a field's schema
+wholesale. Those facts settled the design: one recursive strip walk
+in a new `src/schema.rs`, applied at the 26 `output_schema` sites
+(`Arc::make_mut` detaching from rmcp's cache) and at `limit` via
+`schema_with` delegating to schemars' own `Option<u64>`
+implementation — nullability never hand-written, rmcp's
+input-validation path untouched, and the declined alternatives (the
+`input_schema` attribute route needing the repo's first production
+`expect`; replicating rmcp's private `validate_and_strip`) recorded
+in the task spec.
+
+The class is closed from the wire, not by the call sites: a
+`tools/list` test walks every advertised schema — input and output,
+`$defs` included — with its own independent copy of the family list,
+so a future integer field that bypasses both seams fails it; a second
+pin holds `limit`'s nullable-integer shape. The primary review's
+round-1 med is the pin earning its keep one level down: the family
+initially held 8 of schemars' 12 integer spellings (`int128`,
+`uint128`, and the `isize`/`usize` spellings `int`/`uint` missing,
+measured against schemars' `primitives.rs`) — a future `i128` field
+would have re-triggered the warning past both the strip and the pin;
+both lists now carry all twelve, and the number formats
+(`float`/`double`) are out of scope because §8 bars floats from the
+wire. Five mutations all killed at their predicted tests; the golden
+ritual byte-identical; 210 todo-mcp tests (205 + 5), 548 workspace.
+
+The live smoke is the user-visible proof: the release binary rebuilt
+(the global-config entry names it), a fresh opencode session through
+the global entry drove `repo_list` (the three real repos answered),
+and the transcript and stderr hold **zero `unknown format` lines**
+where the t52 transcript held dozens.
+
+**Handover.** Workspace: `main`, four crates, rustc 1.98.1; this
+commit leaves the tree clean (the index backfill follows, AGENTS.md
+having moved). Landed: t58 (this entry). Next step: **t53 — cwd
+auto-detection, in this session** — the user's original confirmation
+stands ("U32 first, then t53"); the preparation reads are done (spec
+§7/D8, main.rs, lib.rs, registry.rs) and the dispatch follows
+immediately. Blocked on you: nothing. Unverified: nothing new — the
+smoke is the before/after pair (t52's transcript vs this one), and
+the staleness caveat from t52's handover still stands (documented,
+not demonstrated).
 
 ### 2026-10-07 — t52: packaging per §13 — the global wiring landed
 

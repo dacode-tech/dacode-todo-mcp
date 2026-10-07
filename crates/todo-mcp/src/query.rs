@@ -92,6 +92,7 @@ pub(crate) struct NextItemsParams {
     /// The optional task scope (§5.2): the batch becomes that task's transitive dependents, each marked actionable or held; mutually exclusive with `epic`.
     pub task: Option<String>,
     /// How many rows the batch holds at most (§5.2); absent means 10.
+    #[schemars(schema_with = "crate::schema::optional_u64")]
     pub limit: Option<u64>,
 }
 
@@ -441,7 +442,7 @@ impl TodoServer {
     /// The question the system exists for: the first actionable task of a repository (optionally one epic), in canonical order, with the scope's deferred summary.
     #[tool(
         name = "next_task",
-        output_schema = rmcp::handler::server::tool::schema_for_type::<NextTaskDto>(),
+        output_schema = crate::schema::output_for_type::<NextTaskDto>(),
         annotations(read_only_hint = true, open_world_hint = false)
     )]
     async fn next_task(
@@ -460,7 +461,7 @@ impl TodoServer {
     /// The ranked actionable batch: up to `limit` (default 10) tasks of a repository, one epic, or one task's transitive dependents, each annotated with what blocks it, its direct successors, a derived weight and the actionable mark, plus the deferred summary.
     #[tool(
         name = "next_items",
-        output_schema = rmcp::handler::server::tool::schema_for_type::<NextItemsDto>(),
+        output_schema = crate::schema::output_for_type::<NextItemsDto>(),
         annotations(read_only_hint = true, open_world_hint = false)
     )]
     async fn next_items(
@@ -477,7 +478,7 @@ impl TodoServer {
     /// The roll-up of a scope: counts of epics and tasks by status, decisions by decision status, docs as one total, the non-terminal open totals and the deferred summary.
     #[tool(
         name = "status_summary",
-        output_schema = rmcp::handler::server::tool::schema_for_type::<StatusSummaryDto>(),
+        output_schema = crate::schema::output_for_type::<StatusSummaryDto>(),
         annotations(read_only_hint = true, open_world_hint = false)
     )]
     async fn status_summary(
@@ -494,7 +495,7 @@ impl TodoServer {
     /// One task's full record: every field of the node, ids and timestamps in their canonical spellings.
     #[tool(
         name = "task_show",
-        output_schema = rmcp::handler::server::tool::schema_for_type::<TaskDto>(),
+        output_schema = crate::schema::output_for_type::<TaskDto>(),
         annotations(read_only_hint = true, open_world_hint = false)
     )]
     async fn task_show(
@@ -511,7 +512,7 @@ impl TodoServer {
     /// One decision dossier's full record: every field of the node, ids and timestamps in their canonical spellings.
     #[tool(
         name = "decision_show",
-        output_schema = rmcp::handler::server::tool::schema_for_type::<DecisionDto>(),
+        output_schema = crate::schema::output_for_type::<DecisionDto>(),
         annotations(read_only_hint = true, open_world_hint = false)
     )]
     async fn decision_show(
