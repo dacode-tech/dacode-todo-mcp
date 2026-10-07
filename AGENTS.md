@@ -34,7 +34,10 @@ cutover) landed 2026-10-07 — the `own` dialect (wire value
 (the census matching the prediction exactly), `progress.py` a thin
 client over a per-render stdio spawn with the four hand-maintained
 tables deleted, U22 resolved; t55 (U18's shape A, `progress.py
---serve`) is next.** M4 (adoption) is
+--serve`) landed 2026-10-08 — the live listener on 127.0.0.1:0 with the
+per-user port publication (a second invocation attaches, a stale one is
+taken over, SIGINT cleans up), f109's census to stderr; t56 (the
+adoption README) is next.** M4 (adoption) is
 closed — g11, the exit gate, ran green
 2026-10-07. The gate ran every line of its verify method on the committed
 tree: every code gate (543 workspace tests), the golden ritual
@@ -165,7 +168,9 @@ tools/progress.py            # writes .agents/cache/progress.{html,json}
 tools/progress.py --open     # ...and opens the page in a browser
 tools/progress.py --json     # machine-readable, for other tools
 tools/progress.py --refresh  # re-register + re-import this repo's board (the store is a derived cache)
+tools/progress.py --serve    # serve the page live on 127.0.0.1 (one listener per user; a second invocation attaches)
 tools/progress-refresh-check.py  # the refresh crash-order pin (temp root only)
+tools/progress-serve-check.py    # the serve-mode pin (temp root + temp port file only)
 
 # Session task tree (gitignored, branch-keyed).
 # Convention: .agents/knowledge/workflows/task-tracking.md

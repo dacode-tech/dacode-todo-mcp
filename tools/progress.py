@@ -13,7 +13,10 @@ roadmap is behind us.
     tools/progress.py --root DIR         the server's data root (default
                                          ~/.local/share/dacode-todo)
     tools/progress.py --refresh          re-register + re-import this repo's board
-                                         into the root first, printing the census
+                                          into the root first, printing the census
+    tools/progress.py --serve            serve the page live on 127.0.0.1 (a fresh
+                                          render per request; a second invocation
+                                          attaches to the same listener)
 
 A thin client over the server (the U28 cutover): every render spawns
 `target/release/todo-mcp --root <root>`, drives the MCP handshake, asks
@@ -26,6 +29,20 @@ epic's gates, and the totals derive client-side. The footer shows the repo
 node's `registered_at` as the import instant, so staleness is visible: the
 page is a rendering of the imported board, and the board is the source —
 if they disagree, the board wins and this page is stale until `--refresh`.
+
+`--serve` is the live view (U18 shape A): bind 127.0.0.1:0, publish the
+assigned port to a per-user runtime file
+(`~/.local/state/dacode-todo-mcp/serve.port`), and answer every request
+with a fresh render — a browser refresh re-renders, so the page is as
+live as the last import (the footer's import instant is still the
+staleness signal; `--refresh` composes, running once before the listener
+starts). A second invocation probes the publication and attaches — same
+URL, exit 0, no second listener; a dead, stale or foreign publication is
+taken over, never killed. One listener per user, serving the root it was
+started with — to serve a different `--root`, stop the listener first.
+`PROGRESS_SERVE_PORT_FILE` overrides the publication path (the committed
+driver's seam, so it never touches the real file). The default
+invocation is unchanged: static files, no listener.
 
 The markdown board and `tools/tasks.py` stay the trackers of record (U28:
 the write surface is unchanged, the cutover reversible). Beside the
@@ -57,12 +74,15 @@ from __future__ import annotations
 import argparse
 import fcntl
 import html
+import http.client
+import http.server
 import json
 import os
 import re
 import shutil
 import subprocess
 import sys
+import urllib.request
 from datetime import date
 from pathlib import Path
 
@@ -88,6 +108,13 @@ TRACKER_DONE = {"done", "wontfix"}
 # "rmtree" to make --refresh exit 99 right after that surgery step, so a
 # test can observe which crash state the step order leaves behind.
 CRASH_SEAM = "PROGRESS_REFRESH_CRASH_AFTER"
+
+# The serve mode's publication (U18 shape A): the per-user runtime file
+# naming the live listener's port, and the env override that keeps the
+# committed driver off the user's real file (CRASH_SEAM's pattern).
+SERVE_PORT_FILE_ENV = "PROGRESS_SERVE_PORT_FILE"
+DEFAULT_SERVE_PORT_FILE = Path.home() / ".local" / "state" / "dacode-todo-mcp" / "serve.port"
+HEALTH_MARKER = "dacode-todo-mcp progress listener"
 
 
 def fail(message: str) -> "NoReturn":  # noqa: F821 - typing.NoReturn without the import
@@ -239,9 +266,11 @@ def refresh(root: Path) -> dict:
     responses = drive(root, requests)
     tool_answer(responses[0], "repo_register")
     census = tool_answer(responses[1], "import_md")
+    # stderr, not stdout: --json consumers pipe stdout, and the census
+    # is narration, not part of the document (f109).
     print(f"refresh: imported {census['epics']} epics, {census['decisions']} decisions, "
           f"{census['docs']} docs, {census['tasks']} tasks, {census['blocks']} blocks edges "
-          f"into {root}")
+          f"into {root}", file=sys.stderr)
     return census
 
 
@@ -781,6 +810,173 @@ def render_json(model: dict, tracker: tuple[list[dict], str], sha: str) -> dict:
     }
 
 
+# ── the serve mode (U18 shape A) ────────────────────────────────────────
+def port_file_path() -> Path:
+    """Where the live listener's port is published: per-user by default,
+    overridable so the committed driver never touches the real file."""
+    override = os.environ.get(SERVE_PORT_FILE_ENV)
+    return Path(override).expanduser() if override else DEFAULT_SERVE_PORT_FILE
+
+
+def read_published_port(path: Path) -> int | None:
+    try:
+        text = path.read_text().strip()
+    except OSError:
+        return None
+    return int(text) if text.isdigit() else None
+
+
+def publish_port(path: Path, port: int) -> None:
+    """The store's own write discipline: a pid-suffixed temp file in the
+    same directory, fsync, then the atomic rename — a torn publish is a
+    stale file the next probe takes over, never a wrong port."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(f"{path.name}.{os.getpid()}.tmp")
+    with open(temporary, "w") as handle:
+        handle.write(f"{port}\n")
+        handle.flush()
+        os.fsync(handle.fileno())
+    os.replace(temporary, path)
+
+
+def listener_answers(port: int) -> bool:
+    """Is the published port a live listener of ours? `/health` answers
+    with the marker and renders nothing, so the probe is cheap. Anything
+    else — refused, timed out, unparseable, foreign — reads as dead; a
+    foreign server is never killed, only replaced in the publication."""
+    try:
+        with urllib.request.urlopen(
+                f"http://127.0.0.1:{port}/health", timeout=2) as response:
+            body = response.read().decode("utf-8", "replace")
+            return response.status == 200 and HEALTH_MARKER in body
+    except (OSError, ValueError, http.client.HTTPException):
+        return False
+
+
+def live_render(root: Path) -> tuple[dict, tuple[list[dict], str], str]:
+    """One fresh render's inputs — the same path the static mode walks,
+    so a served page and a written page can never disagree in shape."""
+    return build(fetch_graph(root)), read_tracker_overlay(), head_sha()
+
+
+class ProgressServer(http.server.HTTPServer):
+    """Single-threaded on purpose: requests serialize, so two concurrent
+    GETs never contend on a store lock mid-render, at the cost of a
+    queued request waiting out the in-flight one (sub-second)."""
+
+    def __init__(self, root: Path) -> None:
+        self.root = root
+        super().__init__(("127.0.0.1", 0), ProgressHandler)
+
+
+class ProgressHandler(http.server.BaseHTTPRequestHandler):
+    """The served surface: `/` the page, `/json` its machine twin, both
+    rendered fresh per request; `/health` the marker without a render;
+    anything else 404s before the render, so a browser's favicon probe
+    never pays one. A failed render answers 500 — `fail()` has already
+    printed the reason to stderr, and the listener stays up."""
+
+    server: ProgressServer
+
+    def do_GET(self) -> None:
+        path = self.path.split("?", 1)[0]
+        if path == "/health":
+            self._respond(200, "text/plain; charset=utf-8",
+                          (HEALTH_MARKER + "\n").encode())
+            return
+        if path not in ("/", "/json"):
+            self._respond(404, "text/plain; charset=utf-8", b"not found\n")
+            return
+        try:
+            model, tracker, sha = live_render(self.server.root)
+            if path == "/":
+                self._respond(200, "text/html; charset=utf-8",
+                              render_page(model, tracker, sha).encode())
+            else:
+                document = json.dumps(render_json(model, tracker, sha),
+                                      indent=2, ensure_ascii=False) + "\n"
+                self._respond(200, "application/json", document.encode())
+        except SystemExit:
+            self._respond(500, "text/plain; charset=utf-8",
+                          "render failed — see the listener's stderr\n".encode())
+
+    def _respond(self, status: int, content_type: str, body: bytes) -> None:
+        self.send_response(status)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+
+def open_in_browser(target: str) -> None:
+    if sys.platform == "darwin":
+        subprocess.run(["open", target], check=False)
+    elif sys.platform.startswith("linux"):
+        subprocess.run(["xdg-open", target], check=False)
+    else:
+        print(f"  open it yourself: {target}")
+
+
+def serve(root: Path, open_browser: bool) -> int:
+    """U18 shape A: one live listener per user.
+
+    The first invocation binds 127.0.0.1:0 — never a chosen port; the
+    assigned one is read back from the socket — publishes it to the
+    per-user runtime file, and answers every request with a fresh
+    render, so a browser refresh is a re-render. A second invocation
+    probes the publication and attaches: same URL, exit 0, no second
+    listener. A dead, stale or foreign publication is taken over. The
+    listener serves the root it was started with; to serve a different
+    root, stop it first.
+    """
+    path = port_file_path()
+    published = read_published_port(path)
+    if published is not None and listener_answers(published):
+        url = f"http://127.0.0.1:{published}/"
+        print(f"already serving at {url} — attached, no second listener started")
+        if open_browser:
+            open_in_browser(url)
+        return 0
+    # Fail fast: one render before anything is published, so a wrong
+    # root or a missing binary is a startup error, not a listener that
+    # answers 500 on every request.
+    live_render(root)
+    server = ProgressServer(root)
+    port = server.socket.getsockname()[1]
+    publish_port(path, port)
+    winner = read_published_port(path)
+    if winner is None:
+        publish_port(path, port)
+    elif winner != port:
+        # A simultaneous invocation won the publish race: it serves, we
+        # attach. (The double-overwrite interleaving where both pass
+        # this check leaves one orphaned listener on an unadvertised
+        # port — benign for a personal tool; the spec records it.)
+        server.server_close()
+        url = f"http://127.0.0.1:{winner}/"
+        print(f"already serving at {url} — attached, no second listener started")
+        if open_browser:
+            open_in_browser(url)
+        return 0
+    url = f"http://127.0.0.1:{port}/"
+    # flush: a piped consumer must see the URL before serve_forever blocks
+    print(f"serving {url} (root {rel(root)}; Ctrl-C to stop)", flush=True)
+    if open_browser:
+        open_in_browser(url)
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        server.server_close()
+        try:
+            if read_published_port(path) == port:
+                path.unlink()
+        except OSError:
+            pass
+    return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--open", action="store_true", help="open the page in a browser")
@@ -794,8 +990,23 @@ def main() -> int:
     ap.add_argument("--refresh", action="store_true",
                     help="re-register + re-import this repo's board into the root first, "
                          "printing the import census")
+    ap.add_argument("--serve", action="store_true",
+                    help="serve the page live over 127.0.0.1: a fresh render per request, "
+                         "the port published to a per-user runtime file so a second "
+                         "invocation attaches instead of starting another listener")
     args = ap.parse_args()
     root = Path(args.root).expanduser()
+
+    if args.serve:
+        if args.json:
+            ap.error("--serve cannot combine with --json (the JSON is served at /json)")
+        if args.out:
+            ap.error("--serve cannot combine with --out (it writes no static files)")
+        if args.no_write:
+            ap.error("--serve cannot combine with --no-write (it writes no static files)")
+        if args.refresh:
+            refresh(root)
+        return serve(root, args.open)
 
     if args.refresh:
         refresh(root)
@@ -837,13 +1048,7 @@ def main() -> int:
     if not args.no_write:
         print(f"  wrote {rel(out / 'progress.html')} and {rel(out / 'progress.json')}")
     if args.open:
-        target = (out / "progress.html")
-        if sys.platform == "darwin":
-            subprocess.run(["open", str(target)], check=False)
-        elif sys.platform.startswith("linux"):
-            subprocess.run(["xdg-open", str(target)], check=False)
-        else:
-            print(f"  open it yourself: {target}")
+        open_in_browser(str(out / "progress.html"))
     return 0
 
 
