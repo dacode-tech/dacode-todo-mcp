@@ -29,7 +29,12 @@ every advertised schema, the client-side validator noise with them;
 t53 (cwd auto-detection, D8's deferred arming) landed 2026-10-07 —
 the three-tier default (param > flag > cwd), the deterministic
 longest-ancestor match, the §7 amendment; t54 (the U28 dogfooding
-cutover) is next.** M4 (adoption) is
+cutover) landed 2026-10-07 — the `own` dialect (wire value
+`dacode-todo-mcp`) importing this repo's board into the durable root
+(the census matching the prediction exactly), `progress.py` a thin
+client over a per-render stdio spawn with the four hand-maintained
+tables deleted, U22 resolved; t55 (U18's shape A, `progress.py
+--serve`) is next.** M4 (adoption) is
 closed — g11, the exit gate, ran green
 2026-10-07. The gate ran every line of its verify method on the committed
 tree: every code gate (543 workspace tests), the golden ritual
@@ -159,6 +164,8 @@ tools/attention.py --check
 tools/progress.py            # writes .agents/cache/progress.{html,json}
 tools/progress.py --open     # ...and opens the page in a browser
 tools/progress.py --json     # machine-readable, for other tools
+tools/progress.py --refresh  # re-register + re-import this repo's board (the store is a derived cache)
+tools/progress-refresh-check.py  # the refresh crash-order pin (temp root only)
 
 # Session task tree (gitignored, branch-keyed).
 # Convention: .agents/knowledge/workflows/task-tracking.md

@@ -4,45 +4,65 @@
 `tools/attention.py` answers "what needs the user". This answers the other
 question, which no committed view covers: **what is the shape of the work** —
 which task fed which, what is open, what is blocked, and how much of the
-roadmap is behind us. It reads the same two sources of truth (the gitignored
-session tracker and the committed board) and renders them as a dependency
-graph plus totals.
+roadmap is behind us.
 
-    tools/progress.py             print the summary, refresh the cache files
-    tools/progress.py --open      ...and open the page in a browser
-    tools/progress.py --json      print the JSON to stdout instead of writing it
-    tools/progress.py --out DIR   write somewhere other than the cache
+    tools/progress.py                    print the summary, refresh the cache files
+    tools/progress.py --open             ...and open the page in a browser
+    tools/progress.py --json             print the JSON to stdout instead of writing it
+    tools/progress.py --out DIR          write somewhere other than the cache
+    tools/progress.py --root DIR         the server's data root (default
+                                         ~/.local/share/dacode-todo)
+    tools/progress.py --refresh          re-register + re-import this repo's board
+                                         into the root first, printing the census
 
-Output goes to `.agents/cache/progress.{html,json}`, which is gitignored — a
-rendering of committed state, never a source of it. If it disagrees with the
-tracker or the board, those win and this script is wrong.
+A thin client over the server (the U28 cutover): every render spawns
+`target/release/todo-mcp --root <root>`, drives the MCP handshake, asks
+**one** `graph_show {repo: "dacode-todo-mcp"}` and renders everything from
+that single answer — the lanes are the epics, each lane's nodes are the
+epic's tasks in id order, the decision nodes attach to the lane of the epic
+their Gates edge targets, the edges are the graph's blocks edges, the
+open-items table is the open tasks, the waits column derives from the
+epic's gates, and the totals derive client-side. The footer shows the repo
+node's `registered_at` as the import instant, so staleness is visible: the
+page is a rendering of the imported board, and the board is the source —
+if they disagree, the board wins and this page is stale until `--refresh`.
+
+The markdown board and `tools/tasks.py` stay the trackers of record (U28:
+the write surface is unchanged, the cutover reversible). Beside the
+server's committed picture the page keeps one overlay, clearly marked: an
+"in flight (session tracker)" section reading the tracker yaml directly —
+the board is the committed picture, the tracker is the session state, and
+a page showing only the committed picture would be strictly worse
+mid-milestone.
 
 Two rules this tool holds itself to, both because a renderer that quietly
 shows less than everything is worse than no renderer:
 
-* **It cannot pass by reading nothing.** A missing or empty tracker, or a
-  board with no milestone rows, is an error rather than an empty page.
-* **It cannot drop a relationship silently.** Every declared edge whose
-  endpoint has no lane is a hard failure, and every open tracker node that
-  is not drawn is reported by id. The lanes are a drawing order and a
-  judgment; the edges are citations. Add a new node to `LANES` when it
-  appears, or the run fails and tells you.
+* **It cannot pass by reading nothing.** A missing binary, a server that
+  will not answer, or a repo the root does not carry is an error rather
+  than an empty page.
+* **It cannot drop a node silently.** Every task sits in its epic's lane
+  by construction; a decision the renderer cannot place (no gates edge to
+  resolve a lane from) is reported on the page, never dropped, and so is
+  every edge with an unplaced endpoint.
 
 Percentages always travel with their denominator, on the page and in the
 JSON. "Progress" is not one number: milestones measure the roadmap, tasks
-measure the work *decomposed so far* (which falls as M2–M5 are decomposed),
-and findings/debt are records rather than deliverables.
+measure the work *decomposed so far*, and findings/debt are records rather
+than deliverables.
 """
 
 from __future__ import annotations
 
 import argparse
+import fcntl
 import html
 import json
+import os
 import re
+import shutil
 import subprocess
 import sys
-from collections import Counter
 from datetime import date
 from pathlib import Path
 
@@ -50,11 +70,24 @@ import yaml
 
 REPO = Path(__file__).resolve().parent.parent
 TRACKER_DIR = REPO / ".agents" / "cache" / "tasks"
-BOARD = REPO / "docs" / "implementation" / "TODO.md"
 CACHE = REPO / ".agents" / "cache"
+BINARY = REPO / "target" / "release" / "todo-mcp"
+DEFAULT_ROOT = Path.home() / ".local" / "share" / "dacode-todo"
+SLUG = "dacode-todo-mcp"
 
-DONE = {"done", "wontfix"}
-STANDING = {"standing"}
+# The mapping's provenance prefix for a §2 milestone epic — the one
+# contract the client reads off the epic description to tell the roadmap
+# epics from the synthetic containers (and to recover the board's M id,
+# which is the description's last token).
+MILESTONE_DESCRIPTION = "the dacode-todo-mcp board's §2 milestone "
+
+DONE = {"closed", "wontfix"}
+TRACKER_DONE = {"done", "wontfix"}
+
+# The refresh's crash-order test seam (D5/M6): set to "registry" or
+# "rmtree" to make --refresh exit 99 right after that surgery step, so a
+# test can observe which crash state the step order leaves behind.
+CRASH_SEAM = "PROGRESS_REFRESH_CRASH_AFTER"
 
 
 def fail(message: str) -> "NoReturn":  # noqa: F821 - typing.NoReturn without the import
@@ -62,25 +95,190 @@ def fail(message: str) -> "NoReturn":  # noqa: F821 - typing.NoReturn without th
     raise SystemExit(1)
 
 
-# ── sources ────────────────────────────────────────────────────────────
-def read_tracker() -> dict:
-    """The branch-keyed tracker file `tools/tasks.py` itself resolves."""
+def crash_after(step: str) -> None:
+    """The crash-order seam: exit 99 right after `step`, if asked."""
+    if os.environ.get(CRASH_SEAM) == step:
+        print(f"progress.py: crash seam fired after '{step}' (exit 99)", file=sys.stderr)
+        raise SystemExit(99)
+
+
+# ── the thin client ────────────────────────────────────────────────────
+def drive(root: Path, requests: list[str]) -> list[str]:
+    """Spawn the release binary over stdio, handshake, ask, collect.
+
+    One request at a time — each response line is read before the next
+    request is written, so the response order is the request order by
+    construction. A missing binary fails with the build command; a
+    non-zero exit or server stderr fails the render.
+    """
+    if not BINARY.exists():
+        fail(f"{BINARY.relative_to(REPO)} is missing — build it with: "
+             "cargo build --release -p todo-mcp")
+    proc = subprocess.Popen(
+        [str(BINARY), "--root", str(root)],
+        stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        text=True,
+    )
+    initialize = (
+        '{"jsonrpc":"2.0","id":1,"method":"initialize","params":'
+        '{"protocolVersion":"2025-11-25","capabilities":{},'
+        '"clientInfo":{"name":"progress","version":"0"}}}'
+    )
+    out = []
+    proc.stdin.write(initialize + "\n")
+    proc.stdin.flush()
+    handshake = proc.stdout.readline()
+    if not handshake.startswith('{"jsonrpc":"2.0","id":1,"result":{"protocolVersion"'):
+        fail(f"the server's handshake did not answer: {handshake[:120]}")
+    proc.stdin.write('{"jsonrpc":"2.0","method":"notifications/initialized"}\n')
+    proc.stdin.flush()
+    for request in requests:
+        proc.stdin.write(request + "\n")
+        proc.stdin.flush()
+        out.append(proc.stdout.readline())
+    proc.stdin.close()
+    trailing = proc.stdout.read()
+    if trailing:
+        fail(f"response bytes exist beyond the driven ones: {trailing[:120]}")
+    stderr = proc.stderr.read()
+    status = proc.wait()
+    if status != 0:
+        fail(f"the server exited {status}; stderr: {stderr[:500]}")
+    if stderr:
+        fail(f"the server wrote to stderr on a green path: {stderr[:500]}")
+    return out
+
+
+def call(i: int, name: str, arguments: str) -> str:
+    return (f'{{"jsonrpc":"2.0","id":{i},"method":"tools/call",'
+            f'"params":{{"name":"{name}","arguments":{arguments}}}}}')
+
+
+def tool_answer(response: str, what: str) -> dict:
+    """One tool response's structuredContent, or the carrier's message."""
+    result = json.loads(response)["result"]
+    if result.get("isError"):
+        message = result["structuredContent"]["message"]
+        fail(f"{what} failed: {message}")
+    return result["structuredContent"]
+
+
+def fetch_graph(root: Path) -> dict:
+    """The one call every render reads: `graph_show` for this repo."""
+    responses = drive(root, [call(2, "graph_show", json.dumps({"repo": SLUG}))])
+    return tool_answer(responses[0], "graph_show")
+
+
+# ── the refresh (D5) ───────────────────────────────────────────────────
+def load_registry(path: Path) -> list[dict]:
+    if not path.exists():
+        return []
+    document = json.loads(path.read_text())
+    return document.get("repos", [])
+
+
+def write_registry(path: Path, entries: list[dict]) -> None:
+    """The store's own discipline: compact JSON, slug-sorted, one trailing
+    newline, a pid-suffixed temp file in the same directory, fsync, then
+    the atomic rename (§4.3)."""
+    ordered = sorted(entries, key=lambda e: e["slug"])
+    document = {"format_version": 1, "repos": ordered}
+    body = json.dumps(document, separators=(",", ":")) + "\n"
+    temporary = path.with_name(f"{path.name}.{os.getpid()}.tmp")
+    with open(temporary, "w") as handle:
+        handle.write(body)
+        handle.flush()
+        os.fsync(handle.fileno())
+    os.replace(temporary, path)
+
+
+def refresh(root: Path) -> dict:
+    """The on-demand refresh: a registry surgery with a stated crash order.
+
+    `apply_plan` refuses a non-empty graph, so a refresh re-registers:
+    (1) flock `registry.json.lock` exclusive; (2) load `registry.json`,
+    drop this repo's entry, write temp + fsync + `os.replace`; (3)
+    `rmtree` this repo's store directory; (4) release; (5) spawn the
+    server, `repo_register` + `import_md` over the wire. The ORDER is the
+    safety argument: a crash after (2) leaves an orphan store directory —
+    invisible, because the registry no longer lists it, cleaned by the
+    next refresh — while the reverse order could leave a dangling entry,
+    which breaks `repo_list` for every repo (the all-or-nothing rule).
+    The dogfooding store is a derived cache of the board, rebuildable at
+    any time; the other repos' stores are untouched by the surgery.
+    """
+    root.mkdir(parents=True, exist_ok=True)
+    registry = root / "registry.json"
+    lock_path = root / "registry.json.lock"
+    store_dir = root / "repos" / SLUG
+    lock_fd = os.open(lock_path, os.O_CREAT | os.O_RDWR)
+    try:
+        fcntl.flock(lock_fd, fcntl.LOCK_EX)
+        entries = load_registry(registry)
+        kept = [e for e in entries if e["slug"] != SLUG]
+        if len(kept) != len(entries):
+            write_registry(registry, kept)
+        elif not registry.exists():
+            # A fresh root: write the empty registry so the surgery's
+            # step (2) is real even when there was nothing to drop.
+            write_registry(registry, kept)
+        crash_after("registry")
+        if store_dir.exists():
+            shutil.rmtree(store_dir)
+        crash_after("rmtree")
+    finally:
+        fcntl.flock(lock_fd, fcntl.LOCK_UN)
+        os.close(lock_fd)
+    # (5) the re-register + the import, over the wire.
+    requests = [
+        call(2, "repo_register", json.dumps({
+            "slug": SLUG, "name": SLUG, "path": str(REPO)})),
+        call(3, "import_md", json.dumps({
+            "repo": SLUG, "dialect": SLUG})),
+    ]
+    responses = drive(root, requests)
+    tool_answer(responses[0], "repo_register")
+    census = tool_answer(responses[1], "import_md")
+    print(f"refresh: imported {census['epics']} epics, {census['decisions']} decisions, "
+          f"{census['docs']} docs, {census['tasks']} tasks, {census['blocks']} blocks edges "
+          f"into {root}")
+    return census
+
+
+# ── the tracker overlay (D7) ───────────────────────────────────────────
+def read_tracker_overlay() -> tuple[list[dict], str]:
+    """The session tracker's non-done items, as a flat list — no edges, no
+    lanes. The tracker is a tracker of record (U28's own framing), so the
+    overlay is a view of it, not hand-maintained state; a missing tracker
+    degrades to a note, because the server is the page's primary source —
+    the overlay reports its own absence rather than failing the page."""
     branch = subprocess.run(
         ["git", "rev-parse", "--abbrev-ref", "HEAD"],
         cwd=REPO, capture_output=True, text=True, check=True,
     ).stdout.strip()
-    # tasks.py keys the file by branch, with `HEAD` as the detached fallback;
-    # the mapping is its own, so ask the directory rather than guessing.
     candidates = sorted(TRACKER_DIR.glob("*.yaml"))
     if not candidates:
-        fail(f"no tracker files under {TRACKER_DIR.relative_to(REPO)} — nothing to render")
+        return [], "(no session tracker found)"
     named = TRACKER_DIR / f"{branch}.yaml"
     path = named if named.exists() else candidates[0]
     data = yaml.safe_load(path.read_text() or "")
     if not isinstance(data, dict) or not data.get("nodes"):
-        fail(f"{path.relative_to(REPO)} parsed empty — refusing to render an empty page")
-    data["_path"] = str(path.relative_to(REPO))
-    return data
+        return [], f"({path.relative_to(REPO)} parsed empty)"
+    items = []
+
+    def walk(nodes):
+        for node in nodes:
+            if node.get("status", "pending") not in TRACKER_DONE:
+                items.append({
+                    "id": node["id"],
+                    "kind": node.get("kind", "task"),
+                    "status": node.get("status", "pending"),
+                    "title": node.get("title", ""),
+                })
+            walk(node.get("children") or [])
+
+    walk(data["nodes"])
+    return items, str(path.relative_to(REPO))
 
 
 def head_sha() -> str:
@@ -90,336 +288,135 @@ def head_sha() -> str:
     ).stdout.strip()
 
 
-def read_board() -> tuple[list[dict], list[dict]]:
-    """§2's milestone rows and §4/§5's `U` items, from the committed board."""
-    if not BOARD.exists():
-        fail(f"{BOARD.relative_to(REPO)} is missing — the board is a source of truth")
-    text = BOARD.read_text()
-
-    def section(name: str, nxt: str) -> str:
-        m = re.search(rf"^## {name}\..*?$(.*?)(?=^## {nxt}\.)", text, re.M | re.S)
-        return m.group(1) if m else ""
-
-    milestones = []
-    for line in section("2", "3").splitlines():
-        if re.match(r"^\| M\d", line):
-            cells = [c.strip() for c in line.strip("|").split("|")]
-            if len(cells) >= 4:
-                milestones.append({"id": cells[0], "deliverable": cells[1], "state": cells[3]})
-    if not milestones:
-        fail("board §2 has no milestone rows — refusing to render a roadmap from nothing")
-
-    items = []
-    for sec, kind, nxt in (("4", "follow-up", "5"), ("5", "debt", "6")):
-        body = section(sec, nxt)
-        blocks = [b for b in re.split(r"(?m)^(?=- \[)", body) if b.startswith("- [")]
-        for block in blocks:
-            # `re.S` because a board item's bold title may wrap onto the next
-            # line; the block boundary is what keeps `.*?` inside one item.
-            m = re.match(r"- \[( |x)\] \*\*(U\d+) · (.*?)\*\*", block, re.S)
-            if not m:
-                fail(f"board §{sec} has an item this parser cannot read: "
-                     f"{block.splitlines()[0][:70]!r} — fix the regex, do not drop it")
-            items.append({
-                "id": m.group(2),
-                "kind": kind,
-                "status": "done" if m.group(1) == "x" else "pending",
-                "title": re.sub(r"\s+", " ", m.group(3)).split(".")[0],
-            })
-        # Every block either parsed or failed above, so the count is exact by
-        # construction — which is the point: a renderer that silently skips an
-        # item reports less than the truth and still looks complete.
-    return milestones, items
+# ── the model, from the one graph_show answer ──────────────────────────
+def id_number(node_id: str) -> int:
+    """The numeric part of `<slug>:U17` — the id-order sort key."""
+    return int(re.search(r"([0-9]+)$", node_id).group(1))
 
 
-# ── graph model ────────────────────────────────────────────────────────
-# LANES is a drawing order: left to right is roughly time, and membership is
-# by id. It is the one judgment on the page, and an open node that is not in
-# it is reported rather than dropped.
-LANES: list[tuple[str, list[str]]] = [
-    ("bootstrap", ["g1", "g2"]),
-    ("project", ["g3"]),
-    ("M0 + signed decisions", ["t2", "t1", "t3", "t4", "t5", "t16", "f24", "g4",
-                               "U8", "U14", "D12"]),
-    ("M1 · domain (§3/§5)", ["t6", "t14", "t7", "t8", "t15", "f5"]),
-    ("M1 · store (§4/§8)", ["t9", "t10", "t11", "t12", "f19"]),
-    ("M1 · riders + cli", ["t18", "t19", "t17", "t22", "t13", "t20", "t21"]),
-    ("M1 exit", ["g5"]),
-    ("carried forward", ["f4", "f13", "f25", "f40", "f41", "d1", "d2", "d3",
-                         "f31-39", "U13", "U15", "U19"]),
-    ("harness (post-M1)", ["t23", "f42", "f43", "f44", "f45", "U21", "U22"]),
-    ("next", ["U2", "U17", "M2"]),
-    ("M2 · queries (§5.2/§6/§7)", ["g6", "t26", "t27", "t28", "t29", "t30",
-                                    "t31", "g7", "D16", "f47"]),
-    ("M2 findings (open unless noted)", ["f48", "f49", "f50", "f51", "f52",
-                                         "f53", "f54", "f55", "f56", "f57",
-                                         "f58", "f59", "f60", "f61", "f62",
-                                         "f63", "f64", "f65"]),
-    ("M3 · the wire (§6/§6.3)", ["g8", "t32", "t33", "t34", "t35", "t36",
-                                  "t37", "t38", "t39", "t40", "g9", "M3",
-                                  "U20", "D17", "U26", "U27"]),
-    ("M3 findings (open unless noted)", ["f66", "f67", "f68", "f69", "f70",
-                                          "f94", "f99", "f100", "U32"]),
-    ("M4 · adoption (§9/§10)", ["g10", "t41", "t42", "t43", "t44", "t45",
-                                "t46", "t50", "t47", "t48", "t49", "g11",
-                                "D18", "M4"]),
-    ("M4 findings and debt (open unless noted)", ["f101", "f102", "f103",
-                                                  "f104", "f105", "d4"]),
-    ("M5 · packaging/docs/cutover (§13/§14)", ["t51", "g12", "t52", "t58",
-                                               "t53", "t54", "t55", "t56",
-                                               "t57", "g13", "M5", "U18",
-                                               "U28"]),
-]
-
-# GATING edges carry the citation that makes them an edge rather than a guess.
-# Containment edges come from the tracker's own nesting and need none.
-GATING: list[tuple[str, str, str]] = [
-    ("g1", "g3", "the harness exists, so the server can be built"),
-    ("t1", "t2", "D1–D3 signed → M0's workspace could be scaffolded"),
-    ("t2", "g4", "M0's crates → M1 could fill them"),
-    ("t3", "t6", "D9–D11 signed → statuses/references/next_items shapes"),
-    ("t5", "t6", "U6 concretization → the id prefixes t6 types"),
-    ("t16", "t12", "f21/U12: the engine fix made the relates narrowing optional"),
-    ("f5", "t12", "f5: a snapshot restore needs a raise-to-max counter write"),
-    ("U8", "t9", "f2: the dependency ask gated the store commits t9–t13"),
-    ("t6", "t7", "value types before the graph that holds them"),
-    ("t7", "t8", "§5.1's graph before §5.2's order over it"),
-    ("t7", "t9", "the domain's serde derives are what the codec serializes"),
-    ("t9", "t10", "the codec + golden harness before the log that uses them"),
-    ("t10", "t11", "the log before the layout/registry that stores it"),
-    ("t11", "t12", "the inode-lock measurement forced compact()'s reopen step"),
-    ("t8", "t15", "f9/f10 rode the domain cleanup after the order landed"),
-    ("t12", "t19", "f14/f17/f18/f23 are t11/t12 riders"),
-    ("t19", "t22", "the riders cleared the store surface the repair primitive extends"),
-    ("t22", "t20", "board §3: t22 is 'the commit t13b needs and did not have'"),
-    ("U14", "t20", "board U14 'gates t13b only'; t20 was gated on the parser pick"),
-    ("t17", "t20", "t17's measurement produced U14's pick, which t20 implements"),
-    ("f19", "t21", "t21 is 'f19-test': the order-sensitive compact() test"),
-    ("t20", "t13", "t13's umbrella closed when its three commits landed"),
-    ("t21", "t13", "t21 was the last piece t13's note named"),
-    ("t21", "g5", "board §1: the only M1 work left was t21, then the gate"),
-    ("g5", "g4", "g4's note: M1 stays open until g5 passes"),
-    ("g5", "f41", "the gate closed M1 without a tracker status sweep"),
-    ("f40", "U15", "f40 promoted to the board so it outlives the branch"),
-    ("f31-39", "U19", "f35 promoted to the board so the deferral outlives the branch"),
-    ("U19", "t30", "board §4: U19 rides the next store touch, which t30 now is"),
-    ("f25", "M3", "f25: reopen when the log backend settles; the cli is the consumer"),
-    ("f4", "M3", "f4: M3's server must reject an untyped task_link at the wire"),
-    ("f31-39", "f41", "f41 dispositions the nine t20/t22 spec-error records"),
-    ("d1", "M2", "d1's note named M2's queries as its consumer, and the M2 decomposition closed it: neither the derivation nor the selection path calls tasks_of_epic"),
-    ("d2", "M2", "U13: revisit the file ledger at M2"),
-    ("d3", "M2", "U13: revisit the file ledger at M2"),
-    ("U13", "M3", "U13 re-measured at the M2 decomposition and unchanged; M2's query layer lands in new todo-domain files, so the next seam-showing moment is M3"),
-    ("U15", "t30", "board §4: U15 rides the next store touch, which t30 now is"),
-    ("g5", "U2", "board: U2 is scheduled after g5, before M2"),
-    ("U2", "M2", "U2 could invalidate a signed §6 shape M2 would be built on"),
-    ("t31", "U20", "t31's cold-open measurement is the input U20's own text names"),
-    ("U20", "M3", "board §4: due before M3 builds the wire — extending the registry later is a golden-visible format change, and it costs a re-derived lock order"),
-    ("M2", "M3", "spec §14's milestone order"),
-    ("M3", "M4", "spec §14's milestone order"),
-    ("M4", "M5", "spec §14's milestone order"),
-    ("D12", "M4", "D12 reversed D7: the dacode board is M4's only fixture"),
-    ("t23", "f42", "promoting the renderer found the shadowed config key"),
-    ("t23", "f43", "cross-checking the rendered rows against the board found the dropped items"),
-    ("f42", "U21", "f42's generalisation — the duplicate-key check — is U21 now, promoted from f44 at the g7 sweep"),
-    ("U17", "D16", "U17's one unsettled piece — the progress roll-up — is drafted as D16"),
-    ("D16", "M3", "a signed (a) or (b) adds one domain aggregation task to M3's decomposition (board §1, g6 closed at g7)"),
-    ("t32", "t34", "status_summary's domain surface is what t34's wire tool serialises"),
-    ("t32", "t35", "task_list's row type is what t35's wire listing carries"),
-    ("t33", "t34", "the skeleton is what every tool task dispatches against (g8's dispatch order)"),
-    ("t38", "g9", "the wire golden suite is the M3 exit gate's proof (D14/D15's pins)"),
-    ("t39", "g9", "the opencode smoke is the M3 exit gate's last criterion"),
-    ("t26", "t27", "the decomposition is what t27 is dispatched against (g6's note)"),
-    ("t27", "t28", "t28 reuses select.rs's actionability predicate and DeferredSummary (tracker note)"),
-    ("f47", "t28", "f47's note names t28's dispatch as its consumer: a rider section in a spec that re-reads select.rs anyway"),
-    ("t27", "t29", "t29's 'ready' filter is t27's until-target predicate (tracker note)"),
-    ("t30", "t31", "g6's dispatch order: the store riders before the registry queries"),
-    ("g7", "g6", "g6's note: M2 stays open until g7 passes (the g5/g4 precedent)"),
-    ("D18", "t43", "board §1: t43 was gated on D18's vote until it was signed (a) 2026-10-05; t42 the parser was never gated"),
-    ("t42", "t43", "the dialect AST is what the mapping consumes (g10's dispatch order)"),
-    ("t43", "t44", "the mapped drafts are what the wire tool drives through the store"),
-    ("t44", "t45", "the tool is what the fixture e2e drives end to end"),
-    ("t45", "t46", "the fixture proves the pipeline before the live dialects build on it (g10's dispatch order)"),
-    ("t46", "t50", "the lift lands before the third dialect so it builds on the neutral homes (U31's resolution)"),
-    ("t50", "t47", "the ikvm module consumes plan.rs and helpers.rs from their neutral homes"),
-    ("t47", "t48", "the live imports are what tracking-for-real registers"),
-    ("t48", "g11", "the adoption evidence is the M4 exit gate's criterion"),
-    ("t51", "g12", "the decomposition is what every M5 task dispatches against (g12's dispatch order)"),
-    ("U18", "t55", "U18's confirmed shape A is what t55 lands (confirmed 2026-10-07)"),
-    ("U28", "t54", "U28's confirmed dogfooding cutover is what t54 lands (confirmed 2026-10-07)"),
-    ("U21", "t57", "the M5 decomposition scheduled t57 to land the check U21 asks for"),
-    ("U22", "t54", "U22 resolves with t54: the thin client renders open decisions"),
-    ("t54", "t55", "the served page is the thin-client render the cutover produces"),
-    ("t52", "t56", "the README documents the wiring t52 lands"),
-    ("t54", "t56", "the README documents the dogfooding the cutover lands"),
-    ("t52", "g13", "the packaging smoke is an M5 exit criterion (closing g11's no-live-client caveat)"),
-    ("t54", "g13", "the cutover evidence is an M5 exit criterion"),
-    ("g13", "g3", "g3 stays open until g13 passes — M5 is the project's last milestone"),
-]
-
-# Open tracker nodes drawn as one node, because they are one class. Members are
-# listed by id, not matched by a pattern: a new member is a data edit.
-GROUPS: list[dict] = [
-    {
-        "id": "f31-39",
-        "members": [f"f3{i}" for i in range(1, 10)],
-        "label": "f31–f39 · the t20/t22 spec-error records — dispositioned by f41, f35 lives on as U19",
-        "kind": "finding",
-    },
-]
-
-# Board and decision entities that are not tracker nodes but belong in the
-# picture. `(kind, status, label)`; statuses for board items come from the
-# board itself where it has one.
-EXTRA: dict[str, tuple[str, str, str]] = {
-    "M2": ("milestone", "done", "M2 · queries: selection, dependency resolution, next_task (closed at g7)"),
-    "M3": ("milestone", "done", "M3 · MCP server: §6 over the wire (closed at g9)"),
-    "M4": ("milestone", "done", "M4 · adoption: the dacode importer (D12) (closed at g11)"),
-    "M5": ("milestone", "active", "M5 · packaging, docs, cutover, polish (decomposed 2026-10-07)"),
-    "U2": ("decision", "pending", "U2 · survey rmcp's tool macros against §6"),
-    # Not a board item and not a milestone, so this status is authoritative
-    # rather than derived: flipped to done when D16 was signed (f45 records
-    # that the page cannot derive an open decision from decisions.md itself).
-    "D16": ("decision", "done", "D16 · the progress roll-up (signed (a) 2026-10-03)"),
-    "U13": ("debt", "pending", "U13 · two store files over the 600-line target"),
-    "U15": ("follow-up", "pending", "U15 · scope Store::snapshot's 'changes nothing on disk'"),
-    "U17": ("follow-up", "pending", "U17 · which harness tools become MCP tools"),
-    "U18": ("follow-up", "done", "U18 · live view confirmed shape A (t55); shape B declined, D13 reserved (2026-10-07)"),
-    "U19": ("follow-up", "pending", "U19 · one word in repair.rs's module doc (f35 promoted)"),
-    "U20": ("follow-up", "done", "U20 · the registry format stays; the server answers from handles (resolved (b) 2026-10-03)"),
-    "U21": ("follow-up", "pending", "U21 · the duplicate-key check for agent-rules.yaml (scheduled: t57)"),
-    "U22": ("follow-up", "pending", "U22 · open decisions on the page (resolves with t54)"),
-    "U27": ("follow-up", "pending", "U27 · FileLock::acquire retry question (left at the M5 decomposition)"),
-    "U28": ("follow-up", "done", "U28 · dogfooding confirmed — the cutover is t54 (2026-10-07)"),
-    "U32": ("follow-up", "done", "U32 · the integer-family format hints stripped from every advertised schema (t58, the user's in-thread sign 2026-10-07)"),
-    "U8": ("decision", "done", "U8 · the first external dependencies (resolved)"),
-    "U14": ("decision", "done", "U14 · todo-cli's argument parser (resolved: lexopt)"),
-    "D12": ("decision", "done", "D12 · dacode-first importer (signed)"),
-    # Same class as D16 above: not a board item, so this status is
-    # authoritative rather than derived — flipped to done when D18 was
-    # signed, 2026-10-05 (f45 records that the page cannot derive an
-    # open decision from decisions.md itself).
-    "D18": ("decision", "done", "D18 · the dacode-dialect mapping (signed (a) 2026-10-05)"),
-}
-
-# What each open item waits on, for the table. Absent = "nothing declared".
-WAITS: dict[str, str] = {
-    "f25": "the log backend settling (M3)",
-    "f57": "a tests-only commit (the t21/f47 shape); its three seams are measured in the finding",
-    "f58": "the next owner of crates/todo-store/src/log.rs — one sentence in open_log's doc fixes all three pointers",
-    "U13": "the next commit that grows either file (re-measured unchanged at the M5 decomposition, 2026-10-07)",
-    "U21": "t57, scheduled at the M5 decomposition (the disposition is made: land it, not wontfix)",
-    "U22": "t54, whose thin client renders open decisions from the server",
-    "f60": "the next owner of crates/todo-store/src/registry.rs",
-    "f61": "t13's owner: does verify gain the same slug cross-check, or is the query side the only reader that refuses?",
-    "f65": "a user call: give board §4 items a Gates field attention.py reads, or document that P3 does not mean 'no deadline'",
-    "f50": "the next owner of tests/seeded.rs for the generator half — the naive-helper lift landed with t29",
-    "f54": "the next owner of tests/mod.rs (= f50's)",
-    "U27": "the next owner of todo-store, or a dedicated task — left at the M5 decomposition (the timing-contract question is a decision, not polish)",
-    "U32": "a strict-mode client existing — left as recorded debt at the M5 decomposition",
-}
-
-COLOR = {
-    "done": ("#1f6f43", "#e6f4ec"),
-    "standing": ("#1d4e89", "#e8f0fb"),
-    "pending": ("#8a5a00", "#fdf3e0"),
-    "active": ("#8a5a00", "#fdf3e0"),
-    "blocked": ("#9b1c1c", "#fdeaea"),
-}
-KIND_MARK = {"goal": "◎", "gate": "▣", "task": "▢", "finding": "◆",
-             "debt": "▲", "milestone": "◈", "decision": "✦", "follow-up": "◇"}
-COLW, ROWH, PAD = 214, 44, 54
+def short_id(node_id: str) -> str:
+    return node_id.split(":", 1)[-1]
 
 
-# ── model ──────────────────────────────────────────────────────────────
-def flatten(raw: list[dict], parent: str | None = None,
-            out: dict | None = None, order: list | None = None):
-    out = {} if out is None else out
-    order = [] if order is None else order
-    for n in raw:
-        nid = n["id"]
-        out[nid] = {
-            "id": nid,
-            "kind": n["kind"],
-            "status": n.get("status", "pending"),
-            "title": n.get("title", ""),
-            "parent": parent,
-            "verify": n.get("verify", ""),
-            "note": n.get("note", ""),
-            "children": [c["id"] for c in (n.get("children") or [])],
-        }
-        order.append(nid)
-        flatten(n.get("children") or [], nid, out, order)
-    return out, order
+def milestone_of(epic: dict) -> str | None:
+    """The board's M id for a milestone epic, from the mapping's
+    provenance description; `None` for the synthetic containers."""
+    if epic["description"].startswith(MILESTONE_DESCRIPTION):
+        return epic["description"].rsplit(" ", 1)[-1]
+    return None
 
 
-def build(nodes: dict, order: list, milestones: list[dict], board_items: list[dict]) -> dict:
-    open_nodes = [n for n in nodes.values() if n["status"] not in DONE | STANDING]
-    kind_state = {}
-    for k in ("goal", "gate", "task", "finding", "debt"):
-        same = [n for n in nodes.values() if n["kind"] == k]
-        kind_state[k] = {
-            "total": len(same),
-            "done": sum(1 for n in same if n["status"] in DONE),
-            "standing": sum(1 for n in same if n["status"] in STANDING),
-            "open": sum(1 for n in same if n["status"] not in DONE | STANDING),
-            "blocked": sum(1 for n in same if n["status"] == "blocked"),
-        }
-    grouped = {m for g in GROUPS for m in g["members"]}
-    graph_nodes, seen = [], set()
-    for _, ids in LANES:
-        for nid in ids:
-            if nid in nodes:
-                n = nodes[nid]
-                graph_nodes.append({"id": nid, "kind": n["kind"], "status": n["status"],
-                                    "label": n["title"], "lane": None,
-                                    "detail": n["note"] or n["verify"]})
-            elif any(nid == g["id"] for g in GROUPS):
-                g = next(g for g in GROUPS if g["id"] == nid)
-                members = [m for m in g["members"] if m in nodes]
-                graph_nodes.append({
-                    "id": nid, "kind": g["kind"],
-                    "status": "pending" if any(nodes[m]["status"] not in DONE for m in members) else "done",
-                    "label": g["label"], "lane": None,
-                    "detail": f"collapsed group of {len(members)}: {', '.join(members)}",
-                })
-            elif nid in EXTRA:
-                k, s, label = EXTRA[nid]
-                if nid in {b["id"] for b in board_items}:
-                    s = next(b["status"] for b in board_items if b["id"] == nid)
-                if nid in {m["id"] for m in milestones}:
-                    m = next(x for x in milestones if x["id"] == nid)
-                    s = "done" if m["state"].startswith("done") else "pending"
-                graph_nodes.append({"id": nid, "kind": k, "status": s, "label": label,
-                                    "lane": None, "detail": ""})
-            seen.add(nid)
-    for i, (_, ids) in enumerate(LANES):
-        for g in graph_nodes:
-            if g["id"] in ids:
-                g["lane"] = i
+def build(graph: dict) -> dict:
+    """The render model from one `graph_show` answer: the lanes (the
+    epics in the answer's order — ascending epic id, which is this
+    repo's board order), each lane's tasks in id order, the decisions
+    attached to the lane their Gates edge targets, the blocks edges,
+    the open items with their waits, and the totals."""
+    repos = graph.get("repos") or []
+    if len(repos) != 1:
+        fail(f"graph_show answered {len(repos)} repos — the render reads exactly one")
+    repo_dump = repos[0]
+    repo_node = repo_dump["repo"]
+    if repo_node["slug"] != SLUG:
+        fail(f"graph_show answered repo '{repo_node['slug']}', not '{SLUG}'")
+    epics = repo_dump["epics"]
+    decisions = repo_dump["decisions"]
+    if not epics:
+        fail("the graph holds no epics — refusing to render a roadmap from nothing")
 
-    edges, dropped = [], []
-    for nid, n in nodes.items():
-        for c in n["children"]:
-            if nid in seen and c in seen:
-                edges.append({"from": nid, "to": c, "kind": "contains",
-                              "why": "tracker nesting"})
-    for a, b, why in GATING:
-        if a in seen and b in seen:
-            edges.append({"from": a, "to": b, "kind": "gates", "why": why})
+    epic_ids = {epic["id"] for epic in epics}
+    task_epic = {task["id"]: epic for epic in epics for task in epic["tasks"]}
+    lane_of_epic = {epic["id"]: i for i, epic in enumerate(epics)}
+
+    lanes = []
+    for epic in epics:
+        lanes.append({
+            "epic": epic,
+            "milestone": milestone_of(epic),
+            "tasks": sorted(epic["tasks"], key=lambda t: id_number(t["id"])),
+            "decisions": [],
+        })
+
+    # The decisions attach to the lane of the epic their Gates edge
+    # targets; a decision gating tasks alone attaches to the lane of the
+    # first gated task's epic; a decision gating nothing cannot be placed
+    # and is reported, never dropped.
+    unplaced = []
+    placed_decisions = set()
+    for decision in decisions:
+        epic_targets = [b for b in decision["blocks"] if b in epic_ids]
+        if epic_targets:
+            lane = lane_of_epic[epic_targets[0]]
         else:
-            missing = a if a not in seen else b
-            dropped.append(f"{a}→{b} (no lane for {missing})")
-    if dropped:
-        fail("declared edges with no lane for an endpoint — add it to LANES: "
-             + "; ".join(dropped))
+            task_targets = [b for b in decision["blocks"] if b in task_epic]
+            if task_targets:
+                lane = lane_of_epic[task_epic[task_targets[0]]["id"]]
+            else:
+                unplaced.append(f"{short_id(decision['id'])} (a decision gating nothing)")
+                continue
+        lanes[lane]["decisions"].append(decision)
+        placed_decisions.add(decision["id"])
+    for lane in lanes:
+        lane["decisions"].sort(key=lambda d: id_number(d["id"]))
 
-    unplaced = [nid for nid in order
-                if nid not in seen and nid not in grouped
-                and nodes[nid]["status"] not in DONE]
+    # The edges: the graph's blocks edges, from the two adjacency lists
+    # that carry them (a decision's blocks, a task's blocks — an epic's
+    # blocked_by is their inverse and would double-count). An edge with
+    # an unplaced endpoint is reported, never dropped.
+    placed = epic_ids | set(task_epic) | placed_decisions
+    edges = []
+    dropped_edges = []
+    for decision in decisions:
+        for target in decision["blocks"]:
+            if decision["id"] in placed and target in placed:
+                edges.append({"from": decision["id"], "to": target})
+            else:
+                dropped_edges.append(f"{short_id(decision['id'])} → {short_id(target)}")
+    for epic in epics:
+        for task in epic["tasks"]:
+            for successor in task["blocks"]:
+                if task["id"] in placed and successor in placed:
+                    edges.append({"from": task["id"], "to": successor})
+                else:
+                    dropped_edges.append(
+                        f"{short_id(task['id'])} → {short_id(successor)}")
+
+    # The waits column: an open item under an epic gated by an open
+    # decision waits on it.
+    open_decisions = {d["id"] for d in decisions if d["status"] == "open"}
+    waits = {}
+    for epic in epics:
+        gates = [b for b in epic.get("blocked_by", []) if b in open_decisions]
+        for task in epic["tasks"]:
+            if task["status"] not in DONE and gates:
+                waits[task["id"]] = ", ".join(short_id(g) for g in gates)
+
+    tasks = [t for epic in epics for t in epic["tasks"]]
+    open_items = sorted(
+        (t for t in tasks if t["status"] not in DONE),
+        key=lambda t: (lane_of_epic[task_epic[t["id"]]["id"]], id_number(t["id"])),
+    )
+    milestones = [epic for epic in epics if milestone_of(epic)]
+    kind_state = {}
+    for kind in ("task", "gate", "finding", "debt"):
+        same = [t for t in tasks if t["kind"] == kind]
+        kind_state[kind] = {
+            "total": len(same),
+            "done": sum(1 for t in same if t["status"] in DONE),
+            "open": sum(1 for t in same if t["status"] not in DONE),
+        }
     return {
-        "open_nodes": open_nodes, "kind_state": kind_state, "graph_nodes": graph_nodes,
-        "edges": edges, "unplaced": unplaced, "grouped": sorted(grouped), "seen": seen,
+        "repo": repo_node,
+        "lanes": lanes,
+        "decisions": decisions,
+        "edges": edges,
+        "waits": waits,
+        "open_items": open_items,
+        "milestones": milestones,
+        "kind_state": kind_state,
+        "unplaced": unplaced,
+        "dropped_edges": dropped_edges,
+        "task_count": len(tasks),
     }
 
 
@@ -446,13 +443,34 @@ def pct(a: int, b: int) -> str:
     return f"{round(100 * a / b)}%" if b else "—"
 
 
-def render_svg(graph_nodes: list[dict], edges: list[dict]) -> tuple[str, int, int]:
+STATUS_COLOR = {
+    "closed": ("#1f6f43", "#e6f4ec"),
+    "wontfix": ("#1f6f43", "#e6f4ec"),
+    "in_work": ("#8a5a00", "#fdf3e0"),
+    "open": ("#8a5a00", "#fdf3e0"),
+    "deferred": ("#8a5a00", "#fdf3e0"),
+    "blocked": ("#9b1c1c", "#fdeaea"),
+    "signed": ("#1f6f43", "#e6f4ec"),
+}
+KIND_MARK = {"task": "▢", "gate": "▣", "finding": "◆", "debt": "▲",
+             "milestone": "◈", "decision": "✦"}
+COLW, ROWH, PAD = 214, 44, 54
+
+
+def node_status(status: str) -> str:
+    return status if status in STATUS_COLOR else "open"
+
+
+def render_svg(model: dict) -> tuple[str, int, int]:
+    lanes = model["lanes"]
     pos = {}
-    for i, (_, ids) in enumerate(LANES):
-        for j, nid in enumerate(ids):
-            pos[nid] = (PAD + i * COLW, PAD + 34 + j * ROWH)
-    width = PAD * 2 + len(LANES) * COLW
-    height = PAD + 60 + max(len(ids) for _, ids in LANES) * ROWH
+    for i, lane in enumerate(lanes):
+        nodes = lane["tasks"] + lane["decisions"]
+        for j, node in enumerate(nodes):
+            pos[node["id"]] = (PAD + i * COLW, PAD + 34 + j * ROWH)
+    width = PAD * 2 + len(lanes) * COLW
+    tallest = max(len(lane["tasks"]) + len(lane["decisions"]) for lane in lanes)
+    height = PAD + 60 + tallest * ROWH
     out = [f'<svg id="graph" viewBox="0 0 {width} {height}" width="{width}" '
            f'height="{height}" xmlns="http://www.w3.org/2000/svg" role="img" '
            f'aria-label="task dependency graph">',
@@ -461,34 +479,40 @@ def render_svg(graph_nodes: list[dict], edges: list[dict]) -> tuple[str, int, in
            'fill="#8a8f98"/></marker><marker id="arrg" viewBox="0 0 10 10" refX="9" '
            'refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">'
            '<path d="M0,0 L10,5 L0,10 z" fill="#2f6f4f"/></marker></defs>']
-    for i, (name, _) in enumerate(LANES):
+    for i, lane in enumerate(lanes):
         x = PAD + i * COLW
-        out.append(f'<text class="lane" x="{x}" y="{PAD - 8}">{esc(name)}</text>')
+        header = (f"{lane['milestone']} · " if lane["milestone"] else "") \
+            + short(lane["epic"]["title"], 24)
+        out.append(f'<text class="lane" x="{x}" y="{PAD - 8}">{esc(header)}</text>')
         out.append(f'<line class="laneline" x1="{x - 10}" y1="{PAD + 4}" '
                    f'x2="{x - 10}" y2="{height - 20}"/>')
-    for e in edges:
+    for e in model["edges"]:
         if e["from"] not in pos or e["to"] not in pos:
             continue
         x1, y1 = pos[e["from"]]
         x2, y2 = pos[e["to"]]
         x1e, y1e, x2e, y2e = x1 + 186, y1 + 15, x2, y2 + 15
         mx = (x1e + x2e) / 2
-        cls, mk = ("edge", "arrg") if e["kind"] == "gates" else ("edgec", "arr")
-        out.append(f'<path class="{cls}" d="M{x1e},{y1e} C{mx},{y1e} {mx},{y2e} {x2e},{y2e}" '
-                   f'marker-end="url(#{mk})"><title>{esc(e["from"])} → {esc(e["to"])}: '
-                   f'{esc(e["why"])}</title></path>')
-    for g in graph_nodes:
-        x, y = pos[g["id"]]
-        border, fill = COLOR.get(g["status"], COLOR["pending"])
-        out.append(
-            f'<g class="node" data-id="{esc(g["id"])}" transform="translate({x},{y})">'
-            f'<rect rx="7" width="186" height="30" fill="{fill}" stroke="{border}" '
-            f'stroke-width="1.6"/><title>{esc(g["id"])} · {esc(g["kind"])} · '
-            f'{esc(g["status"])}\n{esc(g["label"])}</title>'
-            f'<text class="nid" x="8" y="19" fill="{border}">'
-            f'{esc(KIND_MARK.get(g["kind"], "•"))} {esc(g["id"])}</text>'
-            f'<text class="nlabel" x="46" y="19">{esc(short(g["label"], 22))}</text>'
-            f'<circle class="dot" cx="176" cy="8" r="4" fill="{border}"/></g>')
+        # D9: the edge's label derives from the nodes it connects — the
+        # hand-maintained citations are accepted as lost.
+        out.append(f'<path class="edge" d="M{x1e},{y1e} C{mx},{y1e} {mx},{y2e} {x2e},{y2e}" '
+                   f'marker-end="url(#arrg)"><title>{esc(short_id(e["from"]))} gates '
+                   f'{esc(short_id(e["to"]))}</title></path>')
+    for lane in lanes:
+        for node, kind in [(t, t["kind"]) for t in lane["tasks"]] \
+                + [(d, "decision") for d in lane["decisions"]]:
+            x, y = pos[node["id"]]
+            status = node_status(node["status"])
+            border, fill = STATUS_COLOR[status]
+            out.append(
+                f'<g class="node" data-id="{esc(node["id"])}" transform="translate({x},{y})">'
+                f'<rect rx="7" width="186" height="30" fill="{fill}" stroke="{border}" '
+                f'stroke-width="1.6"/><title>{esc(short_id(node["id"]))} · {esc(kind)} · '
+                f'{esc(node["status"])}\n{esc(node["title"])}</title>'
+                f'<text class="nid" x="8" y="19" fill="{border}">'
+                f'{esc(KIND_MARK.get(kind, "•"))} {esc(short_id(node["id"]))}</text>'
+                f'<text class="nlabel" x="46" y="19">{esc(short(node["title"], 22))}</text>'
+                f'<circle class="dot" cx="176" cy="8" r="4" fill="{border}"/></g>')
     out.append("</svg>")
     return "\n".join(out), width, height
 
@@ -526,14 +550,13 @@ svg text { font-family: inherit; }
 .node { cursor: pointer; }
 .node:hover rect { stroke-width: 2.6; }
 .edge { fill: none; stroke: #2f6f4f; stroke-width: 1.3; opacity: .55; }
-.edgec { fill: none; stroke: #b9bec6; stroke-width: 1; stroke-dasharray: 3 3; opacity: .8; }
 table { border-collapse: collapse; width: 100%; background: #fff; font-size: 12.5px; }
 th, td { text-align: left; padding: 6px 9px; border-bottom: 1px solid #eee; vertical-align: top; }
 th { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: #6b7280; }
 .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
-.st-done { color: #1f6f43; } .st-pending { color: #8a5a00; }
-.st-blocked { color: #9b1c1c; font-weight: 700; } .st-standing { color: #1d4e89; }
-tr.board td { background: #fcfaf3; }
+.st-closed { color: #1f6f43; } .st-open { color: #8a5a00; }
+.st-in_work { color: #8a5a00; } .st-blocked { color: #9b1c1c; font-weight: 700; }
+.st-signed { color: #1f6f43; }
 #detail { border: 1px solid #e3e3e0; border-left: 4px solid #2f6f4f; border-radius: 8px;
           background: #fff; padding: 10px 14px; margin-top: 10px; display: none;
           font-size: 12.5px; }
@@ -546,72 +569,92 @@ footer { margin-top: 34px; color: #6b7280; font-size: 11.5px; border-top: 1px so
 """
 
 
-def render_page(model: dict, nodes: dict, milestones: list[dict], board_items: list[dict],
-                sha: str, tracker_path: str) -> str:
-    open_nodes, kind_state = model["open_nodes"], model["kind_state"]
-    graph_nodes, edges = model["graph_nodes"], model["edges"]
-    ms_done = sum(1 for m in milestones if m["state"].startswith("done"))
-    blocked = sum(1 for n in nodes.values() if n["status"] == "blocked")
-    svg, _, _ = render_svg(graph_nodes, edges)
+def render_page(model: dict, tracker: tuple[list[dict], str], sha: str) -> str:
+    repo = model["repo"]
+    import_instant = repo["registered_at"]
+    milestones = model["milestones"]
+    kind_state = model["kind_state"]
+    ms_done = sum(1 for m in milestones if m["status"] == "closed")
+    blocked = sum(1 for t in model["open_items"] if t["status"] == "blocked")
+    decisions = model["decisions"]
+    signed = sum(1 for d in decisions if d["status"] == "signed")
+    svg, _, _ = render_svg(model)
+    graph_nodes = sum(len(l["tasks"]) + len(l["decisions"]) for l in model["lanes"])
 
     cards = [
         ("Milestones", f"{ms_done}/{len(milestones)}", pct(ms_done, len(milestones)),
-         "spec §14 / board §2 — the roadmap measure"),
+         "board §2 via the server's epic nodes — the roadmap measure"),
         ("Tasks", f"{kind_state['task']['done']}/{kind_state['task']['total']}",
          pct(kind_state["task"]["done"], kind_state["task"]["total"]),
-         "tracker tasks, one reviewable commit each — decomposed work only"),
+         "the board's §4 follow-ups, one unit each"),
         ("Gates", f"{kind_state['gate']['done']}/{kind_state['gate']['total']}",
-         pct(kind_state["gate"]["done"], kind_state["gate"]["total"]), "milestone exit gates"),
+         pct(kind_state["gate"]["done"], kind_state["gate"]["total"]),
+         "milestone exit gates"),
         ("Findings", f"{kind_state['finding']['done']}/{kind_state['finding']['total']}",
          pct(kind_state["finding"]["done"], kind_state["finding"]["total"]),
          "an open finding is a fact written down, not a defect"),
         ("Debt", f"{kind_state['debt']['done']}/{kind_state['debt']['total']} closed",
          pct(kind_state["debt"]["done"], kind_state["debt"]["total"]),
-         "acknowledged deferrals, each with a revisit point"),
+         "the board's §5, acknowledged deferrals"),
+        ("Decisions", f"{signed}/{len(decisions)} signed",
+         pct(signed, len(decisions)),
+         "the decisions file's dossiers; an open one gates work"),
         ("Blocked", f"{blocked}", pct(0, 1) if blocked == 0 else "—",
-         "waiting on a user decision; §12 is closed, so nothing is"),
+         "tasks whose status is blocked"),
     ]
     card_html = "".join(
         f'<div class="card"><i>{esc(t)}</i><span class="p">{esc(p)}</span><b>{esc(v)}</b>'
         f'<small>{esc(s)}</small></div>' for t, v, p, s in cards)
 
     ms_bar = "".join(
-        f"<div class='ms {'msdone' if m['state'].startswith('done') else ''}' "
-        f"title=\"{esc(m['deliverable'])} — {esc(m['state'])}\"><b>{esc(m['id'])}</b>"
-        f"<span>{esc('done' if m['state'].startswith('done') else ('next' if i == ms_done else 'not started'))}"
-        f"</span></div>" for i, m in enumerate(milestones))
+        f"<div class='ms {'msdone' if m['status'] == 'closed' else ''}' "
+        f"title=\"{esc(m['title'])} — {esc(m['status'])}\"><b>{esc(milestone_of(m))}</b>"
+        f"<span>{esc('done' if m['status'] == 'closed' else m['status'])}</span></div>"
+        for m in milestones)
 
-    rows, listed = [], {n["id"] for n in open_nodes}
-    for n in sorted(open_nodes, key=lambda n: (n["kind"], n["id"])):
-        if n["id"] in model["grouped"]:
-            continue
-        rows.append(f"<tr><td class='mono'>{esc(n['id'])}</td><td>{esc(n['kind'])}</td>"
-                    f"<td class='st-{esc(n['status'])}'>{esc(n['status'])}</td>"
-                    f"<td>{esc(short(n['title'], 96))}</td>"
-                    f"<td>{esc(WAITS.get(n['id'], ''))}</td></tr>")
-    for g in GROUPS:
-        members = [m for m in g["members"] if m in nodes and nodes[m]["status"] not in DONE]
-        if members:
-            rows.append(f"<tr><td class='mono'>{esc(g['id'])}</td><td>finding ×{len(members)}</td>"
-                        f"<td class='st-pending'>open</td><td>{esc(g['label'])}</td>"
-                        f"<td>{esc(WAITS.get(g['id'], ''))}</td></tr>")
-    for b in board_items:
-        if b["status"] != "done" and b["id"] not in listed and b["id"] not in nodes:
-            rows.append(f"<tr class='board'><td class='mono'>{esc(b['id'])}</td>"
-                        f"<td>{esc(b['kind'])} (board)</td><td class='st-pending'>open</td>"
-                        f"<td>{esc(short(b['title'], 96))}</td>"
-                        f"<td>{esc(WAITS.get(b['id'], ''))}</td></tr>")
+    rows = []
+    for t in model["open_items"]:
+        rows.append(f"<tr><td class='mono'>{esc(short_id(t['id']))}</td>"
+                    f"<td>{esc(t['kind'])}</td>"
+                    f"<td class='st-{esc(t['status'])}'>{esc(t['status'])}</td>"
+                    f"<td>{esc(short(t['title'], 96))}</td>"
+                    f"<td>{esc(model['waits'].get(t['id'], ''))}</td></tr>")
+
+    decision_rows = []
+    for d in decisions:
+        gates = ", ".join(short_id(g) for g in d["blocks"]) or "—"
+        decision_rows.append(
+            f"<tr><td class='mono'>{esc(short_id(d['id']))}</td>"
+            f"<td class='st-{esc(d['status'])}'>{esc(d['status'])}</td>"
+            f"<td>{esc(short(d['title'], 72))}</td>"
+            f"<td class='mono'>{esc(gates)}</td>"
+            f"<td>{esc(d.get('confidence') or '')}</td></tr>")
+
+    tracker_items, tracker_path = tracker
+    tracker_rows = "".join(
+        f"<tr><td class='mono'>{esc(n['id'])}</td><td>{esc(n['kind'])}</td>"
+        f"<td class='st-{esc(n['status'])}'>{esc(n['status'])}</td>"
+        f"<td>{esc(short(n['title'], 96))}</td></tr>"
+        for n in tracker_items) or \
+        f"<tr><td colspan='4'>{esc(tracker_path)}</td></tr>"
+
+    unplaced = model["unplaced"] + model["dropped_edges"]
+    warn = (f"<p class='legend'><b>Not placed:</b> {esc(', '.join(unplaced))} — nodes the "
+            f"renderer cannot place are reported, never dropped.</p>" if unplaced else "")
 
     detail = {
-        "nodes": {k: v for k, v in nodes.items()},
-        "extra": {k: {"label": v[2], "kind": v[0], "status": v[1]} for k, v in EXTRA.items()},
-        "groups": {g["id"]: {"label": g["label"], "members": g["members"]} for g in GROUPS},
-        "edges": edges,
+        # The click box's fields only — created/updated are deliberately
+        # absent: they are the import instant, and embedding them would
+        # make every refresh move page bytes the box never shows.
+        "nodes": {n["id"]: {
+            "id": n["id"], "kind": n.get("kind", "decision"),
+            "status": n["status"], "title": n["title"],
+            "verify": n.get("verify"), "evidence": n.get("evidence"),
+            "note": n.get("note"), "resolution": n.get("resolution"),
+        } for lane in model["lanes"]
+            for n in lane["tasks"] + lane["decisions"]},
+        "edges": model["edges"],
     }
-    unplaced = model["unplaced"]
-    warn = (f"<p class='legend'><b>Not drawn:</b> {esc(', '.join(unplaced))} — open tracker "
-            f"nodes with no lane. Add them to <span class='mono'>LANES</span> in "
-            f"<span class='mono'>tools/progress.py</span>.</p>" if unplaced else "")
 
     return f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
@@ -619,28 +662,28 @@ def render_page(model: dict, nodes: dict, milestones: list[dict], board_items: l
 <style>{CSS}</style></head><body>
 <h1>dacode-todo-mcp — total progress</h1>
 <div class="sub">Rendered by <span class="mono">tools/progress.py</span> on {esc(date.today())}
-at <span class="mono">{esc(sha)}</span> from <span class="mono">{esc(tracker_path)}</span> and
-<span class="mono">docs/implementation/TODO.md</span> §2/§4/§5. Every count is computed from those
-two files; nothing is typed in. A rendering of committed state, never a source of it — if it
-disagrees with the tracker or the board, those win. Machine-readable twin:
-<span class="mono">progress.json</span>.</div>
+at <span class="mono">{esc(sha)}</span> from one <span class="mono">graph_show</span> answer of
+<span class="mono">target/release/todo-mcp</span> over this repo's imported board —
+imported <span class="mono">{esc(import_instant)}</span> (the repo node's registered_at;
+run <span class="mono">--refresh</span> when the board has moved). The board and
+<span class="mono">tools/tasks.py</span> remain the trackers of record; if this page disagrees
+with them, they win. Machine-readable twin: <span class="mono">progress.json</span>.</div>
 
 <h2>Totals</h2>
 <div class="cards">{card_html}</div>
 
-<h2>Milestones (spec §14 / board §2)</h2>
+<h2>Milestones (board §2 via the server's epics)</h2>
 <div class="msrow">{ms_bar}</div>
 
-<h2>Dependency graph — {len(graph_nodes)} nodes, {len(edges)} edges</h2>
+<h2>Dependency graph — {graph_nodes} nodes, {len(model['edges'])} edges</h2>
 <div class="scroll">{svg}</div>
 <p class="legend">
-<span><i class="sw" style="background:#1f6f43"></i>done</span>
-<span><i class="sw" style="background:#1d4e89"></i>standing goal</span>
-<span><i class="sw" style="background:#8a5a00"></i>open</span>
+<span><i class="sw" style="background:#1f6f43"></i>done / signed</span>
+<span><i class="sw" style="background:#8a5a00"></i>open / in work</span>
 <span><i class="sw" style="background:#9b1c1c"></i>blocked</span>
-<span>— solid green: gates/feeds, hover for the citation · dashed grey: tracker containment</span>
-<span>◎ goal ▣ gate ▢ task ◆ finding ▲ debt ◈ milestone ✦ decision</span>
-<span>click a node for its verify line, note and edges</span>
+<span>— the lanes are the epics; a decision sits in the lane of the epic it gates</span>
+<span>▢ task ▣ gate ◆ finding ▲ debt ✦ decision</span>
+<span>click a node for its fields and edges</span>
 </p>
 {warn}
 <div id="detail"></div>
@@ -649,35 +692,93 @@ disagrees with the tracker or the board, those win. Machine-readable twin:
 <table><thead><tr><th>id</th><th>kind</th><th>status</th><th>what</th><th>waits on</th></tr></thead>
 <tbody>{"".join(rows)}</tbody></table>
 
+<h2>Decisions — {len(decision_rows)} rows</h2>
+<table><thead><tr><th>id</th><th>status</th><th>what</th><th>gates</th><th>confidence</th></tr></thead>
+<tbody>{"".join(decision_rows)}</tbody></table>
+
+<h2>In flight (session tracker) — {len(tracker_items)} items</h2>
+<div class="sub">The gitignored session state beside the committed picture, read from
+<span class="mono">{esc(tracker_path)}</span> — a flat list, no edges, no lanes.</div>
+<table><thead><tr><th>id</th><th>kind</th><th>status</th><th>what</th></tr></thead>
+<tbody>{tracker_rows}</tbody></table>
+
 <footer>
-Reading the percentages: each card states its own denominator, because "progress" depends entirely on
-what is counted. <b>Milestones</b> measure the roadmap. <b>Tasks</b> measure the work decomposed so
-far, which is <em>not</em> the whole project — milestones not yet decomposed have no task nodes, so
-that figure falls as they are. <b>Findings</b> and <b>debt</b> are records rather than deliverables:
-an open finding is a fact written down, and an open debt is an acknowledged deferral with a named
-revisit point. <b>Blocked</b> counts nodes waiting on someone else, which today means the user; §12
-is closed, so it is normally zero and a non-zero value is news.
+Reading the percentages: each card states its own denominator, because "progress" depends
+entirely on what is counted. <b>Milestones</b> measure the roadmap. <b>Tasks</b> measure the
+work decomposed so far, which is <em>not</em> the whole project. <b>Findings</b> and
+<b>debt</b> are records rather than deliverables. The graph's edges carry no citation text —
+the edge's label derives from the nodes it connects, and the rich citations stay in the
+tracker where they were. The import instant above is the staleness signal: the page renders
+the last import, not the board as it is now.
 </footer>
 <script>
 const DATA = {json.dumps(detail, ensure_ascii=False)};
 document.querySelectorAll('.node').forEach(n => n.addEventListener('click', () => {{
-  const id = n.dataset.id, d = DATA.nodes[id] || DATA.extra[id] || DATA.groups[id];
+  const id = n.dataset.id, d = DATA.nodes[id];
   const box = document.getElementById('detail');
   if (!d) return;
   const rel = DATA.edges.filter(e => e.from === id || e.to === id)
-    .map(e => `<div>${{e.from}} ${{e.from === id ? '→' : '←'}} ${{e.to}}
-      <span style="color:#6b7280">(${{e.why}})</span></div>`).join('');
-  box.innerHTML = `<b>${{id}}</b> · ${{d.kind || 'group'}} · ${{d.status || ''}}<br>`
-    + `${{d.label || d.title || ''}}`
+    .map(e => `<div>${{e.from}} ${{e.from === id ? '→' : '←'}} ${{e.to}}</div>`).join('');
+  box.innerHTML = `<b>${{id}}</b> · ${{d.kind || 'decision'}} · ${{d.status}}<br>`
+    + `${{d.title || ''}}`
     + (d.verify ? `<br><br><b>verify:</b> ${{d.verify}}` : '')
-    + (d.note ? `<br><br><b>note:</b> ${{d.note}}` : '')
-    + (d.members ? `<br><br><b>members:</b> ${{d.members.join(', ')}}` : '')
+    + (d.evidence ? `<br><b>evidence:</b> ${{d.evidence}}` : '')
+    + (d.note ? `<br><b>note:</b> ${{d.note}}` : '')
+    + (d.resolution ? `<br><b>resolution:</b> ${{d.resolution}}` : '')
     + `<br><br><b>edges</b><br>${{rel || 'none drawn'}}`;
   box.style.display = 'block';
 }}));
 </script>
 </body></html>
 """
+
+
+def render_json(model: dict, tracker: tuple[list[dict], str], sha: str) -> dict:
+    tracker_items, tracker_path = tracker
+    return {
+        "generated": str(date.today()),
+        "head": sha,
+        "repo": model["repo"]["slug"],
+        "import_instant": model["repo"]["registered_at"],
+        "sources": ["the server's graph_show over the imported board",
+                    f"{tracker_path} (the in-flight overlay)"],
+        "totals": {
+            "epics": len(model["lanes"]),
+            "milestones": {"done": sum(1 for m in model["milestones"]
+                                       if m["status"] == "closed"),
+                           "total": len(model["milestones"])},
+            "tasks": model["task_count"],
+            "by_kind": model["kind_state"],
+            "open_items": [short_id(t["id"]) for t in model["open_items"]],
+            "decisions": {"signed": sum(1 for d in model["decisions"]
+                                        if d["status"] == "signed"),
+                          "total": len(model["decisions"])},
+            "not_placed": model["unplaced"] + model["dropped_edges"],
+        },
+        "milestones": [
+            {"id": milestone_of(m), "title": m["title"], "status": m["status"]}
+            for m in model["milestones"]
+        ],
+        "open_items": [
+            {"id": short_id(t["id"]), "kind": t["kind"], "status": t["status"],
+             "title": t["title"], "waits_on": model["waits"].get(t["id"], "")}
+            for t in model["open_items"]
+        ],
+        "decisions": [
+            {"id": short_id(d["id"]), "status": d["status"], "title": d["title"],
+             "gates": [short_id(g) for g in d["blocks"]]}
+            for d in model["decisions"]
+        ],
+        "tracker": tracker_items,
+        "graph": {
+            "nodes": [{"id": short_id(n["id"]), "kind": n.get("kind", "decision"),
+                       "status": n["status"], "lane": lane["epic"]["id"]}
+                      for lane in model["lanes"]
+                      for n in lane["tasks"] + lane["decisions"]],
+            "edges": [{"from": short_id(e["from"]), "to": short_id(e["to"])}
+                      for e in model["edges"]],
+        },
+    }
 
 
 def main() -> int:
@@ -688,62 +789,51 @@ def main() -> int:
     ap.add_argument("--out", metavar="DIR", default=None,
                     help=f"write there instead of {CACHE.relative_to(REPO)}")
     ap.add_argument("--no-write", action="store_true", help="print the summary only")
+    ap.add_argument("--root", metavar="DIR", default=str(DEFAULT_ROOT),
+                    help=f"the server's data root (default {DEFAULT_ROOT})")
+    ap.add_argument("--refresh", action="store_true",
+                    help="re-register + re-import this repo's board into the root first, "
+                         "printing the import census")
     args = ap.parse_args()
+    root = Path(args.root).expanduser()
 
-    tracker = read_tracker()
-    tracker_path = tracker.pop("_path")
-    nodes, order = flatten(tracker["nodes"])
-    milestones, board_items = read_board()
-    model = build(nodes, order, milestones, board_items)
+    if args.refresh:
+        refresh(root)
+
+    graph = fetch_graph(root)
+    model = build(graph)
+    tracker = read_tracker_overlay()
     sha = head_sha()
 
     kind_state = model["kind_state"]
-    open_nodes = model["open_nodes"]
-    ms_done = sum(1 for m in milestones if m["state"].startswith("done"))
-    blocked = sum(1 for n in nodes.values() if n["status"] == "blocked")
-    data = {
-        "generated": str(date.today()),
-        "head": sha,
-        "sources": [tracker_path, "docs/implementation/TODO.md §2/§4/§5"],
-        "totals": {
-            "tracker_nodes": len(nodes),
-            "by_kind": kind_state,
-            "open_nodes": [n["id"] for n in open_nodes],
-            "blocked": [n["id"] for n in open_nodes if n["status"] == "blocked"],
-            "milestones": {"done": ms_done, "total": len(milestones)},
-            "open_board_items": [b["id"] for b in board_items if b["status"] != "done"],
-            "not_drawn": model["unplaced"],
-            "collapsed_groups": {g["id"]: g["members"] for g in GROUPS},
-        },
-        "milestones": milestones,
-        "nodes": [nodes[i] for i in order],
-        "board_items": board_items,
-        "graph": {"nodes": model["graph_nodes"], "edges": model["edges"]},
-    }
+    ms_done = sum(1 for m in model["milestones"] if m["status"] == "closed")
+    signed = sum(1 for d in model["decisions"] if d["status"] == "signed")
+    data = render_json(model, tracker, sha)
 
     if args.json:
         print(json.dumps(data, indent=2, ensure_ascii=False))
         return 0
 
-    page = render_page(model, nodes, milestones, board_items, sha, tracker_path)
+    page = render_page(model, tracker, sha)
     out = Path(args.out) if args.out else CACHE
     if not args.no_write:
         out.mkdir(parents=True, exist_ok=True)
         (out / "progress.html").write_text(page)
-        (out / "progress.json").write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
+        (out / "progress.json").write_text(
+            json.dumps(data, indent=2, ensure_ascii=False) + "\n")
 
-    print(f"progress @ {sha} — {len(nodes)} tracker nodes, "
-          f"{len(open_nodes)} open, {blocked} blocked")
+    print(f"progress @ {sha} — imported {model['repo']['registered_at']} "
+          f"({model['task_count']} tasks, {len(model['decisions'])} decisions)")
     for k, v in kind_state.items():
-        print(f"  {k:8} {v['done']:3}/{v['total']:<3} done   {v['open']:2} open"
-              f"{'   ' + str(v['standing']) + ' standing' if v['standing'] else ''}")
-    print(f"  milestones {ms_done}/{len(milestones)} done · "
-          f"open board items: {', '.join(data['totals']['open_board_items']) or 'none'}")
-    print(f"  graph: {len(model['graph_nodes'])} nodes, {len(model['edges'])} edges "
-          f"({sum(1 for e in model['edges'] if e['kind'] == 'gates')} gating, "
-          f"{sum(1 for e in model['edges'] if e['kind'] == 'contains')} containment)")
-    if model["unplaced"]:
-        print(f"  NOT DRAWN (add a lane): {', '.join(model['unplaced'])}")
+        print(f"  {k:8} {v['done']:3}/{v['total']:<3} done   {v['open']:2} open")
+    print(f"  milestones {ms_done}/{len(model['milestones'])} done · "
+          f"decisions {signed}/{len(model['decisions'])} signed · "
+          f"open items: {', '.join(data['totals']['open_items']) or 'none'}")
+    print(f"  graph: {sum(len(l['tasks']) + len(l['decisions']) for l in model['lanes'])} "
+          f"nodes, {len(model['edges'])} edges")
+    if model["unplaced"] or model["dropped_edges"]:
+        print(f"  NOT PLACED (reported, never dropped): "
+              f"{', '.join(model['unplaced'] + model['dropped_edges'])}")
     if not args.no_write:
         print(f"  wrote {rel(out / 'progress.html')} and {rel(out / 'progress.json')}")
     if args.open:

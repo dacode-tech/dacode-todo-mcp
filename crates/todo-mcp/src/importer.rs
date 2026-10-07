@@ -9,12 +9,14 @@
 //! The `dialect` parameter selects which sibling board grammar and
 //! file set the tool reads: `dacode` (the default — the absent
 //! parameter keeps every earlier request's meaning), `camera` or
-//! `ikvm-html`, the two live-test subjects. An unknown value is
-//! §6.1's `invalid` naming it. The board's location is not a
-//! parameter for any dialect: the tool resolves the store handle,
-//! reads the repo node's registered checkout path (§7's mutable
-//! attribute — one source of truth, so `repo_set_path` moves the
-//! import with the checkout) and derives the board directory as
+//! `ikvm-html`, the two live-test subjects, or `dacode-todo-mcp`,
+//! this server's own board (the U28 dogfooding cutover — the same
+//! two-file layout as camera's, its own measured grammar). An
+//! unknown value is §6.1's `invalid` naming it. The board's location
+//! is not a parameter for any dialect: the tool resolves the store
+//! handle, reads the repo node's registered checkout path (§7's
+//! mutable attribute — one source of truth, so `repo_set_path` moves
+//! the import with the checkout) and derives the board directory as
 //! `<checkout>/docs/implementation` — every dialect's measured
 //! filesystem layout, part of the dialect like its grammar. The
 //! board filenames are constants per dialect for the same reason.
@@ -58,6 +60,7 @@ use todo_store::StoreError;
 use crate::import::camera::{CameraError, map_camera, parse_camera_board};
 use crate::import::dacode::{DocEntry, ImportError, map_board, parse_board};
 use crate::import::ikvm::{IkvmError, map_ikvm, parse_ikvm_board};
+use crate::import::own::{OwnError, map_own, parse_own_board};
 use crate::import::plan::{ApplyError, ImportOptions, ImportPlan, apply_plan};
 use crate::{ServerState, TodoServer, ToolError, error_carrier, repo_of, structured, time};
 
@@ -89,7 +92,7 @@ const DECISIONS_MD: &str = "decisions.md";
 pub(crate) struct ImportMdParams {
     /// The repository's stable slug key (§7): ASCII lowercase segments joined by single hyphens; the repo whose board is imported; absent means the configured default repo; an explicit value always wins.
     pub repo: Option<String>,
-    /// The sibling board dialect to import: `dacode` (the default when absent), `camera` or `ikvm-html`; any other value is `invalid` naming it.
+    /// The board dialect to import: `dacode` (the default when absent), `camera`, `ikvm-html` or `dacode-todo-mcp` (this server's own board); any other value is `invalid` naming it.
     pub dialect: Option<String>,
 }
 
@@ -105,6 +108,10 @@ enum Dialect {
     /// The ikvm-html dialect: TODO.md plus decisions.md, no doc
     /// register — the same two files as camera's.
     IkvmHtml,
+    /// The own dialect (`dacode-todo-mcp`): this server's own board —
+    /// TODO.md plus decisions.md, the same two files as camera's, its
+    /// own measured grammar.
+    Own,
 }
 
 impl Dialect {
@@ -117,8 +124,9 @@ impl Dialect {
             None | Some("dacode") => Ok(Self::Dacode),
             Some("camera") => Ok(Self::Camera),
             Some("ikvm-html") => Ok(Self::IkvmHtml),
+            Some("dacode-todo-mcp") => Ok(Self::Own),
             Some(other) => Err(ToolError::invalid(&format!(
-                "the dialect '{other}' is not known: 'dacode', 'camera' or 'ikvm-html'"
+                "the dialect '{other}' is not known: 'dacode', 'camera', 'ikvm-html' or 'dacode-todo-mcp'"
             ))),
         }
     }
@@ -175,6 +183,16 @@ impl From<IkvmError> for ToolError {
     }
 }
 
+/// The own-dialect error-mapping home, the dacode one's twin: every
+/// [`OwnError`] — a parse failure or a map failure — is §6.1's
+/// `invalid` (U9: the board text is a value this server parses), its
+/// `Display` passing through unwrapped for the same reasons.
+impl From<OwnError> for ToolError {
+    fn from(error: OwnError) -> Self {
+        Self::invalid(&error.to_string())
+    }
+}
+
 // =================================================================
 // The answer helper
 // =================================================================
@@ -197,6 +215,7 @@ fn answer_import_md(
         Dialect::Dacode => dacode_plan(&board_dir, &slug)?,
         Dialect::Camera => camera_plan(&board_dir, &slug)?,
         Dialect::IkvmHtml => ikvm_plan(&board_dir, &slug)?,
+        Dialect::Own => own_plan(&board_dir, &slug)?,
     };
     match apply_plan(&plan, handle.as_mut()) {
         Ok(()) => {}
@@ -270,6 +289,27 @@ fn ikvm_plan(board_dir: &Path, slug: &RepoSlug) -> Result<ImportPlan, ToolError>
         doc_paths: BTreeMap::new(),
     };
     Ok(map_ikvm(&board, &opts)?)
+}
+
+/// The own path's plan: read the two board files — the same two
+/// filenames as camera's and ikvm-html's, the dialect's measured
+/// layout — parse, map with an empty `doc_paths` (no doc register
+/// here either).
+fn own_plan(board_dir: &Path, slug: &RepoSlug) -> Result<ImportPlan, ToolError> {
+    let todo_md = read_sibling_file(board_dir, TODO_MD, "board file TODO.md", "own")?;
+    let decisions = read_sibling_file(
+        board_dir,
+        DECISIONS_MD,
+        "decisions file decisions.md",
+        "own",
+    )?;
+    let board = parse_own_board(&todo_md, &decisions)?;
+    let opts = ImportOptions {
+        slug: slug.clone(),
+        imported_at: time::now(),
+        doc_paths: BTreeMap::new(),
+    };
+    Ok(map_own(&board, &opts)?)
 }
 
 // =================================================================
@@ -404,7 +444,7 @@ fn stem_matches(file: &str, key: &str) -> bool {
 
 #[tool_router(router = import_router, vis = "pub(crate)")]
 impl TodoServer {
-    /// One-shot import of the repo's sibling markdown board — the dialect parameter selects the grammar (dacode by default, camera and ikvm-html as the live-test subjects); the files are read from the repo's registered checkout path, parsed strictly, mapped and applied to the repo's empty store — answering the landed counts of epics, decisions, docs, tasks and blocks edges.
+    /// One-shot import of the repo's sibling markdown board — the dialect parameter selects the grammar (dacode by default, camera and ikvm-html as the live-test subjects, dacode-todo-mcp for this server's own board); the files are read from the repo's registered checkout path, parsed strictly, mapped and applied to the repo's empty store — answering the landed counts of epics, decisions, docs, tasks and blocks edges.
     #[tool(
         name = "import_md",
         output_schema = crate::schema::output_for_type::<ImportedDto>(),

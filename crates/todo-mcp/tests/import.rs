@@ -1,11 +1,16 @@
 //! The import suites (t42's parser, t43's mapping, t44's wire tool,
-//! t45's fixture, t46's camera dialect, t47's ikvm-html dialect): the
-//! dacode dialect's behavior over hand-authored synthetic corpora,
-//! plus the real board itself — t45 checks in the three sibling files
-//! as the fixture (the only sibling content this repository holds,
-//! D12/§10) and pins the graph they import to — and the camera and
-//! ikvm-html dialects over their own hand-authored and loop-generated
-//! corpora (never the live boards' prose, D12).
+//! t45's fixture, t46's camera dialect, t47's ikvm-html dialect,
+//! t54's own dialect): the dacode dialect's behavior over
+//! hand-authored synthetic corpora, plus the real board itself — t45
+//! checks in the three sibling files as the fixture (the only sibling
+//! content this repository holds, D12/§10) and pins the graph they
+//! import to — and the camera and ikvm-html dialects over their own
+//! hand-authored and loop-generated corpora (never the live boards'
+//! prose, D12), and the own dialect (this repo's own board) over
+//! hand-authored synthetic corpora — no live prose and no golden
+//! either (D4: the board moves every session, so a dump golden would
+//! be a per-session compatibility event; the live import is the
+//! probe).
 //!
 //! The suite is split by file the way `tests/read.rs` is:
 //! `import/board.rs` holds the TODO.md walker's tests plus the
@@ -19,10 +24,14 @@
 //! fixture's dump golden, its identity pin, the wire composition),
 //! `import/camera.rs` the camera dialect's (the parser, the
 //! mapping, the `dialect` param's wire drive, the id reproduction at
-//! synthetic scale, determinism), and `import/ikvm.rs` the ikvm-html
+//! synthetic scale, determinism), `import/ikvm.rs` the ikvm-html
 //! dialect's (the parser, the four cross-checks, the mapping, the
 //! plan census and id reproduction at synthetic live scale, the wire
-//! drive, determinism) — no `mod.rs` in the directory (P-LIVE-004).
+//! drive, determinism), and `import/own.rs` the own dialect's (the
+//! parser with the 5-cell milestone widening, the Status vocabulary,
+//! the mapping with the dropped bodies and board-order milestone
+//! ids, the id reproduction past planted inversions, the wire drive,
+//! determinism) — no `mod.rs` in the directory (P-LIVE-004).
 //! Every test lists as `import::<file>::…` so the module-path filter
 //! `cargo test -p todo-mcp --test import -- import::board` selects
 //! exactly one file's suite (P-LIVE-002/P-LIVE-005: quote the counts
@@ -49,5 +58,6 @@ mod import {
     mod e2e;
     mod ikvm;
     mod map;
+    mod own;
     mod wire;
 }

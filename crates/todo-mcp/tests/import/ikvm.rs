@@ -1410,7 +1410,7 @@ fn register_args(slug: &str, tree: &Path) -> String {
 /// `import_md { dialect: "ikvm-html" }` against the synthetic
 /// ikvm-html tree: the counts response and spot ids asserted in-test
 /// (no golden, D12); an unknown dialect value is `invalid` naming all
-/// three values; and a tree missing its decisions file faults as `io`
+/// four values; and a tree missing its decisions file faults as `io`
 /// naming the ikvm file's role.
 #[test]
 fn import_md_with_dialect_ikvm_html_drives_the_ikvm_path() {
@@ -1481,7 +1481,7 @@ fn import_md_with_dialect_ikvm_html_drives_the_ikvm_path() {
         "the first blocker lands after the register"
     );
 
-    // An unknown dialect value: `invalid` naming all three values.
+    // An unknown dialect value: `invalid` naming all four values.
     let root = TempDir::new().unwrap();
     let tree = ikvm_tree();
     let driven = drive(
@@ -1499,7 +1499,7 @@ fn import_md_with_dialect_ikvm_html_drives_the_ikvm_path() {
     assert_carrier(
         &driven.responses[1],
         "invalid",
-        "the dialect 'shelly' is not known: 'dacode', 'camera' or 'ikvm-html'",
+        "the dialect 'shelly' is not known: 'dacode', 'camera', 'ikvm-html' or 'dacode-todo-mcp'",
     );
 
     // A tree missing its decisions file: the io fault names the ikvm
