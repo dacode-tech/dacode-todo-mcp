@@ -15,8 +15,9 @@ blocking. Rules, which `tools/attention.py` and the reviewers enforce:
 
 ## 1. Current state
 
-**Phase: M4's task tree is fully landed (t42–t48 + t50) — g11, the
-exit gate, is the only thing left.** The study measured the dacode board
+**Phase: M4 is closed — g11, the exit gate, ran green 2026-10-07; M5
+(packaging, docs, cross-repo ergonomics if D8 arms them) is next.**
+The study measured the dacode board
 rather
 than reading it: a **three-file system** under `docs/implementation/`
 (`TODO.md` 10,811 lines / 1.1 MB, `appendices/B-decisions.md` 3,071,
@@ -152,7 +153,7 @@ shell, which is M3's business.
 
 | Blocking | What | Action |
 |---|---|---|
-| — | nothing blocks the M4 exit: D18 is signed (a) 2026-10-05, the importer's scope and order are signed (D12, amending D7), the server it imports into is closed at g9, and t42–t48 + t50 are all landed (parser, mapping, wire tool, fixture + e2e golden, camera, the U31 lift, ikvm-html, the three repos tracked for real) | run g11, the M4 exit gate |
+| — | nothing blocks M5: M4 is closed at g11 — every code gate (543 workspace tests), the golden ritual byte-identical over all 24 goldens, the §6 tool-surface check (a live tools/list drive: exactly the spec table's 26 tools), the f41 sweep (f102 swept in wire.rs, f99 promoted to U32), M4's lessons consolidated (pitfalls 4.7/4.8/5.11–5.13, top rules 15–16) | decompose M5 (packaging per §13, docs, the D8-deferred cwd auto-detection, polish) — the dogfooding question (U28) and the live view (U18) are the user's opening calls |
 
 (Open but non-blocking: **U18** (a live view for progress and whether the
 server is shared per user, deferred until after M4's importer check, and
@@ -181,7 +182,7 @@ exit criteria: spec §14. Priority is derived from the Gated-on column by
 | M1 | domain model + storage engine: graph, statuses, persistence behind the `Store` trait, golden files | — | done 2026-09-30 — g5 ran green: every code gate, five goldens byte-identical, `cargo doc` clean, pitfalls consolidated |
 | M2 | queries: repo/epic selection, dependency resolution, deterministic `next_task`; registry with path updates | **D16** adds one task if signed; no dispatched task waits on it | done 2026-10-02 — **g7 ran green**: every code gate, the five goldens byte-identical under `UPDATE_GOLDEN=1`, `cargo doc` warning-free under both invocations for the first time (f48 settled), §5.2's selection re-proven a pure function of state, the f41 sweep exercised for the first time (f44/f45 promoted to U21/U22, the rest verified open with named consumers), and M2's lessons consolidated into `.agents/pitfalls.md` (P-LIVE-007/-008, the citation rule, the coverage-pin rule). The five deliveries — t27 selection, f47's pins, t28 batch, t29 listing, t30 doc riders, t31 registry queries — are §3's entries; D16 stayed unsigned throughout and nothing waited on it — **signed (a) 2026-10-03, after closure**, its aggregation task landing under M3's goal |
 | M3 | MCP server: §6's tool surface over the wire (import_md excepted — M4's, per D12), protocol-level tests, default-repo slug config (D8), smoke against a real client | gates cleared 2026-10-03: the **rmcp ask** signed (rmcp 3.5.0 + `serde_json/preserve_order`, §6.3), **U20** resolved (b) — the registry format stays and the server answers `repo_list` from handles — and **D16** signed (a), adding the domain aggregation task to the decomposition; D14/D15 settled the wire's key order and error carrier on 2026-09-30; **D17** signed 2026-10-04 (priority on the triage surfaces) | done 2026-10-04 — **g9 ran green**: every code gate (423 workspace tests), the golden ritual byte-identical over all three golden dirs, the §6 tool-surface check (25 tools over the wire, `import_md` the only exception — exactly the criterion), the smoke evidence recorded (t39's real opencode session), U26 reproduced/isolated/fixed at the gate itself (U27 opened for the store-side question), the f41 sweep exercised, and M3's lessons consolidated into `.agents/pitfalls.md`. The nine deliveries — t32 aggregation, t33 skeleton, t34/t35 the read tools, t36 the mutations, t37 edges + registry + the default slug, t38 the wire suite, t39 the smoke + U16b, t40 D17's echo — are §3's entries |
-| M4 | adoption: the dacode-dialect importer first (**D12**, amending D7), its board the only fixture checked in per §10; camera and ikvm-html imported from their live boards and never copied into this repo; the three repos tracked for real | — (D18 signed (a) 2026-10-05, the same day it was drafted) | in progress — **t42 the parser landed 2026-10-05** (parse_board total over the live board, probe-verified), **t43 the D18 mapping landed 2026-10-06** (the ImportPlan + apply_plan, id reproduction pinned at scale), **t44 the `import_md` wire tool landed 2026-10-06** (the importer cluster, the `ApplyError` refusal seam, the `import_md.v1` golden), **t45 the fixture + e2e golden landed 2026-10-06** (the three real files checked in, the first composed run clean, `dacode_dump.v1` pinning the expected graph), **t46 the camera dialect landed 2026-10-06** (the study, the sibling module, the `dialect` param, the live probe — 178 tasks, no golden per D12), **t50 the U31 lift landed 2026-10-07** (the plan types + shared helpers into dialect-neutral homes under `src/import/`, zero behavior change), **t47 the ikvm-html dialect landed 2026-10-07** (the study, the third sibling module on the neutral homes, the `ikvm-html` dialect value, the live probe — 132 tasks, no golden per D12), **t48 the three repos tracked for real landed 2026-10-07** (registered in the durable D4 root, imported over the wire — every import clean on the first composed run, all three stores verified, the query session recorded: the §9 cutover executed); next: g11 the exit gate |
+| M4 | adoption: the dacode-dialect importer first (**D12**, amending D7), its board the only fixture checked in per §10; camera and ikvm-html imported from their live boards and never copied into this repo; the three repos tracked for real | — (D18 signed (a) 2026-10-05, the same day it was drafted) | in progress — **t42 the parser landed 2026-10-05** (parse_board total over the live board, probe-verified), **t43 the D18 mapping landed 2026-10-06** (the ImportPlan + apply_plan, id reproduction pinned at scale), **t44 the `import_md` wire tool landed 2026-10-06** (the importer cluster, the `ApplyError` refusal seam, the `import_md.v1` golden), **t45 the fixture + e2e golden landed 2026-10-06** (the three real files checked in, the first composed run clean, `dacode_dump.v1` pinning the expected graph), **t46 the camera dialect landed 2026-10-06** (the study, the sibling module, the `dialect` param, the live probe — 178 tasks, no golden per D12), **t50 the U31 lift landed 2026-10-07** (the plan types + shared helpers into dialect-neutral homes under `src/import/`, zero behavior change), **t47 the ikvm-html dialect landed 2026-10-07** (the study, the third sibling module on the neutral homes, the `ikvm-html` dialect value, the live probe — 132 tasks, no golden per D12), **t48 the three repos tracked for real landed 2026-10-07** (registered in the durable D4 root, imported over the wire — every import clean on the first composed run, all three stores verified, the query session recorded: the §9 cutover executed) | done 2026-10-07 — **g11 ran green**: every code gate (fmt, check, **543** workspace tests, clippy on a forced recompile, `cargo doc` warning-free under both invocations), the golden ritual byte-identical over all 24 goldens (19 mcp incl. the fixture golden, 4 store, 1 cli), the §6 tool-surface check (a live `tools/list` drive: exactly the spec table's 26 tools, `import_md` included), the live-run evidence (t46/t47's probes + t48's real imports), **f102 swept** in wire.rs (dual-reviewed, `240e7d2`), the f41 sweep (f99 promoted to **U32**; every other open item verified open with its named consumer intact), and M4's lessons consolidated into `.agents/pitfalls.md` (4.7, 4.8, 5.11–5.13; top rules 15–16) |
 | M5 | packaging, docs, cwd auto-detection (deferred by D8), polish | — | not started |
 
 ## 3. Done
@@ -3682,12 +3683,97 @@ Deliberate shortcuts, acknowledged rather than fixed. Same id rules as §4.
       dacode's `ImportError` (a type-level coupling with
       dialect-neutral messages), named in `plan.rs`'s module doc as
       the debt for its next owner.
+- [ ] **U32 · A strict-mode client could reject the server's `uint64`
+      schema format.** Promoted from f99 at the g11 sweep (its own
+      verify line: "a U-id if it outlives M3" — it has). The first
+      real client's compatibility note: opencode's schema validator
+      emits 'unknown format uint64 ignored in schema' warnings
+      against the server's schemars-1 `u64` fields
+      (`NextItemDto.weight`, the D16 count DTOs). Harmless today
+      (the validator ignores what it does not know), but a
+      strict-mode client could hard-error on the same schemas. The
+      fix, if ever needed, is the server's: a schema-level integer
+      spelling the validator knows — a wire-visible change and
+      therefore a decision, not a patch.
 
 ## 6. Session log
 
 Newest first. One entry per session, written for someone who was not
 here. The final entry of a session is the handover
 (`.agents/skills/todo-next-imp/SKILL.md` defines the shape).
+
+### 2026-10-07 — g11: the M4 exit gate ran green — M4 is closed
+
+The session opened on the user's "ok, go for it" — the word for g11.
+Every line of the gate's verify method ran on the committed tree
+(`2e75bd0` at open, `240e7d2` after the gate's own code fix):
+
+- **Code gates**: `cargo fmt --check` clean; `cargo check --workspace
+  --all-targets` clean; `cargo test --workspace` **543 passed, 0
+  failed, 1 ignored** (the store's known `#[ignore]` measurement
+  test) over 24 result lines — t47's recorded counts exactly;
+  `cargo clippy --workspace --all-targets` 0 warnings on a forced
+  recompile; `cargo doc --workspace --no-deps` warning-free under
+  **both** invocations.
+- **The golden ritual**: `UPDATE_GOLDEN=1` over the store (120
+  tests), cli (35) and mcp (205) suites, then `git diff --exit-code`
+  over all three golden dirs = 0 — **all 24 goldens byte-identical**
+  (19 mcp including the 1.1 MB fixture golden `dacode_dump.v1`, 4
+  store, 1 cli).
+- **The §6 tool-surface check**: a live `tools/list` drive against
+  the running server — exactly the spec table's **26 tools**,
+  `import_md` included, the sets identical (the spec side parsed
+  from §6's table, the live side from the wire).
+- **The live-run evidence**: t46's camera probe (178), t47's
+  ikvm-html probe ×2 (132), t48's real imports into the durable root
+  (178/133, all three stores verified) — recorded in the tracker and
+  §3.
+- **f102 swept** — the gate was its named owner. The reword of
+  wire.rs's "all twenty-five" became a real dual review: round 1
+  (both changes_requested on the same med) caught the class sweep
+  stopping at the named instance — the carrier sweep's "twenty-three
+  repo-scoped tools" and the module doc's unscoped claim carried the
+  same falsifier; the fix round reworded all three sites to
+  membership rules; round 2 both ok, bound to the same sha
+  independently. Committed as `240e7d2` with both trailers.
+- **The f41 sweep**: f102 done (above); **f99 promoted to U32**
+  (its own verify line: "a U-id if it outlives M3" — it has); every
+  other open item (f25, f50, f54, f57–f61, f65, f67, f69, f94,
+  f101, f103–f105) verified open with its named consumer intact —
+  M4 touched none of their files.
+- **Pitfalls consolidated**: 4.7 (P-LIVE-009 promoted — non-ASCII in
+  inline `git commit -m`), 4.8 (a digest names its algorithm — t50's
+  two-tools scare), 5.11 (a live board is a moving target — every
+  census is point-in-time, record the HEAD), 5.12 (a dialect study's
+  inventory is a claim — the parser's strict refusals are the
+  detector), 5.13 (the folding convention — a measured spec-vs-run
+  divergence folds into the evidence, not a finding); top rules
+  15–16; the live file reset, next id P-LIVE-010.
+
+Spec §14's M4 line and board §2's M4 deliverable are both met: the
+dacode importer verified against its checked-in fixture (t45), camera
+and ikvm-html imported from their live boards and never copied in
+(t46/t47), the three repos tracked for real (t48).
+
+**Handover.** Workspace: `main`, clean after the gate's commits, four
+crates, rustc 1.98.1. Landed: the gate itself — `240e7d2` (f102's
+sweep, dual-reviewed, both trailers), the knowledge commit
+(pitfalls), the board/AGENTS.md movement, the index backfill. Next
+step: **decompose M5** — packaging per §13 (the global-config mcp
+entry naming the binary and the durable store location
+`~/.local/share/dacode-todo/`, which t48 filled with the three real
+repos), docs, the D8-deferred cwd auto-detection, polish. Its
+alternative — taking U18/U21/U22 first — is wrong because M5's shape
+depends on none of them and a decomposition is cheap. Blocked on
+you: nothing gates M5's decomposition; the calls that shape it are
+**U28** (dogfooding this repo's own tracking on the server — allowed
+since M3 closed, still undecided) and **U18** (the live view for
+progress, holding the D13 transport reservation). Unverified:
+nothing new — the gate ran every line of its verify method; the
+standing caveats are t48's (no byte-comparison of the real dacode
+store against the golden, camera/ikvm-html golden-less per D12, the
+stores drift from the boards with no sync per D7, no live client has
+queried the durable root yet — M5's wiring).
 
 ### 2026-10-07 — t48: the three repos tracked for real, the §9 cutover executed
 

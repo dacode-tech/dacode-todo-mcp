@@ -17,33 +17,41 @@ If `MYAGENTS.md` exists at the repo root, it is untracked, personal, and
 
 ## Project State
 
-**Phase: M4 (adoption) is decomposed 2026-10-05 and ungated — the
-dialect study ran, D18 is signed (a), t42 (the parser) has landed
-— parse_board is total over the live board — t43 (the D18
-mapping) has landed — the ImportPlan + apply_plan with id
-reproduction pinned at the live board's scale — t44 (the
-import_md wire tool) has landed — the importer cluster with the
-ApplyError refusal seam and the import_md.v1 golden — t45 (the
-checked-in dacode fixture + the end-to-end golden) has landed
-— the three real files checked in per D12/§10, the first
+**Phase: M4 (adoption) is closed — g11, the exit gate, ran green
+2026-10-07 — and M5 (packaging, docs, cross-repo ergonomics if D8
+arms them) is next, its decomposition the next session's first
+act.** The gate ran every line of its verify method on the committed
+tree: every code gate (543 workspace tests), the golden ritual
+byte-identical over all 24 goldens (19 mcp including the fixture
+golden, 4 store, 1 cli), the §6 tool-surface check (a live
+tools/list drive: exactly the spec table's 26 tools, import_md
+included), the live-run evidence (t46/t47's probes + t48's real
+imports), f102 swept in wire.rs (dual-reviewed), the f41 sweep (f99
+promoted to U32), and M4's lessons consolidated into
+.agents/pitfalls.md (4.7, 4.8, 5.11–5.13; top rules 15–16). The M4
+deliveries, oldest first: the dialect study and D18 signed (a); t42
+the dacode parser — parse_board total over the live board; t43 the
+D18 mapping — the ImportPlan + apply_plan with id reproduction
+pinned at the live board's scale; t44 the import_md wire tool — the
+importer cluster with the ApplyError refusal seam and the
+import_md.v1 golden; t45 the checked-in dacode fixture + the
+end-to-end golden — the three real files per D12/§10, the first
 composed run on the real board clean, dacode_dump.v1 pinning the
-expected graph — and t46 (the camera dialect) has landed — the
-study first, the sibling module, the
-dialect param on import_md, the live probe at 178 tasks with no
-golden per D12 — and t50 (the U31 lift) has landed — the plan
-types and the shared helpers in dialect-neutral homes under
-src/import/ (plan.rs + helpers.rs behind a HelperError seam), zero
-behavior change, U31 resolved — and t47 (the ikvm-html dialect)
-has landed — the study, the third sibling module on the neutral
-homes, the ikvm-html dialect value, the live probe at 132 tasks
-with no golden per D12 — and t48 (the three repos tracked for real)
-has landed — the §9 cutover executed: dacode/camera/ikvm-html
-registered in the durable D4 root (~/.local/share/dacode-todo/),
-every import clean on the first composed run (dacode's census =
-the golden's, camera = its probe's, ikvm-html = the predicted
-post-U129 count), all three stores verified, the query session
-recorded and byte-identical across two runs — leaving g11, the M4
-exit gate, as the next dispatch.**
+expected graph; t46 the camera dialect — the study first, the
+sibling module, the dialect param on import_md, the live probe at
+178 tasks with no golden per D12; t50 the U31 lift — the plan types
+and the shared helpers in dialect-neutral homes under src/import/
+(plan.rs + helpers.rs behind a HelperError seam), zero behavior
+change, U31 resolved; t47 the ikvm-html dialect — the study, the
+third sibling module on the neutral homes, the ikvm-html dialect
+value, the live probe at 132 tasks with no golden per D12; and t48
+the three repos tracked for real — the §9 cutover executed:
+dacode/camera/ikvm-html registered in the durable D4 root
+(~/.local/share/dacode-todo/), every import clean on the first
+composed run (dacode's census = the golden's, camera = its probe's,
+ikvm-html = the predicted post-U129 count), all three stores
+verified, the query session recorded and byte-identical across two
+runs.**
 An MCP server that replaces
 markdown TODO boards with a deterministic task graph: tasks are typed
 nodes, dependencies are typed edges, everything lives in local
