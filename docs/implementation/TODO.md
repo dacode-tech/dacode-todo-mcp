@@ -2827,7 +2827,8 @@ Oldest first. One line per delivery, with the commit hash once committed.
         comment, a ragged rewrap) and **f103 widened** (the
         duplicate-D question now named for both dialects' decisions
         registers, plus camera/error.rs's BadId doc). Landed as
-        <hash-backfill>.
+        `80cb1de` (with `3d7623a` declaring the suite — the mod file
+        sits beside the directory the staging path named).
 
 
 
