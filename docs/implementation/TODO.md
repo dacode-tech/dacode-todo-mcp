@@ -15,9 +15,9 @@ blocking. Rules, which `tools/attention.py` and the reviewers enforce:
 
 ## 1. Current state
 
-**Phase: M4 decomposed 2026-10-05 — the dialect study ran as a
-measurement, D18 is signed, and the task tree (t42–t48 + g11 under
-g10) is on the board.** The study measured the dacode board rather
+**Phase: M4's task tree is fully landed (t42–t48 + t50) — g11, the
+exit gate, is the only thing left.** The study measured the dacode board
+rather
 than reading it: a **three-file system** under `docs/implementation/`
 (`TODO.md` 10,811 lines / 1.1 MB, `appendices/B-decisions.md` 3,071,
 `appendices/A-design-deltas.md` 3,792), registers all stable and
@@ -99,9 +99,21 @@ decisions, 22 edges, 0 docs, 0 findings, `U1`–`U128` reproduced**,
 probed twice (implementer + primary over the wire), no golden per
 D12. One live-shape widening beyond the study (the resolution
 banner's outcome ends at the bold run's closing `**` — three
-closings measured), pinned by synthetic tests. **Nothing blocks
-t48** (the three repos tracked for real). The importer lives in
-`todo-mcp` as a module —
+closings measured), pinned by synthetic tests. **t48 — the three repos
+tracked for real — landed 2026-10-07**: the §9 cutover executed —
+dacode/camera/ikvm-html registered in the durable D4 root
+(`~/.local/share/dacode-todo/`, spec §2; `tmp/todo-data` stays the
+smoke-only harness root per the t39 wiring comment, M5's packaging
+moves the entry), each board imported over the wire with **every import
+clean on the first composed run** (dacode 9/21/42/218/43 — exactly
+t45's golden census, the sibling sitting at the fixture's snapshot
+commit; camera 8/9/0/178/10 — the t46 probe's census; ikvm-html
+9/22/0/133/22 — the predicted post-`U129` count), each store verified
+(`todo-cli verify` exit 0, status ok), and a real query session over
+the imported dacode board recorded (`next_task` = `dacode:U175`, the
+`M1.1` gate; the read session byte-identical across two runs — §8's
+determinism on the real board). The importer lives in `todo-mcp` as a
+module —
 §2's signed four-member workspace stands, no new crate, no new
 dependency (the dialect is line-anchored, measured).
 
@@ -140,7 +152,7 @@ shell, which is M3's business.
 
 | Blocking | What | Action |
 |---|---|---|
-| — | nothing blocks M4: D18 is signed (a) 2026-10-05, the importer's scope and order are signed (D12, amending D7), the server it imports into is closed at g9, t42–t47 and t50 are landed (parser, mapping, wire tool, fixture + e2e golden, camera, the U31 lift, ikvm-html) | dispatch t48 (the three repos tracked for real — register, import, verify, the cutover state) — then g11, the M4 exit gate |
+| — | nothing blocks the M4 exit: D18 is signed (a) 2026-10-05, the importer's scope and order are signed (D12, amending D7), the server it imports into is closed at g9, and t42–t48 + t50 are all landed (parser, mapping, wire tool, fixture + e2e golden, camera, the U31 lift, ikvm-html, the three repos tracked for real) | run g11, the M4 exit gate |
 
 (Open but non-blocking: **U18** (a live view for progress and whether the
 server is shared per user, deferred until after M4's importer check, and
@@ -169,7 +181,7 @@ exit criteria: spec §14. Priority is derived from the Gated-on column by
 | M1 | domain model + storage engine: graph, statuses, persistence behind the `Store` trait, golden files | — | done 2026-09-30 — g5 ran green: every code gate, five goldens byte-identical, `cargo doc` clean, pitfalls consolidated |
 | M2 | queries: repo/epic selection, dependency resolution, deterministic `next_task`; registry with path updates | **D16** adds one task if signed; no dispatched task waits on it | done 2026-10-02 — **g7 ran green**: every code gate, the five goldens byte-identical under `UPDATE_GOLDEN=1`, `cargo doc` warning-free under both invocations for the first time (f48 settled), §5.2's selection re-proven a pure function of state, the f41 sweep exercised for the first time (f44/f45 promoted to U21/U22, the rest verified open with named consumers), and M2's lessons consolidated into `.agents/pitfalls.md` (P-LIVE-007/-008, the citation rule, the coverage-pin rule). The five deliveries — t27 selection, f47's pins, t28 batch, t29 listing, t30 doc riders, t31 registry queries — are §3's entries; D16 stayed unsigned throughout and nothing waited on it — **signed (a) 2026-10-03, after closure**, its aggregation task landing under M3's goal |
 | M3 | MCP server: §6's tool surface over the wire (import_md excepted — M4's, per D12), protocol-level tests, default-repo slug config (D8), smoke against a real client | gates cleared 2026-10-03: the **rmcp ask** signed (rmcp 3.5.0 + `serde_json/preserve_order`, §6.3), **U20** resolved (b) — the registry format stays and the server answers `repo_list` from handles — and **D16** signed (a), adding the domain aggregation task to the decomposition; D14/D15 settled the wire's key order and error carrier on 2026-09-30; **D17** signed 2026-10-04 (priority on the triage surfaces) | done 2026-10-04 — **g9 ran green**: every code gate (423 workspace tests), the golden ritual byte-identical over all three golden dirs, the §6 tool-surface check (25 tools over the wire, `import_md` the only exception — exactly the criterion), the smoke evidence recorded (t39's real opencode session), U26 reproduced/isolated/fixed at the gate itself (U27 opened for the store-side question), the f41 sweep exercised, and M3's lessons consolidated into `.agents/pitfalls.md`. The nine deliveries — t32 aggregation, t33 skeleton, t34/t35 the read tools, t36 the mutations, t37 edges + registry + the default slug, t38 the wire suite, t39 the smoke + U16b, t40 D17's echo — are §3's entries |
-| M4 | adoption: the dacode-dialect importer first (**D12**, amending D7), its board the only fixture checked in per §10; camera and ikvm-html imported from their live boards and never copied into this repo; the three repos tracked for real | — (D18 signed (a) 2026-10-05, the same day it was drafted) | in progress — **t42 the parser landed 2026-10-05** (parse_board total over the live board, probe-verified), **t43 the D18 mapping landed 2026-10-06** (the ImportPlan + apply_plan, id reproduction pinned at scale), **t44 the `import_md` wire tool landed 2026-10-06** (the importer cluster, the `ApplyError` refusal seam, the `import_md.v1` golden), **t45 the fixture + e2e golden landed 2026-10-06** (the three real files checked in, the first composed run clean, `dacode_dump.v1` pinning the expected graph), **t46 the camera dialect landed 2026-10-06** (the study, the sibling module, the `dialect` param, the live probe — 178 tasks, no golden per D12), **t50 the U31 lift landed 2026-10-07** (the plan types + shared helpers into dialect-neutral homes under `src/import/`, zero behavior change), **t47 the ikvm-html dialect landed 2026-10-07** (the study, the third sibling module on the neutral homes, the `ikvm-html` dialect value, the live probe — 132 tasks, no golden per D12); next: t48 the three repos tracked for real → g11 the exit gate |
+| M4 | adoption: the dacode-dialect importer first (**D12**, amending D7), its board the only fixture checked in per §10; camera and ikvm-html imported from their live boards and never copied into this repo; the three repos tracked for real | — (D18 signed (a) 2026-10-05, the same day it was drafted) | in progress — **t42 the parser landed 2026-10-05** (parse_board total over the live board, probe-verified), **t43 the D18 mapping landed 2026-10-06** (the ImportPlan + apply_plan, id reproduction pinned at scale), **t44 the `import_md` wire tool landed 2026-10-06** (the importer cluster, the `ApplyError` refusal seam, the `import_md.v1` golden), **t45 the fixture + e2e golden landed 2026-10-06** (the three real files checked in, the first composed run clean, `dacode_dump.v1` pinning the expected graph), **t46 the camera dialect landed 2026-10-06** (the study, the sibling module, the `dialect` param, the live probe — 178 tasks, no golden per D12), **t50 the U31 lift landed 2026-10-07** (the plan types + shared helpers into dialect-neutral homes under `src/import/`, zero behavior change), **t47 the ikvm-html dialect landed 2026-10-07** (the study, the third sibling module on the neutral homes, the `ikvm-html` dialect value, the live probe — 132 tasks, no golden per D12), **t48 the three repos tracked for real landed 2026-10-07** (registered in the durable D4 root, imported over the wire — every import clean on the first composed run, all three stores verified, the query session recorded: the §9 cutover executed); next: g11 the exit gate |
 | M5 | packaging, docs, cwd auto-detection (deferred by D8), polish | — | not started |
 
 ## 3. Done
@@ -2829,6 +2841,45 @@ Oldest first. One line per delivery, with the commit hash once committed.
         registers, plus camera/error.rs's BadId doc). Landed as
         `80cb1de` (with `3d7623a` declaring the suite — the mod file
         sits beside the directory the staging path named).
+- 2026-10-07 — **M4 t48: the three repos tracked for real** — the §9
+     cutover executed for all three siblings, no code moved. The
+     durable D4 data root (`~/.local/share/dacode-todo/`, spec §2 —
+     fresh; `tmp/todo-data` stays the smoke-only harness root the t39
+     wiring comment names, and M5's packaging moves the entry to the
+     global config with this store location per §13) holds three
+     registered stores: `repo_register` for **dacode**
+     (`/Users/mouse/RPM/dacode/dacode/dacode`, clean at `671ce48`),
+     **camera** (`/Users/mouse/RPM/shelly/camera`, at `c6783f5`, board
+     files clean — one untracked PDF beside them) and **ikvm-html**
+     (`/Users/mouse/RPM/ali/ikvm-html`, clean at `24734f6`), then
+     `import_md` over the wire for each (dacode by the default
+     dialect, camera and ikvm-html by the `dialect` parameter).
+     **Every import landed clean on the first composed run**: dacode
+     9 epics / 21 decisions / 42 docs / 218 tasks / 43 blocks —
+     exactly t45's golden census, the sibling sitting at the
+     fixture's snapshot commit so the real store's graph is the
+     golden's graph; camera 8/9/0/178/10 — the t46 probe's census;
+     ikvm-html 9/22/0/133/22 — the predicted post-`U129` count.
+     `todo-cli verify` on each store: exit 0, status ok (log bytes
+     1,135,746 / 380,313 / 82,473). The query session — a fresh
+     server process, so the stores reopen from disk — answered
+     `next_task` = `dacode:U175` (`M1.1`, the first open gate under
+     E2, verify "docs only — review-exempt"), `epic_list` 9 rows
+     (E1–E7 the milestones, E8 `Follow-ups`, E9 `Spec deltas`), and
+     `task_list` under `dacode:E8` = 174 rows: `U1`–`U170` contiguous
+     (D18's id reproduction on the real board) plus `U214` (B1a,
+     closed) and the three `gates M1` findings, canonical order, no
+     blockers — the fourth finding (`U218`, "M1 gates M1") sits under
+     E2, the milestone it asserts about. The whole read session is
+     **byte-identical across two runs** — §8's determinism
+     demonstrated on the imported board. Transcripts:
+     `tmp/t48-{import,query}-transcript.txt` (gitignored scratch;
+     the salient lines are in the tracker evidence). No golden moved,
+     no sibling content copied in (D12). The cutover state per §9:
+     the server is each repo's state of record as of the import
+     instant, the markdown boards keep the narrative, and there is no
+     two-way sync (D7) — the stores and boards will drift, and the
+     sibling HEADs above are the drift baseline.
 
 
 
@@ -3637,6 +3688,63 @@ Deliberate shortcuts, acknowledged rather than fixed. Same id rules as §4.
 Newest first. One entry per session, written for someone who was not
 here. The final entry of a session is the handover
 (`.agents/skills/todo-next-imp/SKILL.md` defines the shape).
+
+### 2026-10-07 — t48: the three repos tracked for real, the §9 cutover executed
+
+The session opened on the user's "let's continue" — the word for t48,
+the last M4 delivery before the exit gate. The work was operational,
+not code: no spec was needed (the task's verify line is "manual +
+recorded"), nothing in `crates/` moved, and the orchestrator ran it
+itself (interactive server drives do not survive a subagent boundary).
+The one decision taken inline: **the durable D4 root**
+(`~/.local/share/dacode-todo/`, spec §2's signed location) is where
+the three repos are registered — `tmp/todo-data` stays the smoke-only
+harness root the t39 wiring comment names, because M5's packaging
+(§13) is what moves the mcp entry to the global config with the
+durable store location; wiring clients to the durable root now would
+pre-empt M5's move.
+
+The run itself: `repo_register` × 3 with the real checkout paths, then
+`import_md` × 3 over the wire (the default dacode dialect, `camera`,
+`ikvm-html`), then `todo-cli verify` × 3, then a fresh-process query
+session over the imported dacode board. **Every import landed clean on
+the first composed run** — the t45 headline ("the first composed run
+on the real board was clean") holds for the real registration too, and
+for both live-test dialects at their current drift: dacode 9/21/42/
+218/43 (exactly the golden census — the sibling is at the fixture's
+snapshot commit `671ce48`), camera 8/9/0/178/10 (the t46 probe's
+census, at `c6783f6`), ikvm-html 9/22/0/133/22 (the predicted
+post-`U129` count, at `24734f6`). All three stores verify (exit 0,
+status ok). The query session answered `next_task` = `dacode:U175`
+(`M1.1`, the first open gate under E2), `epic_list` 9 rows,
+`task_list` under E8 = 174 rows with `U1`–`U170` contiguous, and the
+read session is byte-identical across two runs — determinism
+demonstrated on the real imported board, not just the fixture.
+
+**Handover.** Workspace: `main`, clean, four crates, rustc 1.98.1.
+Landed: t48 (this entry; docs-only commit, review-exempt — no code
+moved, so every code gate is skipped by construction and that is
+proven by the empty diff over `*.rs`/`Cargo.*`). Next step: **g11, the
+M4 exit gate** — every code gate, the golden ritual over every golden
+dir including the fixture golden, the §6 tool-surface check (26 tools,
+`import_md` included), the live-run evidence for camera/ikvm-html
+(t46/t47/t48's probes and imports), the f41 sweep, pitfalls
+consolidation, board §2's M4 row done. Its alternative — starting M5
+— is wrong because a milestone gate is cheaper than any M5 work and
+M4 is one gate from closed. Blocked on you: nothing (attention.py
+renders 10 P3 items — U18/U21/U22 and recorded debt; none gates g11).
+Unverified: the dacode store matches the golden's census across two
+independent surfaces (import counts, `todo-cli verify`) but was not
+byte-compared against `dacode_dump.v1` — the timestamps differ by
+construction (`imported_at` is the real clock here, the fixed constant
+in the golden), and the golden's graph is pinned at the same sibling
+commit; camera and ikvm-html have no golden at all (D12's signed
+consequence — their censuses are cross-checked against their probes
+only); the stores will drift from the boards as the siblings evolve
+(no sync, D7) — the sibling HEADs in §3's t48 entry are the baseline;
+and this repo's own opencode wiring still talks to `tmp/todo-data`
+(smoke only), so no live client session has queried the durable root
+yet — that is M5's wiring, not a defect.
 
 ### 2026-10-07 — t50 dispatched and landed: the U31 lift, the study for t47, two specs written
 

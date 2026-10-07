@@ -36,8 +36,14 @@ src/import/ (plan.rs + helpers.rs behind a HelperError seam), zero
 behavior change, U31 resolved — and t47 (the ikvm-html dialect)
 has landed — the study, the third sibling module on the neutral
 homes, the ikvm-html dialect value, the live probe at 132 tasks
-with no golden per D12 — leaving t48 (the three repos tracked for
-real, then the cutover) as the next dispatch.**
+with no golden per D12 — and t48 (the three repos tracked for real)
+has landed — the §9 cutover executed: dacode/camera/ikvm-html
+registered in the durable D4 root (~/.local/share/dacode-todo/),
+every import clean on the first composed run (dacode's census =
+the golden's, camera = its probe's, ikvm-html = the predicted
+post-U129 count), all three stores verified, the query session
+recorded and byte-identical across two runs — leaving g11, the M4
+exit gate, as the next dispatch.**
 An MCP server that replaces
 markdown TODO boards with a deterministic task graph: tasks are typed
 nodes, dependencies are typed edges, everything lives in local
