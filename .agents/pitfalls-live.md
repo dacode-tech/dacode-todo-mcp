@@ -52,32 +52,16 @@
 
 ## Entries
 
-### P-LIVE-009: non-ASCII in inline `git commit -m` strings gets mangled
-- **Scope**: every commit on this host (zsh + the bash tool's string
-  handling); this repo's messages use `§` liberally
-- **Discovered**: t41, 2026-10-05
-- **Symptom**: `§9` and `§2` in a commit message body landed as
-  `SS9`/`SS2` (commit `230d49c`) — the section sign did not survive
-  the inline `-m` string
-- **Root cause**: the multi-line `-m` argument passed through the
-  shell mangled the UTF-8 section sign
-- **Workaround**: write any commit message containing non-ASCII via a
-  file — the file tool writes it, `git commit -F <file>` consumes it;
-  never inline `-m`
-- **Obsoleted by**: nothing planned — a process constraint; retire
-  only if an inline `-m` commit with `§` is observed landing correctly
-- **Source**: struggle
+_Empty — reset at the M2 exit gate (g7, 2026-10-02), the M3 exit gate
+(g9, 2026-10-04) and the M4 exit gate (g11, 2026-10-07)._
 
-_Empty otherwise — reset at the M2 exit gate (g7, 2026-10-02) and
-again at the M3 exit gate (g9, 2026-10-04)._
-
-`P-LIVE-001` … `P-LIVE-008` were promoted to `.agents/pitfalls.md` (the
-first six at the M1 gate, the last two at the M2 gate) and their ids are
-carried in the promoted entries' **Promoted from** lines, because
-test-file module docs across `crates/todo-store/tests/` and
-`crates/todo-cli/tests/` cite `P-LIVE-002`, `P-LIVE-004` and
-`P-LIVE-005` by id, and board §6 prose cites `P-LIVE-007`/`P-LIVE-008`.
-Where they now live:
+`P-LIVE-001` … `P-LIVE-009` were promoted to `.agents/pitfalls.md` (the
+first six at the M1 gate, the next two at the M2 gate, the last at the
+M4 gate) and their ids are carried in the promoted entries'
+**Promoted from** lines, because test-file module docs across
+`crates/todo-store/tests/` and `crates/todo-cli/tests/` cite
+`P-LIVE-002`, `P-LIVE-004` and `P-LIVE-005` by id, and board §6 prose
+cites `P-LIVE-007`/`P-LIVE-008`. Where they now live:
 
 | Former id | Promoted to |
 |---|---|
@@ -89,7 +73,8 @@ Where they now live:
 | `P-LIVE-006` (`dacode-json` tuple deserialization; resolved upstream) | pitfalls.md 2.5 |
 | `P-LIVE-007` (a class sweep is only as wide as its grep) | pitfalls.md 5.7 |
 | `P-LIVE-008` (whoever writes a contract sentence cannot falsify it) | pitfalls.md 5.8 |
+| `P-LIVE-009` (non-ASCII in inline `git commit -m` gets mangled) | pitfalls.md 4.7 |
 
-The next entry is `P-LIVE-009`. Do not reuse a promoted id.
+The next entry is `P-LIVE-010`. Do not reuse a promoted id.
 
 ---

@@ -335,6 +335,34 @@ citations must keep resolving.
   does not own.
 - **Promoted from**: t37's `reopened` discovery, t38's home rulings
 
+### 4.7 Non-ASCII in an inline `git commit -m` string gets mangled
+- **Scope**: every commit on this host (zsh + the bash tool's string
+  handling); this repo's messages cite `§` liberally
+- **What happened**: `§9` and `§2` in a commit message body landed as
+  `SS9`/`SS2` (commit `230d49c`, t41) — the section sign did not
+  survive the multi-line inline `-m` argument.
+- **Do instead**: write any commit message containing non-ASCII via a
+  file — the file tool writes it, `git commit -F <file>` consumes it;
+  never inline `-m` for a message carrying `§`, `—` or any non-ASCII
+  punctuation.
+- **Promoted from**: P-LIVE-009 (t41)
+
+### 4.8 A digest is a claim that names its algorithm — or two honest verifiers mismatch
+- **Scope**: every sha-pinned baseline, binding round and
+  frozen-baseline list, in task specs, reviews and evidence lines
+- **What happened**: t50's binding round reported a sha "mismatch"
+  between implementer and reviewer that was no mismatch at all — one
+  had hashed SHA-1, the other SHA-256; t34's binding round had the
+  same scare before it. Two honest verifiers, two tools, one false
+  contradiction.
+- **Do instead**: every digest quoted in a spec, a review binding or
+  an evidence line names the tool that produced it ("shasum -a 256",
+  the practice since t36's "shasum prefixes, the tool named"), and a
+  binding round that mismatches first asks which algorithm each side
+  used, then whether the bytes moved.
+- **Promoted from**: the t50 binding round (t34's scare is the
+  corroborating record)
+
 ## Category 5: The harness itself (tools/, agents, docs)
 
 ### 5.1 A task spec's safety argument is a claim to falsify, not ground truth to instance-check
@@ -537,11 +565,68 @@ citations must keep resolving.
 - **Promoted from**: f97 (t38; the M4 cache-bypass mutation survived
   the unpremised comparison)
 
+### 5.11 A live board is a moving target — every census is point-in-time
+- **Scope**: the importer's live probes and imports (t46/t47/t48), any
+  measurement taken against a sibling checkout
+- **What happened**: camera's board grew its own `U170` while t46 was
+  still running (the study read 177, the import 178); ikvm-html grew
+  `U129` after t47's probe (132 → 133 by t48); the dacode sibling
+  happened to sit at the fixture's snapshot commit, which is luck, not
+  a property. A census quoted without its HEAD is a figure nobody can
+  reproduce — 5.2's rule with a live source underneath it.
+- **Do instead**: record the sibling's HEAD beside every live census
+  (t48's evidence carries all three), treat a probe's numbers as
+  predictions for the next read, and never write a live census into a
+  source doc comment (f105's first low is exactly that). A probe that
+  must edit a sibling's board (t42's 22/23 strike) commits the edit in
+  the sibling's own repo — their tree is never left dirty for their
+  owner, and the probe's artifacts never land here.
+- **Promoted from**: the t46/t47 mid-task drift records; t48's
+  drift-baseline HEADs
+
+### 5.12 A dialect study's inventory is a claim — the parser's strict refusals are the detector
+- **Scope**: the import dialects (`src/import/`), any parser of a live
+  document
+- **What happened**: t42's strictness rule fired on six real
+  live-board shapes the t41 study's inventory had missed; t47 found
+  one more (the resolution banner's closing shape) beyond its own
+  study. The studies were careful — the boards are simply larger than
+  any one reading of them. The silent alternative (skip what does not
+  parse) is the anti-silent-omission defect in its purest form: a
+  parser that skips an item reports less than the truth and still
+  looks complete (f43's class).
+- **Do instead**: a parser of a live document refuses what it does not
+  recognize, by name, with the line — and the refusal is the detector
+  that finds what the study missed. Every widening is measured grammar
+  (the real shapes, counted), pinned by a synthetic test, never a
+  guess and never a skip.
+- **Promoted from**: t42's six widenings; t46's grammar widenings;
+  t47's banner-closing widening
+
+### 5.13 A measured divergence between a gitignored task spec and the run folds into the evidence — it is not a finding
+- **Scope**: findings bookkeeping (the tracker's f-ids), every task
+  whose spec predicts kill sets, counts or phrasings
+- **What happened**: M3 filed a stream of f-ids (the f75–f98 class)
+  whose entire content was "the spec said X, the run said Y" — each
+  superseded the moment it was filed, because the spec is gitignored
+  scratch that dies with the branch, while a finding is supposed to
+  outlive it. The tracker filled with items nobody would ever do.
+- **Do instead**: a measured divergence between a task spec's
+  prediction and the run is recorded in the task's evidence line
+  (where the measurement already lives) and the spec is corrected in
+  place — 5.1's "amend the spec rather than qualify the docs". An
+  f-id is reserved for a defect in a committed artifact or a lesson
+  that must outlive the branch. The convention was signed into
+  practice by `a86b1cc` (2026-10-04).
+- **Promoted from**: the folding convention (`a86b1cc`); the
+  superseded notes on the f75–f98 class are the record of what it
+  replaced
+
 ---
 
 ## Quick Reference: Top Rules
 
-Distilled from the entries above at the M1 and M2 gates.
+Distilled from the entries above at the M1–M4 gates.
 
 1. **Select the test target, never a name filter** — `--test <name>`, and
    the only proof a filtered run ran is the passed count plus
@@ -575,3 +660,7 @@ Distilled from the entries above at the M1 and M2 gates.
     wire verbatim, and rmcp strips the input side only** (3.3).
 14. **A comparison test asserts its premise before it compares: two
     identical failures are still identical** (5.10).
+15. **A live census is point-in-time: record the HEAD beside it, and
+    never write it into a source comment** (5.11, 5.2).
+16. **A digest names its algorithm and its tool — two honest verifiers
+    otherwise mismatch** (4.8).
