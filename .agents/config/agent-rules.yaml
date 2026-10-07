@@ -10,7 +10,7 @@
 # ─── Template Versioning ───────────────────────────────────────────────
 version:
   template: "0.1"          # Inherited from the dacode agent-rules layout
-  custom: 11               # Local adjustment counter
+  custom: 12               # Local adjustment counter
 
 # ─── Project Identity ──────────────────────────────────────────────────
 project:
@@ -229,7 +229,11 @@ roles:
     # write half is the pair's whole gateable surface. The live-view
     # instruction moved with it — see orchestrator.md's tracking
     # section. Takes effect for NEW sessions only.
+    # todo-mcp*: allow is a per-role override because the server went
+    # global at t52 (§13) — global servers get no enable_for
+    # rendering, so the allow lives here beside the deny.
     permission:
+      todo-mcp*: allow
       todowrite: deny
   implementer:
     agent: "dacode-todo-mcp-implementer"
@@ -371,25 +375,20 @@ mcp:
       env:
         AST_GREP_CONFIG: "sgconfig.yml"
 
-    todo-mcp:
-      # THIS PROJECT'S SERVER, wired into its own harness (t39, U16b).
-      # cargo run from the project root (opencode spawns MCP servers
-      # with cwd there — serena's --project-from-cwd precedent), so the
-      # relative --root resolves against this checkout. tmp/ is
-      # gitignored scratch: pre-dogfooding the store holds smoke data
-      # only; M5's packaging (spec §13) moves the entry to the global
-      # config with the durable store location. No --repo default (D8):
-      # this instance has no dogfooding repo, so every call names its
-      # repo explicitly.
-      command: ["cargo", "run", "-p", "todo-mcp", "--",
-                "--root", "tmp/todo-data"]
-      enabled: true
-      global: false
-      # The orchestrator alone: it is the integration point once
-      # dogfooding is ever decided, and the smoke exercises it. The
-      # other roles route findings through the orchestrator into
-      # tasks.py today; widening later is a config edit.
-      enable_for: ["dacode-todo-mcp"]
+    # todo-mcp — THIS PROJECT'S SERVER — went global at t52 (§13): its
+    # entry lives in the user's global opencode config
+    # (~/.config/opencode/opencode.jsonc, the cve entry's pattern),
+    # naming the release binary (built by `cargo build --release -p
+    # todo-mcp` in this checkout; stale after pulls until rebuilt — the
+    # documented tradeoff of §13's "naming the binary", the store-format
+    # version gate refusing a too-old binary rather than guessing) and
+    # the durable D4 root ~/.local/share/dacode-todo that t48 filled.
+    # Not declared here on purpose: a servers entry renders into this
+    # project's config and would shadow the global one — the harness
+    # records only what it wires. The orchestrator's todo-mcp* allow is
+    # the role permission override (beside U16b's todowrite deny). No
+    # --repo default (D8): calls name their repo explicitly until t53's
+    # cwd auto-detection derives one.
 
 # ─── Session Integrity: canary + context health ───────────────────────
 session:

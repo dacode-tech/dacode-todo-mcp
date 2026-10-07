@@ -18,7 +18,8 @@ blocking. Rules, which `tools/attention.py` and the reviewers enforce:
 **Phase: M5 (packaging, docs, cross-repo ergonomics, polish) is in
 progress — decomposed 2026-10-07 (t51): t52–t57 + g13 are the tree, and
 the two shaping calls are confirmed — U28 (dogfooding) yes, U18 (the
-live view) shape A with D13 left reserved.**
+live view) shape A with D13 left reserved. t52 (packaging per §13) is
+landed; t53 (cwd auto-detection) is next.**
 **t51 — the M5 decomposition — landed 2026-10-07**: the tree is t52
 packaging per §13 (the release binary, the global-config mcp entry
 naming the durable root `~/.local/share/dacode-todo/`, this repo's own
@@ -37,6 +38,24 @@ shape B — the shared per-user server instance — is declined with **D13
 left reserved**. U27 and U32 are left as recorded calls (the
 timing-contract question and the wire-visible schema change are
 decisions, not polish).
+**t52 — packaging per §13 — landed 2026-10-07**: the release binary
+(`cargo build --release -p todo-mcp`, 30.75 s, the tree's first
+release build) named by an mcp entry in the user's global opencode
+config (`~/.config/opencode/opencode.jsonc`, the cve entry's pattern)
+serving the durable D4 root `~/.local/share/dacode-todo/`; the repo's
+own t39 wiring MOVED, not copied — the todo-mcp server block in
+agent-rules.yaml became a pointer comment, so the project config
+renders no entry and nothing shadows the global one, and the
+orchestrator's `todo-mcp*` allow is a per-role permission override
+beside U16b's deny. The smoke — a real opencode session through the
+global entry — answered `repo_list` with the three real repos and
+`next_task` = `dacode:U175` (t48's answer, the store unchanged), the
+permission=allow lines and tool_use events in the transcript, and all
+three stores verify clean post-session: **g11's standing caveat ("no
+live client has queried the durable root yet") is closed**. The
+staleness tradeoff is documented in the entry's comment: the binary
+goes stale after pulls until rebuilt, and the store-format version
+gate refuses a too-old binary rather than guessing.
 The study measured the dacode board
 rather
 than reading it: a **three-file system** under `docs/implementation/`
@@ -203,7 +222,7 @@ exit criteria: spec §14. Priority is derived from the Gated-on column by
 | M2 | queries: repo/epic selection, dependency resolution, deterministic `next_task`; registry with path updates | **D16** adds one task if signed; no dispatched task waits on it | done 2026-10-02 — **g7 ran green**: every code gate, the five goldens byte-identical under `UPDATE_GOLDEN=1`, `cargo doc` warning-free under both invocations for the first time (f48 settled), §5.2's selection re-proven a pure function of state, the f41 sweep exercised for the first time (f44/f45 promoted to U21/U22, the rest verified open with named consumers), and M2's lessons consolidated into `.agents/pitfalls.md` (P-LIVE-007/-008, the citation rule, the coverage-pin rule). The five deliveries — t27 selection, f47's pins, t28 batch, t29 listing, t30 doc riders, t31 registry queries — are §3's entries; D16 stayed unsigned throughout and nothing waited on it — **signed (a) 2026-10-03, after closure**, its aggregation task landing under M3's goal |
 | M3 | MCP server: §6's tool surface over the wire (import_md excepted — M4's, per D12), protocol-level tests, default-repo slug config (D8), smoke against a real client | gates cleared 2026-10-03: the **rmcp ask** signed (rmcp 3.5.0 + `serde_json/preserve_order`, §6.3), **U20** resolved (b) — the registry format stays and the server answers `repo_list` from handles — and **D16** signed (a), adding the domain aggregation task to the decomposition; D14/D15 settled the wire's key order and error carrier on 2026-09-30; **D17** signed 2026-10-04 (priority on the triage surfaces) | done 2026-10-04 — **g9 ran green**: every code gate (423 workspace tests), the golden ritual byte-identical over all three golden dirs, the §6 tool-surface check (25 tools over the wire, `import_md` the only exception — exactly the criterion), the smoke evidence recorded (t39's real opencode session), U26 reproduced/isolated/fixed at the gate itself (U27 opened for the store-side question), the f41 sweep exercised, and M3's lessons consolidated into `.agents/pitfalls.md`. The nine deliveries — t32 aggregation, t33 skeleton, t34/t35 the read tools, t36 the mutations, t37 edges + registry + the default slug, t38 the wire suite, t39 the smoke + U16b, t40 D17's echo — are §3's entries |
 | M4 | adoption: the dacode-dialect importer first (**D12**, amending D7), its board the only fixture checked in per §10; camera and ikvm-html imported from their live boards and never copied into this repo; the three repos tracked for real | — (D18 signed (a) 2026-10-05, the same day it was drafted) | in progress — **t42 the parser landed 2026-10-05** (parse_board total over the live board, probe-verified), **t43 the D18 mapping landed 2026-10-06** (the ImportPlan + apply_plan, id reproduction pinned at scale), **t44 the `import_md` wire tool landed 2026-10-06** (the importer cluster, the `ApplyError` refusal seam, the `import_md.v1` golden), **t45 the fixture + e2e golden landed 2026-10-06** (the three real files checked in, the first composed run clean, `dacode_dump.v1` pinning the expected graph), **t46 the camera dialect landed 2026-10-06** (the study, the sibling module, the `dialect` param, the live probe — 178 tasks, no golden per D12), **t50 the U31 lift landed 2026-10-07** (the plan types + shared helpers into dialect-neutral homes under `src/import/`, zero behavior change), **t47 the ikvm-html dialect landed 2026-10-07** (the study, the third sibling module on the neutral homes, the `ikvm-html` dialect value, the live probe — 132 tasks, no golden per D12), **t48 the three repos tracked for real landed 2026-10-07** (registered in the durable D4 root, imported over the wire — every import clean on the first composed run, all three stores verified, the query session recorded: the §9 cutover executed) | done 2026-10-07 — **g11 ran green**: every code gate (fmt, check, **543** workspace tests, clippy on a forced recompile, `cargo doc` warning-free under both invocations), the golden ritual byte-identical over all 24 goldens (19 mcp incl. the fixture golden, 4 store, 1 cli), the §6 tool-surface check (a live `tools/list` drive: exactly the spec table's 26 tools, `import_md` included), the live-run evidence (t46/t47's probes + t48's real imports), **f102 swept** in wire.rs (dual-reviewed, `240e7d2`), the f41 sweep (f99 promoted to **U32**; every other open item verified open with its named consumer intact), and M4's lessons consolidated into `.agents/pitfalls.md` (4.7, 4.8, 5.11–5.13; top rules 15–16) |
-| M5 | packaging, docs, cwd auto-detection (deferred by D8), polish | — (the two shaping calls confirmed 2026-10-07: U28 dogfood, U18 shape A — D13 left reserved) | in progress — **decomposed 2026-10-07 (t51)**: t52 packaging per §13 (the release binary + the global-config mcp entry + the durable root, closing g11's no-live-client caveat), t53 cwd auto-detection (D8's deferred arming, the §7 amendment riding), t54 the U28 dogfooding cutover (this repo registered + imported, `progress.py` a thin client, the four tables retiring, U22 resolved with it), t55 U18's shape A (`progress.py --serve`), t56 the adoption README, t57 U21's duplicate-key check; dispatch order t52 → t53 → t54 → t55 → t56 with t57 interleavable; g13 the exit gate, which also closes g3 |
+| M5 | packaging, docs, cwd auto-detection (deferred by D8), polish | — (the two shaping calls confirmed 2026-10-07: U28 dogfood, U18 shape A — D13 left reserved) | in progress — **decomposed 2026-10-07 (t51)**: **t52 packaging per §13 landed 2026-10-07** (the release binary + the global-config mcp entry + the durable root, g11's no-live-client caveat closed), t53 cwd auto-detection (D8's deferred arming, the §7 amendment riding), t54 the U28 dogfooding cutover (this repo registered + imported, `progress.py` a thin client, the four tables retiring, U22 resolved with it), t55 U18's shape A (`progress.py --serve`), t56 the adoption README, t57 U21's duplicate-key check; dispatch order t52 → t53 → t54 → t55 → t56 with t57 interleavable; g13 the exit gate, which also closes g3 |
 
 ## 3. Done
 
@@ -2915,6 +2934,37 @@ Oldest first. One line per delivery, with the commit hash once committed.
       helpers now in `src/import/helpers.rs` at 382), `plan.rs` 244 —
       no new ledger entries, U24/U29's figures refreshed. No Rust
       moved. Landed as `2352f89`.
+- 2026-10-07 — **M5 t52: packaging per §13** — the release binary and
+      the global-config wiring, no Rust moved. `cargo build --release
+      -p todo-mcp` (the tree's first release build, 30.75 s) produces
+      `target/release/todo-mcp`; the mcp entry in the user's global
+      opencode config (`~/.config/opencode/opencode.jsonc`, the cve
+      entry's home) names the binary and the durable root
+      `~/.local/share/dacode-todo/` per §13's signed text — the
+      staleness tradeoff (stale after pulls until rebuilt; the
+      store-format version gate refuses a too-old binary) documented
+      in the entry's comment. The repo's own t39 wiring moved, not
+      copied: the todo-mcp server block in agent-rules.yaml became a
+      pointer comment (a servers entry renders into the project config
+      and would shadow the global one — the cve pattern is a global
+      server with no agent-rules declaration), so `.opencode/
+      opencode.json` and `.mcp.json` render no todo-mcp entry, and the
+      orchestrator's `todo-mcp*: allow` is a per-role permission
+      override beside U16b's `todowrite: deny` (the generated
+      orchestrator file is byte-identical to HEAD — the allow's source
+      changed from enable_for rendering to the role override, its
+      position and text did not). The smoke: a fresh `opencode run`
+      session with the orchestrator agent drove `repo_list` (the
+      three real repos with their checkout paths and t48's
+      registration stamps — the durable root, not `tmp/todo-data`)
+      and `next_task` repo=dacode (`dacode:U175`, deferred
+      {total 6, ready 6} — t48's answer, the store unchanged), the
+      permission=allow lines and tool_use events in
+      `tmp/t52-smoke-transcript.txt` (gitignored; the salient lines in
+      the tracker evidence); `todo-cli verify` on all three stores
+      post-session: exit 0, status ok. **g11's standing caveat — no
+      live client has queried the durable root yet — is closed.**
+      Landed as `<hash backfilled>`.
 
 
 
@@ -3779,6 +3829,68 @@ Deliberate shortcuts, acknowledged rather than fixed. Same id rules as §4.
 Newest first. One entry per session, written for someone who was not
 here. The final entry of a session is the handover
 (`.agents/skills/todo-next-imp/SKILL.md` defines the shape).
+
+### 2026-10-07 — t52: packaging per §13 — the global wiring landed
+
+The session opened on the user's "let's dispatch t52" — the word for
+M5's first task. Orchestrator-run per the t39/t48 precedent (the work
+is config + operational: a user-machine config edit and an interactive
+client drive do not survive a subagent boundary); the
+customize-opencode skill governed the global-config edit and settled
+the merge semantics that shaped the move — project config deep-merges
+OVER global, so a same-name project entry would shadow the global one,
+and the implemented pattern for global servers is the cve entry: it
+lives in the global config with no agent-rules declaration at all.
+
+The decisions taken inline (the t48 pattern, recorded here): the
+global entry names the release binary per §13's signed text (not
+`cargo run --release` — the staleness tradeoff documented in the
+entry's comment: stale after pulls until rebuilt, the store-format
+version gate refusing a too-old binary rather than guessing); and the
+repo's t39 wiring MOVED rather than repointed — the todo-mcp server
+block in agent-rules.yaml became a pointer comment, so the project
+config renders no entry (nothing shadows the global one, and the smoke
+could only have been served by the global entry), with the
+orchestrator's `todo-mcp*` allow as a per-role permission override
+beside U16b's deny. One course-correction mid-task, worth the record:
+the first attempt used `global: true` on the server block believing it
+suppressed the project render — it does not (it only skips the
+top-level permission deny); the project entry survived and would have
+shadowed the global one, defeating the smoke's evidentiary value. The
+cve-pattern removal is the corrected shape.
+
+The smoke (a fresh `opencode run` with the orchestrator agent, the
+transcript at `tmp/t52-smoke-transcript.txt`): `repo_list` answered
+the three real repos with their checkout paths and t48's registration
+stamps — the durable root, not `tmp/todo-data`; `next_task`
+repo=dacode answered `dacode:U175` with deferred {total 6, ready 6} —
+t48's answer, the store unchanged; the permission=allow lines fired
+for both tools (the role override working); and `todo-cli verify` on
+all three stores post-session: exit 0, status ok. **g11's standing
+caveat — no live client has queried the durable root yet — is
+closed.** No Rust moved (git diff over `*.rs`/`Cargo.*` empty), so
+every code gate is skipped by construction; the release build itself
+(30.75 s, the tree's first) is the only compile evidence and it is
+green.
+
+**Handover.** Workspace: `main`, clean before this commit, four
+crates, rustc 1.98.1. Landed: t52 (this entry; the wiring commit +
+the index backfill that follows). Next step: **dispatch t53 — cwd
+auto-detection (D8's deferred arming)**: derive the default repo slug
+by matching the server's cwd (or an ancestor) against the registered
+checkout paths, longest match wins, no match keeps today's no-default
+behavior; lazy derivation (first default-needing call — paths live on
+Repo nodes, so derivation pays t31's cold-open cost); the §7 amendment
+recording the resolution order (param > flag > cwd) rides the task,
+ratified at review per the D8-amendment precedent. Its alternative —
+t54 first — is wrong because t53 is the smaller, self-contained
+server change and t54's cutover measures its layout fit against a
+tree t53 does not touch. Blocked on you: nothing. Unverified: the
+global entry's staleness behavior is documented, not demonstrated —
+no pull-then-stale-binary run was made (the version gate is
+golden-pinned from t10); the smoke proves the global entry on this
+machine only — a fresh clone or machine needs the entry installed,
+which is t56's README.
 
 ### 2026-10-07 — t51: the M5 decomposition — U28 and U18 confirmed
 

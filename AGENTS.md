@@ -20,8 +20,11 @@ If `MYAGENTS.md` exists at the repo root, it is untracked, personal, and
 **Phase: M5 (packaging, docs, cross-repo ergonomics, polish) is in
 progress — decomposed 2026-10-07 (t51): t52–t57 + g13 are the tree,
 both shaping calls confirmed — U28 (dogfooding) yes, U18 (the live
-view) shape A with D13 left reserved; dispatch t52 (packaging per
-§13) first.** M4 (adoption) is closed — g11, the exit gate, ran green
+view) shape A with D13 left reserved. t52 (packaging per §13) landed
+2026-10-07 — the release binary named by the global-config mcp entry
+serving the durable root, the t39 wiring moved, g11's no-live-client
+caveat closed; t53 (cwd auto-detection) is next.** M4 (adoption) is
+closed — g11, the exit gate, ran green
 2026-10-07. The gate ran every line of its verify method on the committed
 tree: every code gate (543 workspace tests), the golden ritual
 byte-identical over all 24 goldens (19 mcp including the fixture
@@ -99,9 +102,10 @@ checked in per §10, camera and ikvm-html as live-test subjects never
 copied into this repo, the three repos tracked for real — 543 tests,
 every gate green at the g11 exit, M4's lessons consolidated into
 `.agents/pitfalls.md`. **M5 is in progress**: decomposed 2026-10-07
-(t51) — t52 packaging per §13 (the release binary + the
+(t51) — t52 packaging per §13 landed (the release binary + the
 global-config mcp entry + the durable root), t53 cwd auto-detection
-(D8's deferred arming), t54 the U28 dogfooding cutover (this repo
+(D8's deferred arming) next, then t54 the U28 dogfooding cutover
+(this repo
 registered + imported, progress.py a thin client), t55 U18's shape A
 (progress.py --serve), t56 the adoption README, t57 U21's
 duplicate-key check; g13 the exit gate, which also closes g3. Run
