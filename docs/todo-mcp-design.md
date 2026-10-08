@@ -222,7 +222,14 @@ that corruption is a named error, never a silent truncation:
   unparseable) is a named `corrupt_store` error (§6.1) carrying its
   byte offset — never silently skipped. A malformed line anywhere else
   in the log is `corrupt_store` unconditionally: the interior of a log
-  does not tear in a crash.
+  does not tear in a crash. This rule binds the locked open and the
+  repair path, which hold the writer lock and therefore never see a
+  line that is merely being written. A **lock-free read** (D19,
+  signed 2026-10-08) meets the same shape under a scoped reading: it
+  takes no lock, so an *unterminated* final line is an append in
+  flight, not damage — the read answers the committed prefix without
+  it. A terminated but unparseable final line is corruption on every
+  path; the reading weakens nothing else.
 - **Repair** is explicit only — a repair operation (surfaced as a
   `todo-cli` command) shows the torn line and truncates it on
   confirmation, losing exactly that one in-flight event. No automatic
@@ -659,8 +666,13 @@ Determinism is the product property; everything else is a feature:
   plus one for the registry; an operation touching several stores
   acquires locks in sorted-slug order, so acquisition order can never
   deadlock. The JSONL engine (D1) tolerates concurrent readers of a
-  committed log; the design still assumes one server process, which is
-  what one MCP server is.
+  committed log — concretely (D19, signed 2026-10-08): a read-only
+  open that takes no lock, replays the committed prefix, and treats an
+  unterminated final line as an append in flight (§4.3's scoped
+  reading); it never opens the append handle and never writes. The
+  design still assumes one *writer* process per store, which is what
+  one MCP server is; readers — a second client, a render, an inspector
+  — never contend.
 
 ## 9. Adoption and Migration
 
@@ -790,7 +802,10 @@ the triage surfaces — `priority` echoed on `next_task`'s answer and the
 `next_items`/`task_list` rows, the order untouched — and D18 on
 2026-10-05, the dacode-dialect mapping, drafted and signed in one
 exchange out of the M4 dialect study, settling the five populations
-§9's table did not cover. The sections they
+§9's table did not cover, and D19 on 2026-10-08, the lock-free read
+path, drafted and signed in one exchange out of the first real
+second-process contention — no §12 item sat open (the in-thread
+precedent). The sections they
 settled are normative above, and a future change to a signed
 shape is a new decision, not an edit (the D6/D11 priority boundary is
 the worked example). Numbers are never reused, and **D13 is reserved**

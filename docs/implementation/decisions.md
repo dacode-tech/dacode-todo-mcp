@@ -11,7 +11,8 @@ and the meta block below; keep the shapes it parses.
 
 <!-- attention-meta — machine-readable; read by tools/attention.py.
      D1–D12 resolved 2026-09-25/2026-09-29, D14 and D15 resolved 2026-09-30,
-     D16 resolved 2026-10-03, D17 resolved 2026-10-04, D18 resolved 2026-10-05.
+     D16 resolved 2026-10-03, D17 resolved 2026-10-04, D18 resolved 2026-10-05,
+     D19 resolved 2026-10-08.
      D13 is reserved for the transport question board U18 defers, and is not
      drafted, so it has no action line either.
 -->
@@ -37,6 +38,7 @@ and the meta block below; keep the shapes it parses.
 | ~~**D16**~~ | The progress roll-up: a tool, a field, or a client concern | (a) a `status_summary(repo?, epic?)` tool, plus `blocked_by` on `task_list` rows whichever option wins | medium | M2 | resolved (a) 2026-10-03 — signed after M2 closed at g7; the domain aggregation task lands under M3's goal |
 | ~~**D17**~~ | Priority on the triage surfaces | (a+) echo `priority` on `next_task`'s answer and the `next_items`/`task_list` rows; the agent decides, the order untouched | medium | M3 | resolved 2026-10-04 — user decision, "let the agent decide" |
 | ~~**D18**~~ | The dacode-dialect mapping (amends §9) | (a) A-deltas → tasks under a synthetic epic; sub-steps → gate tasks; docs → doc nodes; ids reproduced by import order | medium | M4 | resolved (a) 2026-10-05 — user decision, "let's do option (a)" |
+| ~~**D19**~~ | The lock-free read path and §4.3's torn-tail reading | (a) a read-only open: no lock, committed prefix, unterminated tail = append in flight | medium | — | resolved (a) 2026-10-08 — user decision, in-thread at drafting; the implementation lands as two tasks |
 
 ---
 
@@ -1118,3 +1120,86 @@ state and is superseded weekly).
 §10's fixture bullet names the three files; delete §12 item 18;
 strike this row; TODO.md §1/§2/§6. The importer's mapping task (t43)
 is gated on this decision; the parser (t42) is not.
+
+### D19 — The lock-free read path and §4.3's torn-tail reading
+
+**Resolved 2026-10-08 — option (a), signed by the user ("let's do
+'(a)' with lock-free reads").** A read-only open that takes no lock,
+replays the committed prefix, and treats an unterminated final line as
+an append in flight — never `corrupt_store`, never a write. Work order
+executed in the same change: §4.3's replay rule gains its scoping
+sentence (it binds the locked open and repair; a lock-free read's
+unterminated tail is concurrency, not damage), §8's single-writer
+bullet makes its concurrent-readers sentence concrete, §12's preamble
+records the signing, this row struck. No §12 item sat open — the
+decision was drafted and signed in one exchange out of the first real
+second-process contention (below), the in-thread precedent. The
+implementation lands as two tasks (the store primitive, then the
+server's read-path resolve); until they land, §8's new sentence
+describes a signed shape the code does not yet have — TODO.md §1's
+blocking table carries the gap.
+
+**Drafted 2026-10-08 — out of the first real second-process contention
+(f110, measured).** §8 says "the JSONL engine (D1) tolerates concurrent
+readers of a committed log", but every open today takes the exclusive
+writer lock — there is no read-only open — so a second process cannot
+read a store whose lock a live server holds. Measured: a live opencode
+session's server (PID 99063, 2026-10-08 16:45, parent opencode 99050)
+holds all four store locks after one `repo_list` (handles are never
+evicted — U20(b)'s answer-from-handles), and `tools/progress.py`'s
+per-render spawn — t54's thin client, the dogfooding cutover — is
+refused on its one `graph_show` with `locked`. The registry is already
+safe to read without a lock (`Registry::load` takes none, and the file
+is atomically renamed); the whole question is the log's torn tail.
+
+**Gates** — (post-M5: the dogfooding cutover's usability) ·
+**Resolved** 2026-10-08 · drafted and signed in one exchange ·
+**Confidence: medium**
+
+**Current (before this decision).** §4.3's replay rule — "a malformed
+*last* line (no trailing newline, or unparseable) is a named
+`corrupt_store` … never silently skipped" — was written for the locked
+open and repair paths, which hold the writer lock and therefore never
+see a line that is merely being written. A lock-free reader racing an
+append *can* see one: an append is a single `write_all` under
+`O_APPEND`, so an unterminated final line is definitionally a write in
+progress. Reading it as corruption would make every lock-free read
+fail exactly when a writer is active — the one case the path exists
+for. f63 (t31) named this precisely and deferred it; U20(b) resolved
+the server's own reads by answering from handles, which left
+second-process readers uncovered — progress.py is the first.
+
+**Options.**
+
+- **(a, signed) The lock-free read path** — a read-only open that
+  takes no lock, replays the committed prefix, and treats an
+  unterminated final line as an append in flight (ignored, not
+  `corrupt_store`); it never opens the append handle and never
+  writes. A terminated but unparseable final line stays corruption on
+  every path — the reading weakens nothing else. The server's read
+  tools use it on a handles miss (U20(b) unchanged for armed
+  servers); progress.py's per-render spawn picks it up on its next
+  render, no restart choreography — the fix is reader-side, and every
+  reader that matters spawns fresh.
+- **(b) Degraded rendering in clients** — catch `locked`, render the
+  last cached page with a banner. No spec change, but the first run in
+  a locked state still fails and the cache stales during exactly the
+  sessions being watched.
+- **(c) Idle-handle eviction in the server** — release handles after
+  an idle window. Rejected on measurement: re-open is O(total
+  history) (t31's cold-open grid), lock availability becomes
+  time-based, and real writers (`--refresh`) still contend — a
+  deterministic refusal traded for intermittent success.
+
+**Recommendation was (a)** — it is what §8's concurrent-readers
+sentence exists for, and the torn-tail reading is narrow and
+principled: the trailing LF is the commit marker, so no-LF means
+not-committed, whatever the bytes.
+
+**On sign-off:** §4.3's replay bullet gains the scoping sentence; §8's
+single-writer bullet makes the concurrent-readers sentence concrete;
+§12's preamble records the signing; strike this row; TODO.md
+§1/§3/§4(U34)/§6. The implementation is two tasks — the store
+primitive (a lock-free read returning the replayed graph), then the
+server's read tools resolving lock-free on a handles miss — and the
+blocking table carries them until they land.

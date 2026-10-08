@@ -214,9 +214,15 @@ shell, which is M3's business.
 
 | Blocking | What | Action |
 |---|---|---|
-| — | nothing blocks: the M0–M5 roadmap is delivered and the recorded ledger is called — U27 signed (c), the debt ledger acked, U30's fix landing this session | U27's retry is the next `todo-store` task — see §6's handover |
+| — | nothing blocks: the roadmap is delivered, U27 signed (c), and **D19 signed (a)** — the lock-free read path — with its implementation in flight | D19's two tasks land first (t63 the store primitive, t64 the server's read resolve), then U27's retry (t62) — see §6's handover |
 
-(The user's calls 2026-10-08: **U27 signed (c)** — the bounded
+(The user's calls 2026-10-08: **D19 signed (a)** — the lock-free read
+path: a read-only open that takes no lock, replays the committed
+prefix, and treats an unterminated final line as an append in flight
+(§4.3's scoped reading); drafted and signed in one exchange out of the
+first real second-process contention (f110, measured — a live session
+server holding all four store locks refused `progress.py`'s render),
+the implementation landing as t63/t64. **U27 signed (c)** — the bounded
 `WouldBlock` retry lands inside `FileLock::acquire` as a dedicated
 `todo-store` task; the cross-repo guard the sign rode on, answered
 from the code: store locks are per-repo per-file, so parallel
@@ -3315,10 +3321,29 @@ Oldest first. One line per delivery, with the commit hash once committed.
        each observed failing on HEAD before the fix (the duplicates
        parsed clean — U30's exact defect); the e2e fixture and all 24
        goldens byte-identical; 593 workspace tests; every gate green.
-       The sibling dialects' decisions registers carry the same gap —
-       opened as U33 (the primary reviewer's measurement, f103's
-       camera/ikvm half made board-durable). Landed as
-       `fe13bd0`.
+        The sibling dialects' decisions registers carry the same gap —
+        opened as U33 (the primary reviewer's measurement, f103's
+        camera/ikvm half made board-durable). Landed as
+        `fe13bd0`.
+- 2026-10-08 — **D19 signed (a): the lock-free read path**: the first
+        real second-process contention (f110, measured — a live
+        opencode session's server holding all four store locks after
+        one `repo_list` refused `progress.py`'s per-render
+        `graph_show` with `locked`) drafted and signed in one
+        exchange. §4.3's replay rule gains its scoping sentence (it
+        binds the locked open and repair; a lock-free read's
+        unterminated final line is an append in flight, not damage —
+        a terminated but unparseable line stays corruption on every
+        path), §8's single-writer bullet makes its
+        concurrent-readers sentence concrete (read-only open, no
+        lock, committed prefix, never writes), §12's preamble records
+        the signing, decisions.md gains the D19 dossier, U34 records
+        the finding struck. No §12 item sat open (the in-thread
+        precedent). The implementation — the store primitive, then
+        the server's read tools resolving lock-free on a handles miss
+        — lands as t63/t64 under the tracker's g16; until then §8's
+        new sentence describes a signed shape the code does not yet
+        have, carried by §1's blocking table.
 
 
 
@@ -4049,10 +4074,28 @@ Unowned work. Take the next unused `U` id; never renumber, never reuse.
       today; an open decision renders as open the moment one exists),
       and the hand-maintained EXTRA table that drew D16 by hand is
       deleted with the other three.
-      (this repo's decisions.md D-entries import as decision nodes), so
-      the page gains the rows the finding asked for; if the import's
+      (this repo's decisions.md D-entries import as decision nodes), so the
+      page gains the rows the finding asked for; if the import's
       decision statuses prove too coarse for the page, the footer
       scope-limit is the fallback, settled in t54's spec.
+- [x] **U34 · Second processes cannot read a store a live server
+      holds.** Opened and struck in the same change: the first real
+      second-process contention, measured 2026-10-08 (f110) — a live
+      opencode session's server (PID 99063, spawned 16:45, parent
+      opencode 99050) holds all four store locks after one
+      `repo_list` (U20(b)'s answer-from-handles; handles are never
+      evicted), and `tools/progress.py`'s per-render spawn — t54's
+      thin client — is refused on its one `graph_show` with `locked`.
+      §8's "tolerates concurrent readers of a committed log" had no
+      read path behind it (f63's torn-tail question; U20(b) covered
+      only the server's own reads). **Resolved by D19 (a), signed
+      2026-10-08**: the lock-free read path — a read-only open, no
+      lock, committed prefix, unterminated tail = append in flight.
+      The implementation lands as t63 (the store primitive) + t64
+      (the server's read tools resolving lock-free on a handles miss)
+      under the tracker's g16; §1's blocking table carries the gap
+      until they land. U27's retry (t62) correctly does not fix this
+      — genuine contention, the other half of its contract.
 
 ## 5. Debt
 
@@ -4260,6 +4303,46 @@ Deliberate shortcuts, acknowledged rather than fixed. Same id rules as §4.
 Newest first. One entry per session, written for someone who was not
 here. The final entry of a session is the handover
 (`.agents/skills/todo-next-imp/SKILL.md` defines the shape).
+
+### 2026-10-08 — D19 signed (a): the lock-free read path; t62 resequenced behind it
+
+The session opened on the handover's step (t62, U27's retry — agreed),
+then the user hit the first real second-process contention live:
+`tools/progress.py --open` refused with `store is locked: repo
+dacode-todo-mcp`. Measured before answering: the holder is a live
+opencode session's server (PID 99063, parent opencode 99050, spawned
+16:45) holding **all four** store locks after one `repo_list` —
+handles are never evicted (`lib.rs:184`, `registry.rs:194`) — and
+three further idle servers hold nothing. The design questions
+answered from the code: the lock lifetime is the handle's lifetime
+(the session's, in practice), held for §8's single-writer enforcement
+plus the in-memory graph and the O_APPEND fd (re-open re-replays
+O(total history), t31's measurement); reads through the owning server
+never block — the block is a second process taking the writer lock to
+read.
+
+**D19 signed (a)** in-thread on the options presented: the lock-free
+read path (a read-only open: no lock, committed prefix, unterminated
+final line = append in flight), over degraded-cache rendering (b) and
+idle-handle eviction (c, rejected on t31's re-open measurement). The
+work order executed in the same change: §4.3's replay rule scoped (it
+binds the locked open and repair), §8's concurrent-readers sentence
+made concrete, §12's preamble records the signing, decisions.md gains
+the D19 dossier, U34 records the finding struck. No §12 item sat open
+(the in-thread precedent). The restart question the sign raised
+answers itself: the fix is reader-side and every reader that matters
+(progress.py's per-render spawn, `--refresh`'s spawn) is a fresh
+process — the rebuilt binary is picked up on the next render, and the
+long-lived session servers need nothing (they read from handles).
+
+**Next step:** t63 — the store primitive (a lock-free read returning
+the replayed graph, snapshot-aware, slug-scoped) — then t64 (the
+server's read tools resolving lock-free on a handles miss, U20(b)
+unchanged for armed servers), then t62 (U27's retry, resequenced
+behind them per the user's call; its genuine-contention pin is
+confirmed by this session's measurement). **Blocked on you: nothing.**
+**Unverified:** nothing new — the contention is measured, the sign is
+recorded; the implementation is owed.
 
 ### 2026-10-08 — the recorded ledger called; U30 fixed; U27 signed (c)
 
