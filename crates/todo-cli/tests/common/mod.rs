@@ -7,9 +7,7 @@
 //! **This is a copy.** The original lives at
 //! `crates/todo-store/tests/common/mod.rs`; the workflow prescribes one
 //! shared helper *per crate*, and a cross-crate test-helper dependency
-//! would be worse than the copy. It is kept verbatim — the only
-//! difference is the crate name in the missing-golden regeneration
-//! command, which has to name *this* crate to be true here. A fix to one
+//! would be worse than the copy. It is kept verbatim. A fix to one
 //! must propagate to the other.
 
 use std::fs;
@@ -55,8 +53,8 @@ pub(crate) fn assert_golden(name: &str, actual: &[u8]) {
     let expected = match fs::read(&path) {
         Ok(expected) => expected,
         Err(err) if err.kind() == ErrorKind::NotFound => panic!(
-            "golden file {} is missing; regenerate it with:\n  \
-             UPDATE_GOLDEN=1 cargo test -p todo-cli -- golden",
+            "golden file {} is missing; re-run this test with \
+             UPDATE_GOLDEN=1 to write it",
             path.display()
         ),
         Err(err) => panic!("golden file {} could not be read: {err}", path.display()),

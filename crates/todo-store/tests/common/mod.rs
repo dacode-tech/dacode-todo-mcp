@@ -47,8 +47,8 @@ pub(crate) fn assert_golden(name: &str, actual: &[u8]) {
     let expected = match fs::read(&path) {
         Ok(expected) => expected,
         Err(err) if err.kind() == ErrorKind::NotFound => panic!(
-            "golden file {} is missing; regenerate it with:\n  \
-             UPDATE_GOLDEN=1 cargo test -p todo-store -- golden",
+            "golden file {} is missing; re-run this test with \
+             UPDATE_GOLDEN=1 to write it",
             path.display()
         ),
         Err(err) => panic!("golden file {} could not be read: {err}", path.display()),

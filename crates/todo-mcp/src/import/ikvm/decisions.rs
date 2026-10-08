@@ -20,10 +20,10 @@
 //! is resolved, a banner: a blockquote line whose text reads
 //! `**Resolved <date> — <outcome>**`, wrapping across the blockquote's
 //! lines. The outcome ends at the bold run's closing `**`, whatever
-//! follows it — the measured closings are `.**` in eighteen banners
-//! and `**,` / `** (` in the other two (the live probe's strictness
-//! find, widened as measured grammar and pinned by test); one
-//! trailing `.` is trimmed, the title discipline's own. The banner is
+//! follows it — the closings measured on the live board are `.**`,
+//! `**,` and `** (` (the live probe's strictness find, widened as
+//! measured grammar and pinned by test); one trailing `.` is trimmed,
+//! the title discipline's own. The banner is
 //! the date/outcome source (the mapping's convention); the body runs
 //! to the next `###` or end of input and is the Gates-finding
 //! context.

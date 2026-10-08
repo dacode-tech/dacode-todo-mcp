@@ -17,12 +17,12 @@
 //! dacode dialect's parser, a pure function of text with no I/O, no
 //! clock and no store — file reading belongs to the `import_md` wire
 //! tool (`importer.rs`), the mapping to domain types to t43, and
-//! camera and ikvm-html arrived as sibling dialect modules (t46,
-//! t47). A
-//! dialect parser is not a wire surface: it decides nothing, it
-//! recognizes — a register line that does not parse is a named error,
-//! never a silent skip, because an importer that quietly drops an
-//! item reports less than the truth while still looking complete.
+//! camera, ikvm-html and this repo's own board arrived as sibling
+//! dialect modules (t46, t47, t54). A dialect parser is not a wire
+//! surface: it decides nothing, it recognizes — a register line that
+//! does not parse is a named error, never a silent skip, because an
+//! importer that quietly drops an item reports less than the truth
+//! while still looking complete.
 //!
 //! # The concurrency core (§8)
 //!
