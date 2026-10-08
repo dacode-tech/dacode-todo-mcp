@@ -3238,7 +3238,7 @@ Oldest first. One line per delivery, with the commit hash once committed.
       the gated validator is agents-sync), and no committed driver (a
       parse-time refusal records its planted-failure proofs in
       evidence, the t56 check-links precedent — drivers are for
-      stateful protocols). U21 struck. Landed as `HASH`.
+      stateful protocols). U21 struck. Landed as `3e5c4c2`.
 
 
 
