@@ -155,8 +155,10 @@ fn todo_with_section6(followups: &str) -> String {
 
 /// The 1-based line number of the first line containing `needle` in
 /// `corpus` — derived from the corpus itself so the corpora's blank
-/// lines cannot desynchronize a line assertion.
-fn line_of(corpus: &str, needle: &str) -> usize {
+/// lines cannot desynchronize a line assertion. `pub(super)`: the
+/// sibling suites' duplicate-refusal tests derive their line
+/// assertions the same way.
+pub(super) fn line_of(corpus: &str, needle: &str) -> usize {
     corpus.split('\n').position(|l| l.contains(needle)).unwrap() + 1
 }
 
@@ -339,6 +341,109 @@ fn a_duplicate_u_id_is_a_named_error_naming_both_lines() {
         parse_todo_md(&corpus),
         Err(ImportError::DuplicateId {
             id: "U1".to_owned(),
+            first,
+            second,
+        })
+    );
+}
+
+// =================================================================
+// U30: every register's ids are unique — a duplicate within any
+// register is a named error, because the cross-file set checks
+// collapse duplicates and cannot see them.
+// =================================================================
+
+#[test]
+fn a_duplicate_section2_decision_id_is_a_named_error_naming_both_lines() {
+    let corpus = todo_md().replace(
+        "| ~~B2~~ | Delivery surface |",
+        "| ~~B1~~ | Storage shape again | ✅ **SIGNED OFF 2026-09-12** — dupe | ✅ resolved |\n\
+         | ~~B2~~ | Delivery surface |",
+    );
+    let first = line_of(&corpus, "| ~~B1~~ | Storage shape |");
+    let second = line_of(&corpus, "| ~~B1~~ | Storage shape again |");
+    assert_eq!(
+        parse_todo_md(&corpus),
+        Err(ImportError::DuplicateId {
+            id: "B1".to_owned(),
+            first,
+            second,
+        })
+    );
+}
+
+#[test]
+fn a_duplicate_milestone_id_is_a_named_error_naming_both_lines() {
+    let corpus = todo_md().replace(
+        "- [ ] **M1 — the engine and interface.**",
+        "- [x] **M1 — a duplicate milestone.** body\n- [ ] **M1 — the engine and interface.**",
+    );
+    let first = line_of(&corpus, "**M1 — a duplicate milestone");
+    let second = line_of(&corpus, "**M1 — the engine and interface");
+    assert_eq!(
+        parse_todo_md(&corpus),
+        Err(ImportError::DuplicateId {
+            id: "M1".to_owned(),
+            first,
+            second,
+        })
+    );
+}
+
+#[test]
+fn a_duplicate_substep_id_is_a_named_error_naming_both_lines() {
+    // Within one table.
+    let corpus = todo_md().replace(
+        "| **M0.2** | the workspace layout | both reviewers |",
+        "| **M0.2** | the workspace layout | both reviewers |\n\
+         | **M0.2** | a duplicate row | gate |",
+    );
+    let first = line_of(&corpus, "| **M0.2** | the workspace layout");
+    let second = line_of(&corpus, "| **M0.2** | a duplicate row");
+    assert_eq!(
+        parse_todo_md(&corpus),
+        Err(ImportError::DuplicateId {
+            id: "M0.2".to_owned(),
+            first,
+            second,
+        })
+    );
+    // Across two tables — the seen set spans the whole §5 walk, not
+    // one table (the camera lesson: one id namespace, one map).
+    let corpus = todo_md().replace(
+        "| **M1.1** | the engine's first crate | both reviewers |",
+        "| **M1.1** | the engine's first crate | both reviewers |\n\
+         | **M0.1** | a cross-table duplicate | gate |",
+    );
+    let first = line_of(&corpus, "| **M0.1** | deepen");
+    let second = line_of(&corpus, "| **M0.1** | a cross-table duplicate");
+    assert_eq!(
+        parse_todo_md(&corpus),
+        Err(ImportError::DuplicateId {
+            id: "M0.1".to_owned(),
+            first,
+            second,
+        })
+    );
+}
+
+#[test]
+fn parse_board_refuses_a_duplicate_b_dossier_before_the_set_checks() {
+    // A duplicated B dossier id leaves every cross-file id SET equal
+    // (a set cannot see duplicates), so only the register's own
+    // seen-map can refuse it — U30's exact defect: on HEAD this
+    // parses clean and the mapping lands a duplicated decision.
+    let b_decisions = B_DECISIONS.replace(
+        "### 2. [B2] Delivery surface — ✅ **SIGNED OFF 2026-09-17, APPLIED 2026-09-18 via A8: the deferral taken as recommended**",
+        "### 2. [B2] Delivery surface — ✅ **SIGNED OFF 2026-09-17, APPLIED 2026-09-18 via A8: the deferral taken as recommended**\n\n\
+         ### 3. [B2] A duplicate dossier — ✅ **RESOLVED 2026-09-17: dupe**",
+    );
+    let first = line_of(&b_decisions, "### 2. [B2]");
+    let second = line_of(&b_decisions, "### 3. [B2]");
+    assert_eq!(
+        parse_board(&todo_md(), &b_decisions, A_DELTAS),
+        Err(ImportError::DuplicateId {
+            id: "B2".to_owned(),
             first,
             second,
         })

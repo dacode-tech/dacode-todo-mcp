@@ -22,6 +22,13 @@
 //! `SIGNED OFF <date> as a direction, amended — …` form has none and
 //! is carried whole). Dates
 //! are validated as `YYYY-MM-DD`.
+//!
+//! Both registers' ids are unique: a duplicate B id within the
+//! summary table or within the dossiers is a named error — the
+//! cross-file set checks in [`super::parse_board`] collapse
+//! duplicates and cannot see them.
+
+use std::collections::BTreeMap;
 
 use super::ast::{
     AppliedVia, BDossier, BDossierKind, BDossierStatus, BSummaryRow, DecisionsAppendix, GatesCell,
@@ -67,6 +74,7 @@ fn parse_summary_table(
         });
     };
     let (rows, _) = collect_rows(lines, header_idx, is_register_construct);
+    let mut seen: BTreeMap<String, usize> = BTreeMap::new();
     for (text, number) in rows {
         let row_cells = cells(&text);
         let [
@@ -91,6 +99,14 @@ fn parse_summary_table(
                 detail: "not a B id".to_owned(),
             });
         }
+        if let Some(first) = seen.get(&id) {
+            return Err(ImportError::DuplicateId {
+                id: id.clone(),
+                first: *first,
+                second: number,
+            });
+        }
+        seen.insert(id.clone(), number);
         let gates = parse_gates_cell(gates_cell, number)?;
         appendix.summary.push(BSummaryRow {
             id,
@@ -156,12 +172,22 @@ fn parse_dossiers(
     appendix: &mut DecisionsAppendix,
 ) -> Result<(), ImportError> {
     let mut current: Option<PartialDossier> = None;
+    let mut seen: BTreeMap<String, usize> = BTreeMap::new();
     for &(text, number) in lines {
         if text.starts_with("### ") {
             if let Some(dossier) = current.take() {
                 appendix.dossiers.push(finish_dossier(dossier));
             }
-            current = Some(parse_dossier_header(text, number)?);
+            let dossier = parse_dossier_header(text, number)?;
+            if let Some(first) = seen.get(&dossier.id) {
+                return Err(ImportError::DuplicateId {
+                    id: dossier.id.clone(),
+                    first: *first,
+                    second: number,
+                });
+            }
+            seen.insert(dossier.id.clone(), number);
+            current = Some(dossier);
         } else if let Some(dossier) = current.as_mut() {
             dossier.body.push(text.to_owned());
         }

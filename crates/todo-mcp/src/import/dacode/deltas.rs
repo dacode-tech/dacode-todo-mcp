@@ -26,6 +26,13 @@
 //! symmetry with the B dossier's grammar, which does carry post-date
 //! prose.
 //! Dates are validated as `YYYY-MM-DD`.
+//!
+//! All three registers' ids are unique: a duplicate A id within the
+//! index table, the applied table or the dossiers is a named error —
+//! the cross-file set checks in [`super::parse_board`] collapse
+//! duplicates and cannot see them.
+
+use std::collections::BTreeMap;
 
 use super::ast::{AAppliedRow, ADossier, ADossierKind, ADossierStatus, AIndexRow, DeltasAppendix};
 use super::error::ImportError;
@@ -73,6 +80,7 @@ fn parse_index_table(
         });
     };
     let (rows, _) = collect_rows(lines, header_idx, is_register_construct);
+    let mut seen: BTreeMap<String, usize> = BTreeMap::new();
     for (text, number) in rows {
         let row_cells = cells(&text);
         let [id_cell, section_cell, delta_cell, depends_cell, _recommend] = row_cells.as_slice()
@@ -91,6 +99,14 @@ fn parse_index_table(
                 detail: "not an A id".to_owned(),
             });
         }
+        if let Some(first) = seen.get(&id) {
+            return Err(ImportError::DuplicateId {
+                id: id.clone(),
+                first: *first,
+                second: number,
+            });
+        }
+        seen.insert(id.clone(), number);
         let sections: Vec<String> = section_cell
             .split(',')
             .map(|section| section.trim().to_owned())
@@ -118,6 +134,7 @@ fn parse_applied_table(
         return Ok(());
     };
     let (rows, _) = collect_rows(lines, header_idx, is_register_construct);
+    let mut seen: BTreeMap<String, usize> = BTreeMap::new();
     for (text, number) in rows {
         let row_cells = cells(&text);
         let [id_cell, section_cell, applied_cell, date_cell, note_cell] = row_cells.as_slice()
@@ -136,6 +153,14 @@ fn parse_applied_table(
                 detail: "not an A id".to_owned(),
             });
         }
+        if let Some(first) = seen.get(&id) {
+            return Err(ImportError::DuplicateId {
+                id: id.clone(),
+                first: *first,
+                second: number,
+            });
+        }
+        seen.insert(id.clone(), number);
         appendix.applied.push(AAppliedRow {
             id,
             sections: section_cell
@@ -158,12 +183,22 @@ fn parse_dossiers(
     appendix: &mut DeltasAppendix,
 ) -> Result<(), ImportError> {
     let mut current: Option<PartialDossier> = None;
+    let mut seen: BTreeMap<String, usize> = BTreeMap::new();
     for &(text, number) in lines {
         if text.starts_with("### ") {
             if let Some(dossier) = current.take() {
                 appendix.dossiers.push(finish_dossier(dossier));
             }
-            current = Some(parse_dossier_header(text, number)?);
+            let dossier = parse_dossier_header(text, number)?;
+            if let Some(first) = seen.get(&dossier.id) {
+                return Err(ImportError::DuplicateId {
+                    id: dossier.id.clone(),
+                    first: *first,
+                    second: number,
+                });
+            }
+            seen.insert(dossier.id.clone(), number);
+            current = Some(dossier);
         } else if let Some(dossier) = current.as_mut() {
             dossier.body.push(text.to_owned());
         }

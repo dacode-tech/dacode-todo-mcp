@@ -6,6 +6,7 @@
 
 use std::collections::BTreeSet;
 
+use super::board::line_of;
 use todo_mcp::import::dacode::{
     AppliedVia, BDossierKind, ImportError, SummaryStatus, parse_b_decisions, parse_todo_md,
 };
@@ -195,6 +196,50 @@ fn a_gates_milestone_that_is_not_an_m_id_is_a_named_error() {
             line: 7,
             id: "NOT_A_MILESTONE".to_owned(),
             detail: "not an M id".to_owned(),
+        })
+    );
+}
+
+// =================================================================
+// U30: the B registers' ids are unique — a duplicate within the
+// summary table or the dossiers is a named error, because the
+// cross-file set checks collapse duplicates and cannot see them.
+// =================================================================
+
+#[test]
+fn a_duplicate_b_summary_id_is_a_named_error_naming_both_lines() {
+    let b_file = B_FILE.replace(
+        "| ~~**B3**~~ | ~~Update granularity~~ | ✅ **SIGNED OFF 2026-09-17** — the minimal form | high | ~~13~~ ✅ |",
+        "| ~~**B3**~~ | ~~Update granularity~~ | ✅ **SIGNED OFF 2026-09-17** — the minimal form | high | ~~13~~ ✅ |\n\
+         | ~~**B3**~~ | ~~A duplicate row~~ | rec | high | ~~13~~ |",
+    );
+    let first = line_of(&b_file, "~~Update granularity~~");
+    let second = line_of(&b_file, "~~A duplicate row~~");
+    assert_eq!(
+        parse_b_decisions(&b_file),
+        Err(ImportError::DuplicateId {
+            id: "B3".to_owned(),
+            first,
+            second,
+        })
+    );
+}
+
+#[test]
+fn a_duplicate_b_dossier_id_is_a_named_error_naming_both_lines() {
+    let b_file = B_FILE.replace(
+        "### 3. [B3] Update granularity — ✅ **RESOLVED 2026-09-17 — the minimal form stands**",
+        "### 3. [B3] Update granularity — ✅ **RESOLVED 2026-09-17 — the minimal form stands**\n\n\
+         ### 4. [B3] A duplicate dossier — ✅ **RESOLVED 2026-09-17: dupe**",
+    );
+    let first = line_of(&b_file, "### 3. [B3]");
+    let second = line_of(&b_file, "### 4. [B3]");
+    assert_eq!(
+        parse_b_decisions(&b_file),
+        Err(ImportError::DuplicateId {
+            id: "B3".to_owned(),
+            first,
+            second,
         })
     );
 }

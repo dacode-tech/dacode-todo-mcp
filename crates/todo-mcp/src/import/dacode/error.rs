@@ -116,7 +116,10 @@ pub enum ImportError {
         /// The 1-based line of the summary occurrence.
         line: usize,
     },
-    /// A duplicate U id — the board's ids are unique.
+    /// A duplicate id within one register — every register's ids are
+    /// unique, and the cross-file set checks cannot see a duplicate
+    /// (a set collapses it), so each register's own seen-map raises
+    /// this.
     DuplicateId {
         /// The duplicated id.
         id: String,

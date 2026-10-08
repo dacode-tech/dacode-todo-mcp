@@ -165,6 +165,7 @@ fn parse_decisions_section(
         });
     };
     let (rows, _) = collect_rows(lines, header_idx, is_register_construct);
+    let mut seen: BTreeMap<String, usize> = BTreeMap::new();
     for (text, number) in rows {
         let row_cells = cells(&text);
         let (id_cell, title_cell, status_cell, extra) = match row_cells.as_slice() {
@@ -186,6 +187,14 @@ fn parse_decisions_section(
                 detail: "not a B id".to_owned(),
             });
         }
+        if let Some(first) = seen.get(&id) {
+            return Err(ImportError::DuplicateId {
+                id: id.clone(),
+                first: *first,
+                second: number,
+            });
+        }
+        seen.insert(id.clone(), number);
         let status = parse_summary_status(status_cell);
         todo.decisions.push(SummaryRow {
             id,
@@ -237,20 +246,34 @@ fn parse_summary_status(cell: &str) -> SummaryStatus {
     SummaryStatus::Prose(final_segment.to_owned())
 }
 
-/// §5: the milestone items and the sub-step tables.
+/// §5: the milestone items and the sub-step tables. Both registers'
+/// ids are unique across the whole section — the sub-step seen set is
+/// hoisted here and threaded through every table, because one
+/// `M<digits>.<digits>` namespace spans them all.
 fn parse_milestones_section(lines: &[(&str, usize)], todo: &mut TodoMd) -> Result<(), ImportError> {
     let mut current: Option<PartialItem> = None;
     let mut skip_past: usize = 0;
+    let mut seen_milestones: BTreeMap<String, usize> = BTreeMap::new();
+    let mut seen_substeps: BTreeMap<String, usize> = BTreeMap::new();
     for (idx, &(text, number)) in lines.iter().enumerate() {
         if idx < skip_past {
             continue;
         }
         if is_header(text, &SUBSTEP_HEADER) {
             flush_milestone(&mut current, todo);
-            skip_past = collect_substep_rows(lines, idx, todo)? + 1;
+            skip_past = collect_substep_rows(lines, idx, todo, &mut seen_substeps)? + 1;
         } else if is_checkbox_line(text) {
             flush_milestone(&mut current, todo);
-            current = Some(parse_item_start(text, number, lines, idx, ItemKind::M)?);
+            let item = parse_item_start(text, number, lines, idx, ItemKind::M)?;
+            if let Some(first) = seen_milestones.get(&item.id) {
+                return Err(ImportError::DuplicateId {
+                    id: item.id.clone(),
+                    first: *first,
+                    second: number,
+                });
+            }
+            seen_milestones.insert(item.id.clone(), number);
+            current = Some(item);
         } else if let Some(item) = current.as_mut() {
             item.push_line(text);
         }
@@ -262,11 +285,13 @@ fn parse_milestones_section(lines: &[(&str, usize)], todo: &mut TodoMd) -> Resul
 /// Collects one sub-step table's rows through the shared wrap-aware
 /// collector, returning the index of the last line the table consumed.
 /// Rows must carry three cells and an `M<digits>.<digits>` id, else a
-/// named error.
+/// named error. `seen` is the caller's id map — one sub-step namespace
+/// spans every table in §5.
 fn collect_substep_rows(
     lines: &[(&str, usize)],
     header_idx: usize,
     todo: &mut TodoMd,
+    seen: &mut BTreeMap<String, usize>,
 ) -> Result<usize, ImportError> {
     let (rows, last) = collect_rows(lines, header_idx, is_register_construct);
     for (text, number) in rows {
@@ -286,6 +311,14 @@ fn collect_substep_rows(
                 detail: "not an M<digits>.<digits> sub-step id".to_owned(),
             });
         }
+        if let Some(first) = seen.get(&id) {
+            return Err(ImportError::DuplicateId {
+                id: id.clone(),
+                first: *first,
+                second: number,
+            });
+        }
+        seen.insert(id.clone(), number);
         todo.substeps.push(SubStep {
             id,
             text: text_cell.clone(),

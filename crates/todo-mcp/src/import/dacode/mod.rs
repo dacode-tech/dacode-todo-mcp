@@ -14,7 +14,10 @@
 //! complete. The registers are §2's decisions table and B1a line,
 //! §4's doc register, §5's milestones and sub-step tables, §6's U
 //! items, the B summary and dossiers, the A index and dossiers.
-//! Everything else is body text or walked-past prose — the board is
+//! Every register's ids are unique: a duplicate within any register
+//! is a named error, because the cross-file set checks below
+//! collapse duplicates and cannot see them. Everything else is body
+//! text or walked-past prose — the board is
 //! prose around registers, and tables are recognized by their header
 //! row, never by position.
 //!

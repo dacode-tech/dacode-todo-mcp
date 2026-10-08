@@ -3292,12 +3292,33 @@ Oldest first. One line per delivery, with the commit hash once committed.
       store/cli/domain findings verified open with consumers intact
       (M5 touched none of their files), the board ledger unchanged
       (U27 the user's call; U13/U24/U25/U29/U30 acknowledged debt).
-      Pitfalls consolidated: 5.14 (a single-source config needs a
-      duplicate-key refusal at its validator — f42/f44/t57) and 5.15
-      (a tool whose stdout is a machine format keeps diagnostics off
-      stdout — f109); the live file was empty at the gate, reset at
-      g11. g12, g13 and g3 closed in the tracker with evidence.
-      Landed as `9fdcf35`.
+       Pitfalls consolidated: 5.14 (a single-source config needs a
+       duplicate-key refusal at its validator — f42/f44/t57) and 5.15
+       (a tool whose stdout is a machine format keeps diagnostics off
+       stdout — f109); the live file was empty at the gate, reset at
+       g11. g12, g13 and g3 closed in the tracker with evidence.
+       Landed as `9fdcf35`.
+- 2026-10-08 — **the recorded ledger called and U30 fixed**: the
+       user's calls recorded (U27 signed (c) — the bounded
+       `WouldBlock` retry lands inside `FileLock::acquire` as a
+       dedicated `todo-store` task, the cross-repo guard answered
+       from the code: per-repo per-file store locks, the registry's
+       the one shared lock; U13/U24/U25/U29 acked, no splits
+       scheduled — landed as `23c47e8`), then U30's seen-maps: every
+       dacode register that lacked one now refuses a duplicate id
+       with `DuplicateId` naming both lines — the entry's named two
+       files (B summary, B dossiers, A index, A applied, A dossiers)
+       plus `board.rs`'s three on the class sweep (§2's decisions
+       table, §5's milestones, the sub-step tables with the seen set
+       hoisted across tables), both reviewers ratifying the
+       beyond-the-entry edit (the f71 precedent). Nine new tests,
+       each observed failing on HEAD before the fix (the duplicates
+       parsed clean — U30's exact defect); the e2e fixture and all 24
+       goldens byte-identical; 593 workspace tests; every gate green.
+       The sibling dialects' decisions registers carry the same gap —
+       opened as U33 (the primary reviewer's measurement, f103's
+       camera/ikvm half made board-durable). Landed as
+       `<hash-pending>`.
 
 
 
@@ -4136,7 +4157,7 @@ Deliberate shortcuts, acknowledged rather than fixed. Same id rules as §4.
       **Acknowledged 2026-10-08 (the user's ack)**: no split scheduled —
       the entry stays as the recorded ledger, the split riding the
       trigger the entry names.
-- [ ] **U30 · Duplicate B/A dossier ids pass `parse_board`.** The
+- [x] **U30 · Duplicate B/A dossier ids pass `parse_board`.** The
       cross-file set checks collapse duplicates (a set cannot see
       them) and the B/A parsers keep no seen-map, unlike the U-id and
       doc-key registers — so a board holding one B id twice parses
@@ -4149,6 +4170,23 @@ Deliberate shortcuts, acknowledged rather than fixed. Same id rules as §4.
       whoever next owns those files; t45's fixture import is the
       natural consumer (a corrupted fixture would otherwise import
       silently wrong).
+      **Fixed 2026-10-08 (the user's ack + sign)**: seen-maps landed in
+      every dacode register that lacked one — the entry's named two
+      files (the B summary, the B dossiers, the A index, the A applied
+      table, the A dossiers) plus, on the f56 sweep-the-class rule and
+      both reviewers' ratification (the f71 precedent for the edit
+      beyond the entry's named files), `board.rs`'s three (§2's
+      decisions table, §5's milestones, the sub-step tables with the
+      seen set hoisted across tables — one `M<n>.<n>` namespace). A
+      duplicate id within any register is now `DuplicateId` naming
+      both lines; cross-register repetition stays legal (the B/A
+      registers pair by design). Non-vacuity: the nine new tests were
+      observed failing on HEAD before the fix (each returned `Ok`
+      with the duplicated rows in the AST — this entry's exact
+      defect); the e2e fixture and all 24 goldens byte-identical (no
+      behavior change on clean boards). The class is swept for the
+      dacode dialect only — the sibling dialects' decisions registers
+      carry the same gap, opened as **U33**.
 - [x] **U31 · The dialect modules duplicate dacode's helpers —
       ikvm-html would make the third copy.** t46's camera module was
       spec-sanctioned to share no code with dacode except the plan
@@ -4202,6 +4240,20 @@ Deliberate shortcuts, acknowledged rather than fixed. Same id rules as §4.
       closing the class, the live smoke showing zero `unknown format`
       lines. No §12 item opened: the signed §6 surface, D14's key
       order and every golden are untouched.
+- [ ] **U33 · Duplicate D ids pass the camera/ikvm/own decisions
+      parsers.** Opened at U30's closure, on the primary reviewer's
+      measurement (scratch-worktree probes): a duplicate D id parses
+      clean in camera's summary table AND dossiers, ikvm's summary
+      AND dossiers, and own's dossiers — each dialect's cross-check
+      is set equality (camera/ikvm/own `mod.rs`), which collapses
+      duplicates, U30's exact mechanism in the sibling dialects.
+      f103 recorded the camera/ikvm half (unreachable on both
+      measured boards); the own-dossiers half is new. The question is
+      f103's, now board-durable: the next owner of either dialect's
+      decisions parser hoists the D check the same way, or records
+      why those table registers stay duplicate-tolerant. Not fixed
+      with U30: different dialects' files, and the user's sign named
+      U30's entry.
 
 ## 6. Session log
 

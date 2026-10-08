@@ -5,6 +5,7 @@
 
 use std::collections::BTreeSet;
 
+use super::board::line_of;
 use todo_mcp::import::dacode::{ADossierKind, ImportError, parse_a_deltas};
 
 /// A synthetic A file exercising the Depends-on shapes and all three
@@ -163,4 +164,68 @@ fn the_arrow_locator_and_the_applied_via_form_parse() {
     assert_eq!(a2.status.via.as_deref(), Some("A16"));
     assert_eq!(a2.status.date, "2026-09-12");
     assert_eq!(a2.outcome, "");
+}
+
+// =================================================================
+// U30: the A registers' ids are unique — a duplicate within the
+// index table, the applied table or the dossiers is a named error,
+// because the cross-file set checks collapse duplicates and cannot
+// see them.
+// =================================================================
+
+#[test]
+fn a_duplicate_a_index_id_is_a_named_error_naming_both_lines() {
+    let a_file = A_FILE.replace(
+        "| ~~A2~~ | §4.2 | Second delta | — | ✅ **SIGNED OFF 2026-09-17** — approved |",
+        "| ~~A2~~ | §4.2 | Second delta | — | ✅ **SIGNED OFF 2026-09-17** — approved |\n\
+         | ~~A2~~ | §9.9 | A duplicate row | — | rec |",
+    );
+    let first = line_of(&a_file, "| ~~A2~~ | §4.2 |");
+    let second = line_of(&a_file, "| ~~A2~~ | §9.9 |");
+    assert_eq!(
+        parse_a_deltas(&a_file),
+        Err(ImportError::DuplicateId {
+            id: "A2".to_owned(),
+            first,
+            second,
+        })
+    );
+}
+
+#[test]
+fn a_duplicate_a_applied_id_is_a_named_error_naming_both_lines() {
+    let a_file = format!(
+        "{A_FILE}## Deltas applied\n\n| # | Section | Applied | Date | Note |\n|---|---|---|---|---|\n\
+         | ~~**A1**~~ | §3.1, §3.2 | **First delta** | 2026-09-18 | applied first |\n\
+         | ~~**A1**~~ | §9.9 | dupe | 2026-09-19 | second |\n"
+    );
+    let first = line_of(&a_file, "| **First delta** | 2026-09-18");
+    let second = line_of(&a_file, "| ~~**A1**~~ | §9.9 |");
+    assert_eq!(
+        parse_a_deltas(&a_file),
+        Err(ImportError::DuplicateId {
+            id: "A1".to_owned(),
+            first,
+            second,
+        })
+    );
+}
+
+#[test]
+fn a_duplicate_a_dossier_id_is_a_named_error_naming_both_lines() {
+    let a_file = A_FILE.replace(
+        "### A2 — §4.2: the second delta — ✅ **SIGNED OFF 2026-09-17**",
+        "### A2 — §4.2: the second delta — ✅ **SIGNED OFF 2026-09-17**\n\n\
+         ### A2 — §9.9: a duplicate dossier — ✅ **APPLIED 2026-09-18**",
+    );
+    let first = line_of(&a_file, "### A2 — §4.2:");
+    let second = line_of(&a_file, "### A2 — §9.9:");
+    assert_eq!(
+        parse_a_deltas(&a_file),
+        Err(ImportError::DuplicateId {
+            id: "A2".to_owned(),
+            first,
+            second,
+        })
+    );
 }
