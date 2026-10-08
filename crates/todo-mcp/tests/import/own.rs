@@ -1,6 +1,8 @@
 //! The own dialect's suite (t54): the parser (TODO.md's walker and
 //! 4-column milestone table with the measured 5-cell widening,
-//! decisions.md's summary table and dossiers), the strictness and
+//! decisions.md's summary table and dossiers, the Gates cell's
+//! measured em-dash widening — "gates nothing", the post-roadmap
+//! shape), the strictness and
 //! never-fired-error pins (duplicate U, M and D ids, absent
 //! registers, column counts, table ids, the State and Status
 //! vocabularies, the widened row's last-cell guard, impossible
@@ -603,7 +605,7 @@ fn the_decisions_parser_reads_the_table_and_cross_checks_the_dossiers() {
     assert_eq!(file.summary[0].title, "First decision");
     assert_eq!(file.summary[0].recommendation, "take the simple path");
     assert_eq!(file.summary[0].confidence, ConfidenceCell::Low);
-    assert_eq!(file.summary[0].gates, "M0");
+    assert_eq!(file.summary[0].gates.as_deref(), Some("M0"));
     assert_eq!(
         file.summary[0].status,
         DecisionStatusCell::Resolved {
@@ -629,7 +631,7 @@ fn the_decisions_parser_reads_the_table_and_cross_checks_the_dossiers() {
         }
     );
     assert_eq!(file.summary[3].status, DecisionStatusCell::Drafted);
-    assert_eq!(file.summary[3].gates, "M2");
+    assert_eq!(file.summary[3].gates.as_deref(), Some("M2"));
 
     // The dossiers: ids, titles, bodies.
     assert_eq!(file.dossiers.len(), 4);
@@ -1093,6 +1095,64 @@ fn an_unresolvable_gates_cell_becomes_a_finding() {
         })
         .collect();
     assert_eq!(edges.len(), 3);
+}
+
+/// The em-dash Gates cell — "gates nothing", the post-roadmap shape
+/// D19 introduced on the live board — parses to `None` and produces
+/// neither a finding nor an edge: an absence, not an unresolvable
+/// assertion. (The strictness half — a garbage cell is a named error,
+/// never a silent gates-nothing — is the existing "not an M id" pin
+/// above, unchanged by the widening: only the exact em-dash reads as
+/// gates-nothing.)
+#[test]
+fn an_em_dash_gates_cell_gates_nothing() {
+    // The parse: the em-dash row reads back as `None`.
+    let decisions = DECISIONS_MD.replace("| hold | high | M2 |", "| hold | high | — |");
+    let file = parse_decisions(&decisions).unwrap();
+    assert_eq!(file.summary[2].id, "D3");
+    assert_eq!(file.summary[2].gates, None);
+
+    // The map: no finding task for D3 (nine tasks, not ten) and no
+    // edge from it — D1, D2 and D4's edges remain (D4 also gates M2,
+    // so the count matches the unresolvable case; the from-id is what
+    // names D3's absence).
+    let board = parse_own_board(&todo_md(), &decisions).unwrap();
+    let plan = map_own(&board, &opts()).unwrap();
+    let tasks = plan
+        .ops
+        .iter()
+        .filter(|op| matches!(op, PlanOp::AddTask { .. }))
+        .count();
+    assert_eq!(tasks, 9, "no finding task for a gates-nothing row");
+    let edges: Vec<String> = plan
+        .ops
+        .iter()
+        .filter_map(|op| match op {
+            PlanOp::LinkBlocks {
+                edge: todo_domain::BlocksEdge::DecisionToEpic { from, .. },
+                ..
+            } => Some(from.to_string()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(edges.len(), 3);
+    assert!(
+        !edges.contains(&"dacode-todo-mcp:D3".to_owned()),
+        "no edge from a gates-nothing row: {edges:?}"
+    );
+
+    // The measured boundary: a near-miss dash is NOT the em-dash —
+    // the en-dash cell is the named error, never a silent
+    // gates-nothing.
+    let en_dash = DECISIONS_MD.replace("| hold | high | M2 |", "| hold | high | – |");
+    assert_eq!(
+        parse_decisions(&en_dash),
+        Err(OwnError::BadId {
+            line: line_of(&en_dash, "| hold | high | – |"),
+            id: "–".to_owned(),
+            detail: "not an M id".to_owned(),
+        })
+    );
 }
 
 /// A shape-valid but impossible calendar date is a named error — the

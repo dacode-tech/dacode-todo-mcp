@@ -57,8 +57,11 @@
 //! - **Findings**: a Gates cell naming no §2 milestone becomes a
 //!   `finding`-kind task under `Follow-ups` (D-id order, the
 //!   dossier's body as the assertion's context) rather than a silent
-//!   drop — the camera convention. No prose-phrase findings: the
-//!   parser recognizes no dependency prose.
+//!   drop — the camera convention. An em-dash Gates cell — gates
+//!   nothing, the post-roadmap shape — produces neither a finding
+//!   nor an edge: an absence, not an unresolvable assertion. No
+//!   prose-phrase findings: the parser recognizes no dependency
+//!   prose.
 //! - **Titles**: trailing whitespace and one trailing `.` trimmed —
 //!   the dacode mapping's title discipline, unchanged. The epic's
 //!   title is the Deliverable cell; the decision's title is the
@@ -401,7 +404,12 @@ fn push_finding_ops(
 ) -> Result<(), OwnError> {
     let mut number = sorted.tasks.len();
     for row in &sorted.decisions {
-        if !index.epics.contains_key(&row.gates) {
+        // Gates nothing (the em-dash cell) is an absence, not an
+        // unresolvable assertion: no finding, and no edge below.
+        let Some(gates) = row.gates.as_ref() else {
+            continue;
+        };
+        if !index.epics.contains_key(gates) {
             let body = sorted
                 .dossiers
                 .iter()
@@ -412,7 +420,7 @@ fn push_finding_ops(
                 number,
                 index.followups.clone(),
                 &row.id,
-                &row.gates,
+                gates,
                 body,
             )?);
             number += 1;
@@ -462,7 +470,7 @@ fn push_edge_ops(
 ) {
     for (i, row) in sorted.decisions.iter().enumerate() {
         let from = DecisionId::from_nonzero(opts.slug.clone(), position(i));
-        if let Some(to) = index.epics.get(&row.gates) {
+        if let Some(to) = row.gates.as_ref().and_then(|gates| index.epics.get(gates)) {
             ops.push(PlanOp::LinkBlocks {
                 edge: BlocksEdge::DecisionToEpic {
                     from,

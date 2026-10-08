@@ -3390,6 +3390,16 @@ Oldest first. One line per delivery, with the commit hash once committed.
         descriptions the switch left imprecise; three stale test
         premises recorded (f111) riding their files' next owners.
         Landed as `7f55a2c`.
+- 2026-10-08 — **the own dialect's Gates-cell widening**: D19's
+        recording (the first gates-nothing decision, post-M5) broke
+        the dogfooding refresh — the own parser's Gates cell expected
+        an M id (camera's measured grammar) and rejected the em-dash
+        at line 41. The t42 precedent: a real new board shape, widened
+        as measured grammar — the exact em-dash reads as gates-nothing
+        (no finding, no edge: an absence, not an unresolvable
+        assertion), everything else still the named error, the
+        en-dash boundary pinned. The refresh runs clean again:
+        18/18 decisions signed, the census carrying D19.
 - 2026-10-08 — **t62: U27's bounded `WouldBlock` retry**: the retry
         inside `FileLock::acquire_reporting` — the single choke point
         every lock acquisition funnels through — five attempts two
@@ -4464,24 +4474,37 @@ recorded: tests/layout/repos.rs:725's "Instant appears in this file
 alone" is stale (the genuinely-held pin uses Instant) — rides that
 file's next owner.
 
-**Handover.** Workspace: `main`, clean after the backfill commit;
-four crates; rustc 1.98.1; the release binary was rebuilt this
-session, so `target/release/todo-mcp` carries t64 — verified live:
-`progress.py` rendered while a session server held all four store
-locks. Landed this session: D19's recording (`8686360`), t63
-(`b6d4330`), t64 (`7f55a2c`), t62 (this commit, hash backfilled
-next). Next step: none is owed — the arc the user called (D19 (a),
-then t62) is complete. Blocked on you: **U35 alone** — the two
-wire-visible repo_list descriptions ("through the server's held
-handles", imprecise since t64): amend (a called-out wire-visible
-wording change, no golden moves) or leave. Unverified: nothing new —
-every gate ran this session. The two standing caveats: the release
-binary goes stale after pulls until `cargo build --release -p
-todo-mcp`; the dogfooding store is a derived cache — this session's
-board edits are exactly the board-only edits that need
-`tools/progress.py --refresh` (run at session close; the 16:45
-session server holding the locks does not block it — the refresh
-replaces the store directory wholesale).
+**The close-out rider**: the session-ending `--refresh` (the
+dogfooding re-import) failed on D19's own recording — the own
+dialect's decisions parser read the Gates cell as an M id (camera's
+measured grammar) and rejected the first gates-nothing decision's
+em-dash at line 41. The t42 precedent held: a real new board shape,
+widened as measured grammar (the exact em-dash reads as
+gates-nothing — no finding, no edge; the en-dash boundary pinned;
+everything else still the named error), dual-reviewed to sign-off
+over two rounds, and the refresh ran clean after the release rebuild:
+18/18 decisions signed, the census carrying D19, the page reporting
+the gates-nothing decision as NOT PLACED (reported, never dropped —
+the store's D18 is the board's D19 under the id shift past the
+board's D13 gap).
+
+**Handover.** Workspace: `main`, clean after this commit; four
+crates; rustc 1.98.1; the release binary was rebuilt twice this
+session (t64's code, then the widening) — `progress.py` verified live
+against a session server holding all four store locks. Landed this
+session: D19's recording (`8686360`), t63 (`b6d4330`), t64
+(`7f55a2c`), t62 (`b4fb970`), the backfill (`de16004`), and the
+Gates-cell widening (this commit). Next step: none is owed — the arc
+the user called (D19 (a), then t62) is complete. Blocked on you:
+**U35 alone** — the two wire-visible repo_list descriptions ("through
+the server's held handles", imprecise since t64): amend (a called-out
+wire-visible wording change, no golden moves) or leave. Unverified:
+nothing new — every gate ran this session. The two standing caveats:
+the release binary goes stale after pulls — and after any importer
+change — until `cargo build --release -p todo-mcp`; the dogfooding
+store is a derived cache — this session's board edits needed
+`tools/progress.py --refresh`, which is run and clean (18/18
+decisions, the census carrying D19).
 
 ### 2026-10-08 — the recorded ledger called; U30 fixed; U27 signed (c)
 

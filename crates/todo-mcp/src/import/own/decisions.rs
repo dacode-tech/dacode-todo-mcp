@@ -14,7 +14,9 @@
 //! mapping's decision id range past the board's numbering. Each row's
 //! cells are validated as the mapping's
 //! inputs: the id (strikes and bold stripped), a non-empty
-//! Recommendation, a Confidence spelling, an M-shaped Gates cell, and
+//! Recommendation, a Confidence spelling, a Gates cell that is either
+//! an M id or the bare em-dash — "gates nothing", the post-roadmap
+//! shape D19 introduced — and
 //! a Status cell reading `resolved [<option>] <date> [— <note>]` or
 //! `drafted <date> [— <note>]` — the resolved spelling with the
 //! option letter and the note each optional (the measured rows carry
@@ -56,6 +58,11 @@ const STATUS_RESOLVED: &str = "resolved";
 /// form; the live board holds none today, and the grammar records the
 /// spelling so a future drafted row parses.
 const STATUS_DRAFTED: &str = "drafted";
+/// The Gates cell's "gates nothing" spelling: the bare em-dash, the
+/// same character the board's tables use for an empty cell — the
+/// shape a decision takes when the roadmap it would gate is already
+/// closed (D19, the first post-M5 decision).
+const GATES_NONE: &str = "—";
 
 /// The parsed own decisions.md: the summary table and the dossiers,
 /// in board order.
@@ -78,8 +85,9 @@ pub struct DecisionRow {
     pub recommendation: String,
     /// The Confidence cell's verdict.
     pub confidence: ConfidenceCell,
-    /// The Gates cell's M id.
-    pub gates: String,
+    /// The Gates cell's M id, or `None` for the em-dash spelling of
+    /// "gates nothing" — the post-roadmap shape (D19).
+    pub gates: Option<String>,
     /// The Status cell's verdict.
     pub status: DecisionStatusCell,
 }
@@ -200,13 +208,23 @@ fn parse_summary_table(
         }
         let confidence = parse_confidence(confidence_cell, number)?;
         let gates = strip_id_noise(gates_cell);
-        if !is_m_id(&gates) {
-            return Err(OwnError::BadId {
-                line: number,
-                id: gates,
-                detail: "not an M id".to_owned(),
-            });
-        }
+        // The em-dash is the board's "gates nothing" spelling — the
+        // shape D19 introduced, a decision recorded after the roadmap
+        // it would have gated is closed. Anything else must be an M
+        // id: a garbage cell stays a named error, never a silent
+        // gates-nothing.
+        let gates = if gates == GATES_NONE {
+            None
+        } else {
+            if !is_m_id(&gates) {
+                return Err(OwnError::BadId {
+                    line: number,
+                    id: gates,
+                    detail: "not an M id".to_owned(),
+                });
+            }
+            Some(gates)
+        };
         let status = parse_status_cell(status_cell, number)?;
         file.summary.push(DecisionRow {
             id,
