@@ -3463,7 +3463,8 @@ Oldest first. One line per delivery, with the commit hash once committed.
         baselines hold. Dual review ok in one round, both reviewers
         bound to the final shas; the primary's completeness sweep
         found the one D path left open — ikvm's footer table — and
-        prescribed recording it: U36.
+        prescribed recording it: U36. Landed as
+        `998785c`.
 
 
 
