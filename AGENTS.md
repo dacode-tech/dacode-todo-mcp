@@ -39,7 +39,10 @@ per-user port publication (a second invocation attaches, a stale one is
 taken over, SIGINT cleans up), f109's census to stderr; t56 (the
 adoption README) landed 2026-10-08 — the front door (wiring, store,
 tool surface, dialects), both hygiene tools grown to cover a root
-README; t57 (U21's duplicate-key check) is the last task before g13.**
+README; t57 (U21's duplicate-key check) landed 2026-10-08 — the strict
+loader in tools/agents-sync.py refusing a duplicate key anywhere in
+agent-rules.yaml, the f42 silent-shadowing failure made a named hard
+error; g13 (the exit gate, closing g3 with it) is all that remains.**
 M4 (adoption) is
 closed — g11, the exit gate, ran green
 2026-10-07. The gate ran every line of its verify method on the committed
