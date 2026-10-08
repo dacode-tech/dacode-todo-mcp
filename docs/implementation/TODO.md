@@ -3295,7 +3295,7 @@ Oldest first. One line per delivery, with the commit hash once committed.
       (a tool whose stdout is a machine format keeps diagnostics off
       stdout — f109); the live file was empty at the gate, reset at
       g11. g12, g13 and g3 closed in the tracker with evidence.
-      Landed as `HASH`.
+      Landed as `9fdcf35`.
 
 
 
