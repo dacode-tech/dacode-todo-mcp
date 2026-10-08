@@ -3439,7 +3439,8 @@ Oldest first. One line per delivery, with the commit hash once committed.
         tests, fmt/check/clippy/doc under both invocations); the
         release binary rebuilt so the deployed surface carries the
         corrected descriptions. Dual review ok in one round, both
-        reviewers bound to the final sha.
+        reviewers bound to the final sha. Landed as
+        `8f02162`.
 
 
 
