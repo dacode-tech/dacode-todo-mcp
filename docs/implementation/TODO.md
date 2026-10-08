@@ -3239,6 +3239,14 @@ Oldest first. One line per delivery, with the commit hash once committed.
       parse-time refusal records its planted-failure proofs in
       evidence, the t56 check-links precedent — drivers are for
       stateful protocols). U21 struck. Landed as `3e5c4c2`.
+- 2026-10-08 — **instructions: comment and commit brevity** (user
+      decision): the default is no comment — self-documenting code is
+      the norm, and only a genuinely tricky spot earns a short one (one
+      or two lines, never a paragraph); commit bodies stay brief — the
+      problem and the approach in a few lines, the diff already saying
+      what changed. Landed in `_rust.md`'s comment section, the config
+      summary, `implementer.md`, and AGENTS.md's committing section;
+      `version.custom` 12→13, adapters regenerated.
 
 
 

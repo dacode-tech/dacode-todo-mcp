@@ -10,7 +10,7 @@
 # ─── Template Versioning ───────────────────────────────────────────────
 version:
   template: "0.1"          # Inherited from the dacode agent-rules layout
-  custom: 12               # Local adjustment counter
+  custom: 13               # Local adjustment counter
 
 # ─── Project Identity ──────────────────────────────────────────────────
 project:
@@ -558,10 +558,11 @@ conventions:
     Run: cargo test -p <crate> scoped while iterating, workspace-wide
     before declaring done.
   comments: |
-    /// on every public item. // comments explain non-obvious rationale —
-    a remote invariant, a protocol guarantee from the spec, a race an
-    ordering avoids — never restate the code. // SAFETY: is mandatory on
-    every unsafe block, and unsafe should be vanishingly rare.
+    /// on every public item. Otherwise the default is no comment:
+    self-documenting code is the norm, and only a genuinely tricky spot
+    earns one — short, one or two lines of rationale, never a
+    paragraph. // SAFETY: is mandatory on every unsafe block, and
+    unsafe should be vanishingly rare.
 
 # ─── Prohibited Actions ────────────────────────────────────────────────
 prohibited:

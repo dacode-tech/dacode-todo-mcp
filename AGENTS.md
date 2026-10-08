@@ -336,8 +336,9 @@ One convention, one repo:
   it helps (`todo-store: add JSONL event log`).
 - `knowledge:` / `docs:` prefixes for knowledge-base and doc changes
   (review-exempt, no trailer).
-- Body wrapped at 72: the problem, why this approach, what it does not
-  do.
+- Body short and wrapped at 72: the problem and the approach in a few
+  lines — the diff already says what changed. Spell out an omission
+  only when it is surprising.
 - Code commits: both role `Reviewed-by:` trailers, and only after a real
   dual review of this exact diff.
 - Inspect `git status`/`git diff` first; stage only intended files; one

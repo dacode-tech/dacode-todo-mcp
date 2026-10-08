@@ -299,10 +299,11 @@ broken, and say which layer answered.
 
 - Prefer `//` comments; `///` doc comments on every public API item
   (types, traits, functions, modules).
-- Do not add comments that merely restate what the code does. Only
-  comment non-obvious things. Reviewers explicitly flag "comment slop" —
-  keep one concise sentence stating non-obvious rationale and stop; omit
-  entirely when the code is self-evident.
+- **The default is no comment.** Self-documenting code — precise
+  names, small functions, plain control flow — is the norm; a comment
+  is earned only by a genuinely tricky spot, and there it stays short:
+  one or two lines of rationale, never a paragraph. Comments that
+  restate the code are "comment slop" and reviewers flag them.
 - **The test is whether a reader could derive it from the code in front
   of them.** A comment naming a *remote* interaction — another module's
   invariant, a guarantee from `docs/todo-mcp-design.md`, a race this
@@ -537,7 +538,9 @@ the spec and the tests.
   files pinning the serialized bytes.
 - No new external crate dependency without flagging it in `summary` — the
   orchestrator decides, and the user is the one who asks.
-- Do not add comments restating the code; `///` on every public item.
+- The default is no comment — self-documenting code is the norm; only a
+  genuinely tricky spot earns a short one (one or two lines, never a
+  paragraph). `///` on every public item.
 
 ## Scope discipline
 

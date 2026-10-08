@@ -50,7 +50,9 @@ the spec and the tests.
   files pinning the serialized bytes.
 - No new external crate dependency without flagging it in `summary` — the
   orchestrator decides, and the user is the one who asks.
-- Do not add comments restating the code; `///` on every public item.
+- The default is no comment — self-documenting code is the norm; only a
+  genuinely tricky spot earns a short one (one or two lines, never a
+  paragraph). `///` on every public item.
 
 ## Scope discipline
 
