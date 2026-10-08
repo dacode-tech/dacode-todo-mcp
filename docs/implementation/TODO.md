@@ -3408,7 +3408,8 @@ Oldest first. One line per delivery, with the commit hash once committed.
         claim three independent records deep. Two timing pins (the
         mid-window release absorbed; the genuine refusal after the
         window, the elapsed bounded below by it). Dual review over
-        two rounds, both ok bound to the final shas.
+        two rounds, both ok bound to the final shas. Landed as
+        `b4fb970`.
 
 
 
