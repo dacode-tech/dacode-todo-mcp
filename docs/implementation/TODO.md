@@ -3485,7 +3485,8 @@ Oldest first. One line per delivery, with the commit hash once committed.
         full store suite 134, the golden ritual byte-identical, no
         src change. Dual review: primary ok in one round (three
         scratch mutations fired), secondary changes_requested →
-        fixed → ok re-bound on the final bytes.
+        fixed → ok re-bound on the final bytes. Landed as
+        `1ce1a3e`.
 
 
 
