@@ -214,22 +214,24 @@ shell, which is M3's business.
 
 | Blocking | What | Action |
 |---|---|---|
-| — | nothing blocks M5's tasks: the decomposition landed (t51) and both shaping calls are confirmed — U28 dogfood, U18 shape A (D13 reserved) | dispatch t52 (packaging per §13) first, then t53 → t54 → t55, t56 last before g13, t57 interleavable |
+| — | nothing blocks: the M0–M5 roadmap is delivered and the recorded ledger is called — U27 signed (c), the debt ledger acked, U30's fix landing this session | U27's retry is the next `todo-store` task — see §6's handover |
 
-(Open but non-blocking: **U27** (the `FileLock::acquire` retry question —
-left at the M5 decomposition as the user's call: the timing-contract
-change needs multi-platform evidence, and no M5 task owns `todo-store`)
-— **U32 is resolved** (2026-10-07, the user's in-thread sign: strip the
+(The user's calls 2026-10-08: **U27 signed (c)** — the bounded
+`WouldBlock` retry lands inside `FileLock::acquire` as a dedicated
+`todo-store` task; the cross-repo guard the sign rode on, answered
+from the code: store locks are per-repo per-file, so parallel
+consumers of different repos never contend on a store lock, and the
+one shared lock, the registry's, is held for its short critical
+section. The debt ledger **U13/U24/U25/U29** acked — no splits
+scheduled, the entries stay as the recorded ledger, the named splits
+riding their triggers. Earlier: **U32 is resolved** (2026-10-07, the
+user's in-thread sign: strip the
 integer-family format hints; landed as t58). Scheduled into
 M5: **U21** (t57) and **U22** (t54). Resolved: U2/U4/U5/U6/U7/
 U8/U9/U10/U11/U12/U14/U17, **U15** and **U19** (both taken by t30),
 **U20** (b) 2026-10-03, **U16** 2026-10-04, U3 (superseded by D12), and
 now **U28** and **U18**, both confirmed 2026-10-07 at the M5
-decomposition (t51) — U28 dogfood, U18 shape A with D13 left reserved.
-U13 is acknowledged debt, re-measured at the M5 decomposition: `log.rs`
-812 / `event.rs` 772 unchanged, `layout.rs` 543 under target; U24's
-`listing.rs` moved to 689 (t40's priority echo) and U29's `map.rs` to
-733 (t50's lift), both still over the 600 target with the cap holding.)
+decomposition (t51) — U28 dogfood, U18 shape A with D13 left reserved.)
 
 ## 2. Milestones
 
@@ -3945,7 +3947,7 @@ Unowned work. Take the next unused `U` id; never renumber, never reuse.
       deferred release — deferred because it changes `locked`'s
       timing semantics for all callers on one-platform,
       one-workload evidence.
-- [ ] **U27 · Should `FileLock::acquire` retry briefly on
+- [x] **U27 · Should `FileLock::acquire` retry briefly on
       `WouldBlock`?** Opened at g9 out of U26's closure: the
       kernel's flock teardown can outlive the fd close by a
       millisecond-scale lifetime (U26's measurements), so a caller
@@ -3964,6 +3966,18 @@ Unowned work. Take the next unused `U` id; never renumber, never reuse.
       `todo-store`, and the entry's own bar — multi-platform evidence, the
       `locked` timing-contract reconciliation — makes it a decision, not
       polish. It stays the next store owner's or a dedicated task's.
+      **Signed (c) 2026-10-08 (the user's call)**: the bounded retry
+      lands inside `FileLock::acquire` as a dedicated `todo-store`
+      task. The cross-repo guard the sign rode on, answered from the
+      code: store locks are per-repo per-file
+      (`repos/<slug>/event-log.jsonl.lock`), so parallel consumers
+      of different repos never contend on a store lock; the one
+      shared lock is the registry's, held for its short critical
+      section, and the retry makes even that robust. The task owns
+      the rest of this entry's bar: the window stays bounded, a
+      genuinely held lock still reports `locked` after it, and
+      `lock.rs`'s module doc (the release is the close) is
+      reconciled in the same change.
 - [x] **U28 · `progress.py` goes dynamic — the server as its data
       source, after M4.** Opened 2026-10-05 on the user's question:
       the page's hardcoded tables (`LANES`, `GATING`, `EXTRA`,
@@ -4023,7 +4037,7 @@ Unowned work. Take the next unused `U` id; never renumber, never reuse.
 
 Deliberate shortcuts, acknowledged rather than fixed. Same id rules as §4.
 
-- [ ] **U13 · Two store files are over the 600-line target.** Recorded as
+- [x] **U13 · Two store files are over the 600-line target.** Recorded as
       d2/d3 in the gitignored session tracker since t10/t12 and promoted
       here so the ledger is committed; the sweep of 2026-09-30 retired both
       tracker duplicates against this entry, so the ledger has one home and
@@ -4052,6 +4066,9 @@ Deliberate shortcuts, acknowledged rather than fixed. Same id rules as §4.
       **Re-measured at the M5 decomposition (2026-10-07): unchanged —
       812 and 772** under the same awk measure; `layout.rs` 543, still
       under target. M3's wire and M4's importer never grew either file.
+      **Acknowledged 2026-10-08 (the user's ack)**: no split scheduled —
+      the entry stays as the recorded ledger, the split riding the
+      trigger the entry names.
 - [x] **U23 · The copied-store cross-check on the server's resolve path is
       unpinned.** t34's `ServerState::resolve` gained the one-line check
       `store.graph().repo().slug != slug → corrupt_store`, mirroring
@@ -4072,7 +4089,7 @@ Deliberate shortcuts, acknowledged rather than fixed. Same id rules as §4.
       `corrupt_store` carrier naming both slugs — the branch is
       pinned, and the detail-string re-spelling rides the golden's
       bytes.
-- [ ] **U24 · `todo-mcp/src/listing.rs` is over the 600-line target.**
+- [x] **U24 · `todo-mcp/src/listing.rs` is over the 600-line target.**
       689 production lines (the awk measure; the `#[cfg(test)]` clause
       does not apply — the file holds no test module; 685 at t35, 683 at
       t37, and 689 at the M5 decomposition re-measure 2026-10-07 — t40's
@@ -4086,7 +4103,10 @@ Deliberate shortcuts, acknowledged rather than fixed. Same id rules as §4.
       is the dump half (`GraphShowDto`, `RepoDumpDto`, `EpicGroupDto`,
       `TaskNodeDto`, `DecisionNodeDto` and their builders) into its
       own module — a named diff for whoever next owns the file.
-- [ ] **U25 · `todo-mcp/src/nodes.rs` is over the 600-line target.**
+      **Acknowledged 2026-10-08 (the user's ack)**: no split scheduled —
+      the entry stays as the recorded ledger, the split riding the
+      trigger the entry names.
+- [x] **U25 · `todo-mcp/src/nodes.rs` is over the 600-line target.**
       769 production lines (the awk measure; the file holds no test
       module). Over target because the mutation cluster's dispatch
       pins all nine tools, their params and their draft/patch
@@ -4094,9 +4114,12 @@ Deliberate shortcuts, acknowledged rather than fixed. Same id rules as §4.
       t36 spec named; the cap of 1000 holds. The split, if the
       cluster ever grows a tenth tool, is the doc family
       (`doc_register`/`doc_set_path`/`doc_update` and their
-      conversions) into its own module — a named diff for whoever
-      next owns the file.
-- [ ] **U29 · `todo-mcp/src/import/dacode/map.rs` is over the
+      conversions) into its own module — a named diff for whoever next
+      owns the file.
+      **Acknowledged 2026-10-08 (the user's ack)**: no split scheduled —
+      the entry stays as the recorded ledger, the split riding the
+      trigger the entry names.
+- [x] **U29 · `todo-mcp/src/import/dacode/map.rs` is over the
       600-line target.** 733 production lines (the awk measure; the
       file holds no test module; 758 before t50's lift moved the shared
       mapping primitives to `src/import/helpers.rs` — 382, under target
@@ -4108,8 +4131,11 @@ Deliberate shortcuts, acknowledged rather than fixed. Same id rules as §4.
       (300) at the spec's named seam when the unwaivable 1000 cap
       forced it. The cap holds. The split, if the mapping grows
       another population (a camera/ikvm dialect reusing the shape),
-      is the doc-register half into its own module — a named diff
-      for whoever next owns the file.
+      is the doc-register half into its own module — a named diff for
+      whoever next owns the file.
+      **Acknowledged 2026-10-08 (the user's ack)**: no split scheduled —
+      the entry stays as the recorded ledger, the split riding the
+      trigger the entry names.
 - [ ] **U30 · Duplicate B/A dossier ids pass `parse_board`.** The
       cross-file set checks collapse duplicates (a set cannot see
       them) and the B/A parsers keep no seen-map, unlike the U-id and
