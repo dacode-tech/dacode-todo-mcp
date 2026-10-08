@@ -262,7 +262,9 @@ fn is_imported(section: u8) -> bool {
     matches!(section, 2 | 4 | 5)
 }
 
-/// §2: the milestones table, recognized by its header row.
+/// §2: the milestones table, recognized by its header row — no
+/// duplicate M ids (a duplicated row would silently double-import an
+/// epic).
 fn parse_milestones(
     lines: &[(&str, usize)],
     todo: &mut CameraTodo,
@@ -275,6 +277,7 @@ fn parse_milestones(
         });
     };
     let (rows, _) = collect_rows(lines, header_idx, is_register_construct);
+    let mut seen: BTreeMap<String, usize> = BTreeMap::new();
     for (text, number) in rows {
         let row_cells = cells(&text);
         let [milestone_cell, state_cell, _exit] = row_cells.as_slice() else {
@@ -298,6 +301,14 @@ fn parse_milestones(
                 detail: "not an M id".to_owned(),
             });
         }
+        if let Some(first) = seen.get(&id) {
+            return Err(CameraError::DuplicateId {
+                id: id.to_owned(),
+                first: *first,
+                second: number,
+            });
+        }
+        seen.insert(id.to_owned(), number);
         let status = parse_state(state_cell, number)?;
         todo.milestones.push(MilestoneRow {
             id: id.to_owned(),

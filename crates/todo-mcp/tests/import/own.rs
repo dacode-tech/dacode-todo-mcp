@@ -483,6 +483,25 @@ fn duplicate_milestone_and_decision_ids_are_named_errors() {
     );
 }
 
+/// A duplicated D id in the dossiers is a named error naming both
+/// lines — the same set-equality blind spot the summary table's
+/// duplicate rides (the composition's cross-check dedupes it silent).
+#[test]
+fn a_duplicate_dossier_header_id_is_a_named_error_naming_both_lines() {
+    let decisions =
+        DECISIONS_MD.replace("### D4 — Fourth decision", "### D1 — a duplicate dossier");
+    let first = line_of(&decisions, "### D1 — First decision");
+    let second = line_of(&decisions, "### D1 — a duplicate dossier");
+    assert_eq!(
+        parse_decisions(&decisions),
+        Err(OwnError::DuplicateId {
+            id: "D1".to_owned(),
+            first,
+            second,
+        })
+    );
+}
+
 /// Absent registers, wrong column counts and malformed table ids are
 /// named errors: §2 without its milestones table, the decisions file
 /// without its summary table, a §2 row with too few cells, a

@@ -425,6 +425,70 @@ fn a_duplicate_register_id_is_a_named_error_naming_both_lines() {
     );
 }
 
+/// A duplicated M id in §2's milestone table is a named error naming
+/// both lines — the register is measured duplicate-free, so strictness
+/// is the honest reading (the ikvm twin's pin).
+#[test]
+fn a_duplicate_milestone_id_is_a_named_error() {
+    let corpus = todo_md().replace(
+        "| M2 — the interface | not started | — |",
+        "| M0 — a duplicate milestone | not started | — |",
+    );
+    let first = line_of(&corpus, "| M0 — groundwork");
+    let second = line_of(&corpus, "| M0 — a duplicate milestone");
+    assert_eq!(
+        parse_todo_md(&corpus),
+        Err(CameraError::DuplicateId {
+            id: "M0".to_owned(),
+            first,
+            second,
+        })
+    );
+}
+
+/// A duplicated D id in the decisions summary table is a named error
+/// naming both lines — the composition's id cross-check compares sets
+/// (which dedupe), so a silent duplicate would pass it and shift the
+/// mapping's decision id range past the board's numbering.
+#[test]
+fn a_duplicate_decisions_summary_id_is_a_named_error_naming_both_lines() {
+    let decisions = DECISIONS_MD.replace(
+        "| ~~**D3**~~ | Third decision | hold | high | M2 | resolved 2026-09-20 — held as recommended |",
+        "| ~~**D1**~~ | a duplicate row | hold | low | M0 | resolved 2026-09-18 — taken |",
+    );
+    let first = line_of(&decisions, "| ~~**D1**~~ | First decision");
+    let second = line_of(&decisions, "| ~~**D1**~~ | a duplicate row");
+    assert_eq!(
+        parse_decisions(&decisions),
+        Err(CameraError::DuplicateId {
+            id: "D1".to_owned(),
+            first,
+            second,
+        })
+    );
+}
+
+/// A duplicated D id in the dossiers is a named error naming both
+/// lines — the same set-equality blind spot the summary table's
+/// duplicate rides.
+#[test]
+fn a_duplicate_dossier_header_id_is_a_named_error_naming_both_lines() {
+    let decisions = DECISIONS_MD.replace(
+        "### D3 — Third decision — RESOLVED 2026-09-20",
+        "### D1 — a duplicate dossier",
+    );
+    let first = line_of(&decisions, "### D1 — First decision");
+    let second = line_of(&decisions, "### D1 — a duplicate dossier");
+    assert_eq!(
+        parse_decisions(&decisions),
+        Err(CameraError::DuplicateId {
+            id: "D1".to_owned(),
+            first,
+            second,
+        })
+    );
+}
+
 /// Absent registers, wrong column counts and malformed table ids are
 /// named errors: §2 without its milestones table, the decisions file
 /// without its summary table, a §2 row and a decisions row with the

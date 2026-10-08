@@ -5,7 +5,11 @@
 //! The file is three registers. The **summary table** is recognized
 //! by its header row (`ID | Decision | Recommendation | Confidence |
 //! Gates | Status`) wherever it appears, and required — its absence
-//! would silently omit every decision. Each row's cells are
+//! would silently omit every decision. A duplicated D id is a named
+//! error naming both lines: the composition's id cross-check compares
+//! sets (which dedupe), so a silent duplicate would pass it and shift
+//! the mapping's decision id range past the board's numbering. Each
+//! row's cells are
 //! validated as the mapping's inputs: the id (strikes and bold
 //! stripped, the strike itself recorded — the resolved rows carry
 //! struck ids), a non-empty Recommendation, a Confidence spelling
@@ -34,6 +38,8 @@
 //! above it is walked past — prose, not a register; the table is the
 //! truth. The Applied-to column is carried raw and dropped by the
 //! map.
+
+use std::collections::BTreeMap;
 
 use super::board::{BOLD, is_m_id, is_register_construct};
 use super::error::IkvmError;
@@ -195,6 +201,7 @@ fn parse_summary_table(
         });
     };
     let (rows, _) = collect_rows(lines, header_idx, is_register_construct);
+    let mut seen: BTreeMap<String, usize> = BTreeMap::new();
     for (text, number) in rows {
         let row_cells = cells(&text);
         let [
@@ -221,6 +228,18 @@ fn parse_summary_table(
                 detail: "not a D id".to_owned(),
             });
         }
+        // A duplicated D id is a named error naming both lines: the
+        // composition's id cross-check compares sets (which dedupe),
+        // so a silent duplicate would pass it and shift the mapping's
+        // decision id range past the board's numbering.
+        if let Some(first) = seen.get(&id) {
+            return Err(IkvmError::DuplicateId {
+                id,
+                first: *first,
+                second: number,
+            });
+        }
+        seen.insert(id.clone(), number);
         if recommendation_cell.is_empty() {
             return Err(IkvmError::MalformedLine {
                 line: number,
@@ -286,12 +305,26 @@ fn parse_status_cell(cell: &str, line: usize) -> Result<DecisionStatusCell, Ikvm
 /// Gates line and the banner along the way.
 fn parse_dossiers(lines: &[(&str, usize)], file: &mut IkvmDecisions) -> Result<(), IkvmError> {
     let mut current: Option<PartialDossier> = None;
+    let mut seen: BTreeMap<String, usize> = BTreeMap::new();
     for &(text, number) in lines {
         if text.starts_with("### ") {
             if let Some(dossier) = current.take() {
                 file.dossiers.push(finish_dossier(dossier)?);
             }
-            current = Some(parse_dossier_header(text, number)?);
+            let dossier = parse_dossier_header(text, number)?;
+            // A duplicated D id is a named error naming both lines: the
+            // composition's id cross-check compares sets (which dedupe),
+            // so a silent duplicate would pass it and shift the mapping's
+            // decision id range past the board's numbering.
+            if let Some(first) = seen.get(&dossier.id) {
+                return Err(IkvmError::DuplicateId {
+                    id: dossier.id,
+                    first: *first,
+                    second: number,
+                });
+            }
+            seen.insert(dossier.id.clone(), number);
+            current = Some(dossier);
         } else if let Some(dossier) = current.as_mut() {
             dossier.body.push((text.to_owned(), number));
         }

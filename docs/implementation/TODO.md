@@ -214,11 +214,13 @@ shell, which is M3's business.
 
 | Blocking | What | Action |
 |---|---|---|
-| — | nothing blocks: the roadmap is delivered, U27 signed (c) and landed (t62), D19 signed (a) and landed end to end (t63 + t64), U35 resolved (a) and landed | U33 (the sibling dialects' duplicate-D debt) awaits your ack; nothing else is owed — see §6's handover |
+| — | nothing blocks: the roadmap is delivered, U27 signed (c) and landed (t62), D19 signed (a) and landed end to end (t63 + t64), U35 resolved (a) and landed, U33 fixed (the user's order) | U36 (the ikvm footer's duplicate-D residual) rides the next ikvm touch; nothing else is owed — see §6's handover |
 
 (The user's calls 2026-10-09: **U35 resolved (a)** — the two
 wire-visible repo_list descriptions amended to the hit-or-lock-free
-wording, landed this session. The 2026-10-08 calls: **D19 signed
+wording, landed this session. **U33 fixed** on the user's order —
+the duplicate-D hoist landed with f103's camera riders. The
+2026-10-08 calls: **D19 signed
 (a)** — the lock-free read
 path: a read-only open that takes no lock, replays the committed
 prefix, and treats an unterminated final line as an append in flight
@@ -241,7 +243,8 @@ U8/U9/U10/U11/U12/U14/U17, **U15** and **U19** (both taken by t30),
 **U20** (b) 2026-10-03, **U16** 2026-10-04, U3 (superseded by D12), and
 now **U28** and **U18**, both confirmed 2026-10-07 at the M5
 decomposition (t51) — U28 dogfood, U18 shape A with D13 left
-reserved — and **U35** (a) 2026-10-09.)
+reserved — and **U35** (a) and **U33** (fixed on the user's order)
+2026-10-09.)
 
 ## 2. Milestones
 
@@ -3441,6 +3444,26 @@ Oldest first. One line per delivery, with the commit hash once committed.
         corrected descriptions. Dual review ok in one round, both
         reviewers bound to the final sha. Landed as
         `8f02162`.
+- 2026-10-09 — **U33: the duplicate-D hoist (camera/ikvm/own) + f103's
+        camera riders.** The user's order. Six seen-map refusals
+        extending t61's pattern to the sibling dialects — camera's
+        decisions summary table and dossiers, ikvm's summary and
+        dossiers, own's dossiers (its summary guard predates this) —
+        each raising the dialect's existing DuplicateId variant, so a
+        repeated D id is a named error naming both lines instead of a
+        silent double-import that shifts every later constructed id
+        past the set-equality cross-check. The f103 riders landed with
+        it (this being the camera-module touch f103(b) named): the §2
+        milestone-table duplicate-M refusal (the ikvm precedent) and
+        the BadId doc reword (the spec's restatement was wrong —
+        board.rs's only BadId raise is an M id; the reworded sentence
+        is true of all four raise sites). Six red-first tests (all
+        observed failing on HEAD), six mutations each killing exactly
+        its test, the golden ritual byte-identical, all 34 frozen
+        baselines hold. Dual review ok in one round, both reviewers
+        bound to the final shas; the primary's completeness sweep
+        found the one D path left open — ikvm's footer table — and
+        prescribed recording it: U36.
 
 
 
@@ -4218,6 +4241,19 @@ Unowned work. Take the next unused `U` id; never renumber, never reuse.
       read-mechanism claim. No golden moved; the release binary
       rebuilt so the deployed surface carries the corrected
       descriptions.
+- [ ] **U36 · ikvm's footer table still accepts a duplicate D id.**
+      Opened at t66's review, on the primary's completeness sweep:
+      `is_d_id` has seven call sites in the ikvm module, six now
+      guarded by U33's hoist, the seventh `parse_footer_table`
+      (ikvm/decisions.rs) — a repeated D id in the footer parses
+      clean. No import harm (ikvm's map drops footer rows — no
+      double-import, no id shift), but cross-check 3
+      (ikvm/mod.rs:192, the banner-date/footer-date equality) pins
+      only the FIRST matching row, so a self-inconsistent footer
+      (the same D id twice, differing dates) passes silently — the
+      same set-equality blind-spot class U33 named. Rides the next
+      ikvm touch: hoist the seen-map the same way, or record why the
+      footer register stays duplicate-tolerant.
 
 ## 5. Debt
 
@@ -4405,7 +4441,7 @@ Deliberate shortcuts, acknowledged rather than fixed. Same id rules as §4.
       closing the class, the live smoke showing zero `unknown format`
       lines. No §12 item opened: the signed §6 surface, D14's key
       order and every golden are untouched.
-- [ ] **U33 · Duplicate D ids pass the camera/ikvm/own decisions
+- [x] **U33 · Duplicate D ids pass the camera/ikvm/own decisions
       parsers.** Opened at U30's closure, on the primary reviewer's
       measurement (scratch-worktree probes): a duplicate D id parses
       clean in camera's summary table AND dossiers, ikvm's summary
@@ -4419,6 +4455,14 @@ Deliberate shortcuts, acknowledged rather than fixed. Same id rules as §4.
       why those table registers stay duplicate-tolerant. Not fixed
       with U30: different dialects' files, and the user's sign named
       U30's entry.
+      **Fixed 2026-10-09 (the user's order, t66)**: the seen-map
+      hoist landed in all three dialects — camera's summary table
+      and dossiers, ikvm's summary and dossiers, own's dossiers —
+      each raising the dialect's existing DuplicateId variant, six
+      red-first tests, dual review ok. f103's camera riders landed
+      with it (the §2 duplicate-M refusal and the BadId doc reword),
+      closing f103 fully. The one residual the review's completeness
+      sweep found — ikvm's footer table — is U36.
 
 ## 6. Session log
 
@@ -4454,17 +4498,33 @@ the global-config entry both spawn it), and the dogfooding store
 refreshed against the fresh binary — the board moved, so the
 derived cache moved with it.
 
-**Handover.** Workspace: `main`, clean after this session's commits;
-four crates; rustc 1.98.1; the release binary rebuilt this session.
-Landed: U35's amend (this commit). Next step: none owed — the
-recorded ledger is down to one item. Blocked on you: **U33 alone** —
-the sibling dialects' duplicate-D debt (the camera/ikvm/own
-decisions registers accept a repeated D row; unreachable on the
-measured boards): acknowledging it is the action, or a task lands
-the hoist if you want it fixed. Unverified: nothing new — every
-gate ran this session; the standing caveats unchanged (the release
-binary goes stale after pulls and importer changes until rebuilt;
-the dogfooding store is a derived cache, refreshed and clean).
+**U33 fixed** (the user's order, the session's second delivery): the
+duplicate-D hoist — six seen-map refusals extending t61's pattern to
+the sibling dialects' decisions parsers (camera summary + dossiers,
+ikvm summary + dossiers, own dossiers; own's summary guard predates
+it), each raising the dialect's existing DuplicateId variant. The
+f103 riders landed with it (the camera §2 duplicate-M refusal per
+the ikvm precedent, and the BadId doc reword — the spec's
+restatement of f103(b) was wrong; board.rs's only BadId raise is an
+M id, so the rider was real and the reworded sentence is true of all
+four sites), closing f103 fully. Dual review ok in one round, both
+bound to the final shas; the primary's completeness sweep found the
+one D path left open — ikvm's footer table, no import harm but
+cross-check 3 pins only the first matching row — recorded as U36.
+The session's opening sweep also closed f110/f113 (stale-open, the
+f41 class). Next: f57 — the bare Store::snapshot() fault pin, the
+session's second order.
+
+**Handover.** Workspace: `main`, clean after each delivery's
+commits; four crates; rustc 1.98.1; the release binary rebuilt after
+each importer change. Landed this session: U35's amend, U33's hoist
+(+ f103's riders; f110/f113 swept). Next step: f57, in flight — the
+bare-snapshot fault pin. Blocked on you: nothing — the ledger is
+U36 (a rider on the next ikvm touch) and the tracker's riders.
+Unverified: nothing new; the standing caveats unchanged (the
+release binary goes stale after pulls and importer changes until
+rebuilt; the dogfooding store is a derived cache, refreshed and
+clean).
 
 ### 2026-10-08 — D19 signed (a): the lock-free read path; t62 resequenced behind it
 

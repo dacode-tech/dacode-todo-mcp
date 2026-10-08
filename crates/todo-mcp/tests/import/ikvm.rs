@@ -568,6 +568,46 @@ fn a_duplicate_milestone_id_is_a_named_error() {
     );
 }
 
+/// A duplicated D id in the decisions summary table is a named error
+/// naming both lines — the composition's id cross-check compares sets
+/// (which dedupe), so a silent duplicate would pass it and shift the
+/// mapping's decision id range past the board's numbering.
+#[test]
+fn a_duplicate_decisions_summary_id_is_a_named_error() {
+    let decisions = DECISIONS_MD.replace(
+        "| ~~**D5**~~ | Fifth decision | defer the framework | medium-high | M4 | resolved |",
+        "| ~~**D1**~~ | a duplicate row | hold | low | M0 | resolved |",
+    );
+    let first = line_of(&decisions, "| ~~**D1**~~ | First decision");
+    let second = line_of(&decisions, "| ~~**D1**~~ | a duplicate row");
+    assert_eq!(
+        parse_decisions(&decisions),
+        Err(IkvmError::DuplicateId {
+            id: "D1".to_owned(),
+            first,
+            second,
+        })
+    );
+}
+
+/// A duplicated D id in the dossiers is a named error naming both
+/// lines — the same set-equality blind spot the summary table's
+/// duplicate rides.
+#[test]
+fn a_duplicate_dossier_header_id_is_a_named_error() {
+    let decisions = DECISIONS_MD.replace("### D5 — Fifth decision", "### D1 — a duplicate dossier");
+    let first = line_of(&decisions, "### D1 — First decision");
+    let second = line_of(&decisions, "### D1 — a duplicate dossier");
+    assert_eq!(
+        parse_decisions(&decisions),
+        Err(IkvmError::DuplicateId {
+            id: "D1".to_owned(),
+            first,
+            second,
+        })
+    );
+}
+
 /// The never-fired strictness errors the module docs name: an absent
 /// register, a wrong column count, a malformed table id, a § carried
 /// twice, and an impossible banner date — each a named error, never a

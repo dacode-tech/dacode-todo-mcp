@@ -371,12 +371,26 @@ fn split_date_note<'a>(
 /// bodies run to the next `###` or end of input.
 fn parse_dossiers(lines: &[(&str, usize)], file: &mut OwnDecisions) -> Result<(), OwnError> {
     let mut current: Option<PartialDossier> = None;
+    let mut seen: BTreeMap<String, usize> = BTreeMap::new();
     for &(text, number) in lines {
         if text.starts_with("### ") {
             if let Some(dossier) = current.take() {
                 file.dossiers.push(finish_dossier(dossier));
             }
-            current = Some(parse_dossier_header(text, number)?);
+            let dossier = parse_dossier_header(text, number)?;
+            // A duplicated D id is a named error naming both lines: the
+            // composition's id cross-check compares sets (which dedupe),
+            // so a silent duplicate would pass it and shift the mapping's
+            // decision id range past the board's numbering.
+            if let Some(first) = seen.get(&dossier.id) {
+                return Err(OwnError::DuplicateId {
+                    id: dossier.id,
+                    first: *first,
+                    second: number,
+                });
+            }
+            seen.insert(dossier.id.clone(), number);
+            current = Some(dossier);
         } else if let Some(dossier) = current.as_mut() {
             dossier.body.push(text.to_owned());
         }

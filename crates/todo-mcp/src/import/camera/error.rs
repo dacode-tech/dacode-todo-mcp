@@ -57,8 +57,8 @@ pub enum CameraError {
         /// The row's column count.
         found: usize,
     },
-    /// An id failed its shape check: a table cell that is not the M,
-    /// D or U id its register requires.
+    /// An id failed its shape check: a table cell or dossier header
+    /// that is not the M or D id its register requires.
     BadId {
         /// The 1-based line number.
         line: usize,
