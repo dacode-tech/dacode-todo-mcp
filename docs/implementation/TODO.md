@@ -214,7 +214,7 @@ shell, which is M3's business.
 
 | Blocking | What | Action |
 |---|---|---|
-| — | nothing blocks: the roadmap is delivered, U27 signed (c), and **D19 signed (a)** — the lock-free read path — with its implementation in flight | D19's two tasks land first (t63 the store primitive, t64 the server's read resolve), then U27's retry (t62) — see §6's handover |
+| — | nothing blocks: the roadmap is delivered, U27 signed (c), and **D19 signed (a)** — the lock-free read path — with t63 (the store primitive) landed | t64 (the server's read resolve) is next, then U27's retry (t62) — see §6's handover |
 
 (The user's calls 2026-10-08: **D19 signed (a)** — the lock-free read
 path: a read-only open that takes no lock, replays the committed
@@ -3344,6 +3344,28 @@ Oldest first. One line per delivery, with the commit hash once committed.
         — lands as t63/t64 under the tracker's g16; until then §8's
         new sentence describes a signed shape the code does not yet
         have, carried by §1's blocking table.
+- 2026-10-08 — **t63: D19's store half — the lock-free read
+        primitive**: `reader.rs` (the committed-prefix derivation —
+        cut at the last LF, the commit marker — feeding the existing
+        snapshot-aware `replay` verbatim, so the locked open's
+        semantics are bit-identical and `log.rs` is untouched) plus
+        `DataRoot::read_repo` (path-derived, no lock, no registry
+        consult, a read-only open that never touches the lock path,
+        the owned `Graph` back). Ten pins in
+        `tests/layout/reader.rs`, led by the f110 scenario at the
+        store level (a read succeeds while the lock is genuinely
+        held) and the two-paths-disagree pin (the torn tail:
+        `read_repo` answers the committed prefix, `open_log` still
+        refuses it). Four mutations killed (M1 the pre-D19 behavior;
+        M2 any lock acquisition — kill set {1,5,8}, wider than
+        predicted and independently verified; M3 the
+        weakened-refusal half; M4 the `.lock` creation). Dual review:
+        both ok over two rounds — the re-bind round landing the three
+        prescribed comment fixes (the false hand-written-line claim,
+        the concurrent-snapshot transient window recorded in
+        `read_graph`'s doc, the io-vocabulary claim scoped) — bound
+        to the final shas. 130 store tests, every gate green, no
+        golden moved, `log.rs` byte-identical.
 
 
 
@@ -4094,7 +4116,9 @@ Unowned work. Take the next unused `U` id; never renumber, never reuse.
       The implementation lands as t63 (the store primitive) + t64
       (the server's read tools resolving lock-free on a handles miss)
       under the tracker's g16; §1's blocking table carries the gap
-      until they land. U27's retry (t62) correctly does not fix this
+      until they land. **t63 landed 2026-10-08** (the committed-prefix
+      reader + `DataRoot::read_repo`, dual-reviewed to sign-off); t64
+      remains. U27's retry (t62) correctly does not fix this
       — genuine contention, the other half of its contract.
 
 ## 5. Debt
@@ -4343,6 +4367,17 @@ behind them per the user's call; its genuine-contention pin is
 confirmed by this session's measurement). **Blocked on you: nothing.**
 **Unverified:** nothing new — the contention is measured, the sign is
 recorded; the implementation is owed.
+
+**t63 landed** (dual-reviewed to sign-off over two rounds, both
+reviewers bound to the final bytes): `reader.rs`'s committed-prefix
+derivation feeding `replay` verbatim — `log.rs` untouched, the locked
+open bit-identical — and `DataRoot::read_repo` as the one public entry
+point. The f110 scenario is now a store-level pin (a read succeeds
+under a genuinely held lock), the torn tail pins both paths
+disagreeing by design, and the review's re-bind round recorded the one
+inherent window (a snapshot landing between the log bytes and the
+snapshot document is a transient named `corrupt_store` — loud, never
+silent, retry succeeds; t64's resolve carries that fact). Next: t64.
 
 ### 2026-10-08 — the recorded ledger called; U30 fixed; U27 signed (c)
 

@@ -1,6 +1,6 @@
 //! The D4 layout's tests: path derivation, the registry document and its
-//! golden, and §8's advisory locking (spec §2, §4.3, §7, §8, §10;
-//! `.agents/knowledge/workflows/golden-files.md`).
+//! golden, §8's advisory locking, and D19's lock-free read (spec §2,
+//! §4.3, §7, §8, §10; `.agents/knowledge/workflows/golden-files.md`).
 //!
 //! Every store here lives under a `tempfile` root: never a fixed path,
 //! never the cwd. Timestamps are caller-passed constants, so nothing
@@ -17,7 +17,8 @@
 //! tests inside `src/layout.rs`. The suite is split by responsibility:
 //! `layout/fixtures.rs` holds the builders, `layout/paths.rs` the D4
 //! derivation and the slug's path-safety, `layout/lock.rs` §8's
-//! single-writer behavior, `layout/registry.rs` the registry document — its
+//! single-writer behavior, `layout/reader.rs` D19's lock-free read,
+//! `layout/registry.rs` the registry document — its
 //! golden, its faults and its byte stability — and `layout/repos.rs` the
 //! registry's query side (`repo_list`/`repo_show`) plus the ignored
 //! cold-open measurement.
@@ -43,6 +44,7 @@ mod layout {
     mod fixtures;
     mod lock;
     mod paths;
+    mod reader;
     mod registry;
     mod repos;
 }

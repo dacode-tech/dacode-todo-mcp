@@ -69,6 +69,7 @@ mod event;
 mod layout;
 mod lock;
 mod log;
+mod reader;
 mod registry;
 mod repair;
 mod snapshot;

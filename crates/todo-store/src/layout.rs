@@ -74,11 +74,12 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use todo_domain::{DomainError, Repo, RepoSlug};
+use todo_domain::{DomainError, Graph, Repo, RepoSlug};
 
 use crate::error::{LockTarget, StoreError, io_error};
 use crate::lock::RegistryLock;
 use crate::log::JsonlStore;
+use crate::reader::read_graph;
 use crate::registry::Registry;
 use crate::store::Store;
 
@@ -289,6 +290,27 @@ impl DataRoot {
             stores.push(self.open(slug)?);
         }
         Ok(stores)
+    }
+
+    /// Reads the store under `slug` and returns its committed graph —
+    /// D19's lock-free read (§8: the engine tolerates concurrent readers
+    /// of a committed log), the primitive the server's read tools resolve
+    /// through so a live writer's lock never refuses them (f110).
+    ///
+    /// Path-derived like [`DataRoot::open`]: the registry is **not**
+    /// consulted — the store directory is authoritative — so a store the
+    /// index does not list is read anyway, and the registry query side
+    /// ([`DataRoot::repo_show`]) owns refusing its slug as `unknown_id`;
+    /// the server layer makes that call, this read does not. No lock is
+    /// taken, no handle is kept, nothing is created: a writer holding the
+    /// store does not contend, and the directory is byte-identical after
+    /// the read. An unterminated final line is an append in flight — the
+    /// read answers the committed prefix without it (the `reader`
+    /// module's derivation) — while a terminated but unparseable final
+    /// line is `corrupt_store` like any other damage, and a missing store
+    /// is the same honest io `NotFound` [`DataRoot::open`] reports.
+    pub fn read_repo(&self, slug: &RepoSlug) -> Result<Graph, StoreError> {
+        read_graph(&self.log_path(slug))
     }
 
     /// Lists every registered repository — §6's `repo_list` underneath.
