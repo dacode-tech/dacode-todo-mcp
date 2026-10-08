@@ -3465,6 +3465,27 @@ Oldest first. One line per delivery, with the commit hash once committed.
         found the one D path left open — ikvm's footer table — and
         prescribed recording it: U36. Landed as
         `998785c`.
+- 2026-10-09 — **f57: the bare `Store::snapshot()` fault pin.** The
+        user's order, the session's third delivery. A tests-only
+        commit (the t21/f47 shape): `tests/snapshot/fault.rs` drives
+        the write path's two refusal seams at the bare call — the
+        creation refusal (chmod 0500: io naming "write the snapshot's
+        temporary file", ZERO debris, the log byte-identical, recovery
+        once the permission returns) and the rename refusal (a
+        directory parked at the snapshot path: io naming "rename the
+        snapshot into place", exactly one pid-suffixed temporary, the
+        append handle still landing writes, the second refusal in the
+        same process REUSING the same temporary name, recovery once
+        the fault is removed) — the branches t21 pinned only through
+        compact's step (1). The creation test is `#[cfg(unix)]`-gated
+        per the layout precedent (the secondary's round-1 med, fixed
+        as prescribed and re-bound). The mutation proof: a per-call
+        counter in `temp_path_for` kills the reuse pin (two temps),
+        reverted sha-identical. The snapshot target 34 (was 32), the
+        full store suite 134, the golden ritual byte-identical, no
+        src change. Dual review: primary ok in one round (three
+        scratch mutations fired), secondary changes_requested →
+        fixed → ok re-bound on the final bytes.
 
 
 
@@ -4516,16 +4537,34 @@ The session's opening sweep also closed f110/f113 (stale-open, the
 f41 class). Next: f57 — the bare Store::snapshot() fault pin, the
 session's second order.
 
-**Handover.** Workspace: `main`, clean after each delivery's
-commits; four crates; rustc 1.98.1; the release binary rebuilt after
-each importer change. Landed this session: U35's amend, U33's hoist
-(+ f103's riders; f110/f113 swept). Next step: f57, in flight — the
-bare-snapshot fault pin. Blocked on you: nothing — the ledger is
-U36 (a rider on the next ikvm touch) and the tracker's riders.
-Unverified: nothing new; the standing caveats unchanged (the
-release binary goes stale after pulls and importer changes until
-rebuilt; the dogfooding store is a derived cache, refreshed and
-clean).
+**f57 landed** (the user's order, the session's third delivery): the
+bare `Store::snapshot()` fault pin, a tests-only commit — the two
+refusal seams driven at the bare call (the creation refusal with
+zero debris; the rename refusal with one reusable pid-suffixed
+temporary, the append handle surviving, and the same-process reuse
+pinned by name), the branches t21 covered only through compact. The
+mutation proof (a per-call counter in `temp_path_for`) killed the
+reuse pin and was reverted sha-identical. Dual review: the primary
+ok in one round with three scratch mutations fired; the secondary's
+med — the ungated unix import would break the target's compile
+off-platform — fixed as prescribed (the layout precedent's
+`#[cfg(unix)]` + fn-local import) and re-bound ok. The secondary's
+low (store.rs:117's snapshot doc still routing the debris count
+through compact's step (1)) rides store.rs's next owner as f114.
+g17 closed with it: the session's whole order (U35, U33, f57)
+delivered.
+
+**Handover.** Workspace: `main`, clean after this session's commits;
+four crates; rustc 1.98.1; the release binary rebuilt after the
+importer change (U33) and current. Landed this session: U35's amend
+(`8f02162`), U33's hoist + f103's riders (`998785c`), f57's
+bare-snapshot pin (this commit); the opening sweep closed f110/f113.
+Next step: none owed — the user's order is complete. Blocked on you:
+nothing — the ledger is U36 (a rider on the next ikvm touch) and the
+tracker's riders (f114 among them, store.rs's next owner).
+Unverified: nothing new; the standing caveats unchanged (the release
+binary goes stale after pulls and importer changes until rebuilt;
+the dogfooding store is a derived cache, refreshed and clean).
 
 ### 2026-10-08 — D19 signed (a): the lock-free read path; t62 resequenced behind it
 

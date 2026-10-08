@@ -18,8 +18,10 @@
 //! document mirror the fault fixtures splice through,
 //! `snapshot/roundtrip.rs` the replay equality, the burned-number
 //! restore, the golden and the determinism instruments,
-//! `snapshot/compact.rs` the truncation contract, and
-//! `snapshot/corrupt.rs` the named-error surface.
+//! `snapshot/compact.rs` the truncation contract,
+//! `snapshot/corrupt.rs` the named-error surface, and
+//! `snapshot/fault.rs` the bare `snapshot()`'s refusal branches and
+//! their debris.
 
 #![cfg_attr(
     test,
@@ -53,6 +55,7 @@ mod snapshot {
 
     mod compact;
     mod corrupt;
+    mod fault;
     mod fixtures;
     mod roundtrip;
 }
