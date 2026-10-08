@@ -7,10 +7,11 @@
 //! given the filesystem — the lib stays env-free (the cwd arrives as a
 //! parameter, read once by the binary, never from the environment
 //! here). The `derive` walk is what feeds it: the registry
-//! load, the handle-cache resolution and the `Repo` node path reads
-//! (D5). The walk is deliberately its own, not `answer_repo_list`'s —
+//! load, the lock-free per-slug read and the `Repo` node path reads
+//! (D5, D19 — the derivation scans checkout paths and arms nothing).
+//! The walk is deliberately its own, not `answer_repo_list`'s —
 //! the listing answers DTOs for the wire, the derivation answers a
-//! match; different concerns, and registry.rs stays frozen this task.
+//! match; different concerns.
 //!
 //! The match rule (§7): both sides canonicalized — a candidate that
 //! fails to canonicalize is skipped, because a checkout that does not
@@ -141,21 +142,22 @@ pub(crate) fn derive(state: &mut ServerState) -> Result<MatchOutcome, ToolError>
     Ok(match_slug(&cwd, &candidates))
 }
 
-/// The candidate walk (D5): the registry's slugs, each resolved
-/// through the handle cache — a miss opens the store once and caches
-/// it, the cold-open cost paid once per process — with each `Repo`
-/// node's path as the candidate. A store that will not open fails the
-/// walk with the store's own error through the carrier: silently
-/// skipping it would make the derivation report less than the truth
-/// while still looking complete.
+/// The candidate walk (D5): the registry's slugs, each read
+/// lock-free (D19, [`ServerState::resolve_read`]) — the derivation
+/// scans checkout paths and arms nothing, so a default-repo
+/// derivation never turns an unarmed server into a writer — with
+/// each `Repo` node's path as the candidate. A store that will not
+/// read fails the walk with the store's own error through the
+/// carrier: silently skipping it would make the derivation report
+/// less than the truth while still looking complete.
 fn candidates(state: &mut ServerState) -> Result<Vec<(RepoSlug, PathBuf)>, ToolError> {
     let registry = Registry::load(&state.root)?;
     let mut walked = Vec::with_capacity(registry.slugs().len());
     for slug in registry.slugs() {
-        let handle = state.resolve(slug)?;
+        let graph = state.resolve_read(slug)?;
         walked.push((
             slug.clone(),
-            PathBuf::from(handle.graph().repo().path.clone()),
+            PathBuf::from(graph.graph().repo().path.clone()),
         ));
     }
     Ok(walked)

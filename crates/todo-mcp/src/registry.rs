@@ -1,10 +1,12 @@
 //! The registry cluster (§7): `repo_register`, `repo_set_path`,
 //! `repo_list` and `repo_show`, their wire DTOs and the
-//! §8-serialized store work underneath. The three later tools answer
-//! from the handles the server already holds (U20(b)): the registry
-//! is the membership source, the handles the answer source, and a
-//! repo never queried before pays one open — cached from then on —
-//! never a cold open per query.
+//! §8-serialized store work underneath. The two read tools answer
+//! from the handles the server already holds on a hit (U20(b)); a
+//! miss reads lock-free per call (D19) — no lock taken, no handle
+//! cached — so a listing never arms and an unarmed server never
+//! becomes a writer by listing: only writes arm. The registry is the
+//! membership source either way; `repo_set_path`, a write, keeps the
+//! arming resolve.
 //!
 //! The wire DTOs are server-local: named fields in declaration order
 //! (D14 — `preserve_order` carries it to the wire), the params struct
@@ -124,32 +126,31 @@ fn answer_repo_set_path(
 }
 
 /// `repo_list`'s answer: the registry's slugs, each resolved through
-/// the handle cache — U20(b) exactly. A handles hit returns the
-/// cached handle; a miss consults the registry (an unlisted slug
-/// cannot occur here — the slug came from the registry) and opens
-/// once, then caches, so the cold open is paid once per repo per
-/// process, never per query. One store is resolved at a time, in the
-/// registry's sorted order — t31's one-lock-at-a-time discipline,
-/// inherited through resolve's per-slug loop.
+/// [`ServerState::resolve_read`] — a handles hit borrows the held
+/// graph (U20(b)); a miss reads lock-free per call (D19) and arms
+/// nothing, so a listing never turns an unarmed server into a
+/// writer. One store is read at a time, in the registry's sorted
+/// order — t31's one-lock-at-a-time discipline, now trivial: the
+/// read takes no lock at all.
 fn answer_repo_list(state: &mut ServerState) -> Result<RepoListDto, ToolError> {
     let registry = Registry::load(&state.root)?;
     let mut repos = Vec::new();
     for slug in registry.slugs() {
-        let handle = state.resolve(slug)?;
-        repos.push(RepoDto::from(handle.graph().repo()));
+        let graph = state.resolve_read(slug)?;
+        repos.push(RepoDto::from(graph.graph().repo()));
     }
     Ok(RepoListDto { repos })
 }
 
-/// `repo_show`'s answer: parse, resolve, convert — the same resolve
-/// path `repo_list` rows and every query take.
+/// `repo_show`'s answer: parse, resolve, convert — the same read
+/// path `repo_list` rows and every read tool take.
 fn answer_repo_show(
     state: &mut ServerState,
     params: &RepoShowParams,
 ) -> Result<RepoDto, ToolError> {
     let slug = repo_of(state, params.repo.as_deref())?;
-    let handle = state.resolve(&slug)?;
-    Ok(RepoDto::from(handle.graph().repo()))
+    let graph = state.resolve_read(&slug)?;
+    Ok(RepoDto::from(graph.graph().repo()))
 }
 
 #[tool_router(router = tool_router, vis = "pub(crate)")]

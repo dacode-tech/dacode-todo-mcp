@@ -45,6 +45,7 @@
 mod common;
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::fs;
 use std::io::{BufRead, BufReader, Read, Write};
 use std::path::Path;
 use std::process::{Child, ChildStdin, ChildStdout, Command, ExitStatus, Stdio};
@@ -52,10 +53,10 @@ use std::str::FromStr;
 
 use serde_json::{Value, json};
 use tempfile::TempDir;
-use todo_domain::{BlocksEdge, RepoSlug};
+use todo_domain::{BlocksEdge, Repo, RepoSlug, Timestamp};
 use todo_store::{DataRoot, Store, StoreError};
 
-use common::{call, drive, fixture};
+use common::{assert_carrier, call, drive, fixture};
 
 // =================================================================
 // The suite-local drive — the rapid-fire shape and the protocol
@@ -861,6 +862,261 @@ fn a_concurrent_read_sees_a_whole_state_never_a_torn_one() {
         read_state == pre_state || read_state == post_state,
         "the read is the pre-state or the write's post-state, whole either way:\n  {read}"
     );
+}
+
+// =================================================================
+// The lock-free read path (D19)
+// =================================================================
+
+/// Opens the fixture store with the test process genuinely holding
+/// its lock — the f110 stand-in for a live session server: the
+/// advisory lock is per file descriptor, so one process contends with
+/// itself (M1's measurement), and a *second* process — the spawned
+/// server — is the contention the lock can actually report. The
+/// bounded `locked` retry is the U26 discipline (the hammer below):
+/// the fixture builder dropped this handle moments ago, and the
+/// kernel's flock teardown can outlive the close by a
+/// millisecond-scale lifetime, so the immediate re-open races the
+/// deferred release.
+fn hold_fixture(root: &Path) -> Box<dyn Store + Send> {
+    let data_root = DataRoot::new(root);
+    let slug = RepoSlug::from_str("fixture").expect("a valid slug");
+    let mut opened = data_root.open(&slug);
+    for _ in 0..5 {
+        if !matches!(&opened, Err(StoreError::Locked { .. })) {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(2));
+        opened = data_root.open(&slug);
+    }
+    match opened {
+        Ok(store) => Box::new(store),
+        Err(error) => panic!("the fixture store opens under the test's hold: {error}"),
+    }
+}
+
+/// The f110 pin, end-to-end (D19): a registered store whose lock the
+/// TEST process genuinely holds, a FRESH server with no prior tool
+/// call, `graph_show` over the wire — and the read answers. The
+/// resolve happens on the handles miss, lock-free, so the exact
+/// refusal progress.py's per-render spawn measured against a live
+/// session server is gone: the read succeeds with the committed
+/// graph.
+#[test]
+fn a_read_answers_while_another_process_holds_the_store_lock() {
+    let root = fixture();
+    let _held = hold_fixture(root.path());
+    let driven = drive(
+        root.path(),
+        &[call(2, "graph_show", r#"{"repo":"fixture"}"#)],
+    );
+    assert!(
+        driven.status.success(),
+        "a completed handshake ends 0; stderr: {}",
+        driven.stderr
+    );
+    assert_eq!(driven.responses.len(), 1);
+    let value: Value =
+        serde_json::from_str(&driven.responses[0]).expect("the response line is JSON");
+    assert_eq!(
+        value["result"]["isError"],
+        json!(false),
+        "{}",
+        driven.responses[0]
+    );
+    // The committed graph, not merely a success: the fixture's repo
+    // node and its two epics.
+    let repos = value["result"]["structuredContent"]["repos"]
+        .as_array()
+        .expect("the dump's repos");
+    assert_eq!(repos.len(), 1, "the repo scope dumps one repo");
+    assert_eq!(repos[0]["repo"]["slug"], json!("fixture"));
+    let epics: Vec<&str> = repos[0]["epics"]
+        .as_array()
+        .expect("the epic groups")
+        .iter()
+        .map(|group| group["id"].as_str().expect("an epic id"))
+        .collect();
+    assert_eq!(epics, ["fixture:E1", "fixture:E2"]);
+}
+
+/// The writer contract is untouched (D19): under the same held lock,
+/// `task_add` still refuses with `locked` through D15's carrier —
+/// writes keep the arming resolve, and the store's single-writer
+/// refusal is exactly what a second writer must see.
+#[test]
+fn a_write_still_refuses_under_the_same_held_lock() {
+    let root = fixture();
+    let _held = hold_fixture(root.path());
+    let driven = drive(
+        root.path(),
+        &[call(
+            2,
+            "task_add",
+            r#"{"repo":"fixture","epic":"fixture:E1","kind":"task","title":"Refused under the held lock","body":"","status":"open","verify":"cargo test -p fixture"}"#,
+        )],
+    );
+    assert!(
+        driven.status.success(),
+        "a completed handshake ends 0; stderr: {}",
+        driven.stderr
+    );
+    assert_eq!(driven.responses.len(), 1);
+    assert_carrier(
+        &driven.responses[0],
+        "locked",
+        "store is locked: repo fixture",
+    );
+}
+
+/// Judgment call (i), pinned: `repo_list` does not arm. A fresh
+/// server lists while the test holds fixture's lock — the listing
+/// reads lock-free and succeeds — and a subsequent `task_add` on that
+/// repo from the SAME server still refuses with `locked`: the
+/// listing cached no handle, so the write pays the open and meets the
+/// test's held lock. An unarmed server never becomes a writer by
+/// listing.
+#[test]
+fn a_repo_list_does_not_arm_the_handle() {
+    let root = fixture();
+    let _held = hold_fixture(root.path());
+    let driven = drive(
+        root.path(),
+        &[
+            call(2, "repo_list", r#"{}"#),
+            call(
+                3,
+                "task_add",
+                r#"{"repo":"fixture","epic":"fixture:E1","kind":"task","title":"Refused after the listing","body":"","status":"open","verify":"cargo test -p fixture"}"#,
+            ),
+        ],
+    );
+    assert!(
+        driven.status.success(),
+        "a completed handshake ends 0; stderr: {}",
+        driven.stderr
+    );
+    assert_eq!(driven.responses.len(), 2);
+    // The listing succeeded under the held lock — lock-free reads,
+    // both repos, the registry's sorted order.
+    let listed: Value =
+        serde_json::from_str(&driven.responses[0]).expect("the response line is JSON");
+    assert_eq!(
+        listed["result"]["isError"],
+        json!(false),
+        "{}",
+        driven.responses[0]
+    );
+    let slugs: Vec<&str> = listed["result"]["structuredContent"]["repos"]
+        .as_array()
+        .expect("the repo rows")
+        .iter()
+        .map(|repo| repo["slug"].as_str().expect("a slug"))
+        .collect();
+    assert_eq!(slugs, ["alpha", "fixture"]);
+    // The write on the same server still refuses: nothing was armed.
+    assert_carrier(
+        &driven.responses[1],
+        "locked",
+        "store is locked: repo fixture",
+    );
+}
+
+/// t63's hand-off, pinned: the registry consult happens BEFORE the
+/// read — an unregistered slug is `unknown_id`, never the raw io a
+/// path-derived `read_repo` would report for the missing directory
+/// (and never a silent read of an unregistered-but-present one).
+#[test]
+fn a_read_on_an_unregistered_slug_is_unknown_id() {
+    let root = fixture();
+    let driven = drive(
+        root.path(),
+        &[call(2, "graph_show", r#"{"repo":"nosuch"}"#)],
+    );
+    assert!(
+        driven.status.success(),
+        "a completed handshake ends 0; stderr: {}",
+        driven.stderr
+    );
+    assert_eq!(driven.responses.len(), 1);
+    assert_carrier(&driven.responses[0], "unknown_id", "unknown id: nosuch");
+}
+
+/// The copied-store cross-check on the read path (the U23/f61 class):
+/// a store directory's log copied under another REGISTERED slug — the
+/// registry consult passes, and `read_repo` is path-derived, so
+/// without the cross-check it would serve the copied graph as the
+/// named repo — is refused as `corrupt_store` with the locked open's
+/// exact detail. The write path's own pin is the swapped-store test
+/// in the write target; this is the read path's.
+#[test]
+fn a_copied_store_under_another_slug_is_corrupt_store() {
+    let root = fixture();
+    // Register `copy` — its own fresh store — then drop the handle.
+    let data_root = DataRoot::new(root.path());
+    drop(
+        data_root
+            .register(Repo {
+                slug: RepoSlug::from_str("copy").expect("a valid slug"),
+                name: "Copy".to_owned(),
+                path: "/repos/copy".to_owned(),
+                registered_at: Timestamp::parse("2026-10-01T10:00:00.000000000Z")
+                    .expect("a fixed canonical timestamp"),
+            })
+            .expect("the copy repo registers"),
+    );
+    // The copy: fixture's log bytes under copy's slug. The registry
+    // lists copy; the store directory holds fixture's graph.
+    fs::copy(
+        root.path().join("repos/fixture/event-log.jsonl"),
+        root.path().join("repos/copy/event-log.jsonl"),
+    )
+    .expect("the log copies");
+    let driven = drive(root.path(), &[call(2, "graph_show", r#"{"repo":"copy"}"#)]);
+    assert!(
+        driven.status.success(),
+        "a completed handshake ends 0; stderr: {}",
+        driven.stderr
+    );
+    assert_eq!(driven.responses.len(), 1);
+    assert_carrier(
+        &driven.responses[0],
+        "corrupt_store",
+        "corrupt store: the store opened for copy holds repo fixture",
+    );
+}
+
+/// §6.2's all-repos semantics under contention (D19): one repo's lock
+/// held by the test process, `graph_show` with no repo parameter —
+/// every registered repo read lock-free, one per slug in the
+/// registry's sorted order — succeeds.
+#[test]
+fn an_all_repos_graph_show_answers_under_one_held_lock() {
+    let root = fixture();
+    let _held = hold_fixture(root.path());
+    let driven = drive(root.path(), &[call(2, "graph_show", r#"{}"#)]);
+    assert!(
+        driven.status.success(),
+        "a completed handshake ends 0; stderr: {}",
+        driven.stderr
+    );
+    assert_eq!(driven.responses.len(), 1);
+    let value: Value =
+        serde_json::from_str(&driven.responses[0]).expect("the response line is JSON");
+    assert_eq!(
+        value["result"]["isError"],
+        json!(false),
+        "{}",
+        driven.responses[0]
+    );
+    let repos = value["result"]["structuredContent"]["repos"]
+        .as_array()
+        .expect("the dump's repos");
+    let slugs: Vec<&str> = repos
+        .iter()
+        .map(|repo| repo["repo"]["slug"].as_str().expect("a slug"))
+        .collect();
+    assert_eq!(slugs, ["alpha", "fixture"]);
 }
 
 // =================================================================

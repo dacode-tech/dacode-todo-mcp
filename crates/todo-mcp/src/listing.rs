@@ -53,10 +53,11 @@
 //! Every tool's failure arm is `Err(e) => Ok(error_carrier(&e.code,
 //! &e.message))` over [`crate::ToolError`] — the one error-mapping
 //! layer (lib.rs), converting store, domain and value faults. The
-//! repo dimension resolves through `ServerState::resolve` under the
-//! state lock; the success arm serializes through the shared
-//! `structured` helper, whose serializer fault bypasses the carrier
-//! per the registry.rs precedent.
+//! repo dimension resolves through `ServerState::resolve_read` under
+//! the state lock — a handles hit borrows the held graph, a miss
+//! reads lock-free (D19); the success arm serializes through the
+//! shared `structured` helper, whose serializer fault bypasses the
+//! carrier per the registry.rs precedent.
 //!
 //! Over the file-size target by recorded exception (`_rust.md`, board
 //! §5/U24): the cluster's dispatch pins all five tools, their params
@@ -347,8 +348,8 @@ fn answer_task_list(
         kind: params.kind.map(TaskKind::from),
         ready: params.ready,
     };
-    let handle = state.resolve(&slug)?;
-    let rows = handle.graph().task_list(&filter)?;
+    let graph = state.resolve_read(&slug)?;
+    let rows = graph.graph().task_list(&filter)?;
     Ok(TaskListDto {
         tasks: rows.into_iter().map(TaskRowDto::from).collect(),
     })
@@ -360,8 +361,8 @@ fn answer_epic_list(
     params: &EpicListParams,
 ) -> Result<EpicListDto, ToolError> {
     let slug = repo_of(state, params.repo.as_deref())?;
-    let handle = state.resolve(&slug)?;
-    let graph = handle.graph();
+    let graph = state.resolve_read(&slug)?;
+    let graph = graph.graph();
     // The None arm is unreachable: every id came off the graph's own
     // ascending accessor, which yields live nodes only.
     let epics = graph
@@ -383,8 +384,8 @@ fn answer_decision_list(
     params: &DecisionListParams,
 ) -> Result<DecisionListDto, ToolError> {
     let slug = repo_of(state, params.repo.as_deref())?;
-    let handle = state.resolve(&slug)?;
-    let graph = handle.graph();
+    let graph = state.resolve_read(&slug)?;
+    let graph = graph.graph();
     // The None arm is unreachable: every id came off the graph's own
     // ascending accessor, which yields live nodes only.
     let decisions = graph
@@ -406,8 +407,8 @@ fn answer_doc_list(
     params: &DocListParams,
 ) -> Result<DocListDto, ToolError> {
     let slug = repo_of(state, params.repo.as_deref())?;
-    let handle = state.resolve(&slug)?;
-    let graph = handle.graph();
+    let graph = state.resolve_read(&slug)?;
+    let graph = graph.graph();
     // The None arm is unreachable: every id came off the graph's own
     // ascending accessor, which yields live nodes only.
     let docs = graph
@@ -447,23 +448,23 @@ fn answer_graph_show(
             Some(slug) => slug.clone(),
             None => epic.repo().clone(),
         };
-        let handle = state.resolve(&slug)?;
-        let dump = epic_scope_dump(handle.graph(), epic)?;
+        let graph = state.resolve_read(&slug)?;
+        let dump = epic_scope_dump(graph.graph(), epic)?;
         Ok(GraphShowDto { repos: vec![dump] })
     } else if let Some(slug) = repo.as_ref() {
-        let handle = state.resolve(slug)?;
+        let graph = state.resolve_read(slug)?;
         Ok(GraphShowDto {
-            repos: vec![repo_scope_dump(handle.graph())?],
+            repos: vec![repo_scope_dump(graph.graph())?],
         })
     } else {
         // The all-repos scope: every registered repo, sorted by slug —
-        // the registry's set (§6.2), resolved one by one (a cold open
-        // on first call per repo, then cached).
+        // the registry's set (§6.2), read one by one lock-free on a
+        // handles miss (D19), never a cold open and never an arming.
         let registry = Registry::load(&state.root)?;
         let mut repos = Vec::new();
         for slug in registry.slugs() {
-            let handle = state.resolve(slug)?;
-            repos.push(repo_scope_dump(handle.graph())?);
+            let graph = state.resolve_read(slug)?;
+            repos.push(repo_scope_dump(graph.graph())?);
         }
         Ok(GraphShowDto { repos })
     }

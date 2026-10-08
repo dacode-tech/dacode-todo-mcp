@@ -214,7 +214,7 @@ shell, which is M3's business.
 
 | Blocking | What | Action |
 |---|---|---|
-| — | nothing blocks: the roadmap is delivered, U27 signed (c), and **D19 signed (a)** — the lock-free read path — with t63 (the store primitive) landed | t64 (the server's read resolve) is next, then U27's retry (t62) — see §6's handover |
+| — | nothing blocks: the roadmap is delivered, U27 signed (c), and **D19 signed (a)** — the lock-free read path — landed end to end (t63 the store primitive, t64 the server's read resolve) | U27's retry (t62) is next — see §6's handover; U35 (the wire-visible repo_list wording) is the user's call |
 
 (The user's calls 2026-10-08: **D19 signed (a)** — the lock-free read
 path: a read-only open that takes no lock, replays the committed
@@ -3366,6 +3366,29 @@ Oldest first. One line per delivery, with the commit hash once committed.
         `read_graph`'s doc, the io-vocabulary claim scoped) — bound
         to the final shas. 130 store tests, every gate green, no
         golden moved, `log.rs` byte-identical.
+- 2026-10-08 — **t64: D19's server half — every read tool resolves
+        lock-free on a handles miss**: `ServerState::resolve_read`
+        (a hit borrows the held graph — U20(b) unchanged; a miss
+        consults the registry, reads through `DataRoot::read_repo`,
+        and runs `resolve`'s slug cross-check byte-identically)
+        behind a private `GraphSource` enum; the fifteen read call
+        sites switched (query ×5, listing ×7 including graph_show's
+        all-repos loop, repo_list/repo_show, the cwd derivation), the
+        write tools untouched — only writes arm. Six wire pins led by
+        the f110 scenario end-to-end (a read on a fresh server
+        succeeds while the test process genuinely holds the lock) and
+        the no-arming pin (repo_list under a held lock, then
+        task_add refusing `locked`). Five mutations killed (M1 the
+        locked-open delegation, M2 the dropped registry consult — a
+        broader kill than predicted, M3/M4 the unswitched call sites,
+        M5 the dropped cross-check). Dual review: both ok in one
+        round, bound to the final shas, ratifying the two disclosed
+        deviations (`Box<Graph>` under clippy's
+        `large_enum_variant`; the read-path naming landing in the §8
+        crate-doc paragraph). No golden moved — the wire surface is
+        byte-unchanged. U35 opened for the two wire-visible
+        descriptions the switch left imprecise; three stale test
+        premises recorded (f111) riding their files' next owners.
 
 
 
@@ -4116,10 +4139,23 @@ Unowned work. Take the next unused `U` id; never renumber, never reuse.
       The implementation lands as t63 (the store primitive) + t64
       (the server's read tools resolving lock-free on a handles miss)
       under the tracker's g16; §1's blocking table carries the gap
-      until they land. **t63 landed 2026-10-08** (the committed-prefix
-      reader + `DataRoot::read_repo`, dual-reviewed to sign-off); t64
-      remains. U27's retry (t62) correctly does not fix this
+      until they land. **t63 and t64 both landed 2026-10-08** — the
+      path is complete: reads never take a store lock, only writes
+      arm. U27's retry (t62) correctly does not fix this
       — genuine contention, the other half of its contract.
+- [ ] **U35 · The two wire-visible repo_list descriptions predate
+      D19's read path.** Opened at t64's closure, both reviewers
+      confirming a full 26-tool sweep found exactly these two:
+      `repo_list`'s tool description and `RepoListDto.repos`' field
+      doc still say each row is read "through the server's held
+      handles" — true on a hit (U20(b)), false on a miss since t64
+      (the lock-free read). Amending them is a wire-visible change
+      (tools/list and the output schema bytes), which is the user's
+      call, not a patch: (a) amend both to the hit-or-lock-free
+      wording — a called-out wire-visible change, no golden moves
+      (descriptions are not golden-pinned); (b) leave them — the
+      armed-server case they describe is the common one. t64's
+      decision 4 deliberately did not touch them.
 
 ## 5. Debt
 
@@ -4378,6 +4414,18 @@ disagreeing by design, and the review's re-bind round recorded the one
 inherent window (a snapshot landing between the log bytes and the
 snapshot document is a transient named `corrupt_store` — loud, never
 silent, retry succeeds; t64's resolve carries that fact). Next: t64.
+
+**t64 landed** (dual review ok in one round, both bound to the final
+shas): `resolve_read` behind a `GraphSource` enum — a hit borrows
+(U20(b) unchanged), a miss consults the registry, reads lock-free,
+and runs `resolve`'s slug cross-check byte-identically; the fifteen
+read sites switched, only writes arm. The f110 scenario is now pinned
+end-to-end over the wire. U35 opened (the two wire-visible
+repo_list descriptions, the user's call); three stale test premises
+recorded (f111 — write/edges.rs:575, read/query.rs:695,
+read/listing.rs:730, the "a read opens/caches the handle" premise the
+switch removed) riding their files' next owners. Next: t62 — U27's
+retry, the last task of this arc.
 
 ### 2026-10-08 — the recorded ledger called; U30 fixed; U27 signed (c)
 

@@ -41,10 +41,11 @@
 //! Every tool's failure arm is `Err(e) => Ok(error_carrier(&e.code,
 //! &e.message))` over [`crate::ToolError`] — the one error-mapping
 //! layer (lib.rs), converting store, domain and value faults. The repo
-//! dimension resolves through `ServerState::resolve` under the state
-//! lock; the success arm serializes through the shared `structured`
-//! helper, whose serializer fault bypasses the carrier per the
-//! registry.rs precedent.
+//! dimension resolves through `ServerState::resolve_read` under the
+//! state lock — a handles hit borrows the held graph, a miss reads
+//! lock-free (D19); the success arm serializes through the shared
+//! `structured` helper, whose serializer fault bypasses the carrier
+//! per the registry.rs precedent.
 
 use std::str::FromStr;
 
@@ -340,10 +341,10 @@ fn answer_next_task(
         .as_deref()
         .map(parse_value::<EpicId>)
         .transpose()?;
-    let handle = state.resolve(&slug)?;
+    let graph = state.resolve_read(&slug)?;
     let answer = match epic.as_ref() {
-        Some(epic) => handle.graph().next_task_of_epic(epic)?,
-        None => handle.graph().next_task(),
+        Some(epic) => graph.graph().next_task_of_epic(epic)?,
+        None => graph.graph().next_task(),
     };
     Ok(NextTaskDto::from(answer))
 }
@@ -371,13 +372,13 @@ fn answer_next_items(
         ));
     }
     let limit = params.limit.unwrap_or(DEFAULT_LIMIT);
-    let handle = state.resolve(&slug)?;
+    let graph = state.resolve_read(&slug)?;
     let answer = if let Some(epic) = epic.as_ref() {
-        handle.graph().next_items_of_epic(epic, limit)?
+        graph.graph().next_items_of_epic(epic, limit)?
     } else if let Some(task) = task.as_ref() {
-        handle.graph().next_items_of_task(task, limit)?
+        graph.graph().next_items_of_task(task, limit)?
     } else {
-        handle.graph().next_items(limit)
+        graph.graph().next_items(limit)
     };
     Ok(NextItemsDto::from(answer))
 }
@@ -393,10 +394,10 @@ fn answer_status_summary(
         .as_deref()
         .map(parse_value::<EpicId>)
         .transpose()?;
-    let handle = state.resolve(&slug)?;
+    let graph = state.resolve_read(&slug)?;
     let answer = match epic.as_ref() {
-        Some(epic) => handle.graph().status_summary_of_epic(epic)?,
-        None => handle.graph().status_summary(),
+        Some(epic) => graph.graph().status_summary_of_epic(epic)?,
+        None => graph.graph().status_summary(),
     };
     Ok(StatusSummaryDto::from(answer))
 }
@@ -408,8 +409,8 @@ fn answer_task_show(
 ) -> Result<TaskDto, ToolError> {
     let slug = repo_of(state, params.repo.as_deref())?;
     let task = parse_value::<TaskId>(&params.task)?;
-    let handle = state.resolve(&slug)?;
-    let node = handle.graph().task(&task).ok_or_else(|| {
+    let graph = state.resolve_read(&slug)?;
+    let node = graph.graph().task(&task).ok_or_else(|| {
         ToolError::from(DomainError::UnknownId {
             id: task.to_string(),
         })
@@ -424,8 +425,8 @@ fn answer_decision_show(
 ) -> Result<DecisionDto, ToolError> {
     let slug = repo_of(state, params.repo.as_deref())?;
     let decision = parse_value::<DecisionId>(&params.decision)?;
-    let handle = state.resolve(&slug)?;
-    let node = handle.graph().decision(&decision).ok_or_else(|| {
+    let graph = state.resolve_read(&slug)?;
+    let node = graph.graph().decision(&decision).ok_or_else(|| {
         ToolError::from(DomainError::UnknownId {
             id: decision.to_string(),
         })

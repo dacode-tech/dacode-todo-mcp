@@ -40,6 +40,16 @@
 //! `std::sync::Mutex`, not tokio's, is the stronger discipline here:
 //! tokio's would *permit* holding the guard across an await.
 //!
+//! Reads and writes reach a store differently (D19, signed
+//! 2026-10-08): a write resolves through `ServerState::resolve`, which
+//! opens the store locked and caches the handle — arming is the
+//! writer contract — while a read resolves through
+//! `ServerState::resolve_read`, which borrows the held graph on a
+//! handles hit (U20(b)) and, on a miss, reads the committed prefix
+//! lock-free through [`DataRoot::read_repo`] — no lock taken, no
+//! handle cached — so a second process (a render, an inspector — the
+//! f110 shape) never contends with a live session server.
+//!
 //! Poisoning is recovered, not fatal: the panic-family lints are
 //! denied workspace-wide, so the guarded region cannot panic and
 //! poison is unreachable; `PoisonError::into_inner` recovers the guard
@@ -108,7 +118,7 @@ use rmcp::model::{
 };
 use rmcp::tool_handler;
 use serde::Serialize;
-use todo_domain::{DomainError, RepoSlug, ValueError};
+use todo_domain::{DomainError, Graph, RepoSlug, ValueError};
 use todo_store::{DataRoot, Registry, Store, StoreError};
 
 mod cwd;
@@ -173,14 +183,16 @@ struct ServerState {
     cwd_default: cwd::CwdDefault,
     /// The open, locked store per registered repo, keyed by slug and
     /// iterated in sorted-slug order (`BTreeMap`) — U20(b)'s
-    /// foundation: the registry queries answer from these handles
-    /// without cold opens. Each is boxed into the [`Store`] trait
-    /// object at insert, so no engine type is held or named (§2); the
-    /// `+ Send` bound is on the trait object, not the trait — rmcp
-    /// dispatches requests concurrently (§6.3), so the state must
-    /// cross threads. A handle keeps its store's advisory lock, which
-    /// is the point: this server is the single writer for every repo
-    /// it holds (§8).
+    /// foundation: on a handles hit, the read tools answer from these
+    /// handles without cold opens; a miss reads lock-free instead of
+    /// arming (D19, [`ServerState::resolve_read`]). Each is boxed
+    /// into the [`Store`] trait object at insert, so no engine type
+    /// is held or named (§2); the `+ Send` bound is on the trait
+    /// object, not the trait — rmcp dispatches requests concurrently
+    /// (§6.3), so the state must cross threads. A handle keeps its
+    /// store's advisory lock, which is the point: this server is the
+    /// single writer for every repo it holds (§8) — and only a write
+    /// arms one.
     handles: BTreeMap<RepoSlug, Box<dyn Store + Send>>,
 }
 
@@ -244,16 +256,19 @@ impl TodoServer {
 }
 
 impl ServerState {
-    /// Every tool's repo dimension: resolve `slug` to an open store
-    /// handle. A handles hit returns the cached handle; a miss consults
-    /// the registry — an unlisted slug is `unknown_id`, the
-    /// `repo_show` pattern (t31), never a raw io — then opens the
-    /// store and caches it, so the first query per repo pays one open
-    /// and every later query reads the handle: U20(b)'s
-    /// no-cold-opens-on-the-query-path, the cold open amortized to
-    /// once per repo per process. A registered store that will not
-    /// open propagates the store's own error (`corrupt_store`/`io`)
-    /// through the carrier.
+    /// The writer's repo dimension: resolve `slug` to an open, locked
+    /// store handle — the arming resolve, every write tool's path
+    /// (nodes, edges, the importer, `repo_set_path`). A handles hit
+    /// returns the cached handle; a miss consults the registry — an
+    /// unlisted slug is `unknown_id`, the `repo_show` pattern (t31),
+    /// never a raw io — then opens the store and caches it, so the
+    /// first write per repo pays one open and every later call reads
+    /// the handle: U20(b)'s no-cold-opens-on-the-answer-path, the
+    /// cold open amortized to once per repo per process. A registered
+    /// store that will not open propagates the store's own error
+    /// (`corrupt_store`/`io`) through the carrier. Read tools take
+    /// [`Self::resolve_read`] instead — the same miss discipline
+    /// minus the lock and the arming (D19).
     ///
     /// Called under the state lock; the registry load happens only on
     /// a miss.
@@ -285,6 +300,72 @@ impl ServerState {
             }
         }
     }
+
+    /// The read tools' repo dimension (D19): resolve `slug` to a graph
+    /// without taking the store's lock and without arming a handle.
+    /// A handles hit borrows the held graph — U20(b) unchanged, the
+    /// armed path byte-identical. A miss mirrors [`Self::resolve`]'s
+    /// discipline minus the lock and the arming: the registry consult
+    /// (an unlisted slug is `unknown_id`, never a raw io —
+    /// [`DataRoot::read_repo`] is path-derived and would otherwise
+    /// read an unregistered-but-present directory silently), then the
+    /// lock-free read of the committed prefix, then the slug
+    /// cross-check — a store directory copied under another slug is
+    /// `corrupt_store` with the same detail the locked open produces,
+    /// never the copied graph served as the named repo. Nothing is
+    /// cached and nothing is written: a read never arms, so an
+    /// unarmed server stays unarmed — only writes open handles.
+    ///
+    /// Takes `&self` because it mutates nothing; called under the
+    /// state lock like every tool body.
+    fn resolve_read(&self, slug: &RepoSlug) -> Result<GraphSource<'_>, ToolError> {
+        if let Some(handle) = self.handles.get(slug) {
+            return Ok(GraphSource::Held(handle.graph()));
+        }
+        let registry = Registry::load(&self.root)?;
+        if !registry.contains(slug) {
+            return Err(ToolError::from(DomainError::UnknownId {
+                id: slug.to_string(),
+            }));
+        }
+        let graph = self.root.read_repo(slug)?;
+        // The mirror of resolve's cross-check: `read_repo` is
+        // path-derived and would otherwise serve a store directory
+        // copied under this slug as the named repo's graph.
+        let repo = graph.repo();
+        if &repo.slug != slug {
+            return Err(ToolError::from(StoreError::CorruptStore {
+                offset: None,
+                detail: format!("the store opened for {slug} holds repo {}", repo.slug),
+            }));
+        }
+        Ok(GraphSource::Read(Box::new(graph)))
+    }
+}
+
+/// Where a read tool's graph came from: the held handle's on a hit
+/// (U20(b)) or the lock-free read's on a miss (D19). The hit stays a
+/// borrow — zero-cost, the armed path byte-identical — while the miss
+/// owns its graph (boxed: the graph dwarfs the borrow, and the enum
+/// is a per-call local, never stored), an answer holdable beside live
+/// writer handles elsewhere.
+enum GraphSource<'a> {
+    /// The held handle's graph, borrowed: the server already holds
+    /// this repo's store, so the read answers from it (U20(b)).
+    Held(&'a Graph),
+    /// The lock-free read's graph, owned: no handle, no lock, the
+    /// committed prefix (D19).
+    Read(Box<Graph>),
+}
+
+impl GraphSource<'_> {
+    /// The graph to answer from, whichever arm produced it.
+    fn graph(&self) -> &Graph {
+        match self {
+            GraphSource::Held(graph) => graph,
+            GraphSource::Read(graph) => graph,
+        }
+    }
 }
 
 /// The repo dimension every relaxed tool shares (the committed D8,
@@ -300,9 +381,11 @@ impl ServerState {
 /// schema cannot carry the rejection and the body must.
 ///
 /// Takes `&mut ServerState` because the cwd tier's first use derives
-/// and caches: the derivation resolves every registered slug through
-/// the handle cache (D5), which opens stores. Every call site already
-/// held `&mut` — they all call [`ServerState::resolve`] after.
+/// and caches the outcome in the memo (D3): the derivation itself
+/// reads every registered slug's `Repo` node lock-free (D19) and arms
+/// nothing, but the memo write is a mutation. Every call site already
+/// held `&mut` — the writes call [`ServerState::resolve`] after, the
+/// reads [`ServerState::resolve_read`].
 pub(crate) fn repo_of(state: &mut ServerState, repo: Option<&str>) -> Result<RepoSlug, ToolError> {
     match repo {
         Some(value) => RepoSlug::from_str(value).map_err(ToolError::from),
