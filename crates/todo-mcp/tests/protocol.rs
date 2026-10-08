@@ -31,7 +31,7 @@ mod protocol {
     use std::process::{Command, ExitStatus, Stdio};
 
     use tempfile::TempDir;
-    use todo_store::{DataRoot, StoreError};
+    use todo_store::DataRoot;
 
     /// U16a's base instructions as measured on the wire — one frozen
     /// copy, shared by the handshake and discover assertions.
@@ -303,25 +303,14 @@ mod protocol {
         assert_eq!(repos[0].name, "Camera");
         assert_eq!(repos[0].path, "/Users/probe/camera");
         assert_eq!(repos[0].registered_at.as_str(), stamped);
-        // U26's isolated cause (g9's experiment, the numbers in U26's
-        // board entry): the in-process `repo_list()` above opens and
-        // closes this store's lock, the lock measured still-held a
-        // millisecond-scale lifetime past the close with no fd holder
-        // anywhere — a deferred kernel-side release (inferred; the
-        // no-in-process-open variant ran clean) — so the immediate
-        // re-open races it. A bounded retry on `locked` — the one
-        // error that means a release is in flight or a writer is
-        // active — keeps the assertion's meaning: the store opens. A
-        // genuine long-held lock still fails, within the retry's
-        // window, with the error named.
-        let mut opened = data_root.open(&repos[0].slug);
-        for _ in 0..5 {
-            if !matches!(&opened, Err(StoreError::Locked { .. })) {
-                break;
-            }
-            std::thread::sleep(std::time::Duration::from_millis(2));
-            opened = data_root.open(&repos[0].slug);
-        }
+        // The store's acquire carries U27's bounded retry now, so this
+        // single open is the detector: the in-process `repo_list()`
+        // above opens and closes this store's lock, and the kernel's
+        // flock teardown can outlive that close by a millisecond-scale
+        // lifetime (U26's board entry, the ledger) — a store-retry
+        // regression reintroduces the U26 flake right here, and this
+        // open fails with `locked` naming it.
+        let opened = data_root.open(&repos[0].slug);
         assert!(
             opened.is_ok(),
             "the store opens after the server exits: {opened:?}"

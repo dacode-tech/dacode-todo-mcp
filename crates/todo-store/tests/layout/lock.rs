@@ -1,13 +1,23 @@
 //! §8's single writer, exercised through the layout: a second writer is
 //! refused with `locked`, the lock is released by `Drop`, a failed open
 //! never holds one, the registry lock contends the same way, and
-//! `open_many` acquires in sorted order and is all-or-nothing.
+//! `open_many` acquires in sorted order and is all-or-nothing. The
+//! acquire's bounded retry window (U27) is pinned from both sides: a
+//! release inside the window is absorbed, and a genuinely held lock
+//! reports `locked` only after the window has burned.
 //!
 //! Contention needs no second process: two descriptors on one lock file
 //! conflict even inside one process (measured M1), so a held store and a
-//! refused open live in the same test.
+//! refused open live in the same test. The mid-window pin's holder is a
+//! spawned thread with a raw `try_lock`, sequenced by a channel so the
+//! open's first attempt is guaranteed to meet the held lock — the
+//! deterministic stand-in for the kernel's deferred teardown, which
+//! cannot be summoned on demand.
 
 use std::fs;
+use std::sync::mpsc;
+use std::thread;
+use std::time::{Duration, Instant};
 
 use tempfile::TempDir;
 use todo_store::{JsonlStore, LockTarget, Store, StoreError};
@@ -58,6 +68,98 @@ fn a_second_writer_is_refused_with_locked_and_the_first_keeps_writing() {
     assert!(
         String::from_utf8_lossy(&bytes).contains("\"kind\":\"epic_add\""),
         "the append landed"
+    );
+}
+
+// =================================================================
+// The bounded retry window (U27): a release inside the window is
+// absorbed; a genuinely held lock reports `locked` only after it.
+// =================================================================
+
+/// The mid-window release pin: a raw holder — a spawned thread that
+/// flocks the lock path itself, sequenced by a channel so the open's
+/// first attempt is guaranteed to meet the held lock — drops after a
+/// sleep well inside the window, and the open's retry absorbs the
+/// release. The thread is the deterministic stand-in for the kernel's
+/// deferred teardown, which cannot be summoned on demand: what the pin
+/// proves is that a `WouldBlock` seen at the window's start does not
+/// become a refusal while the release lands inside it.
+#[test]
+fn a_mid_window_release_is_absorbed() {
+    let dir = TempDir::new().unwrap();
+    let root = data_root(&dir);
+    let camera_slug = slug("camera");
+    register_and_release(&root, camera());
+
+    let lock_path = root.lock_path(&camera_slug);
+    let (held, held_rx) = mpsc::channel::<()>();
+    let holder = thread::spawn(move || {
+        let file = fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .open(&lock_path)
+            .unwrap();
+        file.try_lock().unwrap();
+        held.send(()).unwrap();
+        // The drop lands well inside the acquire's window; which
+        // retried attempt meets the release — or whether the kernel's
+        // teardown trail holds the lock past the drop — is the
+        // kernel's business. The pin's outcome is deterministic
+        // either way: the window absorbs the release.
+        thread::sleep(Duration::from_millis(1));
+        drop(file);
+    });
+    held_rx.recv().unwrap();
+
+    let store = root.open(&camera_slug).unwrap();
+    assert_eq!(store.graph().repo().slug, camera_slug);
+    drop(store);
+    holder.join().unwrap();
+}
+
+/// The genuinely-held pin: the main thread holds the lock raw and never
+/// drops it — a writer genuinely active, not a release in flight — and
+/// the open reports the same `locked` refusal as ever, code and
+/// path-free Display included, but only after the window has burned:
+/// the elapsed lower bound is the window itself
+/// (`RETRY_ATTEMPTS × RETRY_SLEEP_MS`, the definition spelled here
+/// because the pin asserts it; `sleep` guarantees at-least, so the
+/// lower bound holds under any scheduler).
+#[test]
+fn a_genuinely_held_lock_reports_locked_after_the_window() {
+    let dir = TempDir::new().unwrap();
+    let root = data_root(&dir);
+    let camera_slug = slug("camera");
+    register_and_release(&root, camera());
+
+    // Held for the test's whole lifetime: never dropped.
+    let held = fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .truncate(false)
+        .open(root.lock_path(&camera_slug))
+        .unwrap();
+    held.try_lock().unwrap();
+
+    let started = Instant::now();
+    let error = root.open(&camera_slug).unwrap_err();
+    let elapsed = started.elapsed();
+    assert_eq!(
+        error,
+        StoreError::Locked {
+            target: LockTarget::Repo(camera_slug.clone())
+        }
+    );
+    assert_eq!(error.code(), "locked");
+    assert_eq!(error.to_string(), "store is locked: repo camera");
+    assert!(!error.to_string().contains('/'), "{error} carries no path");
+    let window = Duration::from_millis(5 * 2);
+    assert!(
+        elapsed >= window,
+        "the refusal took at least the window: {elapsed:?}"
     );
 }
 

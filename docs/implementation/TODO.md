@@ -214,7 +214,7 @@ shell, which is M3's business.
 
 | Blocking | What | Action |
 |---|---|---|
-| — | nothing blocks: the roadmap is delivered, U27 signed (c), and **D19 signed (a)** — the lock-free read path — landed end to end (t63 the store primitive, t64 the server's read resolve) | U27's retry (t62) is next — see §6's handover; U35 (the wire-visible repo_list wording) is the user's call |
+| — | nothing blocks: the roadmap is delivered, U27 signed (c) and landed (t62), **D19 signed (a)** and landed end to end (t63 + t64) | U35 (the wire-visible repo_list wording) is the user's call; nothing else is owed — see §6's handover |
 
 (The user's calls 2026-10-08: **D19 signed (a)** — the lock-free read
 path: a read-only open that takes no lock, replays the committed
@@ -3365,7 +3365,7 @@ Oldest first. One line per delivery, with the commit hash once committed.
         the concurrent-snapshot transient window recorded in
         `read_graph`'s doc, the io-vocabulary claim scoped) — bound
         to the final shas. 130 store tests, every gate green, no
-        golden moved, `log.rs` byte-identical.
+        golden moved, `log.rs` byte-identical. Landed as `b6d4330`.
 - 2026-10-08 — **t64: D19's server half — every read tool resolves
         lock-free on a handles miss**: `ServerState::resolve_read`
         (a hit borrows the held graph — U20(b) unchanged; a miss
@@ -3389,6 +3389,26 @@ Oldest first. One line per delivery, with the commit hash once committed.
         byte-unchanged. U35 opened for the two wire-visible
         descriptions the switch left imprecise; three stale test
         premises recorded (f111) riding their files' next owners.
+        Landed as `7f55a2c`.
+- 2026-10-08 — **t62: U27's bounded `WouldBlock` retry**: the retry
+        inside `FileLock::acquire_reporting` — the single choke point
+        every lock acquisition funnels through — five attempts two
+        milliseconds apart, then one deciding attempt whose
+        `WouldBlock` reports `locked` with the lazy target derivation
+        unchanged; io faults never retried. `lock.rs`'s doc
+        reconciled (the release-is-the-close bullet gains the
+        measured wrinkle: the kernel's flock teardown can outlive the
+        close by a millisecond-scale lifetime, U26's ledger), §8's
+        single-writer bullet gains the sign's sentence, and the mcp
+        test-side retries retired into detectors — the protocol
+        test's final open under load is the proven reproducer (it
+        failed under the deleted-retry mutation and runs clean with
+        the fix); the hammer is a standing watch, its doc now saying
+        so honestly after both reviewers disproved the reproduction
+        claim three independent records deep. Two timing pins (the
+        mid-window release absorbed; the genuine refusal after the
+        window, the elapsed bounded below by it). Dual review over
+        two rounds, both ok bound to the final shas.
 
 
 
@@ -4422,10 +4442,45 @@ and runs `resolve`'s slug cross-check byte-identically; the fifteen
 read sites switched, only writes arm. The f110 scenario is now pinned
 end-to-end over the wire. U35 opened (the two wire-visible
 repo_list descriptions, the user's call); three stale test premises
-recorded (f111 — write/edges.rs:575, read/query.rs:695,
-read/listing.rs:730, the "a read opens/caches the handle" premise the
-switch removed) riding their files' next owners. Next: t62 — U27's
-retry, the last task of this arc.
+      recorded (f111 — write/edges.rs:575, read/query.rs:695,
+      read/listing.rs:730, the "a read opens/caches the handle" premise the
+      switch removed) riding their files' next owners. Next: t62 — U27's
+      retry, the last task of this arc.
+
+**t62 landed** (dual review over two rounds — the re-bind round
+landing the two prescribed comment rewords: the hammer's doc now
+states the standing-watch truth instead of a reproduction claim three
+records disproved; the mid-window pin's comment no longer runs the
+drop/retry arithmetic backwards): the bounded `WouldBlock` retry
+inside `FileLock::acquire_reporting` (five attempts two milliseconds
+apart, then one deciding attempt; io faults never retried; the lazy
+target on the final refusal), the lock.rs doc reconciliation (the
+release-is-the-close bullet gains the deferred-teardown wrinkle),
+§8's sentence executing the sign, and the mcp test-side retries
+retired into detectors — the protocol test under load is the proven
+reproducer; the hammer is a standing watch. g15 closed. f112
+recorded: tests/layout/repos.rs:725's "Instant appears in this file
+alone" is stale (the genuinely-held pin uses Instant) — rides that
+file's next owner.
+
+**Handover.** Workspace: `main`, clean after the backfill commit;
+four crates; rustc 1.98.1; the release binary was rebuilt this
+session, so `target/release/todo-mcp` carries t64 — verified live:
+`progress.py` rendered while a session server held all four store
+locks. Landed this session: D19's recording (`8686360`), t63
+(`b6d4330`), t64 (`7f55a2c`), t62 (this commit, hash backfilled
+next). Next step: none is owed — the arc the user called (D19 (a),
+then t62) is complete. Blocked on you: **U35 alone** — the two
+wire-visible repo_list descriptions ("through the server's held
+handles", imprecise since t64): amend (a called-out wire-visible
+wording change, no golden moves) or leave. Unverified: nothing new —
+every gate ran this session. The two standing caveats: the release
+binary goes stale after pulls until `cargo build --release -p
+todo-mcp`; the dogfooding store is a derived cache — this session's
+board edits are exactly the board-only edits that need
+`tools/progress.py --refresh` (run at session close; the 16:45
+session server holding the locks does not block it — the refresh
+replaces the store directory wholesale).
 
 ### 2026-10-08 — the recorded ledger called; U30 fixed; U27 signed (c)
 

@@ -873,11 +873,12 @@ fn a_concurrent_read_sees_a_whole_state_never_a_torn_one() {
 /// advisory lock is per file descriptor, so one process contends with
 /// itself (M1's measurement), and a *second* process — the spawned
 /// server — is the contention the lock can actually report. The
-/// bounded `locked` retry is the U26 discipline (the hammer below):
-/// the fixture builder dropped this handle moments ago, and the
-/// kernel's flock teardown can outlive the close by a
-/// millisecond-scale lifetime, so the immediate re-open races the
-/// deferred release.
+/// bounded `locked` retry is the U26 discipline, kept as this helper's
+/// own guard — the store's acquire carries U27's retry now, and the
+/// hammer below is the detector that leans on it: the fixture builder
+/// dropped this handle moments ago, and the kernel's flock teardown
+/// can outlive the close by a millisecond-scale lifetime, so the
+/// immediate re-open races the deferred release.
 fn hold_fixture(root: &Path) -> Box<dyn Store + Send> {
     let data_root = DataRoot::new(root);
     let slug = RepoSlug::from_str("fixture").expect("a valid slug");
@@ -1143,11 +1144,15 @@ const ROUNDS: usize = 150;
 /// fresh root, `repo_register` over the wire, the server exits, the
 /// in-process `repo_list()`, the final open — asserted to succeed
 /// every round, with the panic carrying the `StoreError` so a
-/// recurrence is captured, not silent. The final open carries the
-/// bounded `locked` retry that is the fix (see the comment at the
-/// open), so the standing detector's threshold is that retry's
-/// window: a `locked` that persists past it, or any non-`locked`
-/// error, still fails the round with the error named.
+/// recurrence is captured, not silent. The store's acquire carries
+/// U27's bounded retry now, so the hammer's threshold is the STORE's
+/// window: the test-side retry loop this test once carried is retired
+/// — it masked a store-retry regression. The hammer is a standing
+/// watch, not a reproducer: the flake never landed here even before
+/// any fix existed (t38's ledger), so a clean run is not evidence the
+/// retry is unneeded. The reproducing detector under a regression is
+/// the protocol suite's final open under load — where the g9 campaign
+/// summoned the flake.
 #[test]
 fn the_u26_sequence_hammers_clean_or_reproduces() {
     for round in 0..ROUNDS {
@@ -1174,23 +1179,14 @@ fn the_u26_sequence_hammers_clean_or_reproduces() {
             1,
             "round {round}: the registry lists exactly camera"
         );
-        // The final open carries U26's bounded retry (the protocol
-        // suite's fix, mirrored here): the in-process `repo_list()`
+        // The store's acquire carries U27's bounded retry now, so this
+        // single open is the detector: the in-process `repo_list()`
         // above opens and closes this store's lock, and the kernel's
-        // flock teardown can outlive the close by a millisecond-scale
-        // lifetime (g9's measurement, recorded in U26's board entry),
-        // so the immediate re-open races a deferred release. `locked`
-        // is the one error that means a release is in flight or a
-        // writer is active; a genuine long-held lock still fails,
-        // within the retry's window, with the error named.
-        let mut opened = data_root.open(&repos[0].slug);
-        for _ in 0..5 {
-            if !matches!(&opened, Err(StoreError::Locked { .. })) {
-                break;
-            }
-            std::thread::sleep(std::time::Duration::from_millis(2));
-            opened = data_root.open(&repos[0].slug);
-        }
+        // flock teardown can outlive that close by a millisecond-scale
+        // lifetime (U26's board entry, the ledger) — a store-retry
+        // regression reintroduces the U26 flake right here, and the
+        // round fails with `locked` naming it.
+        let opened = data_root.open(&repos[0].slug);
         assert!(
             opened.is_ok(),
             "round {round}: the store opens after the server exits: {opened:?}"

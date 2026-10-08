@@ -6,7 +6,13 @@
 //!
 //! - **Release is the close.** Dropping the [`File`] releases the lock;
 //!   there is no explicit unlock and no half-released state. RAII is the
-//!   whole mechanism, so the guards here have no release method.
+//!   whole mechanism, so the guards here have no release method. The
+//!   kernel's flock teardown can outlive that close by a
+//!   millisecond-scale lifetime (U26's measurement, recorded on the
+//!   board — the ledger, never a source constant), so a `WouldBlock`ed
+//!   acquire retries within a bounded window before reporting
+//!   `locked`: the refusal then means a writer stayed active past the
+//!   window, not merely that a release was in flight.
 //! - **The lock follows the inode, not the path.** Renaming a locked file
 //!   defeats the lock — a second writer opens the *new* inode under the
 //!   old name and locks it fresh. So a lock file is never itself written
@@ -17,6 +23,12 @@
 //! - **A second descriptor conflicts, even in one process.** Contention
 //!   is per fd, not per process, so these guards' contracts hold against
 //!   a second handle in the same writer as much as against another one.
+//!
+//! The bounded retry the first bullet describes is this crate's one
+//! production use of `std::time`: a sleep span, not a clock read. §8's
+//! determinism is about answers as functions of state, and the retry's
+//! *outcome* is — success or `locked`, a function of lock state; only
+//! its *latency* is bounded by the window.
 //!
 //! A lock file's own bytes mean nothing — `flock` never reads them — so a
 //! failed attempt may leave a zero-byte `.lock` beside a file that does
@@ -33,6 +45,8 @@
 use std::fs::{File, OpenOptions, TryLockError};
 use std::io;
 use std::path::Path;
+use std::thread::sleep;
+use std::time::Duration;
 
 use crate::error::{LockTarget, StoreError, io_error};
 
@@ -43,12 +57,26 @@ pub(crate) const CONTEXT_STORE: &str = "lock the store";
 /// The context string a registry-lock fault reports.
 const CONTEXT_REGISTRY: &str = "lock the registry";
 
+/// The number of `WouldBlock`ed attempts retried inside the bounded
+/// window before the final deciding attempt reports `locked` — the
+/// mechanism that absorbs the kernel's deferred flock release after a
+/// holder's exit (module docs). Pinned from both sides by the layout
+/// suite's timing pins: a release inside the window is absorbed, a
+/// genuinely held lock reports `locked` only after it.
+const RETRY_ATTEMPTS: usize = 5;
+
+/// The sleep between a `WouldBlock`ed attempt and its retry, in
+/// milliseconds — the span that bounds the window at
+/// `RETRY_ATTEMPTS × RETRY_SLEEP_MS`. Pinned by the same timing pins.
+const RETRY_SLEEP_MS: u64 = 2;
+
 /// An advisory exclusive lock on one file, held until this value drops.
 ///
 /// There is no unlock method: closing the handle *is* the release —
 /// dropping the [`File`] drops the `flock`. Keeping the file alive for
 /// the guard's lifetime is therefore not bookkeeping but the mechanism
-/// itself.
+/// itself. The kernel's teardown can trail that close; absorbing the
+/// trail is the acquiring side's business (module docs).
 ///
 /// The lock is on the **inode**, not the path: a rename of the lock file
 /// would defeat it, which is why nothing in this crate ever rewrites a
@@ -68,6 +96,10 @@ impl FileLock {
     /// against `target`: [`StoreError::Locked`] when contended,
     /// [`StoreError::Io`] when the filesystem refused.
     ///
+    /// A `WouldBlock`ed attempt is retried within the bounded window the
+    /// module docs describe before `locked` is reported; an io fault is
+    /// never retried.
+    ///
     /// Nothing is written to the file beyond its creation: an existing
     /// lock file is left exactly as it was, whatever its contents.
     pub(crate) fn acquire(path: &Path, target: LockTarget) -> Result<Self, StoreError> {
@@ -75,8 +107,8 @@ impl FileLock {
         Self::acquire_reporting(path, context, move || Ok(target))
     }
 
-    /// [`Self::acquire`] with the [`LockTarget`] derived **on contention
-    /// only** — the one point the target is ever needed is the
+    /// [`Self::acquire`] with the [`LockTarget`] derived **on the final
+    /// refusal only** — the one point the target is ever needed is the
     /// [`StoreError::Locked`] it populates.
     ///
     /// The lazy shape exists for [`crate::JsonlStore::open_log`], whose
@@ -88,11 +120,26 @@ impl FileLock {
     /// opens, replays and reports its engine faults exactly as before,
     /// and only a *contended* open ever produces a target — the honest
     /// `locked` refusal, naming the repo where a slug exists.
+    ///
+    /// A `WouldBlock`ed attempt is retried within the bounded window the
+    /// module docs describe — [`RETRY_ATTEMPTS`] tries, each followed by
+    /// a [`RETRY_SLEEP_MS`] sleep — and only the final attempt's
+    /// `WouldBlock` reports, so the target derivation runs on that final
+    /// refusal alone and a lock that frees within the window never
+    /// derives one. An io fault is never retried: it is the filesystem's
+    /// refusal, not contention.
     pub(crate) fn acquire_reporting(
         path: &Path,
         context: &str,
         target: impl FnOnce() -> Result<LockTarget, StoreError>,
     ) -> Result<Self, StoreError> {
+        for _ in 0..RETRY_ATTEMPTS {
+            match open_and_try_lock(path) {
+                Ok(file) => return Ok(Self { _file: file }),
+                Err(TryLockError::WouldBlock) => sleep(Duration::from_millis(RETRY_SLEEP_MS)),
+                Err(TryLockError::Error(error)) => return Err(io_error(context, &error)),
+            }
+        }
         match open_and_try_lock(path) {
             Ok(file) => Ok(Self { _file: file }),
             Err(TryLockError::WouldBlock) => Err(StoreError::Locked { target: target()? }),

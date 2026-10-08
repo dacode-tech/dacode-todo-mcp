@@ -662,7 +662,10 @@ Determinism is the product property; everything else is a feature:
   any tool called twice on unchanged state returns identical bytes.
 - **Single writer**: one process mutates one store at a time, held by an
   advisory file lock at the process boundary (`locked` error, §6.1, when
-  contended). Lock scope follows the D4 layout: one lock per repo store
+  contended) — the lock layer retries a contended acquire within a
+  bounded window before reporting `locked`, absorbing the kernel's
+  deferred flock release after a holder's exit (U27, signed (c)
+  2026-10-08). Lock scope follows the D4 layout: one lock per repo store
   plus one for the registry; an operation touching several stores
   acquires locks in sorted-slug order, so acquisition order can never
   deadlock. The JSONL engine (D1) tolerates concurrent readers of a
