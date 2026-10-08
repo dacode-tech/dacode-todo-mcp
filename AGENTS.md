@@ -17,10 +17,15 @@ If `MYAGENTS.md` exists at the repo root, it is untracked, personal, and
 
 ## Project State
 
-**Phase: M5 (packaging, docs, cross-repo ergonomics, polish) is in
-progress — decomposed 2026-10-07 (t51): t52–t57 + g13 are the tree,
-both shaping calls confirmed — U28 (dogfooding) yes, U18 (the live
-view) shape A with D13 left reserved. t52 (packaging per §13) landed
+**Phase: complete — M5 (packaging, docs, cross-repo ergonomics, polish)
+closed 2026-10-08: g13, the exit gate, ran green (every code gate, the
+golden ritual over all 24 goldens, the f41 sweep, the
+packaging/cutover/live-view evidence re-run) and closed g3 — the M0–M5
+roadmap is delivered; what remains is the recorded ledger (U27,
+U13/U24/U25/U29/U30) and the user's calls. The M5 tree was t52–t58 +
+t57 + g13, both shaping calls confirmed — U28 (dogfooding) yes, U18
+(the live view) shape A with D13 left reserved. t52 (packaging per
+§13) landed
 2026-10-07 — the release binary named by the global-config mcp entry
 serving the durable root, the t39 wiring moved, g11's no-live-client
 caveat closed; t58 (U32's schema-format strip, the user's in-thread
@@ -42,7 +47,7 @@ tool surface, dialects), both hygiene tools grown to cover a root
 README; t57 (U21's duplicate-key check) landed 2026-10-08 — the strict
 loader in tools/agents-sync.py refusing a duplicate key anywhere in
 agent-rules.yaml, the f42 silent-shadowing failure made a named hard
-error; g13 (the exit gate, closing g3 with it) is all that remains.**
+error; g13 ran green 2026-10-08, closing g3.**
 M4 (adoption) is
 closed — g11, the exit gate, ran green
 2026-10-07. The gate ran every line of its verify method on the committed

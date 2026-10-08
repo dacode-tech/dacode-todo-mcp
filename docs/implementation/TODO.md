@@ -15,10 +15,18 @@ blocking. Rules, which `tools/attention.py` and the reviewers enforce:
 
 ## 1. Current state
 
-**Phase: M5 (packaging, docs, cross-repo ergonomics, polish) is in
-progress — decomposed 2026-10-07 (t51): t52–t57 + g13 are the tree, and
-the two shaping calls are confirmed — U28 (dogfooding) yes, U18 (the
-live view) shape A with D13 left reserved. t52 (packaging per §13),
+**Phase: complete — M5 (packaging, docs, cross-repo ergonomics, polish)
+closed 2026-10-08: g13, the exit gate, ran green on the final tree —
+every code gate (584 workspace tests), the golden ritual
+byte-identical over all 24 goldens, the f41 sweep (a dual-reviewed
+doc-low rider closing f105/f101; f106/f107/f108 closed on their
+landed pins; the rest verified open with consumers intact), the
+packaging/cutover/live-view evidence re-run (both committed drivers,
+the live refresh, the smoke transcripts) — closing g3 with it: the
+M0–M5 roadmap is delivered. The tree was t52–t58 + t57 + g13 (t51's
+decomposition), the two shaping calls confirmed — U28 (dogfooding)
+yes, U18 (the live view) shape A with D13 left reserved. t52
+(packaging per §13),
 t58 (U32's schema-format strip, the user's in-thread sign mid-t53-prep),
 t53 (cwd auto-detection, D8's deferred arming) and t54 (the U28
 dogfooding cutover — this repo registered and imported in the durable
@@ -32,8 +40,8 @@ to cover a root README; t57 (U21's duplicate-key check) landed
 2026-10-08 — the strict loader in `tools/agents-sync.py` refusing a
 duplicate key anywhere in `agent-rules.yaml`, the f42 silent-shadowing
 failure made a named hard error, `--check` green on the real config
-with both negative proofs recorded; g13 (the exit gate, closing g3
-with it) is all that remains.**
+with both negative proofs recorded; g13 ran green 2026-10-08, closing
+g3.**
 **t51 — the M5 decomposition — landed 2026-10-07**: the tree is t52
 packaging per §13 (the release binary, the global-config mcp entry
 naming the durable root `~/.local/share/dacode-todo/`, this repo's own
@@ -236,7 +244,7 @@ exit criteria: spec §14. Priority is derived from the Gated-on column by
 | M2 | queries: repo/epic selection, dependency resolution, deterministic `next_task`; registry with path updates | **D16** adds one task if signed; no dispatched task waits on it | done 2026-10-02 — **g7 ran green**: every code gate, the five goldens byte-identical under `UPDATE_GOLDEN=1`, `cargo doc` warning-free under both invocations for the first time (f48 settled), §5.2's selection re-proven a pure function of state, the f41 sweep exercised for the first time (f44/f45 promoted to U21/U22, the rest verified open with named consumers), and M2's lessons consolidated into `.agents/pitfalls.md` (P-LIVE-007/-008, the citation rule, the coverage-pin rule). The five deliveries — t27 selection, f47's pins, t28 batch, t29 listing, t30 doc riders, t31 registry queries — are §3's entries; D16 stayed unsigned throughout and nothing waited on it — **signed (a) 2026-10-03, after closure**, its aggregation task landing under M3's goal |
 | M3 | MCP server: §6's tool surface over the wire (import_md excepted — M4's, per D12), protocol-level tests, default-repo slug config (D8), smoke against a real client | gates cleared 2026-10-03: the **rmcp ask** signed (rmcp 3.5.0 + `serde_json/preserve_order`, §6.3), **U20** resolved (b) — the registry format stays and the server answers `repo_list` from handles — and **D16** signed (a), adding the domain aggregation task to the decomposition; D14/D15 settled the wire's key order and error carrier on 2026-09-30; **D17** signed 2026-10-04 (priority on the triage surfaces) | done 2026-10-04 — **g9 ran green**: every code gate (423 workspace tests), the golden ritual byte-identical over all three golden dirs, the §6 tool-surface check (25 tools over the wire, `import_md` the only exception — exactly the criterion), the smoke evidence recorded (t39's real opencode session), U26 reproduced/isolated/fixed at the gate itself (U27 opened for the store-side question), the f41 sweep exercised, and M3's lessons consolidated into `.agents/pitfalls.md`. The nine deliveries — t32 aggregation, t33 skeleton, t34/t35 the read tools, t36 the mutations, t37 edges + registry + the default slug, t38 the wire suite, t39 the smoke + U16b, t40 D17's echo — are §3's entries |
 | M4 | adoption: the dacode-dialect importer first (**D12**, amending D7), its board the only fixture checked in per §10; camera and ikvm-html imported from their live boards and never copied into this repo; the three repos tracked for real | — (D18 signed (a) 2026-10-05, the same day it was drafted) | in progress — **t42 the parser landed 2026-10-05** (parse_board total over the live board, probe-verified), **t43 the D18 mapping landed 2026-10-06** (the ImportPlan + apply_plan, id reproduction pinned at scale), **t44 the `import_md` wire tool landed 2026-10-06** (the importer cluster, the `ApplyError` refusal seam, the `import_md.v1` golden), **t45 the fixture + e2e golden landed 2026-10-06** (the three real files checked in, the first composed run clean, `dacode_dump.v1` pinning the expected graph), **t46 the camera dialect landed 2026-10-06** (the study, the sibling module, the `dialect` param, the live probe — 178 tasks, no golden per D12), **t50 the U31 lift landed 2026-10-07** (the plan types + shared helpers into dialect-neutral homes under `src/import/`, zero behavior change), **t47 the ikvm-html dialect landed 2026-10-07** (the study, the third sibling module on the neutral homes, the `ikvm-html` dialect value, the live probe — 132 tasks, no golden per D12), **t48 the three repos tracked for real landed 2026-10-07** (registered in the durable D4 root, imported over the wire — every import clean on the first composed run, all three stores verified, the query session recorded: the §9 cutover executed) | done 2026-10-07 — **g11 ran green**: every code gate (fmt, check, **543** workspace tests, clippy on a forced recompile, `cargo doc` warning-free under both invocations), the golden ritual byte-identical over all 24 goldens (19 mcp incl. the fixture golden, 4 store, 1 cli), the §6 tool-surface check (a live `tools/list` drive: exactly the spec table's 26 tools, `import_md` included), the live-run evidence (t46/t47's probes + t48's real imports), **f102 swept** in wire.rs (dual-reviewed, `240e7d2`), the f41 sweep (f99 promoted to **U32**; every other open item verified open with its named consumer intact), and M4's lessons consolidated into `.agents/pitfalls.md` (4.7, 4.8, 5.11–5.13; top rules 15–16) |
-| M5 | packaging, docs, cwd auto-detection (deferred by D8), polish | — (the two shaping calls confirmed 2026-10-07: U28 dogfood, U18 shape A — D13 left reserved) | in progress — **decomposed 2026-10-07 (t51)**: **t52 packaging per §13 landed 2026-10-07** (the release binary + the global-config mcp entry + the durable root, g11's no-live-client caveat closed), **t58 U32's schema-format strip landed 2026-10-07** (the user's in-thread sign: the integer-family format hints stripped from every advertised schema, output and input, the Ajv noise gone from every client session), **t53 cwd auto-detection landed 2026-10-07** (D8's deferred arming: the three-tier default param > flag > cwd, the deterministic longest-ancestor match, the §7 amendment riding), **t54 the U28 dogfooding cutover landed 2026-10-07** (the `own` dialect, wire value `dacode-todo-mcp`: this repo's board imported into the durable root — the census matching the prediction exactly, 8 epics / 32 tasks / 17 decisions / 17 edges; `progress.py` a thin client over a per-render stdio spawn, the four hand-maintained tables deleted, U22 resolved with it; the `--refresh` registry surgery with the crash order pinned by a committed driver), **t55 U18's shape A landed 2026-10-08** (`progress.py --serve`: the live listener on 127.0.0.1:0, the per-user port publication with attach / stale-takeover / SIGINT-cleanup pinned by the committed `tools/progress-serve-check.py` driver, f109's census to stderr), **t56 the adoption README landed 2026-10-08** (the front door: what the server is, the §13 wiring reproducing t52's live entry verbatim — machine-verified identical, the store location, the tool-surface pointer, the three-repo adoption story, the dialects; `check-links` and `agents-index` grown to cover the root README, so the standing link gate and the doc index both see it), **t57 U21's duplicate-key check landed 2026-10-08** (the strict loader in `tools/agents-sync.py` refusing a duplicate key anywhere in `agent-rules.yaml`, both negative proofs recorded, `--check` green on the real config); dispatch order t52 → t53 → t54 → t55 → t56 with t57 interleavable (t58 slotted before t53 by the user's call); g13 the exit gate, which also closes g3 |
+| M5 | packaging, docs, cwd auto-detection (deferred by D8), polish | — (the two shaping calls confirmed 2026-10-07: U28 dogfood, U18 shape A — D13 left reserved) | done 2026-10-08 — **g13 ran green**: every code gate (584 workspace tests, 0 failed, 1 ignored), the golden ritual byte-identical over all 24 goldens, the f41 sweep (the doc-low rider `b60c4d1` dual-reviewed closing f105/f101, f106/f107/f108 closed on their landed pins, the rest verified open with consumers intact), the packaging/cutover/live-view evidence re-run (both committed drivers green, the live `--refresh`, the t52/t58 smoke transcripts), pitfalls 5.14/5.15 consolidated, g3 closed with evidence. **decomposed 2026-10-07 (t51)**: **t52 packaging per §13 landed 2026-10-07** (the release binary + the global-config mcp entry + the durable root, g11's no-live-client caveat closed), **t58 U32's schema-format strip landed 2026-10-07** (the user's in-thread sign: the integer-family format hints stripped from every advertised schema, output and input, the Ajv noise gone from every client session), **t53 cwd auto-detection landed 2026-10-07** (D8's deferred arming: the three-tier default param > flag > cwd, the deterministic longest-ancestor match, the §7 amendment riding), **t54 the U28 dogfooding cutover landed 2026-10-07** (the `own` dialect, wire value `dacode-todo-mcp`: this repo's board imported into the durable root — the census matching the prediction exactly, 8 epics / 32 tasks / 17 decisions / 17 edges; `progress.py` a thin client over a per-render stdio spawn, the four hand-maintained tables deleted, U22 resolved with it; the `--refresh` registry surgery with the crash order pinned by a committed driver), **t55 U18's shape A landed 2026-10-08** (`progress.py --serve`: the live listener on 127.0.0.1:0, the per-user port publication with attach / stale-takeover / SIGINT-cleanup pinned by the committed `tools/progress-serve-check.py` driver, f109's census to stderr), **t56 the adoption README landed 2026-10-08** (the front door: what the server is, the §13 wiring reproducing t52's live entry verbatim — machine-verified identical, the store location, the tool-surface pointer, the three-repo adoption story, the dialects; `check-links` and `agents-index` grown to cover the root README, so the standing link gate and the doc index both see it), **t57 U21's duplicate-key check landed 2026-10-08** (the strict loader in `tools/agents-sync.py` refusing a duplicate key anywhere in `agent-rules.yaml`, both negative proofs recorded, `--check` green on the real config); dispatch order t52 → t53 → t54 → t55 → t56 with t57 interleavable (t58 slotted before t53 by the user's call) |
 
 ## 3. Done
 
@@ -3247,6 +3255,47 @@ Oldest first. One line per delivery, with the commit hash once committed.
       what changed. Landed in `_rust.md`'s comment section, the config
       summary, `implementer.md`, and AGENTS.md's committing section;
       `version.custom` 12→13, adapters regenerated.
+- 2026-10-08 — **M5 g13 rider: the doc lows M5 touches passed over
+      (f105, f101)** — the f41 sweep found three doc-level lows whose
+      files M5 touched without the fixes riding: ikvm's decisions doc
+      carried a live-board census (the no-measurement class), lib.rs's
+      importer paragraph was ragged and named three dialects where the
+      crate hosts four, and the missing-golden panic hint named a
+      filter that regenerates neither `import_md.v1` nor the write
+      goldens. All three helper copies (cli/store/mcp) now carry the
+      same target-agnostic hint and a true provenance paragraph.
+      Dual-reviewed over three rounds — both blockers were the same
+      drift class the rider exists to close, found independently each
+      time (a provenance clause the fix itself staled, then the
+      unpropagated third copy). f94 deliberately untouched: its three
+      sites are schemars-carried schema descriptions, wire-visible,
+      the user's call. Landed as `b60c4d1`.
+- 2026-10-08 — **M5 exit gate (g13): M5 closed, g3 closed — the
+      roadmap delivered.** Every line of the verify method ran on the
+      final tree: fmt clean; check --workspace --all-targets clean;
+      test --workspace 584 passed 0 failed 1 ignored (domain 183,
+      store 120, cli 35, mcp 246); clippy clean on a forced recompile;
+      cargo doc warning-free under both invocations; UPDATE_GOLDEN=1
+      over the store/cli/mcp suites with git diff --exit-code over all
+      three golden dirs = 0 (all 24 goldens byte-identical); the
+      committed drivers green (progress-refresh-check,
+      progress-serve-check incl. f109's stdout-purity pins); the live
+      refresh re-importing the moved board; the t52/t58 smoke
+      transcripts on disk; attention --check exit 0; check-links
+      17/11; agents-sync --check green. The f41 sweep: f105/f101
+      closed by the dual-reviewed rider (`b60c4d1`), f106 closed (the
+      word landed with t53's own edits — every site reads
+      ancestor-or-equal), f107/f108 closed on their green pins, f94
+      left open as wire-visible (the user's call), f67/f69 and the
+      store/cli/domain findings verified open with consumers intact
+      (M5 touched none of their files), the board ledger unchanged
+      (U27 the user's call; U13/U24/U25/U29/U30 acknowledged debt).
+      Pitfalls consolidated: 5.14 (a single-source config needs a
+      duplicate-key refusal at its validator — f42/f44/t57) and 5.15
+      (a tool whose stdout is a machine format keeps diagnostics off
+      stdout — f109); the live file was empty at the gate, reset at
+      g11. g12, g13 and g3 closed in the tracker with evidence.
+      Landed as `HASH`.
 
 
 
@@ -4133,6 +4182,45 @@ Deliberate shortcuts, acknowledged rather than fixed. Same id rules as §4.
 Newest first. One entry per session, written for someone who was not
 here. The final entry of a session is the handover
 (`.agents/skills/todo-next-imp/SKILL.md` defines the shape).
+
+### 2026-10-08 — g13: the M5 exit gate — the roadmap delivered
+
+The session's third delivery (the user's "let's start next - g13",
+after the comment/commit-brevity instructions landed as `67295aa`).
+Every line of the gate's verify method ran on the final tree: the
+five code gates (fmt, check, 584 tests / 0 failed / 1 ignored, clippy
+on a forced recompile, doc under both invocations), the golden ritual
+(UPDATE_GOLDEN=1 over the store/cli/mcp suites, git diff --exit-code
+over all three golden dirs = 0 — all 24 goldens byte-identical), the
+committed drivers (progress-refresh-check, progress-serve-check with
+f109's stdout-purity pins), the live refresh, the smoke transcripts
+on disk, and every doc gate.
+
+The f41 sweep found three doc lows whose files M5 touched without the
+fixes riding — the rider (`b60c4d1`, dual-reviewed over three rounds;
+both blockers were the same drift class the rider exists to close,
+found independently each time: a provenance clause the fix itself
+staled, then the unpropagated third helper copy). f106 closed (the
+word landed with t53's own edits), f107/f108 closed on their green
+pins, f94 left open as wire-visible (the user's call), the rest
+verified open with consumers intact — M5 touched none of the
+store/cli/domain files their remedies wait on. Pitfalls 5.14/5.15
+consolidated; the live file was empty (reset at g11, no struggles
+recorded in M5).
+
+**Handover.** Workspace: `main`, four crates, rustc 1.98.1; the gate
+commits leave the tree clean (the index backfill follows, AGENTS.md
+having moved). Landed this session: t57, the brevity instructions,
+the g13 rider, and this gate — **g3 is closed: the M0–M5 roadmap is
+delivered.** Next step: none is owed — the follow-ups are recorded
+where they live (U27 the user's call; U13/U24/U25/U29/U30 the
+acknowledged debt ledger; the tracker's doc-level items — f94
+wire-visible, f67/f69, the store/cli findings — each with its named
+consumer). D13 stays reserved (the shared per-user server instance,
+declined at the M5 decomposition). Blocked on you: nothing. The two
+standing caveats: the release binary goes stale after pulls until
+rebuilt; the dogfooding store is a derived cache — after any
+board-only edit, run `tools/progress.py --refresh`.
 
 ### 2026-10-08 — t57: U21's duplicate-key check
 

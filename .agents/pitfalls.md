@@ -622,6 +622,30 @@ citations must keep resolving.
   superseded notes on the f75–f98 class are the record of what it
   replaced
 
+### 5.14 A config the harness calls a single source of truth needs a duplicate-key refusal at its validator
+- **Scope**: `.agents/config/agent-rules.yaml`, `tools/agents-sync.py`,
+  any future single-source config
+- **What happened**: f42 — two top-level `commands:` keys. PyYAML (like
+  most YAML loaders) keeps the last, so the whole build-command block
+  was dead config that read like live config; nothing noticed until the
+  failure was found by hand. f44 generalised it: the loader was plain
+  `yaml.safe_load`, so nothing prevented a recurrence.
+- **Do instead**: the loader at the config's validator refuses a
+  duplicate key in any mapping, at any depth (t57's `StrictLoader`,
+  proved by splicing duplicates and reverting sha-verified). A
+  single-source config gets the refusal, not a lenient read plus hope.
+- **Promoted from**: f42, f44, t57
+
+### 5.15 A tool whose stdout is a machine format keeps diagnostics off stdout
+- **Scope**: `tools/progress.py`, any tool a consumer pipes
+- **What happened**: f109 — `--json --refresh` printed the import
+  census to stdout, so a consumer piping the JSON got a non-JSON line
+  first.
+- **Do instead**: stdout carries only the declared format; everything
+  else goes to stderr. Pinned by `tools/progress-serve-check.py`'s
+  f109 checks.
+- **Promoted from**: f109 (found t54, fixed t55)
+
 ---
 
 ## Quick Reference: Top Rules
