@@ -103,7 +103,7 @@ pub(crate) struct RepoShowParams {
 /// `repo_list`'s answer (§6): every registered repo, ascending by slug.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
 pub(crate) struct RepoListDto {
-    /// Every registered repo, ascending by slug — the registry's own order, each row read from the repo node through the server's held handles.
+    /// Every registered repo, ascending by slug — the registry's own order, each row read from the repo node through the server's held handle when it holds one, else a lock-free read (D19).
     pub repos: Vec<RepoDto>,
 }
 
@@ -221,7 +221,7 @@ impl TodoServer {
         }
     }
 
-    /// Every registered repository, ascending by slug — the registry's membership, each row read from the repo node through the server's held handles.
+    /// Every registered repository, ascending by slug — the registry's membership, each row read from the repo node through the server's held handle when it holds one, else a lock-free read (D19).
     #[tool(
         name = "repo_list",
         output_schema = crate::schema::output_for_type::<RepoListDto>(),

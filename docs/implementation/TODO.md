@@ -214,9 +214,12 @@ shell, which is M3's business.
 
 | Blocking | What | Action |
 |---|---|---|
-| — | nothing blocks: the roadmap is delivered, U27 signed (c) and landed (t62), **D19 signed (a)** and landed end to end (t63 + t64) | U35 (the wire-visible repo_list wording) is the user's call; nothing else is owed — see §6's handover |
+| — | nothing blocks: the roadmap is delivered, U27 signed (c) and landed (t62), D19 signed (a) and landed end to end (t63 + t64), U35 resolved (a) and landed | U33 (the sibling dialects' duplicate-D debt) awaits your ack; nothing else is owed — see §6's handover |
 
-(The user's calls 2026-10-08: **D19 signed (a)** — the lock-free read
+(The user's calls 2026-10-09: **U35 resolved (a)** — the two
+wire-visible repo_list descriptions amended to the hit-or-lock-free
+wording, landed this session. The 2026-10-08 calls: **D19 signed
+(a)** — the lock-free read
 path: a read-only open that takes no lock, replays the committed
 prefix, and treats an unterminated final line as an append in flight
 (§4.3's scoped reading); drafted and signed in one exchange out of the
@@ -237,7 +240,8 @@ M5: **U21** (t57) and **U22** (t54). Resolved: U2/U4/U5/U6/U7/
 U8/U9/U10/U11/U12/U14/U17, **U15** and **U19** (both taken by t30),
 **U20** (b) 2026-10-03, **U16** 2026-10-04, U3 (superseded by D12), and
 now **U28** and **U18**, both confirmed 2026-10-07 at the M5
-decomposition (t51) — U28 dogfood, U18 shape A with D13 left reserved.)
+decomposition (t51) — U28 dogfood, U18 shape A with D13 left
+reserved — and **U35** (a) 2026-10-09.)
 
 ## 2. Milestones
 
@@ -3420,6 +3424,22 @@ Oldest first. One line per delivery, with the commit hash once committed.
         window, the elapsed bounded below by it). Dual review over
         two rounds, both ok bound to the final shas. Landed as
         `b4fb970`.
+- 2026-10-09 — **U35 (a): the two wire-visible repo_list descriptions
+        amended.** The user's in-thread sign. `registry.rs`'s two
+        wire-visible doc comments — `RepoListDto.repos`' field doc and
+        the `repo_list` tool description, both carried into the
+        advertised schemas — reworded from "through the server's held
+        handles" (true only on a hit since t64) to "the server's held
+        handle when it holds one, else a lock-free read (D19)",
+        `answer_repo_list`'s own documented contract. No golden moves
+        (descriptions are not golden-pinned, U35's own record;
+        measured — UPDATE_GOLDEN=1 over read/protocol/write/import,
+        git diff --exit-code over the golden dir = 0); the f72
+        single-line walker green; every code gate green (262 todo-mcp
+        tests, fmt/check/clippy/doc under both invocations); the
+        release binary rebuilt so the deployed surface carries the
+        corrected descriptions. Dual review ok in one round, both
+        reviewers bound to the final sha.
 
 
 
@@ -4174,7 +4194,7 @@ Unowned work. Take the next unused `U` id; never renumber, never reuse.
       path is complete: reads never take a store lock, only writes
       arm. U27's retry (t62) correctly does not fix this
       — genuine contention, the other half of its contract.
-- [ ] **U35 · The two wire-visible repo_list descriptions predate
+- [x] **U35 · The two wire-visible repo_list descriptions predate
       D19's read path.** Opened at t64's closure, both reviewers
       confirming a full 26-tool sweep found exactly these two:
       `repo_list`'s tool description and `RepoListDto.repos`' field
@@ -4187,6 +4207,16 @@ Unowned work. Take the next unused `U` id; never renumber, never reuse.
       (descriptions are not golden-pinned); (b) leave them — the
       armed-server case they describe is the common one. t64's
       decision 4 deliberately did not touch them.
+      **Resolved 2026-10-09 (a)** — the user's in-thread sign: both
+      amended to "the server's held handle when it holds one, else a
+      lock-free read (D19)". The primary reviewer verified every
+      clause against the code (the hit borrows the held graph, one
+      handle per repo; the miss reads the committed prefix lock-free
+      and arms nothing); the secondary's class sweep re-extracted all
+      26 tool descriptions and found no other wire-visible
+      read-mechanism claim. No golden moved; the release binary
+      rebuilt so the deployed surface carries the corrected
+      descriptions.
 
 ## 5. Debt
 
@@ -4394,6 +4424,46 @@ Deliberate shortcuts, acknowledged rather than fixed. Same id rules as §4.
 Newest first. One entry per session, written for someone who was not
 here. The final entry of a session is the handover
 (`.agents/skills/todo-next-imp/SKILL.md` defines the shape).
+
+### 2026-10-09 — U35 resolved (a): the repo_list descriptions amended
+
+The session opened on the handover's single blocker and the user
+signed **U35 (a)** in-thread: amend. Two doc-comment lines in
+`registry.rs` — `RepoListDto.repos`' field doc and the `repo_list`
+tool description, both wire-visible through the advertised schemas —
+reworded from "through the server's held handles" (true only on a
+hit since t64) to "the server's held handle when it holds one, else
+a lock-free read (D19)", which is `answer_repo_list`'s own
+documented contract in mechanism.
+
+Dual review ok in one round, both reviewers bound to the final sha
+(`fab968919…`): the primary verified every clause against the code —
+the hit borrows the held graph (one handle per repo, the
+`BTreeMap`'s per-key singular), the miss reads the committed prefix
+lock-free and arms nothing, "lock-free" being D19's own scope (the
+store lock, not the state mutex) — and the secondary's class sweep
+extracted all 26 tool descriptions programmatically, finding no
+other wire-visible read-mechanism claim: t64's "exactly these two"
+holds on this tree. No golden moves, measured (UPDATE_GOLDEN=1 over
+read/protocol/write/import, git diff --exit-code over the golden
+dir = 0); the f72 single-line walker green; every code gate green
+(262 todo-mcp tests, fmt/check/clippy/doc under both invocations).
+The release binary rebuilt after the code landed (`progress.py` and
+the global-config entry both spawn it), and the dogfooding store
+refreshed against the fresh binary — the board moved, so the
+derived cache moved with it.
+
+**Handover.** Workspace: `main`, clean after this session's commits;
+four crates; rustc 1.98.1; the release binary rebuilt this session.
+Landed: U35's amend (this commit). Next step: none owed — the
+recorded ledger is down to one item. Blocked on you: **U33 alone** —
+the sibling dialects' duplicate-D debt (the camera/ikvm/own
+decisions registers accept a repeated D row; unreachable on the
+measured boards): acknowledging it is the action, or a task lands
+the hoist if you want it fixed. Unverified: nothing new — every
+gate ran this session; the standing caveats unchanged (the release
+binary goes stale after pulls and importer changes until rebuilt;
+the dogfooding store is a derived cache, refreshed and clean).
 
 ### 2026-10-08 — D19 signed (a): the lock-free read path; t62 resequenced behind it
 
