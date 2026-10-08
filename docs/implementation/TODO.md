@@ -3318,7 +3318,7 @@ Oldest first. One line per delivery, with the commit hash once committed.
        The sibling dialects' decisions registers carry the same gap —
        opened as U33 (the primary reviewer's measurement, f103's
        camera/ikvm half made board-durable). Landed as
-       `<hash-pending>`.
+       `fe13bd0`.
 
 
 
@@ -4260,6 +4260,59 @@ Deliberate shortcuts, acknowledged rather than fixed. Same id rules as §4.
 Newest first. One entry per session, written for someone who was not
 here. The final entry of a session is the handover
 (`.agents/skills/todo-next-imp/SKILL.md` defines the shape).
+
+### 2026-10-08 — the recorded ledger called; U30 fixed; U27 signed (c)
+
+The session opened on the user's calls over the post-M5 ledger, all
+recorded as `23c47e8`: **U27 signed (c)** — the bounded `WouldBlock`
+retry lands inside `FileLock::acquire` as a dedicated `todo-store`
+task (the cross-repo guard the sign rode on, answered from the code:
+store locks are per-repo per-file, so parallel consumers of different
+repos never contend on a store lock; the registry's is the one shared
+lock, held for its short critical section); **U13/U24/U25/U29 acked**
+— no splits scheduled, the entries stay as the recorded ledger;
+**U30 fixed** this session.
+
+U30 landed as `fe13bd0` (dual-reviewed, both reviewers `ok` bound to
+the exact bytes — sha256 and sha1 both verified against the tree):
+seen-maps in every dacode register that lacked one, the entry's named
+two files plus `board.rs`'s three on the class sweep, the
+beyond-the-entry edit ratified by both reviewers (the f71 precedent).
+Nine new tests, each observed failing on HEAD before the fix (the
+duplicates parsed clean — U30's exact defect); the e2e fixture and
+all 24 goldens byte-identical; 593 workspace tests. The sibling
+dialects' decisions registers carry the same gap — **U33** opened
+(the primary reviewer's scratch-worktree measurement; f103's
+camera/ikvm half made board-durable).
+
+Handover:
+
+- **Workspace**: main, clean; four crates; rustc 1.98.1; nothing to
+  install.
+- **Landed**: `23c47e8` (the user's calls recorded), `fe13bd0` (U30's
+  seen-maps, U33 opened).
+- **Next step**: U27's retry — `g15`/`t62` in the session tracker:
+  the bounded `WouldBlock` retry inside `FileLock::acquire`, the
+  `lock.rs` module-doc reconciliation (the release-is-the-close
+  sentence), tests pinning both the spurious-lock success inside the
+  window and the genuinely-contended refusal after it. Verify:
+  `cargo test -p todo-store` with the two pins run by name, the
+  golden ritual byte-identical (locking is not serialized), the full
+  gate order, dual review. Why it and not U33: U27 is the user's
+  signed decision with the task already scoped; U33 is fresh debt
+  with no sign. Alternative: U33's D-check hoist if a
+  camera/ikvm/own board edit is imminent.
+- **Blocked on you**: nothing. D13 stays reserved (no action line);
+  the debt ledger is acked; U33's fix needs no decision — f103's
+  question (hoist the D check or record why the table registers stay
+  duplicate-tolerant) is an engineering call for the next owner of
+  those parsers.
+- **Unverified**: nothing new — every gate ran this session. The two
+  standing caveats hold: the release binary goes stale after pulls
+  until `cargo build --release -p todo-mcp` (the format-version gate
+  refuses a too-old binary rather than guessing), and the dogfooding
+  store needs `tools/progress.py --refresh` after board-only edits
+  (run this session, clean).
 
 ### 2026-10-08 — g13: the M5 exit gate — the roadmap delivered
 
