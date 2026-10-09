@@ -4555,17 +4555,46 @@ through compact's step (1)) rides store.rs's next owner as f114.
 g17 closed with it: the session's whole order (U35, U33, f57)
 delivered.
 
+**The dacode repo onboarded** (the user's order, the session's fourth
+delivery — the first full write-cutover of a sibling): the markdown
+board retired and archived read-only under
+`docs/archive/board-2026-10-09/` (git records the three files as 100%
+renames), the store — imported from the board's final state at
+`671ce48`, verified byte-identical at cutover — becoming the tracker
+of record; the two doc nodes that cited the board files (S17, S18)
+re-pointed at the archive via `doc_set_path`; their harness rewired
+(`todo-mcp*` allows + the native-todo deny on the four working roles,
+the mcp pointer comment — the global entry serves, a project entry
+would shadow); `dacode-imp-next` rewritten to query the server (the
+cold start: HANDOVER.md + decision_list/next_task/status_summary);
+`attention.py` retired (decision_list + next_task succeed it);
+`HANDOVER.md` created as the session narrative; check-links taught to
+skip the frozen archive; 429 board links repointed. The smoke — a
+real opencode session in their repo through their rewritten
+orchestrator — ran the exact cold start (skill → HANDOVER.md →
+decision_list → next_task → status_summary → tasks.py → task_show)
+with every `todo-mcp_*` call allowed by the role override, answering
+`dacode:U175` (the M1.1 gate, the store's unchanged answer). One
+operational leftover cleared on the way: the stale session server
+from 2026-10-08 (PID 99063, f110's measured holder) was killed to
+free the writer lock — its owning window's todo tools restart with
+its next session. Committed in their repo as `0e39005`. The D20 idea
+(the all-in-one binary — the server absorbing progress/refresh/serve
+and possibly todo-cli as subcommands) was raised in-thread and framed
+as a decision awaiting the user's word.
+
 **Handover.** Workspace: `main`, clean after this session's commits;
-four crates; rustc 1.98.1; the release binary rebuilt after the
-importer change (U33) and current. Landed this session: U35's amend
-(`8f02162`), U33's hoist + f103's riders (`998785c`), f57's
-bare-snapshot pin (this commit); the opening sweep closed f110/f113.
-Next step: none owed — the user's order is complete. Blocked on you:
-nothing — the ledger is U36 (a rider on the next ikvm touch) and the
-tracker's riders (f114 among them, store.rs's next owner).
-Unverified: nothing new; the standing caveats unchanged (the release
-binary goes stale after pulls and importer changes until rebuilt;
-the dogfooding store is a derived cache, refreshed and clean).
+four crates; rustc 1.98.1; the release binary current. Landed this
+session: U35's amend (`8f02162`), U33's hoist + f103's riders
+(`998785c`), f57's bare-snapshot pin (`1ce1a3e`), and the dacode
+repo's full cutover onto the server (their `0e39005`); the opening
+sweep closed f110/f113. Next step: none owed — the user's order is
+complete. Blocked on you: nothing — the ledger is U36 (a rider on
+the next ikvm touch), the tracker's riders, and two ops calls: the
+durable root's backup habit (the store is the dacode tracker of
+record now, outside any git repo) and D20 (the all-in-one binary)
+whenever you want the dossier drafted. Unverified: nothing new; the
+standing caveats unchanged.
 
 ### 2026-10-08 — D19 signed (a): the lock-free read path; t62 resequenced behind it
 
