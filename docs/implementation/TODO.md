@@ -3520,8 +3520,8 @@ Oldest first. One line per delivery, with the commit hash once committed.
   amending the cell — all landed in the fix round). Four consecutive
   connection-side implementer-spawn deaths (the 5.4 class, control
   spawns healthy) fell the task back to orchestrator-authored
-  implementation per the t30/t58 precedent. Landed as — hash
-  backfilled below.
+  implementation per the t30/t58 precedent. Landed as
+  `550c60d`.
 
 
 
@@ -4620,8 +4620,7 @@ ratified by both reviewers (the f71 precedent).
 
 **Handover.** Workspace: `main`, clean after this session's commits;
 four crates; rustc 1.98.1; the release binary current (rebuilt at
-t68). Landed this session: t68 (the code commit + the hash backfill
-below). Next step: **t69 — the HTML page** (the Python template
+t68). Landed this session: t68 (`550c60d` + this backfill). Next step: **t69 — the HTML page** (the Python template
 ported to hand-built strings, `--open`/`--out`/`--no-write`
 preserved, twice-run byte-identity) with the user's project-switcher
 fold in scope (the registry's slugs as the switcher, per-repo
