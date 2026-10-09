@@ -1,0 +1,249 @@
+{
+  "repo": "fixture",
+  "import_instant": "2026-10-02T08:00:00.000000000Z",
+  "totals": {
+    "epics": 3,
+    "milestones": {
+      "done": 1,
+      "total": 2
+    },
+    "tasks": 10,
+    "by_kind": {
+      "task": {
+        "total": 6,
+        "done": 2,
+        "open": 4
+      },
+      "gate": {
+        "total": 2,
+        "done": 1,
+        "open": 1
+      },
+      "finding": {
+        "total": 1,
+        "done": 0,
+        "open": 1
+      },
+      "debt": {
+        "total": 1,
+        "done": 0,
+        "open": 1
+      }
+    },
+    "open_items": [
+      "U3",
+      "U4",
+      "U5",
+      "U6",
+      "U7",
+      "U8",
+      "U10"
+    ],
+    "decisions": {
+      "signed": 1,
+      "total": 4
+    },
+    "not_placed": [
+      "D4 (a decision gating nothing)"
+    ]
+  },
+  "milestones": [
+    {
+      "id": "M0",
+      "title": "Milestone zero",
+      "status": "closed"
+    },
+    {
+      "id": "M1",
+      "title": "Milestone one",
+      "status": "open"
+    }
+  ],
+  "open_items": [
+    {
+      "id": "U3",
+      "kind": "task",
+      "status": "open",
+      "title": "Wire the sensor",
+      "waits_on": "D1"
+    },
+    {
+      "id": "U4",
+      "kind": "task",
+      "status": "in_work",
+      "title": "Calibrate",
+      "waits_on": "D1"
+    },
+    {
+      "id": "U5",
+      "kind": "finding",
+      "status": "open",
+      "title": "A finding",
+      "waits_on": "D1"
+    },
+    {
+      "id": "U6",
+      "kind": "debt",
+      "status": "deferred",
+      "title": "Known debt",
+      "waits_on": "D1"
+    },
+    {
+      "id": "U7",
+      "kind": "task",
+      "status": "blocked",
+      "title": "The blocked one",
+      "waits_on": "D1"
+    },
+    {
+      "id": "U8",
+      "kind": "task",
+      "status": "open",
+      "title": "A follow-up",
+      "waits_on": ""
+    },
+    {
+      "id": "U10",
+      "kind": "gate",
+      "status": "open",
+      "title": "The next gate",
+      "waits_on": ""
+    }
+  ],
+  "decisions": [
+    {
+      "id": "D1",
+      "status": "open",
+      "title": "Gate milestone one",
+      "gates": [
+        "E2"
+      ]
+    },
+    {
+      "id": "D2",
+      "status": "open",
+      "title": "Gate the wiring task",
+      "gates": [
+        "U3"
+      ]
+    },
+    {
+      "id": "D3",
+      "status": "signed",
+      "title": "The encoder profile",
+      "gates": [
+        "U8"
+      ]
+    },
+    {
+      "id": "D4",
+      "status": "open",
+      "title": "A decision gating nothing",
+      "gates": []
+    }
+  ],
+  "graph": {
+    "nodes": [
+      {
+        "id": "U1",
+        "kind": "task",
+        "status": "closed",
+        "lane": "fixture:E1"
+      },
+      {
+        "id": "U2",
+        "kind": "gate",
+        "status": "closed",
+        "lane": "fixture:E1"
+      },
+      {
+        "id": "U3",
+        "kind": "task",
+        "status": "open",
+        "lane": "fixture:E2"
+      },
+      {
+        "id": "U4",
+        "kind": "task",
+        "status": "in_work",
+        "lane": "fixture:E2"
+      },
+      {
+        "id": "U5",
+        "kind": "finding",
+        "status": "open",
+        "lane": "fixture:E2"
+      },
+      {
+        "id": "U6",
+        "kind": "debt",
+        "status": "deferred",
+        "lane": "fixture:E2"
+      },
+      {
+        "id": "U7",
+        "kind": "task",
+        "status": "blocked",
+        "lane": "fixture:E2"
+      },
+      {
+        "id": "D1",
+        "kind": "decision",
+        "status": "open",
+        "lane": "fixture:E2"
+      },
+      {
+        "id": "D2",
+        "kind": "decision",
+        "status": "open",
+        "lane": "fixture:E2"
+      },
+      {
+        "id": "U8",
+        "kind": "task",
+        "status": "open",
+        "lane": "fixture:E3"
+      },
+      {
+        "id": "U9",
+        "kind": "task",
+        "status": "wontfix",
+        "lane": "fixture:E3"
+      },
+      {
+        "id": "U10",
+        "kind": "gate",
+        "status": "open",
+        "lane": "fixture:E3"
+      },
+      {
+        "id": "D3",
+        "kind": "decision",
+        "status": "signed",
+        "lane": "fixture:E3"
+      }
+    ],
+    "edges": [
+      {
+        "from": "D1",
+        "to": "E2"
+      },
+      {
+        "from": "D2",
+        "to": "U3"
+      },
+      {
+        "from": "D3",
+        "to": "U8"
+      },
+      {
+        "from": "U1",
+        "to": "U3"
+      },
+      {
+        "from": "U8",
+        "to": "U10"
+      }
+    ]
+  }
+}

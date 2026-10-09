@@ -215,6 +215,10 @@ fn bounded(line: &str) -> String {
 // =================================================================
 
 /// One `tools/call` request line with a fixed id.
+// The progress target (t68) drives no JSON-RPC at all, so these three
+// drive-half helpers are unreferenced there: allowed dead per item,
+// the drive variants' remedy.
+#[allow(dead_code)]
 pub(crate) fn call(id: u64, name: &str, arguments: &str) -> String {
     format!(
         r#"{{"jsonrpc":"2.0","id":{id},"method":"tools/call","params":{{"name":"{name}","arguments":{arguments}}}}}"#
@@ -222,6 +226,7 @@ pub(crate) fn call(id: u64, name: &str, arguments: &str) -> String {
 }
 
 /// The structuredContent of one response line, parsed.
+#[allow(dead_code)]
 pub(crate) fn structured(response: &str) -> Value {
     let value: Value = serde_json::from_str(response).expect("the response line is JSON");
     value["result"]["structuredContent"].clone()
@@ -230,6 +235,7 @@ pub(crate) fn structured(response: &str) -> Value {
 /// Asserts one response is D15's carrier for `code`/`message`:
 /// `isError: true`, the code in `structuredContent`, and the same JSON
 /// mirrored into the text block.
+#[allow(dead_code)]
 pub(crate) fn assert_carrier(response: &str, code: &str, message: &str) {
     let value: Value = serde_json::from_str(response).expect("the response line is JSON");
     assert_eq!(value["result"]["isError"], json!(true), "{response}");
@@ -736,6 +742,9 @@ const INITIALIZED: &str = r#"{"jsonrpc":"2.0","method":"notifications/initialize
 
 /// What one drive collected: the tool responses in request order, the
 /// server's stderr and its exit status.
+// The progress target (t68) drives nothing, so the collected fields
+// are unread there: allowed dead, the drive half's remedy.
+#[allow(dead_code)]
 pub(crate) struct Driven {
     /// The tool responses, one line each, in request order.
     pub responses: Vec<String>,

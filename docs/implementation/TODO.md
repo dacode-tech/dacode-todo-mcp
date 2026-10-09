@@ -214,7 +214,7 @@ shell, which is M3's business.
 
 | Blocking | What | Action |
 |---|---|---|
-| — | nothing blocks: the roadmap is delivered, D19 landed end to end, U35/U33/f57 landed, the dacode repo cut over | **D20 signed (the direction) 2026-10-09** — the all-in-one binary arc (g19: t68–t73) is decomposed and ready to start; U36 rides the next ikvm touch — see §6's handover |
+| — | nothing blocks: the roadmap is delivered, the dacode repo cut over, the D20 arc is under way | **g19 in flight**: t68 (the dispatch + the JSON render) landed 2026-10-09; t69 (the HTML page + the project switcher) is next; g20 (ipmi-collector) and g21 (this repo's own cutover, the user's sign) are queued behind the arc; U36 rides the deferred ikvm revisit — see §6's handover |
 
 (The user's calls 2026-10-09: **U35 resolved (a)** — the two
 wire-visible repo_list descriptions amended to the hit-or-lock-free
@@ -3488,6 +3488,41 @@ Oldest first. One line per delivery, with the commit hash once committed.
         fixed → ok re-bound on the final bytes. Landed as
         `1ce1a3e`.
 
+- 2026-10-09 — **D20 t68: the dispatch skeleton + `progress --json`**:
+  the binary's first subcommand tier — the globals (`--root` required
+  on every path, `--repo` validated at parse) collected
+  position-independently, the first positional selecting the command,
+  `progress` routing to the new render path, and NO positional at all
+  remaining the MCP server on stdio byte-identical (the protocol
+  suite and every wire golden the pin, unmoved). The render module
+  (`src/render.rs`, 719 production lines, the U37 exception recorded
+  with t69 named as the split point) ports the Python tool's
+  `build()` model onto the domain `Graph` read lock-free (D19 — the
+  f110 scenario pinned at the subcommand level: a render succeeds
+  beside a genuinely held lock), mirrors `resolve_read`'s resolution
+  discipline exactly (registry consult → lock-free read → slug
+  cross-check), and emits the golden-pinned JSON v1
+  (`progress.v1.golden`) — a pure function of (root, repo): no
+  clock, no git, no tracker, the Python's non-store fields
+  deliberately dropped. The cwd tier re-derived in the render module
+  (`cwd.rs` frozen), the milestone prefix generalized across all
+  four dialects (dacode's is §5, measured). Eleven progress tests +
+  five new dispatch tests + the two matcher unit tests; 637
+  workspace tests green; the mutations M1–M6 killed at their
+  predicted tests and reverted sha-verified; the live smoke: the
+  release binary rendering the durable root twice-run
+  byte-identical, per-repo (`--repo camera`), and per-checkout (the
+  cwd tier answering ikvm-html from that checkout). Dual review over
+  two rounds, both ok bound to the final bytes (the round-1 findings
+  — the U13→U37 ledger citation, the unpinned no-epics refusal, the
+  P-LIVE nesting, and the secondary's high on the spec's own D7
+  table cell contradicting its prose on edge ids, resolved by
+  amending the cell — all landed in the fix round). Four consecutive
+  connection-side implementer-spawn deaths (the 5.4 class, control
+  spawns healthy) fell the task back to orchestrator-authored
+  implementation per the t30/t58 precedent. Landed as — hash
+  backfilled below.
+
 
 
 ## 4. Follow-ups
@@ -4487,11 +4522,116 @@ Deliberate shortcuts, acknowledged rather than fixed. Same id rules as §4.
       closing f103 fully. The one residual the review's completeness
       sweep found — ikvm's footer table — is U36.
 
+- [ ] **U37 · `todo-mcp/src/render.rs` is over the 600-line target.**
+      719 production lines under the awk measure (the cap holds): the
+      model, the document and — with t69's page — the render are one
+      responsibility until the page lands. The split point is t69's
+      growth: the model and document halves, the page beside them.
+      The module doc carries the exception line citing this entry.
+
 ## 6. Session log
 
 Newest first. One entry per session, written for someone who was not
 here. The final entry of a session is the handover
 (`.agents/skills/todo-next-imp/SKILL.md` defines the shape).
+
+### 2026-10-09 — t68: the D20 arc opens — the dispatch + the JSON render
+
+The session opened on the user's word — "let's move with D20",
+overriding the previous session's fresh-session recommendation — and
+on three questions answered before the work started:
+
+- **Why this repo still carries a huge TODO.md**: U28's confirmed
+  shape (2026-10-07) is dogfooding as a query surface only — the
+  board + `tasks.py` stay the trackers of record, the cutover
+  reversible. The dacode sibling went further (t67: the full write
+  cutover, its board archived). The user then signed THIS repo's
+  switch: **g21** (the tracker goal) — the store becomes the tracker
+  of record, session tracking moves to `todo-mcp` tool calls, the
+  board archived, the harness conventions rewritten — sequenced after
+  g19 per the accepted suggestion (switching trackers under a live
+  arc orphans its own tracking; it composes with t73's doc moves).
+  The server's write-time closure discipline covers `tasks.py
+  check`'s node-level flags up front (verify at creation, evidence at
+  closure, note on blocked/deferred); what the decomposition must
+  design is the session-end audit (open goals, the f41 sweep) and
+  where the in-flight tracker state migrates.
+- **Multi-project HTML serving** (the user's ask): folded into the
+  arc's t69/t71 scope — the page and the served surface gain a repo
+  switcher driven by the registry, each render per-repo over the
+  lock-free read (D19 — renders never contend with live session
+  servers). The Python tool rendered only this repo because its slug
+  was hardcoded; the Rust render is per-repo by construction, proven
+  live at t68 (the cwd tier answering ikvm-html from that checkout).
+- **Where the items with descriptions live**: in the event log
+  itself — D1's signed design. Every node add is one full-payload
+  JSONL line (title, body, status, kind, references, timestamps);
+  updates are patch lines; the graph is the replay; snapshots
+  materialize the whole graph once written (nothing compacts outside
+  tests, so a store shows `event-log.jsonl` + its `.lock` + the
+  root's `registry.json`). `task_show`/`graph_show` read them back.
+
+Two more directions recorded: **g20** — the ipmi-collector migration
+(the user's order, `/Users/mouse/RPM/ali/ipmi-collector`, a two-file
+U-id/decisions board in the family, the t67 playbook, queued behind
+g19 with g21 after it — the order is the user's to flip) — and
+**ikvm-html's migration deferred** (a live session works there;
+revisit when it settles, which also parks U36's consumer further
+out).
+
+**t68 landed** (the arc's first task): the dispatch skeleton +
+`todo-mcp progress --json`. Four consecutive connection-side
+implementer-spawn deaths (the 5.4 class — control spawns healthy,
+the tree clean after each) fell the task back to
+orchestrator-authored implementation per the t30/t58 precedent, with
+the full dual review after. The delivery: the subcommand dispatch
+(globals position-independent, the first positional selecting, no
+positional = the MCP server on stdio **byte-identical** — the
+protocol suite and every wire golden unmoved), the render module
+(719 production lines, the U37 exception, t69 the split point), the
+resolution mirroring `resolve_read` exactly, the cwd tier
+re-derived in the render module (`cwd.rs` frozen), the
+golden-pinned JSON v1 (a pure function of the store — the Python's
+clock/git/tracker fields deliberately dropped), and the milestone
+prefix generalized across all four dialects (dacode's is §5,
+measured). 637 workspace tests; the mutations M1–M6 killed at their
+predicted tests and reverted sha-verified; the live smoke green
+(twice-run byte-identical over the durable root, per-repo,
+per-checkout). Dual review over two rounds — round 1 both
+changes_requested (the primary: the U13→U37 ledger citation, the
+unpinned no-epics refusal, two report figures; the secondary: a
+high on the spec's own D7 table cell contradicting its prose on
+edge ids — resolved by amending the spec cell, the implementation
+standing on the prose clause, the Python ancestor and the
+document's internal consistency; plus the P-LIVE nesting and the
+same two lows) — the fix round landed all of it, and the binding
+round returned both ok on the final bytes. The folding-convention
+divergences recorded: the pub surface grew to three fns
+(`resolve_by_cwd` — the lib stays env-free, the binary passes the
+cwd in); the golden's name is `progress.v1.golden` (the helper
+appends `.golden`); two test expectations corrected for the
+canonical nine-digit timestamp and the `corrupt store: ` prefix;
+D9's "per-target counts unchanged except main/progress" was false
+(lib 20→22, the matcher unit tests); the spec's D7 edge-id cell
+(amended); and the `common/mod.rs` owned-set deviation — the
+drive-half helpers gaining `#[allow(dead_code)]` per the file's own
+pattern, the progress target being the first to drive no JSON-RPC —
+ratified by both reviewers (the f71 precedent).
+
+**Handover.** Workspace: `main`, clean after this session's commits;
+four crates; rustc 1.98.1; the release binary current (rebuilt at
+t68). Landed this session: t68 (the code commit + the hash backfill
+below). Next step: **t69 — the HTML page** (the Python template
+ported to hand-built strings, `--open`/`--out`/`--no-write`
+preserved, twice-run byte-identity) with the user's project-switcher
+fold in scope (the registry's slugs as the switcher, per-repo
+renders over `read_repo`); its spec should split `render.rs` at the
+U37-named seam if the page pushes the module past the point of one
+responsibility. Blocked on you: nothing — g20/g21 are queued behind
+the arc, U36 rides the deferred ikvm revisit. Unverified: nothing
+new; the standing caveats unchanged (the store-format version gate
+refuses a too-old binary; the release binary goes stale after pulls
+until rebuilt).
 
 ### 2026-10-09 — U35 resolved (a): the repo_list descriptions amended
 

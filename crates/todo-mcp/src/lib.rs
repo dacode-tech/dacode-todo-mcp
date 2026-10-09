@@ -68,6 +68,17 @@
 //! process at first use (D3) — a `repo_set_path` or a later
 //! `repo_register` does not move it.
 //!
+//! # The progress render (D20)
+//!
+//! The same binary carries the tool CLI (§13, D20): subcommands over
+//! the store, the first of them `progress` — the total-progress
+//! document [`render`] computes from one repo's graph, read lock-free
+//! (D19) so a render never contends with a live session server. The
+//! render is a pure function of `(root, repo)` — no clock, no git, no
+//! environment — which is what makes its JSON golden-pinnable; the
+//! binary owns the argument parse and the one cwd read, the module
+//! owns the model.
+//!
 //! # The error carrier (D15)
 //!
 //! Every tool failure travels through the `error_carrier` helper as
@@ -130,6 +141,7 @@ mod listing;
 mod nodes;
 mod query;
 mod registry;
+pub mod render;
 mod schema;
 mod time;
 

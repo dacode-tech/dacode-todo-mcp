@@ -5,18 +5,21 @@
 //! all selection and ordering the domain's, all persistence the
 //! store's.
 //!
-//! The data root is explicit configuration (§7/§13/D8): `--root <DIR>`
-//! names the store location; nothing reads the environment, a home
-//! directory or the cwd to find one. The default repo slug resolves
-//! in three tiers (the committed D8, its cwd tier armed at M5/t53):
-//! `--repo <SLUG>`, validated here — configuration is validated where
-//! it enters, so a malformed value is a usage fault, not a wire error
-//! the first tool call would answer — else the working directory's
-//! deterministic match against the registered checkouts (§7). The cwd
-//! is read once, here at startup, and passed into the lib as a value
-//! (D1): the lib stays env-free, and a read that fails — a deleted
-//! cwd — passes `None` and derives no default. An explicit tool
-//! parameter outranks both tiers.
+//! The same binary carries the tool CLI (§13, D20): the first
+//! positional selects a subcommand, and no positional at all is the
+//! MCP server on stdio — the wiring every client has is unchanged.
+//! `progress` (t68's slice) renders the total-progress document; the
+//! later subcommands (`refresh`, `serve`, the inspector absorption)
+//! land as their own tasks. The globals are shared: `--root <DIR>`
+//! names the store location on every path — nothing reads the
+//! environment, a home directory or the cwd to find one — and
+//! `--repo <SLUG>`, validated here, is the server's default slug
+//! (D8) or the subcommand's repo selection, resolved flag over
+//! working-directory match (§7). The cwd is read once, here at
+//! startup, and passed into the lib as a value (D1): the lib stays
+//! env-free, and a read that fails — a deleted cwd — passes `None`
+//! and derives no default. An explicit tool parameter outranks both
+//! tiers.
 
 // Tests are exempt from the panic-family lints through a mechanism, not
 // a convention (the workspace's rule, stated once in the root
@@ -41,48 +44,71 @@ use std::str::FromStr;
 use rmcp::ServiceExt;
 use todo_domain::RepoSlug;
 use todo_mcp::TodoServer;
+use todo_mcp::render;
 use todo_store::DataRoot;
 
 /// The usage-fault exit code (the cli's convention).
 const EXIT_USAGE: u8 = 2;
 
+/// The render-failure exit code: the repo did not resolve, or the
+/// store did not read — an environment fault, not an argument fault.
+const EXIT_RENDER: u8 = 1;
+
 /// The hand-written usage text every argument fault appends — a fault
 /// always carries the way to use the tool correctly, on stderr where
 /// the fault belongs.
 const USAGE: &str = "\
-todo-mcp — the dacode-todo MCP server over stdio (spec §13).
+todo-mcp — the dacode-todo MCP server and tool CLI (spec §13).
 
 Usage:
-  todo-mcp --root <DIR> [--repo <SLUG>]
+  todo-mcp --root <DIR> [--repo <SLUG>]                    the MCP server on stdio
+  todo-mcp --root <DIR> [--repo <SLUG>] progress [--json]  the total-progress render
 
 Options:
       --root <DIR>    The data root holding repos/<slug>/ and the shared
-                      registry (required; D4's default location is
-                      ~/.local/share/dacode-todo/, resolved by the caller)
-      --repo <SLUG>   The default repository slug (D8): applied whenever
-                      a tool's repo parameter is absent, outranking the
-                      working-directory match (§7); an explicit
-                      parameter always wins
+                      registry (required on every path; D4's default
+                      location is ~/.local/share/dacode-todo/, resolved
+                      by the caller)
+      --repo <SLUG>   The repository: the server's default slug (D8),
+                      applied whenever a tool's repo parameter is
+                      absent, or the repo the progress subcommand
+                      renders — an explicit value always wins over the
+                      working-directory match (§7)
+      --json          With `progress`: print the JSON document instead
+                      of the human summary
 
 Exit codes:
-  0  the client closed the connection after a completed handshake
-  1  the serve loop failed: the transport, the service, or a peer that
-     closes before the initialize handshake completes
-  2  usage: a bad flag, a missing --root, or a malformed --repo value
+  0  the client closed the connection after a completed handshake, or
+     the subcommand succeeded
+  1  the serve loop failed, or the render failed: a repo that does not
+     resolve, or a store that will not read
+  2  usage: a bad flag, a missing --root, a malformed --repo value, or
+     an unknown subcommand
 ";
 
-/// The parsed startup configuration: the data root and the optional
-/// default repo slug.
+/// The parsed command line (§13, D20): which of the binary's shapes
+/// this invocation is. The globals are shared; the first positional
+/// selects.
 #[derive(Debug, PartialEq, Eq)]
-struct Config {
-    /// The data root (§7/§13/D4): every store and the shared registry
-    /// live under it, validated nowhere here — the store reports a
-    /// missing one as its honest `io` fault.
-    root: OsString,
-    /// The default repo slug (the committed D8): applied whenever a
-    /// tool's `repo` parameter is absent; an explicit parameter always
-    /// wins. `None` when the flag was not given.
-    default_repo: Option<RepoSlug>,
+enum Command {
+    /// No subcommand: the MCP server on stdio, unchanged — the
+    /// protocol suite and every wire golden pin its bytes.
+    Serve {
+        /// The data root (§7/§13/D4).
+        root: OsString,
+        /// The default repo slug (the committed D8).
+        default_repo: Option<RepoSlug>,
+    },
+    /// `progress`: the total-progress render (t68's slice of D20's
+    /// tool CLI).
+    Progress {
+        /// The data root (§7/§13/D4).
+        root: OsString,
+        /// The repo to render — `None` resolves through the cwd tier.
+        repo: Option<RepoSlug>,
+        /// Whether to print the JSON document instead of the summary.
+        json: bool,
+    },
 }
 
 /// Entry point. `clippy::exit` is denied workspace-wide — the binary
@@ -91,15 +117,16 @@ struct Config {
 #[tokio::main]
 async fn main() -> ExitCode {
     match parse_args(std::env::args_os().skip(1)) {
-        Ok(config) => {
+        Ok(Command::Serve { root, default_repo }) => {
             // The cwd, read once and eagerly (D1): the one environment
             // touch this binary makes for the default tier, passed in
             // as a value so the lib stays env-free. `None` when the
             // read fails — a deleted cwd — and the lib derives no
             // default from an absent cwd.
             let cwd = std::env::current_dir().ok();
-            serve(DataRoot::new(config.root), config.default_repo, cwd).await
+            serve(DataRoot::new(root), default_repo, cwd).await
         }
+        Ok(Command::Progress { root, repo, json }) => run_progress(root, repo, json),
         Err(message) => {
             // The message, a blank line, then the usage text (the cli's
             // convention).
@@ -134,16 +161,57 @@ async fn serve(root: DataRoot, default_repo: Option<RepoSlug>, cwd: Option<PathB
     }
 }
 
-/// Parses `--root <DIR>` and the optional `--repo <SLUG>` from the
-/// argument vector — program name excluded, the shape
-/// `lexopt::Parser::from_args` wants. lexopt (U14) is pedantic:
-/// anything but the two flags and their values is a usage fault,
-/// never a guess. The root is validated nowhere here — the store
-/// reports a missing one as its honest `io` fault — while the slug is
-/// validated at the parse: configuration is validated where it
-/// enters, so a malformed `--repo` value is a usage fault (exit 2),
-/// not a wire error.
-fn parse_args<I>(args: I) -> Result<Config, String>
+/// The `progress` subcommand (D20): resolve the repo — the flag wins,
+/// else the cwd tier, the binary reading the cwd once here so the lib
+/// stays env-free — then render and print. A failure is exit 1 with
+/// the message on stderr: the repo did not resolve or the store did
+/// not read, which is an environment fault, not an argument fault.
+fn run_progress(root: OsString, repo: Option<RepoSlug>, json: bool) -> ExitCode {
+    let root = DataRoot::new(root);
+    let slug = match repo {
+        Some(slug) => slug,
+        None => {
+            let cwd = std::env::current_dir().ok();
+            match render::resolve_by_cwd(&root, cwd.as_deref()) {
+                Ok(slug) => slug,
+                Err(message) => {
+                    eprintln!("todo-mcp: {message}");
+                    return ExitCode::from(EXIT_RENDER);
+                }
+            }
+        }
+    };
+    let outcome = if json {
+        render::json(&root, &slug)
+    } else {
+        render::summary(&root, &slug)
+    };
+    match outcome {
+        // The render's text already ends in one newline — printed
+        // exactly, never doubled.
+        Ok(text) => {
+            print!("{text}");
+            ExitCode::SUCCESS
+        }
+        Err(message) => {
+            eprintln!("todo-mcp: {message}");
+            ExitCode::from(EXIT_RENDER)
+        }
+    }
+}
+
+/// Parses the command line — program name excluded, the shape
+/// `lexopt::Parser::from_args` wants. The globals (`--root`, `--repo`)
+/// are collected position-independently; the FIRST positional selects
+/// the command (`progress` routes to the render, no positional at all
+/// to the server); any other positional is a usage fault naming the
+/// attempted subcommand. lexopt (U14) is pedantic: anything but the
+/// known flags and their values is a usage fault, never a guess. The
+/// root is validated nowhere here — the store reports a missing one as
+/// its honest `io` fault — while the slug is validated at the parse:
+/// configuration is validated where it enters, so a malformed
+/// `--repo` value is a usage fault (exit 2), not a wire error.
+fn parse_args<I>(args: I) -> Result<Command, String>
 where
     I: IntoIterator,
     I::Item: Into<OsString>,
@@ -151,6 +219,8 @@ where
     let mut parser = lexopt::Parser::from_args(args);
     let mut root: Option<OsString> = None;
     let mut repo: Option<RepoSlug> = None;
+    let mut json = false;
+    let mut progress = false;
     while let Some(arg) = parser
         .next()
         .map_err(|error| format!("todo-mcp: {error}"))?
@@ -174,6 +244,26 @@ where
                     .map_err(|error| format!("todo-mcp: --repo: {error}"))?;
                 repo = Some(slug);
             }
+            lexopt::Arg::Long("json") if progress => {
+                json = true;
+            }
+            lexopt::Arg::Long("json") => {
+                return Err(
+                    "todo-mcp: the option '--json' belongs to the 'progress' subcommand".to_owned(),
+                );
+            }
+            lexopt::Arg::Value(value) => {
+                let text = value
+                    .to_str()
+                    .ok_or_else(|| "todo-mcp: the subcommand name is not valid UTF-8".to_owned())?;
+                if progress {
+                    return Err(format!("todo-mcp: unexpected argument {text:?}"));
+                }
+                match text {
+                    "progress" => progress = true,
+                    other => return Err(format!("todo-mcp: unknown subcommand '{other}'")),
+                }
+            }
             unexpected => {
                 let error = unexpected.unexpected();
                 return Err(format!("todo-mcp: {error}"));
@@ -183,9 +273,13 @@ where
     let root = root.ok_or_else(|| {
         "todo-mcp: the required option '--root <DIR>' was not provided".to_owned()
     })?;
-    Ok(Config {
-        root,
-        default_repo: repo,
+    Ok(if progress {
+        Command::Progress { root, repo, json }
+    } else {
+        Command::Serve {
+            root,
+            default_repo: repo,
+        }
     })
 }
 
@@ -214,22 +308,69 @@ mod tests {
     }
 
     #[test]
-    fn a_stray_positional_is_a_usage_fault() {
+    fn an_unknown_subcommand_is_a_usage_fault() {
+        // A bare positional reads as an attempted subcommand — the
+        // honest message names it, never a bare "unexpected".
         assert_eq!(
             parse_args(["camera"]),
-            Err("todo-mcp: unexpected argument \"camera\"".to_owned())
+            Err("todo-mcp: unknown subcommand 'camera'".to_owned())
         );
     }
 
     #[test]
-    fn the_happy_path_takes_the_root_value() {
+    fn a_positional_after_the_subcommand_is_a_usage_fault() {
+        assert_eq!(
+            parse_args(["--root", "/tmp/data", "progress", "extra"]),
+            Err("todo-mcp: unexpected argument \"extra\"".to_owned())
+        );
+    }
+
+    #[test]
+    fn json_without_the_subcommand_is_a_usage_fault() {
+        assert_eq!(
+            parse_args(["--root", "/tmp/data", "--json"]),
+            Err("todo-mcp: the option '--json' belongs to the 'progress' subcommand".to_owned())
+        );
+    }
+
+    #[test]
+    fn no_arguments_route_to_the_server() {
         assert_eq!(
             parse_args(["--root", "/tmp/data"]),
-            Ok(Config {
+            Ok(Command::Serve {
                 root: OsString::from("/tmp/data"),
                 default_repo: None
             })
         );
+    }
+
+    #[test]
+    fn the_progress_subcommand_routes_to_the_render() {
+        assert_eq!(
+            parse_args(["--root", "/tmp/data", "progress"]),
+            Ok(Command::Progress {
+                root: OsString::from("/tmp/data"),
+                repo: None,
+                json: false
+            })
+        );
+    }
+
+    #[test]
+    fn the_globals_order_freely_around_the_subcommand() {
+        // lexopt walks the vector, not a fixed flag order, so the
+        // globals parse before or after the subcommand alike.
+        let before = parse_args(["--root", "/tmp/data", "progress", "--json"]);
+        let after = parse_args(["progress", "--root", "/tmp/data", "--json"]);
+        assert_eq!(
+            before,
+            Ok(Command::Progress {
+                root: OsString::from("/tmp/data"),
+                repo: None,
+                json: true
+            })
+        );
+        assert_eq!(before, after);
     }
 
     #[test]
@@ -255,7 +396,7 @@ mod tests {
     fn the_happy_path_takes_the_root_and_repo_values() {
         assert_eq!(
             parse_args(["--root", "/tmp/data", "--repo", "fixture"]),
-            Ok(Config {
+            Ok(Command::Serve {
                 root: OsString::from("/tmp/data"),
                 default_repo: Some(RepoSlug::from_str("fixture").unwrap()),
             })
@@ -268,9 +409,21 @@ mod tests {
         // order parses to the same configuration.
         assert_eq!(
             parse_args(["--repo", "fixture", "--root", "/tmp/data"]),
-            Ok(Config {
+            Ok(Command::Serve {
                 root: OsString::from("/tmp/data"),
                 default_repo: Some(RepoSlug::from_str("fixture").unwrap()),
+            })
+        );
+    }
+
+    #[test]
+    fn the_progress_subcommand_takes_the_repo_flag() {
+        assert_eq!(
+            parse_args(["--root", "/tmp/data", "progress", "--repo", "fixture"]),
+            Ok(Command::Progress {
+                root: OsString::from("/tmp/data"),
+                repo: Some(RepoSlug::from_str("fixture").unwrap()),
+                json: false
             })
         );
     }
