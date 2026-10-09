@@ -214,7 +214,7 @@ shell, which is M3's business.
 
 | Blocking | What | Action |
 |---|---|---|
-| — | nothing blocks: the roadmap is delivered, the dacode repo cut over, the D20 arc under way | **g20 in flight (the user's 2026-10-10 re-plan: ipmi-collector first)**: the stable-binary install landed 2026-10-10 (`~/.local/bin/todo-mcp`, the global-config repoint, the README rider); next the ipmi-collector dialect study (t75) and the epic-discoverability description rider (t76, the user's in-thread sign), then the onboarding itself (register/import/cutover per the t67 playbook) with the shareable onboarding instructions written alongside; g19's remainder follows — t71 (serve, extended with the user's web/WS ask: the switcher + epic lanes are landed in the render, the WS push channel is new scope), t72, t73 — then g21 (this repo's own full-switch cutover, the user's sign); the ikvm-html refresh+cutover waits for its live session to settle (U36 rides that revisit) — see §6's handover |
+| — | nothing blocks: the roadmap is delivered, the dacode repo cut over, the D20 arc under way | **g20 in flight (the user's 2026-10-10 re-plan: ipmi-collector first)**: the stable-binary install landed 2026-10-10 (`~/.local/bin/todo-mcp`, the global-config repoint, the README rider); the dialect study landed 2026-10-10 (t75: a new camera-family sibling module `src/import/ipmi/` decided — the open-only U register, the checkbox-less D-N debt register and the decisions column set are the load-bearing differences; the census predicted 6 epics / 4 decisions / 0 docs / 10 tasks / 1 edge; no tasks.py — the board is their only tracker); next the dialect module (spec from the study), the epic-discoverability rider (t76, the user's in-thread sign), then the onboarding itself (register/import/cutover per the t67 playbook) with the shareable onboarding instructions written alongside; g19's remainder follows — t71 (serve, extended with the user's web/WS ask: the switcher + epic lanes are landed in the render, the WS push channel is new scope), t72, t73 — then g21 (this repo's own full-switch cutover, the user's sign); the ikvm-html refresh+cutover waits for its live session to settle (U36 rides that revisit) — see §6's handover |
 
 (The user's calls 2026-10-09: **U35 resolved (a)** — the two
 wire-visible repo_list descriptions amended to the hit-or-lock-free
@@ -4647,6 +4647,67 @@ Deliberate shortcuts, acknowledged rather than fixed. Same id rules as §4.
 Newest first. One entry per session, written for someone who was not
 here. The final entry of a session is the handover
 (`.agents/skills/todo-next-imp/SKILL.md` defines the shape).
+
+### 2026-10-10 — t75: the ipmi-collector dialect study
+
+**Workspace**: main, clean at `d2e2f61`; no code moves.
+
+**Landed**: t75 — the measured study of ipmi-collector's board (the
+g20 arc's first unit). The board: two files under
+`docs/implementation/` (TODO.md 1001 lines, decisions.md 169). The U
+register = §4's checkbox items — 9 open, all unchecked, ids
+U7/U9/U14/U17/U24/U25/U26/U27/U28, an **open-only register** (resolved
+items are deleted — "gaps mean an item was resolved", the header's own
+rule; strikethrough, emoji, checked boxes and dependency prose all
+measured zero). §5's debt register is checkbox-less bold-id bullets in
+the hyphenated `D-N` family (D-3 open; D-1/D-2 paid and gone — a
+family distinct from the decision `DN` family, both live in the same
+board). §2's milestone table: M0–M3, all `**done**`. decisions.md = the
+summary table `[Id|Title|Status|Gates|Recommendation]` + dossiers
+(D1/D3 signed, D2/D4 deferred; D4's Gates cell names U14 — the one
+nodal gating edge). The harness: **no `tools/tasks.py` and no
+`.agents/config/`** — the `.opencode/` files are static, the board is
+the only tracker: the cleanest onboarding of the four, no scratch to
+migrate.
+
+**Decision**: a new sibling dialect module (`src/import/ipmi/`),
+camera-family — the shape is camera's (two files, §4 checkbox
+register, §2 milestone table, decisions summary + dossiers with a
+Gates column, no doc register), but the grammar differs
+load-bearingly: the open-only register, the checkbox-less `D-N` debt
+register, and the decisions table's column set and order (camera's
+parser cannot read it). The module builds on the t50 neutral homes;
+the `dialect` param gains `ipmi-collector` (matching the slug, so the
+refresh's dialect=slug resolution holds). No new D-entry owed — every
+population is §9-table-named; the differences are shape conventions
+settled as veto-able readings pinned by tests (the t46 precedent).
+
+**Census prediction**: 6 epics (M0–M3 closed + Follow-ups + Debt), 4
+decisions (2 signed, 2 open — "deferred" reads as not-signed = open,
+veto-able), 0 docs, 10 tasks (9 U open + 1 debt), 1 blocks edge (D4 →
+U14). The id fallback: the register is entirely gapped, so §9's
+oddball convention applies to all 9 — store ids U1–U9 with the board
+ids carried in references (the camera-oddball precedent).
+
+**Epic separation** (the user's requirement): the current work is
+epic-separated on import — the 4 milestone epics are closed (out of
+every open-scoped query), Follow-ups holds the 9 open items (the
+current work — §1's "next" items U25/U26/U27 all sit there), Debt
+holds D-3; `next_task` scoped to Follow-ups answers the live work.
+Finer per-stream epics are post-cutover agent discipline (the board
+could not express sub-structure; the store can).
+
+**Next step**: the dialect module task (spec from this study, the
+t46/t47 dispatch shape) — then register/import/verify, the cutover
+(the t67 playbook, simplified: no doc nodes to re-point, no scratch to
+migrate), and the shareable onboarding instructions written alongside.
+
+**Blocked on you**: nothing new — the module's veto-able readings are
+pinned by tests per the convention, veto-able at review.
+
+**Unverified**: the census is a prediction (the module's live probe
+measures it, the t46/t47 precedent); the grammar census is measured
+against the board at `47e0e7b` (a moving board — the t42 lesson).
 
 ### 2026-10-10 — t74: the stable-binary install; the g20 re-plan
 
