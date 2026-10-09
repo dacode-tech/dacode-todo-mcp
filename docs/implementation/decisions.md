@@ -39,6 +39,7 @@ and the meta block below; keep the shapes it parses.
 | ~~**D17**~~ | Priority on the triage surfaces | (a+) echo `priority` on `next_task`'s answer and the `next_items`/`task_list` rows; the agent decides, the order untouched | medium | M3 | resolved 2026-10-04 — user decision, "let the agent decide" |
 | ~~**D18**~~ | The dacode-dialect mapping (amends §9) | (a) A-deltas → tasks under a synthetic epic; sub-steps → gate tasks; docs → doc nodes; ids reproduced by import order | medium | M4 | resolved (a) 2026-10-05 — user decision, "let's do option (a)" |
 | ~~**D19**~~ | The lock-free read path and §4.3's torn-tail reading | (a) a read-only open: no lock, committed prefix, unterminated tail = append in flight | medium | — | resolved (a) 2026-10-08 — user decision, in-thread at drafting; the implementation lands as two tasks |
+| ~~**D20**~~ | The all-in-one binary: the MCP server gains the tool CLI | (a) one binary — no subcommand stays the server; progress/refresh/serve + the todo-cli absorption as subcommands | high | — | resolved (a) 2026-10-09 — user decision, in-thread at drafting; the implementation lands as the g19 arc (t68–t73) |
 
 ---
 
