@@ -214,7 +214,7 @@ shell, which is M3's business.
 
 | Blocking | What | Action |
 |---|---|---|
-| — | nothing blocks: the roadmap is delivered, the dacode repo cut over, the D20 arc is under way | **g19 in flight**: t68 (the dispatch + the JSON render), t69 (the HTML page + the project switcher, U37's split) and t70 (the refresh subcommand — the per-repo sync enabler) landed 2026-10-09; t71 (serve) is next; the stable-binary install, the ikvm-html cutover and the ipmi-collector arc (g20) follow, then g21 (this repo's own cutover, the user's sign); U36 rides the deferred ikvm revisit — see §6's handover |
+| — | nothing blocks: the roadmap is delivered, the dacode repo cut over, the D20 arc under way | **g20 in flight (the user's 2026-10-10 re-plan: ipmi-collector first)**: the stable-binary install landed 2026-10-10 (`~/.local/bin/todo-mcp`, the global-config repoint, the README rider); next the ipmi-collector dialect study (t75) and the epic-discoverability description rider (t76, the user's in-thread sign), then the onboarding itself (register/import/cutover per the t67 playbook) with the shareable onboarding instructions written alongside; g19's remainder follows — t71 (serve, extended with the user's web/WS ask: the switcher + epic lanes are landed in the render, the WS push channel is new scope), t72, t73 — then g21 (this repo's own full-switch cutover, the user's sign); the ikvm-html refresh+cutover waits for its live session to settle (U36 rides that revisit) — see §6's handover |
 
 (The user's calls 2026-10-09: **U35 resolved (a)** — the two
 wire-visible repo_list descriptions amended to the hit-or-lock-free
@@ -3608,8 +3608,25 @@ Oldest first. One line per delivery, with the commit hash once committed.
   the final bytes. layout.rs crossed the 600 target (622 — the
   surgery joined the query side; the module-doc exception names the
   split, U13's ledger carries the row). Orchestrator-authored (the
-  implementer spawn's recurring connection-side deaths, the
-  t30/t58/t68/t69 precedent). Landed as `9bbf58e`.
+   implementer spawn's recurring connection-side deaths, the
+   t30/t58/t68/t69 precedent). Landed as `9bbf58e`.
+
+- 2026-10-10 — **t74: the stable-binary install**: the release binary
+   copied to `~/.local/bin/todo-mcp` — a copy, not a symlink, because the
+   checkout's `target/` dies on `cargo clean` — the global-config mcp
+   entry repointed onto it (the entry's comment carrying the update verb
+   and the no-restart note), and the README's wiring section moved to the
+   same shape. Smoke, with the spawn path caught mid-run by `ps`: a fresh
+   opencode session's server (PID 50249) running
+   `/Users/mouse/.local/bin/todo-mcp --root ~/.local/share/dacode-todo`,
+   answering `repo_list` (the four repos) and `next_task` →
+   `dacode:U183` (the store moved past t48's `U175` — the dacode agents'
+   closures), both `permission=…action=allow` lines in the log; all four
+   stores verified post-session (`todo-cli verify` exit 0, `status ok`);
+   four old-path servers from live sessions ran through the change
+   untouched — the documented per-session spawn behavior. No code moved:
+   the diff is README + this board, every code gate skipped by
+   construction.
 
 
 
@@ -4630,6 +4647,50 @@ Deliberate shortcuts, acknowledged rather than fixed. Same id rules as §4.
 Newest first. One entry per session, written for someone who was not
 here. The final entry of a session is the handover
 (`.agents/skills/todo-next-imp/SKILL.md` defines the shape).
+
+### 2026-10-10 — t74: the stable-binary install; the g20 re-plan
+
+**Workspace**: main, clean; the four-crate workspace, rustc 1.98.1; the
+release binary rebuilt (16.32 s) and installed.
+
+**Landed**: t74 — the stable-binary install: `~/.local/bin/todo-mcp` (a
+copy, not a symlink — the checkout's `target/` dies on `cargo clean`),
+the global-config mcp entry repointed onto it, the README's wiring
+section carrying the install + the update verb + the no-restart note.
+The smoke caught the spawn path mid-run (`ps`: PID 50249 at
+`/Users/mouse/.local/bin/todo-mcp --root …`), the session answering
+`repo_list` (four repos) and `next_task` → `dacode:U183`, both
+`permission=…action=allow` lines in the log; all four stores verified
+post-session. Four old-path servers from live sessions ran through the
+change untouched — the documented behavior (each session keeps its
+process; the next session picks up the new binary).
+
+**Next step**: the g20 arc per the user's 2026-10-10 re-plan — the
+ipmi-collector dialect study (t75: the board at
+`/Users/mouse/RPM/ali/ipmi-collector`, TODO.md 1001 lines +
+decisions.md 169, clean at `47e0e7b`), then the epic-discoverability
+rider (t76: `status_summary`'s description names the repo-vs-epic scope
+— the one vague spot; the other four query tools already carry it),
+then the onboarding itself (register/import/cutover per the t67
+playbook) with the shareable onboarding instructions written alongside.
+The user's web ask folds into t71's spec (the switcher + epic lanes are
+landed in the render; the WS push channel is new scope — detection via
+stat-polling vs a watch crate, transport hand-rolled vs a crate, any
+crate needing the user's sign). The workspace-split question answered
+from the code: epics scope every query tool in-repo; parallel checkouts
+work today as per-worktree slugs (t53's cwd tier resolves each); a
+first-class workspace tier with grouping or a merge story would be a
+new decision, not started.
+
+**Blocked on you**: unchanged — the D18 sub-step mapping amendment, the
+`--epic` default tier (recommendation: param-only + the descriptions;
+say the word to draft the flag tier), the word to your dacode agent;
+plus the WS transport/detection preferences if you want them settled
+before t71's spec rather than in it.
+
+**Unverified**: nothing new — the install's every claim is measured (the
+ps catch, the transcript, the four verifies); the descriptions rider is
+queued, not landed.
 
 ### 2026-10-09 — t70: the refresh subcommand (the second session of the day)
 
