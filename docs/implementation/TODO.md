@@ -3609,7 +3609,7 @@ Oldest first. One line per delivery, with the commit hash once committed.
   surgery joined the query side; the module-doc exception names the
   split, U13's ledger carries the row). Orchestrator-authored (the
   implementer spawn's recurring connection-side deaths, the
-  t30/t58/t68/t69 precedent). Landed as `<HASH>`.
+  t30/t58/t68/t69 precedent). Landed as `9bbf58e`.
 
 
 
