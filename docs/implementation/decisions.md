@@ -1203,3 +1203,53 @@ single-writer bullet makes the concurrent-readers sentence concrete;
 primitive (a lock-free read returning the replayed graph), then the
 server's read tools resolving lock-free on a handles miss — and the
 blocking table carries them until they land.
+
+### D20 — The all-in-one binary: the MCP server gains the tool CLI
+
+**Status:** signed (the direction) 2026-10-09 — the user's in-thread
+"yes, let's have one single binary, that has also tools CLI
+commands", answering the framing raised at the dacode cutover.
+
+**The question.** The tooling around the server is split across three
+homes: the binary (the MCP server over stdio), `tools/progress.py`
+(the render/refresh/serve thin client — 1056 lines of Python driving
+the binary over a per-render stdio spawn, the slug hardcoded), and
+`todo-cli` (the store inspector: dump/verify/repair). The Python
+exists to drive a binary that cannot render; the split costs a spawn
+plus a handshake per render, a second language in the toolchain, and
+a per-repo parameterization the binary already carries (`--repo`,
+the cwd tier).
+
+**The signed shape.** One binary. `todo-mcp` invoked with no
+subcommand stays the MCP server on stdio — the global-config entry's
+command array is unchanged, zero wiring movement — and subcommands
+carry the tool surface, per project:
+
+- `todo-mcp progress` — the render (the page and the JSON), reading
+  the store lock-free via `DataRoot::read_repo` (D19): no spawn, no
+  handshake, no Python.
+- `todo-mcp refresh` — the registry surgery (re-register + re-import,
+  the t54 crash order), refusing gracefully where a repo's board
+  files are gone — a cut-over repo's store is primary and there is
+  nothing to re-import.
+- `todo-mcp serve` — the live view (U18's shape A: 127.0.0.1:0, the
+  per-user port publication, attach/stale-takeover).
+- `todo-mcp dump | verify | repair` — todo-cli's inspector absorbed;
+  that crate retires.
+
+**Consequences settled with the sign (each veto-able):**
+
+- `tools/progress.py` and the two committed drivers retire with the
+  port; their behavior pins move to Rust integration tests under
+  `crates/todo-mcp/tests/`.
+- The subcommands' output is golden-pinned per §10 — the render's
+  byte-identity, the refresh round-trip, the dump bytes (todo-cli's
+  goldens move to the new spelling).
+- No new dependencies: lexopt is already the workspace's parser
+  (U14); the render is hand-built strings (the Python template
+  ported); the listener is `std::net`.
+
+**Recommendation** — execute as a six-task arc under one goal: the
+dispatch skeleton with the JSON render, the HTML page, the refresh,
+the serve, the todo-cli absorption, the Python retirement plus docs.
+The blocking table carries the arc until it lands.

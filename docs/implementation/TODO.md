@@ -214,7 +214,7 @@ shell, which is M3's business.
 
 | Blocking | What | Action |
 |---|---|---|
-| — | nothing blocks: the roadmap is delivered, U27 signed (c) and landed (t62), D19 signed (a) and landed end to end (t63 + t64), U35 resolved (a) and landed, U33 fixed (the user's order) | U36 (the ikvm footer's duplicate-D residual) rides the next ikvm touch; nothing else is owed — see §6's handover |
+| — | nothing blocks: the roadmap is delivered, D19 landed end to end, U35/U33/f57 landed, the dacode repo cut over | **D20 signed (the direction) 2026-10-09** — the all-in-one binary arc (g19: t68–t73) is decomposed and ready to start; U36 rides the next ikvm touch — see §6's handover |
 
 (The user's calls 2026-10-09: **U35 resolved (a)** — the two
 wire-visible repo_list descriptions amended to the hit-or-lock-free
@@ -4583,18 +4583,34 @@ its next session. Committed in their repo as `0e39005`. The D20 idea
 and possibly todo-cli as subcommands) was raised in-thread and framed
 as a decision awaiting the user's word.
 
+**D20 signed (the direction)** — the user's in-thread "yes, one
+single binary, that has also tools CLI commands": the dossier
+recorded in decisions.md (the no-subcommand default stays the MCP
+server — the global entry's command array unchanged — with
+`progress`/`refresh`/`serve` and the `todo-cli` absorption as
+subcommands, the Python tools retiring, each consequence veto-able),
+spec §13 amended, and the arc decomposed as g19 (t68–t73: the
+dispatch + JSON render, the HTML page, the refresh, the serve, the
+todo-cli absorption, the Python retirement). The board backup the
+user ordered landed beside the store:
+`~/.local/share/dacode-todo/board-backup/dacode/2026-10-09/` — the
+three files, shas identical to the in-repo archive (53b5be82 /
+a3ed564f / 2cfb5933), the pre-cutover state now preserved outside
+every repo.
+
 **Handover.** Workspace: `main`, clean after this session's commits;
 four crates; rustc 1.98.1; the release binary current. Landed this
 session: U35's amend (`8f02162`), U33's hoist + f103's riders
-(`998785c`), f57's bare-snapshot pin (`1ce1a3e`), and the dacode
-repo's full cutover onto the server (their `0e39005`); the opening
-sweep closed f110/f113. Next step: none owed — the user's order is
-complete. Blocked on you: nothing — the ledger is U36 (a rider on
-the next ikvm touch), the tracker's riders, and two ops calls: the
-durable root's backup habit (the store is the dacode tracker of
-record now, outside any git repo) and D20 (the all-in-one binary)
-whenever you want the dossier drafted. Unverified: nothing new; the
-standing caveats unchanged.
+(`998785c`), f57's bare-snapshot pin (`1ce1a3e`), the dacode repo's
+full cutover onto the server (their `0e39005`), D20's recording and
+decomposition (this commit); the opening sweep closed f110/f113.
+Next step: **the D20 arc (g19: t68–t73)** — recommend a fresh
+session for it (this one is long); t68 (the dispatch skeleton + the
+JSON render) is the entry point, spec §13 and the dossier the
+authority. Blocked on you: nothing — U36 rides the next ikvm touch;
+the durable-root backup habit stays your call (the board backup
+covers the pre-cutover state only; post-cutover writes live in the
+store). Unverified: nothing new; the standing caveats unchanged.
 
 ### 2026-10-08 — D19 signed (a): the lock-free read path; t62 resequenced behind it
 

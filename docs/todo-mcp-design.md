@@ -831,6 +831,19 @@ version travels in the file header, independent of the binary version; a
 binary refuses a store newer than it understands (`version_mismatch`,
 §6.1) rather than guessing. No packaging beyond the binary in v1.
 
+The same binary carries the tool CLI (D20, signed 2026-10-09): invoked
+with no subcommand it is the MCP server on stdio — the wiring above is
+unchanged — and subcommands carry the per-project tool surface:
+`progress` (the render, reading the store lock-free per D19),
+`refresh` (the re-register + re-import surgery, refusing where a
+repo's board files are gone — a cut-over repo's store is primary),
+`serve` (the live view, U18's shape A), and `dump`/`verify`/`repair`
+(the inspector `todo-cli` carried; that crate retires). The
+subcommands take `--root` and `--repo` with the same resolution order
+as the server (§7), and their output is golden-pinned per §10.
+`tools/progress.py` and its two committed drivers retire with the
+port.
+
 ## 14. Roadmap
 
 Tentative — the milestone table with exit criteria lives in
