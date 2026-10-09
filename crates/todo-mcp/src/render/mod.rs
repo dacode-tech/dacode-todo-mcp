@@ -195,8 +195,10 @@ pub fn resolve_by_cwd(root: &DataRoot, cwd: Option<&Path>) -> Result<RepoSlug, S
 }
 
 /// The resolution mirror of `crate::ServerState::resolve_read`: the
-/// registry consult, the lock-free read, the slug cross-check.
-fn resolve(root: &DataRoot, slug: &RepoSlug) -> Result<Graph, ToolError> {
+/// registry consult, the lock-free read, the slug cross-check. The
+/// refresh subcommand reuses it (D20) — the discipline has one home,
+/// not a per-consumer copy.
+pub(crate) fn resolve(root: &DataRoot, slug: &RepoSlug) -> Result<Graph, ToolError> {
     let registry = Registry::load(root)?;
     if !registry.contains(slug) {
         return Err(ToolError::from(DomainError::UnknownId {

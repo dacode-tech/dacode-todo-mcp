@@ -11,8 +11,10 @@
 //! `progress` renders the total-progress document and the HTML page
 //! (t68's and t69's slices), writing the page and its JSON twin
 //! beside the repo's checkout unless `--json`/`--no-write`/`--out`
-//! say otherwise; the later subcommands (`refresh`, `serve`, the
-//! inspector absorption) land as their own tasks. The globals are
+//! say otherwise; `refresh` (t70's slice) re-imports a repo's board —
+//! the registry surgery, the re-register, the census; the later
+//! subcommands (`serve`, the inspector absorption) land as their own
+//! tasks. The globals are
 //! shared: `--root <DIR>`
 //! names the store location on every path — nothing reads the
 //! environment, a home directory or the cwd to find one — and
@@ -53,8 +55,9 @@ use todo_store::DataRoot;
 /// The usage-fault exit code (the cli's convention).
 const EXIT_USAGE: u8 = 2;
 
-/// The render-failure exit code: the repo did not resolve, or the
-/// store did not read — an environment fault, not an argument fault.
+/// The subcommand-failure exit code: the repo did not resolve, the
+/// store did not read or write, the page did not write, or the
+/// refresh refused — environment faults, not argument faults.
 const EXIT_RENDER: u8 = 1;
 
 /// The hand-written usage text every argument fault appends — a fault
@@ -66,6 +69,7 @@ todo-mcp — the dacode-todo MCP server and tool CLI (spec §13).
 Usage:
   todo-mcp --root <DIR> [--repo <SLUG>]                    the MCP server on stdio
   todo-mcp --root <DIR> [--repo <SLUG>] progress [flags]   the total-progress render
+  todo-mcp --root <DIR> [--repo <SLUG>] refresh            re-import the repo's board
 
 Options:
       --root <DIR>    The data root holding repos/<slug>/ and the shared
@@ -87,11 +91,17 @@ Options:
       --open          With `progress`: open the written page in a
                       browser
 
+With `refresh`: no flags of its own — the repo resolves through the
+      same --repo/cwd tier, the board's location derives from the
+      repo's registered checkout, and the dialect is the slug.
+
 Exit codes:
   0  the client closed the connection after a completed handshake, or
      the subcommand succeeded
   1  the serve loop failed, the render failed (a repo that does not
-     resolve, or a store that will not read), or the page did not write
+     resolve, or a store that will not read), the page did not write,
+     or the refresh refused (the board is gone or broken, a live
+     session holds the store, or the import failed)
   2  usage: a bad flag, a missing --root, a malformed --repo value, an
      unknown subcommand, or flags that cannot combine
 ";
@@ -108,6 +118,15 @@ enum Command {
         root: OsString,
         /// The default repo slug (the committed D8).
         default_repo: Option<RepoSlug>,
+    },
+    /// `refresh`: the on-demand re-import of the repo's board (t70's
+    /// slice of D20's tool CLI) — the registry surgery, the
+    /// re-register, the apply, the census.
+    Refresh {
+        /// The data root (§7/§13/D4).
+        root: OsString,
+        /// The repo to refresh — `None` resolves through the cwd tier.
+        repo: Option<RepoSlug>,
     },
     /// `progress`: the total-progress render (t68's slice of D20's
     /// tool CLI; t69's the page and the writes).
@@ -143,6 +162,7 @@ async fn main() -> ExitCode {
             let cwd = std::env::current_dir().ok();
             serve(DataRoot::new(root), default_repo, cwd).await
         }
+        Ok(Command::Refresh { root, repo }) => run_refresh(root, repo),
         Ok(Command::Progress {
             root,
             repo,
@@ -203,17 +223,11 @@ fn run_progress(
     no_write: bool,
 ) -> ExitCode {
     let root = DataRoot::new(root);
-    let slug = match repo {
-        Some(slug) => slug,
-        None => {
-            let cwd = std::env::current_dir().ok();
-            match render::resolve_by_cwd(&root, cwd.as_deref()) {
-                Ok(slug) => slug,
-                Err(message) => {
-                    eprintln!("todo-mcp: {message}");
-                    return ExitCode::from(EXIT_RENDER);
-                }
-            }
+    let slug = match resolve_repo(&root, repo) {
+        Ok(slug) => slug,
+        Err(message) => {
+            eprintln!("todo-mcp: {message}");
+            return ExitCode::from(EXIT_RENDER);
         }
     };
     if json {
@@ -262,6 +276,56 @@ fn run_progress(
         open_in_browser(&out_dir.join("progress.html"));
     }
     ExitCode::SUCCESS
+}
+
+/// The subcommands' shared repo tier (§7): the `--repo` flag wins,
+/// else the cwd match — the binary reading the cwd once here so the
+/// lib stays env-free. The message is the caller's to print.
+fn resolve_repo(root: &DataRoot, repo: Option<RepoSlug>) -> Result<RepoSlug, String> {
+    match repo {
+        Some(slug) => Ok(slug),
+        None => {
+            let cwd = std::env::current_dir().ok();
+            render::resolve_by_cwd(root, cwd.as_deref())
+        }
+    }
+}
+
+/// The `refresh` subcommand (D20): resolve the repo, then re-import
+/// the board and print the census. A refusal is exit 1 with the
+/// message on stderr: the board is gone or broken, a live session
+/// holds the store, or the import failed — environment faults, not
+/// argument faults. The refusals before the surgery leave the store
+/// exactly as it was (an import failure after it leaves a fresh,
+/// empty store — the next refresh recovers).
+fn run_refresh(root: OsString, repo: Option<RepoSlug>) -> ExitCode {
+    let root_display = root.clone();
+    let root = DataRoot::new(root);
+    let slug = match resolve_repo(&root, repo) {
+        Ok(slug) => slug,
+        Err(message) => {
+            eprintln!("todo-mcp: {message}");
+            return ExitCode::from(EXIT_RENDER);
+        }
+    };
+    match todo_mcp::refresh::refresh(&root, &slug) {
+        Ok(census) => {
+            println!(
+                "refresh: imported {} epics, {} decisions, {} docs, {} tasks, {} blocks edges into {}",
+                census.epics,
+                census.decisions,
+                census.docs,
+                census.tasks,
+                census.blocks,
+                root_display.display()
+            );
+            ExitCode::SUCCESS
+        }
+        Err(message) => {
+            eprintln!("todo-mcp: {message}");
+            ExitCode::from(EXIT_RENDER)
+        }
+    }
 }
 
 /// Writes the page and its JSON twin — plain writes, the Python
@@ -319,6 +383,7 @@ where
     let mut parser = lexopt::Parser::from_args(args);
     let mut root: Option<OsString> = None;
     let mut repo: Option<RepoSlug> = None;
+    let mut refresh = false;
     let mut json = false;
     let mut open = false;
     let mut out: Option<OsString> = None;
@@ -389,11 +454,12 @@ where
                 let text = value
                     .to_str()
                     .ok_or_else(|| "todo-mcp: the subcommand name is not valid UTF-8".to_owned())?;
-                if progress {
+                if progress || refresh {
                     return Err(format!("todo-mcp: unexpected argument {text:?}"));
                 }
                 match text {
                     "progress" => progress = true,
+                    "refresh" => refresh = true,
                     other => return Err(format!("todo-mcp: unknown subcommand '{other}'")),
                 }
             }
@@ -439,7 +505,9 @@ where
             );
         }
     }
-    Ok(if progress {
+    Ok(if refresh {
+        Command::Refresh { root, repo }
+    } else if progress {
         Command::Progress {
             root,
             repo,
@@ -693,6 +761,36 @@ mod tests {
                     .to_owned()
             )
         );
+    }
+
+    #[test]
+    fn the_refresh_subcommand_routes() {
+        assert_eq!(
+            parse_args(["--root", "/tmp/data", "refresh"]),
+            Ok(Command::Refresh {
+                root: OsString::from("/tmp/data"),
+                repo: None
+            })
+        );
+    }
+
+    #[test]
+    fn the_refresh_subcommand_takes_the_repo_flag() {
+        assert_eq!(
+            parse_args(["--root", "/tmp/data", "refresh", "--repo", "fixture"]),
+            Ok(Command::Refresh {
+                root: OsString::from("/tmp/data"),
+                repo: Some(RepoSlug::from_str("fixture").unwrap())
+            })
+        );
+    }
+
+    #[test]
+    fn the_usage_text_names_the_refresh_subcommand() {
+        // The operator-facing contract: the usage every fault prints
+        // carries the refresh line and its exit-1 clause.
+        assert!(USAGE.contains("refresh            re-import the repo's board"));
+        assert!(USAGE.contains("or the refresh refused"));
     }
 
     #[test]

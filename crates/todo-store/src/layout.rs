@@ -70,6 +70,11 @@
 //! [`DataRoot::repo_list`] answers from the index, so a store the index
 //! does not list is not listed, and [`DataRoot::repo_show`] refuses one as
 //! `unknown_id` instead of adopting it.
+//!
+//! Over the production-line target (the surgery joined the query side
+//! at t70): the natural split is the query half (repo_list/repo_show)
+//! from the mutation half (register/unregister) — the ledger is board
+//! §5 U13.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -77,7 +82,7 @@ use std::path::{Path, PathBuf};
 use todo_domain::{DomainError, Graph, Repo, RepoSlug};
 
 use crate::error::{LockTarget, StoreError, io_error};
-use crate::lock::RegistryLock;
+use crate::lock::{FileLock, RegistryLock};
 use crate::log::JsonlStore;
 use crate::reader::read_graph;
 use crate::registry::Registry;
@@ -227,6 +232,58 @@ impl DataRoot {
         registry.save(self)?;
         drop(registry_lock);
         Ok(store)
+    }
+
+    /// Removes a repository's registration and its store directory —
+    /// the surgery half of a refresh (§13, D20): the registry entry
+    /// and the directory, under one lock, in the crash-safe order.
+    ///
+    /// The order is the argument (the t54 crash order, ported):
+    /// registry lock → the store's own lock → the registry rewrite
+    /// (the entry dropped) → the directory removed. A failure or
+    /// crash after the rewrite leaves the **orphan-dir state** — the
+    /// directory remains but the registry no longer lists it,
+    /// invisible to every query and cleaned by the next unregister —
+    /// while the reverse order could leave the **dangling entry**, a
+    /// listed repo whose store is gone, which breaks `repo_list` for
+    /// every repo (the all-or-nothing rule). The store's lock is
+    /// taken before anything is touched so a live writer on this repo
+    /// is refused as §6.1's `locked`, never silently orphaned (§8's
+    /// single-writer discipline).
+    ///
+    /// Idempotent: an unlisted slug rewrites nothing, and an unlisted
+    /// slug *with* a directory is the orphan cleanup — the state a
+    /// crashed register leaves, removed here. A missing directory is
+    /// not an error; a listed slug whose directory is gone (the
+    /// dangling state, unreachable through this crate's writers) has
+    /// its entry dropped — the repair, not a refusal.
+    pub fn unregister(&self, slug: &RepoSlug) -> Result<(), StoreError> {
+        let registry_lock = self.lock_registry()?;
+        let dir = self.store_dir(slug);
+        // The store's own lock, held across the removal; the guard's
+        // `Drop` releases it after the directory is gone, and the
+        // declaration order releases it before the registry lock.
+        let store_lock = if dir.exists() {
+            Some(FileLock::acquire(
+                &self.lock_path(slug),
+                LockTarget::Repo(slug.clone()),
+            )?)
+        } else {
+            None
+        };
+        let mut registry = Registry::load(self)?;
+        let before = registry.entries().len();
+        registry.remove(slug);
+        if registry.entries().len() != before {
+            registry.save(self)?;
+        }
+        if dir.exists() {
+            fs::remove_dir_all(&dir)
+                .map_err(|error| io_error("remove the store directory", &error))?;
+        }
+        drop(store_lock);
+        drop(registry_lock);
+        Ok(())
     }
 
     /// Creates a repository's store directory and log under this root,

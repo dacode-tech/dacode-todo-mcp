@@ -47,4 +47,5 @@ mod layout {
     mod reader;
     mod registry;
     mod repos;
+    mod unregister;
 }

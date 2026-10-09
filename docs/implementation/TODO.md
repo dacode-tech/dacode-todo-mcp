@@ -214,7 +214,7 @@ shell, which is M3's business.
 
 | Blocking | What | Action |
 |---|---|---|
-| — | nothing blocks: the roadmap is delivered, the dacode repo cut over, the D20 arc is under way | **g19 in flight**: t68 (the dispatch + the JSON render) and t69 (the HTML page + the project switcher, U37's split) landed 2026-10-09; t70 (the refresh port) is next; g20 (ipmi-collector) and g21 (this repo's own cutover, the user's sign) are queued behind the arc; U36 rides the deferred ikvm revisit — see §6's handover |
+| — | nothing blocks: the roadmap is delivered, the dacode repo cut over, the D20 arc is under way | **g19 in flight**: t68 (the dispatch + the JSON render), t69 (the HTML page + the project switcher, U37's split) and t70 (the refresh subcommand — the per-repo sync enabler) landed 2026-10-09; t71 (serve) is next; the stable-binary install, the ikvm-html cutover and the ipmi-collector arc (g20) follow, then g21 (this repo's own cutover, the user's sign); U36 rides the deferred ikvm revisit — see §6's handover |
 
 (The user's calls 2026-10-09: **U35 resolved (a)** — the two
 wire-visible repo_list descriptions amended to the hit-or-lock-free
@@ -3572,6 +3572,45 @@ Oldest first. One line per delivery, with the commit hash once committed.
   mutant is unkillable from the checkout itself — the test now also
   runs from an unrelated cwd). Landed as `edbd53c`.
 
+- 2026-10-09 — **D20 t70: the `refresh` subcommand — the per-repo sync
+  enabler**: the Python tool's `--refresh` ported, generalized per-repo
+  (its slug was hardcoded to this repo) and made in-process. Two
+  halves: **todo-store's `DataRoot::unregister`** — the registry
+  surgery under one lock in the t54 crash order (registry lock → the
+  store's own lock, refusing a live writer as §6.1's `locked` → the
+  registry rewrite, write-if-changed → the rmtree), with the
+  crash-order pin fault-induced (the rmtree failure leaves the
+  orphan-dir state, never the dangling entry that breaks `repo_list`);
+  and **todo-mcp's `refresh` module** — resolve → the gone-board
+  pre-flight (a cut-over repo's store is the record: refused with
+  nothing touched — dacode's live case, proven in the smoke) → **the
+  plan built before the surgery** (the load-bearing divergence from
+  the Python: a gone *or broken* board refuses while the store is
+  intact) → the surgery → the re-register (the node's name and path
+  preserved, a fresh registration instant) → the apply and the census.
+  The importer's plan core extracted as the shared seams
+  (`plan_for`/`board_present`/`imported_counts`), the tool's behavior
+  byte-identical; the dialect resolves as the slug (veto-able — the
+  coincidence every current repo carries; a `--dialect` flag is the
+  named remedy). Five surgery tests + seven refresh tests + three
+  parse pins; 139 store / 313 mcp / 667 workspace tests green; the
+  mutations M1–M6 plus the reviewers' three own (the write-if-changed
+  drop, the census field swap, the always-save) killed at their pins
+  and reverted sha-verified — the corrected kill sets recorded: M1
+  kills the crash-order pin alone (the order is only observable at
+  the failure), M2 kills both refusal tests in the pre-flight+plan
+  variant and the broken-board pin in the plan-only variant. The live
+  smoke: the release binary refreshing this repo's store current (the
+  census matching the board), `--repo dacode` answering the
+  gone-board refusal (the board archived at t67 — the t70 note's
+  exact case, the store untouched), and the page rendering the
+  refreshed store. Dual review over three rounds, both ok bound to
+  the final bytes. layout.rs crossed the 600 target (622 — the
+  surgery joined the query side; the module-doc exception names the
+  split, U13's ledger carries the row). Orchestrator-authored (the
+  implementer spawn's recurring connection-side deaths, the
+  t30/t58/t68/t69 precedent). Landed as `<HASH>`.
+
 
 
 ## 4. Follow-ups
@@ -4398,6 +4437,11 @@ Deliberate shortcuts, acknowledged rather than fixed. Same id rules as §4.
       **Acknowledged 2026-10-08 (the user's ack)**: no split scheduled —
       the entry stays as the recorded ledger, the split riding the
       trigger the entry names.
+      **Re-measured at t70 (2026-10-09): `layout.rs` crossed the
+      target — 622 production lines** (the registry surgery joined the
+      query side; the module doc carries the exception line naming the
+      split: the query half from the mutation half). The ledger's
+      third entry; the cap holds.
 - [x] **U23 · The copied-store cross-check on the server's resolve path is
       unpinned.** t34's `ServerState::resolve` gained the one-line check
       `store.graph().repo().slug != slug → corrupt_store`, mirroring
@@ -4586,6 +4630,48 @@ Deliberate shortcuts, acknowledged rather than fixed. Same id rules as §4.
 Newest first. One entry per session, written for someone who was not
 here. The final entry of a session is the handover
 (`.agents/skills/todo-next-imp/SKILL.md` defines the shape).
+
+### 2026-10-09 — t70: the refresh subcommand (the second session of the day)
+
+**Workspace**: main, clean after the commit below; the four-crate
+workspace, rustc 1.98.1; the release binary rebuilt.
+
+**Landed**: t70 — the `refresh` subcommand: the registry surgery
+(`DataRoot::unregister`, the t54 crash order, the live-writer guard)
+in todo-store, and the refresh module in todo-mcp (the gone-board
+pre-flight, the plan-before-surgery order, the name/path-preserving
+re-register, the census). The per-repo sync enabler: nothing else
+could re-import a moved board (`import_md` refuses a non-empty store;
+the Python refresh was hardcoded to this repo). 667 workspace tests;
+the mutations killed; dual review ok over three rounds. The live
+smoke: this repo's store refreshed current, and `--repo dacode`
+answering the gone-board refusal — dacode's board is archived, its
+store is primary, and the refresh refuses with nothing touched. The
+commit hash is §3's entry.
+
+**Next step**: t71 (serve) per the arc — but the user's re-plan
+stands: the stable-binary install (`~/.local/bin/todo-mcp` + the
+global-config repoint + the README rider), then the ikvm-html
+cutover (sync via the refresh, then the t67 playbook), then the
+ipmi-collector arc (g20), then t71–t73, then g21. The refresh is the
+tool every cutover's "sync before archive" step uses — the t67
+playbook's gap (dacode's store froze at the t48 import because the
+cutover had no final sync) is now closable: the dacode rows the
+agents found stale are theirs to task_update, and every future
+cutover refreshes before archiving.
+
+**Blocked on you**: the D18 mapping amendment (sub-step status
+reading the Gate-cell completion marks — the root cause of the dacode
+agents' confusing open rows; a yes opens a small task); the
+`--epic` default tier (the work-stream scoping flag — your sign to
+open); the word to your dacode agent for its two follow-ups (their
+repo).
+
+**Unverified**: the refresh's dialect=slug rule is pinned only for
+dialect-valued slugs (the fixture's cost — a repo whose slug is not a
+dialect value refuses; the `--dialect` flag is the remedy if one ever
+appears); the census line is pinned exactly but the corpus counts
+(5/4/0/6/3) are the synthetic board's, not any live board's.
 
 ### 2026-10-09 — t69: the page, the switcher, U37's split
 

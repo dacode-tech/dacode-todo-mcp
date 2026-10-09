@@ -71,12 +71,16 @@
 //! # The progress render (D20)
 //!
 //! The same binary carries the tool CLI (§13, D20): subcommands over
-//! the store, the first of them `progress` — the total-progress
-//! document and HTML page [`render`] computes from one repo's graph,
-//! read lock-free (D19) so a render never contends with a live session
-//! server. The render is a pure function of `(root, repo)` — no clock,
-//! no git, no environment — which is what makes both surfaces
-//! golden-pinnable; the page carries a project switcher driven by the
+//! the store — `progress` (the total-progress document and HTML page
+//! [`render`] computes from one repo's graph, read lock-free (D19) so
+//! a render never contends with a live session server; both surfaces
+//! golden-pinnable, which is the render's purity, not the refresh's)
+//! and `refresh` ([`refresh::refresh`], the on-demand re-import: the
+//! registry surgery, the re-register, the apply — the store is a
+//! derived cache of the board and this rebuilds it). The render is a
+//! pure function of `(root, repo)` — no clock, no git, no
+//! environment — which is what makes its surfaces golden-pinnable;
+//! the page carries a project switcher driven by the
 //! registry (the `?repo=<slug>` URL shape the `serve` subcommand will
 //! answer). The binary owns the argument parse, the one cwd read and
 //! the output writes; the module owns the model.
@@ -142,6 +146,7 @@ mod importer;
 mod listing;
 mod nodes;
 mod query;
+pub mod refresh;
 mod registry;
 pub mod render;
 mod schema;

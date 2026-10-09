@@ -54,7 +54,7 @@ use rmcp::model::{CallToolResult, ErrorData};
 use rmcp::{tool, tool_router};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use todo_domain::RepoSlug;
+use todo_domain::{Graph, RepoSlug};
 use todo_store::StoreError;
 
 use crate::import::camera::{CameraError, map_camera, parse_camera_board};
@@ -99,7 +99,7 @@ pub(crate) struct ImportMdParams {
 /// The board dialect `import_md` reads: which sibling grammar and
 /// file set the import runs over.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Dialect {
+pub(crate) enum Dialect {
     /// The dacode dialect: TODO.md plus the B and A appendices, the
     /// doc register walked from the board directory.
     Dacode,
@@ -119,7 +119,7 @@ impl Dialect {
     /// (the signed ordering — the first dialect keeps the default, so
     /// every request written before the parameter exists keeps its
     /// meaning); an unknown value is `invalid` naming it.
-    fn from_param(value: Option<&str>) -> Result<Self, ToolError> {
+    pub(crate) fn from_param(value: Option<&str>) -> Result<Self, ToolError> {
         match value {
             None | Some("dacode") => Ok(Self::Dacode),
             Some("camera") => Ok(Self::Camera),
@@ -134,7 +134,7 @@ impl Dialect {
 
 /// `import_md`'s answer: the landed counts per node population and blocks edges, read off the graph after the import applied — the new state as a summary.
 #[derive(Debug, Serialize, JsonSchema)]
-pub(crate) struct ImportedDto {
+pub struct ImportedDto {
     /// The repository's stable slug key — the store the board was imported into.
     pub repo: String,
     /// The epic count — the board's milestones plus the synthetic `Follow-ups` and `Spec deltas` epics.
@@ -209,28 +209,59 @@ fn answer_import_md(
     let slug = repo_of(state, params.repo.as_deref())?;
     let handle = state.resolve(&slug)?;
     let checkout = handle.graph().repo().path.clone();
-    let board_dir = Path::new(&checkout).join(BOARD_DIR);
     let dialect = Dialect::from_param(params.dialect.as_deref())?;
-    let plan = match dialect {
-        Dialect::Dacode => dacode_plan(&board_dir, &slug)?,
-        Dialect::Camera => camera_plan(&board_dir, &slug)?,
-        Dialect::IkvmHtml => ikvm_plan(&board_dir, &slug)?,
-        Dialect::Own => own_plan(&board_dir, &slug)?,
-    };
+    let plan = plan_for(&checkout, &slug, dialect)?;
     match apply_plan(&plan, handle.as_mut()) {
         Ok(()) => {}
         Err(ApplyError::Refused(error)) => return Err(ToolError::from(error)),
         Err(ApplyError::Store(error)) => return Err(ToolError::from(error)),
     }
-    let graph = handle.graph();
-    Ok(ImportedDto {
+    Ok(imported_counts(handle.graph(), &slug))
+}
+
+/// The import's read+parse+map core over one checkout — the shared
+/// half of the `import_md` tool and the `refresh` subcommand (D20):
+/// the board directory derives from the repo node's registered
+/// checkout path (the dialect's measured layout), the files are read,
+/// parsed and mapped into the plan the caller applies. Pure reads —
+/// building the plan touches no store, which is what lets the refresh
+/// refuse a gone or broken board before its surgery destroys
+/// anything.
+pub(crate) fn plan_for(
+    checkout: &str,
+    slug: &RepoSlug,
+    dialect: Dialect,
+) -> Result<ImportPlan, ToolError> {
+    let board_dir = Path::new(checkout).join(BOARD_DIR);
+    match dialect {
+        Dialect::Dacode => dacode_plan(&board_dir, slug),
+        Dialect::Camera => camera_plan(&board_dir, slug),
+        Dialect::IkvmHtml => ikvm_plan(&board_dir, slug),
+        Dialect::Own => own_plan(&board_dir, slug),
+    }
+}
+
+/// Whether `checkout` holds a board to import: the board directory
+/// with `TODO.md`, every dialect's first file. The refresh's
+/// gone-board pre-flight — a cut-over repo (its board archived, the
+/// store primary) answers false and is refused before anything is
+/// touched.
+pub(crate) fn board_present(checkout: &str) -> bool {
+    Path::new(checkout).join(BOARD_DIR).join(TODO_MD).exists()
+}
+
+/// The census off the graph after the apply — the landed state, not
+/// the plan's prediction. The shared half of the tool's answer and
+/// the refresh's report.
+pub(crate) fn imported_counts(graph: &Graph, slug: &RepoSlug) -> ImportedDto {
+    ImportedDto {
         repo: slug.to_string(),
         epics: graph.epics().count() as u64,
         decisions: graph.decisions().count() as u64,
         docs: graph.docs().count() as u64,
         tasks: graph.tasks().count() as u64,
         blocks: graph.blocks_edges().len() as u64,
-    })
+    }
 }
 
 /// The dacode path's plan: read the three board files, parse, walk

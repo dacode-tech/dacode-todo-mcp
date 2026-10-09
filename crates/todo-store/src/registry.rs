@@ -179,6 +179,19 @@ impl Registry {
         }
     }
 
+    /// Drops `slug`'s entry, keeping the sorted invariant. Callers hold
+    /// the registry lock; an absent slug is a no-op (the write-if-changed
+    /// discipline is the caller's, so an unlisted slug rewrites
+    /// nothing).
+    pub(crate) fn remove(&mut self, slug: &RepoSlug) {
+        if let Ok(index) = self
+            .entries
+            .binary_search_by(|existing| existing.slug.cmp(slug))
+        {
+            self.entries.remove(index);
+        }
+    }
+
     /// Writes the registry of the data root `root` under §4.3's
     /// atomic-rename discipline: a pid-suffixed temp file in the same
     /// directory (same filesystem, so the rename is atomic; the pid keeps
