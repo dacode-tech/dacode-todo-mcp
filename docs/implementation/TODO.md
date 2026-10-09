@@ -214,7 +214,7 @@ shell, which is M3's business.
 
 | Blocking | What | Action |
 |---|---|---|
-| — | nothing blocks: the roadmap is delivered, the dacode repo cut over, the D20 arc is under way | **g19 in flight**: t68 (the dispatch + the JSON render) landed 2026-10-09; t69 (the HTML page + the project switcher) is next; g20 (ipmi-collector) and g21 (this repo's own cutover, the user's sign) are queued behind the arc; U36 rides the deferred ikvm revisit — see §6's handover |
+| — | nothing blocks: the roadmap is delivered, the dacode repo cut over, the D20 arc is under way | **g19 in flight**: t68 (the dispatch + the JSON render) and t69 (the HTML page + the project switcher, U37's split) landed 2026-10-09; t70 (the refresh port) is next; g20 (ipmi-collector) and g21 (this repo's own cutover, the user's sign) are queued behind the arc; U36 rides the deferred ikvm revisit — see §6's handover |
 
 (The user's calls 2026-10-09: **U35 resolved (a)** — the two
 wire-visible repo_list descriptions amended to the hit-or-lock-free
@@ -3523,6 +3523,55 @@ Oldest first. One line per delivery, with the commit hash once committed.
   implementation per the t30/t58 precedent. Landed as
   `550c60d`.
 
+- 2026-10-09 — **D20 t69: the HTML page + the project switcher, U37's
+  split**: the Python tool's page ported to hand-built Rust strings as
+  the `progress` subcommand's page output — the totals cards, the
+  milestone bar, the SVG dependency graph, the open-items and
+  decisions tables, the click-detail script with the `</`→`<\/`
+  breakout guard (a hostile `</script>` title pinned to leave exactly
+  one raw closer in the page), and the **project switcher** the user
+  folded into scope: one nav entry per registered slug (the registry's
+  own order), the rendered repo marked, the others linking
+  `?repo=<slug>` — the URL shape t71's serve answers; in the static
+  file the links are inert, honestly. The page is a pure function of
+  (root, repo) — the Python's date/sha/tracker overlay deliberately
+  dropped (D20's no-new-deps; post-g21 the store's open nodes are the
+  live picture) — so it golden-pins as `page.v1.golden` (17,661
+  bytes). The flags: `--out` redirects the written pair, `--no-write`
+  suppresses, `--json` prints and writes nothing (the Python's
+  "instead of writing"), `--open` opens the written page (never
+  fatal), the write-shaping exclusions usage faults; the default
+  write location is the rendered repo's registered checkout +
+  `.agents/cache` (the Python's own location, generalized per-repo —
+  veto-able, pinned by the test that runs from an unrelated cwd).
+  **U37 resolved by the split**: `render.rs` (719) → four files under
+  the target — `mod.rs` 533 (model + resolution + the shared text
+  helpers), `json.rs` 258, `page.rs` 504, `svg.rs` 178 (the seam the
+  page half's growth forced, recorded in the module doc). Eight new
+  progress tests (21 total) + four dispatch tests + five unit pins;
+  303 todo-mcp / 653 workspace tests green; the mutations M1–M6 plus
+  the reviewers' two own (the write-fault-swallowing exit, the
+  probe-per-slug switcher) killed at their tests and reverted
+  sha-verified. The live smoke: the release binary against the
+  durable root (refreshed first — the Python tool's last service to
+  the arc), twice-run byte-identical, the switcher listing all four
+  real repos, the default write landing at the Python tool's own
+  cache path with the same sha as the `--out` run, and the page
+  rendering the current board (open items U36/U37 — exactly the
+  attention table's). Dual review over two rounds, both ok bound to
+  the final bytes (the round-1 findings — the unrecorded §2
+  genericization (the per-repo page cannot hardcode this repo's
+  section number; dacode's milestones are §5), the unrecorded svg.rs
+  seam, the unpinned write-fault exit code, the unpinned wrote-line
+  shape, the unpinned veto-able (iii), three stale docs — all landed
+  in the fix round). Two implementer-spawn deaths (the 5.4 class
+  again, control spawns healthy) fell the task to
+  orchestrator-authored implementation per the t30/t58/t68 precedent.
+  Recorded folds: the §2 heading + card genericization, the svg.rs
+  extraction, M6's test strengthening (the spec's cwd-vs-checkout
+  mutant is unkillable from the checkout itself — the test now also
+  runs from an unrelated cwd). Landed as `<HASH>`.
+
 
 
 ## 4. Follow-ups
@@ -4522,18 +4571,59 @@ Deliberate shortcuts, acknowledged rather than fixed. Same id rules as §4.
       closing f103 fully. The one residual the review's completeness
       sweep found — ikvm's footer table — is U36.
 
-- [ ] **U37 · `todo-mcp/src/render.rs` is over the 600-line target.**
-      719 production lines under the awk measure (the cap holds): the
-      model, the document and — with t69's page — the render are one
-      responsibility until the page lands. The split point is t69's
-      growth: the model and document halves, the page beside them.
-      The module doc carries the exception line citing this entry.
+- [x] **U37 · `todo-mcp/src/render.rs` is over the 600-line target.**
+      Resolved by t69's split, exactly as the entry named it: the
+      module is now four files under the target — `render/mod.rs`
+      (model + resolution + the shared text helpers, 533), `json.rs`
+      (the document, 258), `page.rs` (the HTML, 504) and `svg.rs` (the
+      dependency graph, 178, extracted when the page half crossed the
+      target — the seam the split's own growth forced, recorded in the
+      module doc). The old `render.rs` (719) is deleted; the JSON
+      golden and the summary tests pin the behavior as unchanged.
 
 ## 6. Session log
 
 Newest first. One entry per session, written for someone who was not
 here. The final entry of a session is the handover
 (`.agents/skills/todo-next-imp/SKILL.md` defines the shape).
+
+### 2026-10-09 — t69: the page, the switcher, U37's split
+
+**Workspace**: main, clean after the commit below; the four-crate
+workspace, rustc 1.98.1; the release binary rebuilt (12.7 s).
+
+**Landed**: t69 — the `progress` subcommand's HTML page (the Python
+template ported to hand-built strings, golden-pinned as
+`page.v1.golden`), the project switcher driven by the registry (the
+user's fold: `?repo=<slug>` links, t71's serve contract), the
+`--open`/`--out`/`--no-write` flags with the Python's write contract
+(default = the rendered repo's `.agents/cache`, `--json` writes
+nothing), and U37's split executed (`render.rs` 719 → mod/json/page/
+svg at 533/258/504/178). 303 todo-mcp tests, every gate green, the
+mutations killed, dual review ok over two rounds. The live smoke: the
+page renders the current board (open items U36/U37), twice-run
+byte-identical, the switcher listing camera/dacode/dacode-todo-mcp/
+ikvm-html. The commit hash is §3's entry.
+
+**Next step**: t70 — the `refresh` port (the registry surgery with
+the t54 crash order, refusing gracefully where the board files are
+gone: dacode's store is primary since t67). Its alternative, t71
+(serve), is interleavable but depends on t70's refusal semantics only
+at the composition level; the decomposition order stands (t70 → t71 →
+t72 → t73). The Python `tools/progress.py` still works (it spawned
+the rebuilt binary for this session's refresh — its retirement is
+t73's).
+
+**Blocked on you**: nothing — D20 is signed, the arc is under way.
+g20 (ipmi-collector) and g21 (this repo's cutover, your sign) are
+queued behind the arc; the order is yours to flip.
+
+**Unverified**: `--open`'s runtime behavior is parse-pinned only (the
+opener spawn is best-effort by design and untestable without opening
+a real browser — the flag's composition is exercised by the write
+tests, its spawn is not); the switcher's links are inert in the
+static file by design (t71 answers them — until then a click from a
+`file://` page goes nowhere).
 
 ### 2026-10-09 — t68: the D20 arc opens — the dispatch + the JSON render
 

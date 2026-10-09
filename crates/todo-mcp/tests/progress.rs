@@ -1,10 +1,12 @@
-//! The progress subcommand's suite (spec §13, D20, t68): the render
-//! model over the domain graph, the JSON document golden-pinned, the
-//! resolution discipline (the registry consult, the lock-free read,
-//! the slug cross-check, the cwd tier), and the binary's dispatch —
-//! driven in-process where the surface is a library function and
-//! through the real binary where the surface is the process (the cwd
-//! tier and the exit codes, the tests/cwd.rs pattern).
+//! The progress subcommand's suite (spec §13, D20, t68 + t69): the
+//! render model over the domain graph, the JSON document and the HTML
+//! page golden-pinned (`progress.v1`, `page.v1`), the resolution
+//! discipline (the registry consult, the lock-free read, the slug
+//! cross-check, the cwd tier), the page's switcher and script-guard
+//! invariants, the binary's dispatch and write behavior — driven
+//! in-process where the surface is a library function and through the
+//! real binary where the surface is the process (the cwd tier, the
+//! exit codes and the writes, the tests/cwd.rs pattern).
 //!
 //! The fixture is hand-built through the store's public API under a
 //! temp root with fixed caller-passed timestamps — fully
@@ -669,5 +671,342 @@ mod progress {
             stderr.contains("no --repo and the working directory matches no registered checkout"),
             "stderr: {stderr}"
         );
+    }
+
+    /// The render fixture plus alpha, so the page's switcher renders a
+    /// real choice — the golden's fixture.
+    fn switcher_fixture() -> TempDir {
+        let root = TempDir::new().expect("a fresh temp root");
+        let data_root = DataRoot::new(root.path());
+        build_render_fixture(&data_root, "/repos/fixture");
+        build_alpha(&data_root, "/repos/alpha");
+        root
+    }
+
+    /// The fixture's page, rendered in-process.
+    fn fixture_page(root: &TempDir) -> String {
+        render::page(&DataRoot::new(root.path()), &fixture_slug()).expect("the render succeeds")
+    }
+
+    /// The page golden: the fixture's page (with alpha registered, so
+    /// the switcher carries two entries), byte-identical to
+    /// `tests/golden/page.v1.golden`.
+    #[test]
+    fn the_page_is_golden_pinned() {
+        let root = switcher_fixture();
+        assert_golden("page.v1", fixture_page(&root).as_bytes());
+    }
+
+    /// Two page renders over unchanged state are byte-identical (§8) —
+    /// the in-process twin of the golden's regeneration ritual.
+    #[test]
+    fn two_page_renders_are_byte_identical() {
+        let root = switcher_fixture();
+        assert_eq!(fixture_page(&root), fixture_page(&root));
+    }
+
+    /// The switcher: every registered slug appears, the rendered repo
+    /// as the marked non-link, the others as `?repo=<slug>` links —
+    /// the URL shape the `serve` subcommand answers (the golden pins
+    /// the full nav).
+    #[test]
+    fn the_switcher_lists_the_registered_repos() {
+        let root = switcher_fixture();
+        let page = fixture_page(&root);
+        assert!(
+            page.contains(r#"<a href="?repo=alpha">alpha</a>"#),
+            "the switcher links alpha: {}",
+            &page[..page.len().min(400)]
+        );
+        assert!(
+            page.contains(r#"<span class="cur">fixture</span>"#),
+            "the rendered repo is the marked non-link"
+        );
+    }
+
+    /// The switcher is a registry nav, not a render: a registered repo
+    /// whose store will not read still appears — the page never pays
+    /// one lock-free read per slug to render a nav, and clicking the
+    /// slug under `serve` answers the read error (the spec's
+    /// veto-able reading (iii), pinned).
+    #[test]
+    fn the_switcher_lists_slugs_whose_stores_will_not_read() {
+        let root = switcher_fixture();
+        let alpha_log = root
+            .path()
+            .join("repos")
+            .join(ALPHA)
+            .join("event-log.jsonl");
+        std::fs::write(&alpha_log, "not a log\n").expect("alpha's store is corrupted");
+        let page = fixture_page(&root);
+        assert!(
+            page.contains(r#"<a href="?repo=alpha">alpha</a>"#),
+            "the unreadable repo still appears in the nav"
+        );
+    }
+
+    /// A write fault is exit 1 with the message on stderr (D9): `--out`
+    /// at an existing file cannot create the output directory — an
+    /// environment fault, never a silent success.
+    #[test]
+    fn a_write_fault_is_exit_1() {
+        let root = TempDir::new().expect("a fresh temp root");
+        let checkout = TempDir::new().expect("the fixture checkout");
+        let blocker = TempDir::new().expect("the blocker's directory");
+        let data_root = DataRoot::new(root.path());
+        build_render_fixture(&data_root, &checkout.path().display().to_string());
+        let blocked_out = blocker.path().join("not-a-directory");
+        std::fs::write(&blocked_out, b"a file").expect("the blocker exists");
+
+        let (code, stdout, stderr) = run(
+            checkout.path(),
+            &[
+                "progress",
+                "--root",
+                root.path().to_str().expect("a UTF-8 root"),
+                "--out",
+                blocked_out.to_str().expect("a UTF-8 out path"),
+            ],
+        );
+        assert_eq!(code, Some(1));
+        // The summary prints before the write, so it is already on
+        // stdout — the failure is the exit code and the stderr
+        // message, and the wrote line never appears.
+        assert!(stdout.contains("progress — imported"), "stdout: {stdout}");
+        assert!(!stdout.contains("wrote "), "stdout: {stdout}");
+        assert!(
+            stderr.contains("create the output directory"),
+            "stderr: {stderr}"
+        );
+    }
+
+    /// The default write: the pair lands in the rendered repo's
+    /// registered checkout `.agents/cache` with exactly the in-process
+    /// render's bytes — both when the cwd tier resolves the repo (run
+    /// from the checkout) and when `--repo` names it from an unrelated
+    /// cwd, which is the run that distinguishes the registered
+    /// checkout from the process's working directory. stdout carries
+    /// the summary and the wrote line.
+    #[test]
+    fn the_default_run_writes_the_pair_beside_the_checkout() {
+        let root = TempDir::new().expect("a fresh temp root");
+        let checkout = TempDir::new().expect("the fixture checkout");
+        let elsewhere = TempDir::new().expect("an unrelated cwd");
+        let data_root = DataRoot::new(root.path());
+        build_render_fixture(&data_root, &checkout.path().display().to_string());
+
+        // From the checkout: the cwd tier resolves the repo and the
+        // default write composes with it.
+        let (code, stdout, stderr) = run(
+            checkout.path(),
+            &[
+                "progress",
+                "--root",
+                root.path().to_str().expect("a UTF-8 root"),
+            ],
+        );
+        assert_eq!(code, Some(0), "stderr: {stderr}");
+        assert!(stdout.contains("progress — imported"), "stdout: {stdout}");
+        // The wrote line names both files of the pair (D7's shape).
+        assert!(
+            stdout.contains("progress.html and "),
+            "the wrote line names the page: {stdout}"
+        );
+        assert!(
+            stdout.contains("progress.json"),
+            "the wrote line names the JSON twin: {stdout}"
+        );
+
+        // From an unrelated cwd with --repo: the pair still lands in
+        // the REGISTERED checkout's cache, never the cwd's.
+        let (code, stdout, stderr) = run(
+            elsewhere.path(),
+            &[
+                "progress",
+                "--root",
+                root.path().to_str().expect("a UTF-8 root"),
+                "--repo",
+                FIXTURE,
+            ],
+        );
+        assert_eq!(code, Some(0), "stderr: {stderr}");
+        assert!(stdout.contains("wrote "), "stdout: {stdout}");
+        assert!(
+            !elsewhere.path().join(".agents").exists(),
+            "nothing lands in the unrelated cwd"
+        );
+
+        let cache = checkout.path().join(".agents").join("cache");
+        let page =
+            std::fs::read(cache.join("progress.html")).expect("the page lands beside the checkout");
+        let document = std::fs::read(cache.join("progress.json"))
+            .expect("the JSON twin lands beside the checkout");
+        assert_eq!(
+            page,
+            render::page(&data_root, &fixture_slug())
+                .expect("the in-process page")
+                .as_bytes()
+        );
+        assert_eq!(
+            document,
+            render::json(&data_root, &fixture_slug())
+                .expect("the in-process document")
+                .as_bytes()
+        );
+    }
+
+    /// `--out DIR` redirects the pair; nothing lands beside the
+    /// checkout.
+    #[test]
+    fn the_out_flag_redirects_the_pair() {
+        let root = TempDir::new().expect("a fresh temp root");
+        let checkout = TempDir::new().expect("the fixture checkout");
+        let out = TempDir::new().expect("the redirected output");
+        let data_root = DataRoot::new(root.path());
+        build_render_fixture(&data_root, &checkout.path().display().to_string());
+
+        let (code, stdout, stderr) = run(
+            checkout.path(),
+            &[
+                "progress",
+                "--root",
+                root.path().to_str().expect("a UTF-8 root"),
+                "--out",
+                out.path().to_str().expect("a UTF-8 out dir"),
+            ],
+        );
+        assert_eq!(code, Some(0), "stderr: {stderr}");
+        assert!(stdout.contains("wrote "), "stdout: {stdout}");
+        assert!(
+            out.path().join("progress.html").exists() && out.path().join("progress.json").exists(),
+            "the pair lands in the --out directory"
+        );
+        assert!(
+            !checkout.path().join(".agents").exists(),
+            "nothing lands beside the checkout"
+        );
+    }
+
+    /// `--no-write` prints the summary only — no files anywhere.
+    #[test]
+    fn no_write_prints_the_summary_only() {
+        let root = TempDir::new().expect("a fresh temp root");
+        let checkout = TempDir::new().expect("the fixture checkout");
+        let data_root = DataRoot::new(root.path());
+        build_render_fixture(&data_root, &checkout.path().display().to_string());
+
+        let (code, stdout, stderr) = run(
+            checkout.path(),
+            &[
+                "progress",
+                "--root",
+                root.path().to_str().expect("a UTF-8 root"),
+                "--no-write",
+            ],
+        );
+        assert_eq!(code, Some(0), "stderr: {stderr}");
+        assert!(stdout.contains("progress — imported"), "stdout: {stdout}");
+        assert!(!stdout.contains("wrote "), "stdout: {stdout}");
+        assert!(
+            !checkout.path().join(".agents").exists(),
+            "no files land beside the checkout"
+        );
+    }
+
+    /// `--json` prints the document and writes nothing (the Python
+    /// tool's "instead of writing" contract).
+    #[test]
+    fn json_prints_the_document_and_writes_nothing() {
+        let root = TempDir::new().expect("a fresh temp root");
+        let checkout = TempDir::new().expect("the fixture checkout");
+        let data_root = DataRoot::new(root.path());
+        build_render_fixture(&data_root, &checkout.path().display().to_string());
+
+        let (code, stdout, stderr) = run(
+            checkout.path(),
+            &[
+                "progress",
+                "--root",
+                root.path().to_str().expect("a UTF-8 root"),
+                "--json",
+            ],
+        );
+        assert_eq!(code, Some(0), "stderr: {stderr}");
+        assert_eq!(
+            stdout,
+            render::json(&data_root, &fixture_slug()).expect("the in-process document")
+        );
+        assert!(
+            !checkout.path().join(".agents").exists(),
+            "no files land beside the checkout"
+        );
+    }
+
+    /// A hostile title cannot break out of the script element: the
+    /// `</` guard turns the DATA embed's `</script>` into `<\/script>`
+    /// (a valid JSON escape), so the page's raw `</script>` count is
+    /// exactly one — the element's own closer. The specials title
+    /// renders escaped everywhere it appears.
+    #[test]
+    fn a_hostile_title_cannot_break_out_of_the_script_element() {
+        let root = TempDir::new().expect("a fresh temp root");
+        let data_root = DataRoot::new(root.path());
+        build_hostile(&data_root);
+        let slug = RepoSlug::from_str("hostile").expect("a valid slug");
+        let page = render::page(&data_root, &slug).expect("the hostile page renders");
+        assert_eq!(page.matches("</script>").count(), 1);
+        assert!(
+            page.contains(r#""title":"<\/script>""#),
+            "the DATA embed guards the closing sequence"
+        );
+        assert!(
+            page.contains("&lt;b&gt;&amp;&quot;"),
+            "the specials title renders escaped"
+        );
+    }
+
+    /// The hostile fixture: one epic, one task titled `</script>`, one
+    /// titled with HTML specials — separate from the render fixture so
+    /// its golden never grows hostile bytes.
+    fn build_hostile(root: &DataRoot) {
+        let mut store = root
+            .register(Repo {
+                slug: RepoSlug::from_str("hostile").expect("a valid slug"),
+                name: "Hostile".to_owned(),
+                path: "/repos/hostile".to_owned(),
+                registered_at: ts("2026-10-02T10:00:00Z"),
+            })
+            .expect("the hostile repo registers");
+        let epic = store
+            .add_epic(
+                EpicDraft {
+                    title: "Hostile titles".to_owned(),
+                    description: "The hostile epic.".to_owned(),
+                    status: Status::Open,
+                    references: References::new(),
+                },
+                ts("2026-10-02T10:01:00Z"),
+            )
+            .expect("the hostile epic lands");
+        for (title, n) in [("</script>", 1u64), ("<b>&\" specials", 2)] {
+            store
+                .add_task(
+                    TaskDraft {
+                        epic: epic.id.clone(),
+                        kind: TaskKind::Task,
+                        title: title.to_owned(),
+                        body: String::new(),
+                        status: Status::Open,
+                        verify: Some("cargo test -p hostile".to_owned()),
+                        evidence: None,
+                        note: None,
+                        references: References::new(),
+                        priority: None,
+                        until: None,
+                    },
+                    ts(&format!("2026-10-02T10:10:{n:02}Z")),
+                )
+                .expect("the hostile task lands");
+        }
     }
 }

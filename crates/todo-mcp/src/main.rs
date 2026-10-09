@@ -8,9 +8,12 @@
 //! The same binary carries the tool CLI (§13, D20): the first
 //! positional selects a subcommand, and no positional at all is the
 //! MCP server on stdio — the wiring every client has is unchanged.
-//! `progress` (t68's slice) renders the total-progress document; the
-//! later subcommands (`refresh`, `serve`, the inspector absorption)
-//! land as their own tasks. The globals are shared: `--root <DIR>`
+//! `progress` renders the total-progress document and the HTML page
+//! (t68's and t69's slices), writing the page and its JSON twin
+//! beside the repo's checkout unless `--json`/`--no-write`/`--out`
+//! say otherwise; the later subcommands (`refresh`, `serve`, the
+//! inspector absorption) land as their own tasks. The globals are
+//! shared: `--root <DIR>`
 //! names the store location on every path — nothing reads the
 //! environment, a home directory or the cwd to find one — and
 //! `--repo <SLUG>`, validated here, is the server's default slug
@@ -37,7 +40,7 @@
 )]
 
 use std::ffi::OsString;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use std::str::FromStr;
 
@@ -62,7 +65,7 @@ todo-mcp — the dacode-todo MCP server and tool CLI (spec §13).
 
 Usage:
   todo-mcp --root <DIR> [--repo <SLUG>]                    the MCP server on stdio
-  todo-mcp --root <DIR> [--repo <SLUG>] progress [--json]  the total-progress render
+  todo-mcp --root <DIR> [--repo <SLUG>] progress [flags]   the total-progress render
 
 Options:
       --root <DIR>    The data root holding repos/<slug>/ and the shared
@@ -74,16 +77,23 @@ Options:
                       absent, or the repo the progress subcommand
                       renders — an explicit value always wins over the
                       working-directory match (§7)
-      --json          With `progress`: print the JSON document instead
-                      of the human summary
+      --json          With `progress`: print the JSON document to stdout
+                      instead of the summary; writes nothing
+      --out <DIR>     With `progress`: write progress.html and
+                      progress.json there instead of the rendered
+                      repo's .agents/cache
+      --no-write      With `progress`: print the summary only, write
+                      nothing
+      --open          With `progress`: open the written page in a
+                      browser
 
 Exit codes:
   0  the client closed the connection after a completed handshake, or
      the subcommand succeeded
-  1  the serve loop failed, or the render failed: a repo that does not
-     resolve, or a store that will not read
-  2  usage: a bad flag, a missing --root, a malformed --repo value, or
-     an unknown subcommand
+  1  the serve loop failed, the render failed (a repo that does not
+     resolve, or a store that will not read), or the page did not write
+  2  usage: a bad flag, a missing --root, a malformed --repo value, an
+     unknown subcommand, or flags that cannot combine
 ";
 
 /// The parsed command line (§13, D20): which of the binary's shapes
@@ -100,7 +110,7 @@ enum Command {
         default_repo: Option<RepoSlug>,
     },
     /// `progress`: the total-progress render (t68's slice of D20's
-    /// tool CLI).
+    /// tool CLI; t69's the page and the writes).
     Progress {
         /// The data root (§7/§13/D4).
         root: OsString,
@@ -108,6 +118,13 @@ enum Command {
         repo: Option<RepoSlug>,
         /// Whether to print the JSON document instead of the summary.
         json: bool,
+        /// Whether to open the written page in a browser.
+        open: bool,
+        /// Where to write the pair — `None` is the rendered repo's
+        /// `.agents/cache`.
+        out: Option<OsString>,
+        /// Whether to write nothing.
+        no_write: bool,
     },
 }
 
@@ -126,7 +143,14 @@ async fn main() -> ExitCode {
             let cwd = std::env::current_dir().ok();
             serve(DataRoot::new(root), default_repo, cwd).await
         }
-        Ok(Command::Progress { root, repo, json }) => run_progress(root, repo, json),
+        Ok(Command::Progress {
+            root,
+            repo,
+            json,
+            open,
+            out,
+            no_write,
+        }) => run_progress(root, repo, json, open, out, no_write),
         Err(message) => {
             // The message, a blank line, then the usage text (the cli's
             // convention).
@@ -163,10 +187,21 @@ async fn serve(root: DataRoot, default_repo: Option<RepoSlug>, cwd: Option<PathB
 
 /// The `progress` subcommand (D20): resolve the repo — the flag wins,
 /// else the cwd tier, the binary reading the cwd once here so the lib
-/// stays env-free — then render and print. A failure is exit 1 with
-/// the message on stderr: the repo did not resolve or the store did
-/// not read, which is an environment fault, not an argument fault.
-fn run_progress(root: OsString, repo: Option<RepoSlug>, json: bool) -> ExitCode {
+/// stays env-free — then render and print. `--json` prints the
+/// document and writes nothing (the Python tool's "instead of
+/// writing" contract); the default writes the page and its JSON twin
+/// beside the summary, `--out` redirects the pair, `--no-write`
+/// suppresses them. A failure is exit 1 with the message on stderr:
+/// the repo did not resolve, the store did not read, or the page did
+/// not write — environment faults, not argument faults.
+fn run_progress(
+    root: OsString,
+    repo: Option<RepoSlug>,
+    json: bool,
+    open: bool,
+    out: Option<OsString>,
+    no_write: bool,
+) -> ExitCode {
     let root = DataRoot::new(root);
     let slug = match repo {
         Some(slug) => slug,
@@ -181,22 +216,87 @@ fn run_progress(root: OsString, repo: Option<RepoSlug>, json: bool) -> ExitCode 
             }
         }
     };
-    let outcome = if json {
-        render::json(&root, &slug)
-    } else {
-        render::summary(&root, &slug)
-    };
-    match outcome {
-        // The render's text already ends in one newline — printed
-        // exactly, never doubled.
-        Ok(text) => {
-            print!("{text}");
-            ExitCode::SUCCESS
-        }
+    if json {
+        return match render::json(&root, &slug) {
+            // The render's text already ends in one newline — printed
+            // exactly, never doubled.
+            Ok(text) => {
+                print!("{text}");
+                ExitCode::SUCCESS
+            }
+            Err(message) => {
+                eprintln!("todo-mcp: {message}");
+                ExitCode::from(EXIT_RENDER)
+            }
+        };
+    }
+    let outputs = match render::outputs(&root, &slug) {
+        Ok(outputs) => outputs,
         Err(message) => {
             eprintln!("todo-mcp: {message}");
-            ExitCode::from(EXIT_RENDER)
+            return ExitCode::from(EXIT_RENDER);
         }
+    };
+    print!("{}", outputs.summary);
+    // The default output location: the rendered repo's registered
+    // checkout plus `.agents/cache` — the Python tool's own location,
+    // generalized per-repo (the repo node's path is the one source of
+    // truth for where the checkout lives, §7). The CLI convention
+    // stays here in the binary.
+    let out_dir = match &out {
+        Some(dir) => PathBuf::from(dir),
+        None => outputs.checkout.join(".agents/cache"),
+    };
+    if !no_write {
+        if let Err(message) = write_pair(&out_dir, &outputs) {
+            eprintln!("todo-mcp: {message}");
+            return ExitCode::from(EXIT_RENDER);
+        }
+        println!(
+            "  wrote {} and {}",
+            out_dir.join("progress.html").display(),
+            out_dir.join("progress.json").display()
+        );
+    }
+    if open {
+        open_in_browser(&out_dir.join("progress.html"));
+    }
+    ExitCode::SUCCESS
+}
+
+/// Writes the page and its JSON twin — plain writes, the Python
+/// tool's own discipline: the pair is a derived cache, not store
+/// data, and a torn write is a stale page the next run replaces
+/// (§4.3's temp+fsync+rename is the store's contract, not the
+/// renderer's).
+fn write_pair(out_dir: &Path, outputs: &render::Outputs) -> Result<(), String> {
+    std::fs::create_dir_all(out_dir)
+        .map_err(|error| format!("create the output directory: {error}"))?;
+    std::fs::write(out_dir.join("progress.html"), outputs.page.as_bytes())
+        .map_err(|error| format!("write progress.html: {error}"))?;
+    std::fs::write(out_dir.join("progress.json"), outputs.json.as_bytes())
+        .map_err(|error| format!("write progress.json: {error}"))?;
+    Ok(())
+}
+
+/// Opens the written page — the platform opener, never fatal: a spawn
+/// failure or a non-zero opener status prints the path instead (the
+/// Python tool's `check=False`).
+fn open_in_browser(target: &Path) {
+    let program = if cfg!(target_os = "macos") {
+        "open"
+    } else if cfg!(target_os = "linux") {
+        "xdg-open"
+    } else {
+        println!("  open it yourself: {}", target.display());
+        return;
+    };
+    if std::process::Command::new(program)
+        .arg(target)
+        .status()
+        .is_err()
+    {
+        println!("  open it yourself: {}", target.display());
     }
 }
 
@@ -220,6 +320,9 @@ where
     let mut root: Option<OsString> = None;
     let mut repo: Option<RepoSlug> = None;
     let mut json = false;
+    let mut open = false;
+    let mut out: Option<OsString> = None;
+    let mut no_write = false;
     let mut progress = false;
     while let Some(arg) = parser
         .next()
@@ -252,6 +355,36 @@ where
                     "todo-mcp: the option '--json' belongs to the 'progress' subcommand".to_owned(),
                 );
             }
+            lexopt::Arg::Long("open") if progress => {
+                open = true;
+            }
+            lexopt::Arg::Long("open") => {
+                return Err(
+                    "todo-mcp: the option '--open' belongs to the 'progress' subcommand".to_owned(),
+                );
+            }
+            lexopt::Arg::Long("no-write") if progress => {
+                no_write = true;
+            }
+            lexopt::Arg::Long("no-write") => {
+                return Err(
+                    "todo-mcp: the option '--no-write' belongs to the 'progress' subcommand"
+                        .to_owned(),
+                );
+            }
+            lexopt::Arg::Long("out") if progress => {
+                out = Some(
+                    parser
+                        .value()
+                        .map_err(|error| format!("todo-mcp: {error}"))?,
+                );
+            }
+            lexopt::Arg::Long("out") => {
+                return Err(
+                    "todo-mcp: the option '--out <DIR>' belongs to the 'progress' subcommand"
+                        .to_owned(),
+                );
+            }
             lexopt::Arg::Value(value) => {
                 let text = value
                     .to_str()
@@ -273,8 +406,48 @@ where
     let root = root.ok_or_else(|| {
         "todo-mcp: the required option '--root <DIR>' was not provided".to_owned()
     })?;
+    if progress {
+        // The write-shaping flags cannot combine with each other or
+        // with `--json` — a flag that would be silently ignored is a
+        // usage fault, never a no-op dressed as configuration (the
+        // Python tool's `--serve` exclusivity, applied to the page
+        // writes).
+        if json && out.is_some() {
+            return Err(
+                "todo-mcp: '--json' cannot combine with '--out' (it prints the document to \
+                 stdout and writes nothing)"
+                    .to_owned(),
+            );
+        }
+        if json && open {
+            return Err(
+                "todo-mcp: '--json' cannot combine with '--open' (nothing is written to open)"
+                    .to_owned(),
+            );
+        }
+        if no_write && out.is_some() {
+            return Err(
+                "todo-mcp: '--no-write' cannot combine with '--out' (nothing is written)"
+                    .to_owned(),
+            );
+        }
+        if no_write && open {
+            return Err(
+                "todo-mcp: '--no-write' cannot combine with '--open' (nothing is written to \
+                 open)"
+                    .to_owned(),
+            );
+        }
+    }
     Ok(if progress {
-        Command::Progress { root, repo, json }
+        Command::Progress {
+            root,
+            repo,
+            json,
+            open,
+            out,
+            no_write,
+        }
     } else {
         Command::Serve {
             root,
@@ -351,7 +524,10 @@ mod tests {
             Ok(Command::Progress {
                 root: OsString::from("/tmp/data"),
                 repo: None,
-                json: false
+                json: false,
+                open: false,
+                out: None,
+                no_write: false
             })
         );
     }
@@ -367,7 +543,10 @@ mod tests {
             Ok(Command::Progress {
                 root: OsString::from("/tmp/data"),
                 repo: None,
-                json: true
+                json: true,
+                open: false,
+                out: None,
+                no_write: false
             })
         );
         assert_eq!(before, after);
@@ -423,8 +602,124 @@ mod tests {
             Ok(Command::Progress {
                 root: OsString::from("/tmp/data"),
                 repo: Some(RepoSlug::from_str("fixture").unwrap()),
-                json: false
+                json: false,
+                open: false,
+                out: None,
+                no_write: false
             })
+        );
+    }
+
+    #[test]
+    fn the_write_flags_parse_onto_the_subcommand() {
+        assert_eq!(
+            parse_args([
+                "--root",
+                "/tmp/data",
+                "progress",
+                "--out",
+                "/tmp/page",
+                "--open"
+            ]),
+            Ok(Command::Progress {
+                root: OsString::from("/tmp/data"),
+                repo: None,
+                json: false,
+                open: true,
+                out: Some(OsString::from("/tmp/page")),
+                no_write: false
+            })
+        );
+        assert_eq!(
+            parse_args(["--root", "/tmp/data", "progress", "--no-write"]),
+            Ok(Command::Progress {
+                root: OsString::from("/tmp/data"),
+                repo: None,
+                json: false,
+                open: false,
+                out: None,
+                no_write: true
+            })
+        );
+    }
+
+    #[test]
+    fn the_write_flags_belong_to_the_subcommand() {
+        // A write flag without `progress` is a usage fault naming the
+        // flag — never a silently ignored option.
+        assert_eq!(
+            parse_args(["--root", "/tmp/data", "--open"]),
+            Err("todo-mcp: the option '--open' belongs to the 'progress' subcommand".to_owned())
+        );
+        assert_eq!(
+            parse_args(["--root", "/tmp/data", "--no-write"]),
+            Err(
+                "todo-mcp: the option '--no-write' belongs to the 'progress' subcommand".to_owned()
+            )
+        );
+        assert_eq!(
+            parse_args(["--root", "/tmp/data", "--out", "/tmp/page"]),
+            Err(
+                "todo-mcp: the option '--out <DIR>' belongs to the 'progress' subcommand"
+                    .to_owned()
+            )
+        );
+    }
+
+    #[test]
+    fn json_cannot_combine_with_the_write_flags() {
+        // `--json` prints the document and writes nothing, so the
+        // write-shaping flags would be silently ignored beside it — a
+        // usage fault instead.
+        assert_eq!(
+            parse_args([
+                "--root",
+                "/tmp/data",
+                "progress",
+                "--json",
+                "--out",
+                "/tmp/page"
+            ]),
+            Err(
+                "todo-mcp: '--json' cannot combine with '--out' (it prints the document to \
+                 stdout and writes nothing)"
+                    .to_owned()
+            )
+        );
+        assert_eq!(
+            parse_args(["--root", "/tmp/data", "progress", "--json", "--open"]),
+            Err(
+                "todo-mcp: '--json' cannot combine with '--open' (nothing is written to open)"
+                    .to_owned()
+            )
+        );
+    }
+
+    #[test]
+    fn no_write_cannot_combine_with_the_write_flags() {
+        // `--no-write` writes nothing, so `--out` and `--open` would
+        // be silently ignored beside it — usage faults instead.
+        assert_eq!(
+            parse_args([
+                "--root",
+                "/tmp/data",
+                "progress",
+                "--no-write",
+                "--out",
+                "/tmp/page"
+            ]),
+            Err(
+                "todo-mcp: '--no-write' cannot combine with '--out' (nothing is written)"
+                    .to_owned()
+            )
+        );
+        assert_eq!(
+            parse_args(["--root", "/tmp/data", "progress", "--no-write", "--open"]),
+            Err(
+                "todo-mcp: '--no-write' cannot combine with '--open' (nothing is written to \
+                 open)"
+                    .to_owned()
+            )
         );
     }
 }

@@ -1,13 +1,31 @@
 //! The `progress` subcommand's render (spec §13, D20): the
-//! total-progress document over one repository's graph — the model
+//! total-progress surfaces over one repository's graph — the model
 //! `tools/progress.py`'s `build()` computed, ported onto the domain
 //! [`Graph`] this process reads lock-free (D19) instead of a wire
 //! client's `graph_show` answer. The Python tool drove a spawned
 //! server because it was a client; this module is in-process, so the
-//! model derives from the graph directly and the document is a pure
+//! model derives from the graph directly and every surface is a pure
 //! function of `(root, repo)` — no clock, no git, no environment
 //! (§8): the golden-pinned bytes, and two runs over unchanged state,
 //! are byte-identical by construction.
+//!
+//! The module is four files, split at U37's named point and one seam
+//! beyond it: this one holds the model, the resolution and the shared
+//! text helpers, [`json()`] the golden-pinned JSON document, [`page()`]
+//! the HTML page with the project switcher, and `svg` the
+//! dependency-graph SVG (extracted from the page when the page half
+//! crossed the 600-line target — the split the spec's D1 named, plus
+//! the seam it forced). The public surface is four functions over one
+//! internal model — [`json()`] and [`summary`] (one surface each),
+//! [`page()`] (the HTML), and [`outputs`] (one resolve + one build, all
+//! three surfaces plus the repo's registered checkout, for the
+//! subcommand's default write location) — plus [`resolve_by_cwd`],
+//! the subcommand's repo tier: the `--repo` flag wins (the binary
+//! owns that check), else the working directory's deterministic
+//! longest-ancestor match against the registered checkouts (§7, the
+//! same rule the server's default tier applies). The binary reads the
+//! cwd once and passes it in; this crate never touches the
+//! environment.
 //!
 //! The resolution mirrors `ServerState::resolve_read`'s discipline
 //! exactly (the t64 hand-off): the registry consult first —
@@ -26,26 +44,17 @@
 //! document), and it cannot drop a node silently (a decision the model
 //! cannot place, and every edge with an endpoint it cannot place, are
 //! reported in `not_placed`, never dropped).
-//!
-//! The public surface is two functions over one internal model —
-//! [`json`] (the golden-pinned document) and [`summary`] (the human
-//! narration) — plus [`resolve_by_cwd`], the subcommand's repo tier:
-//! the `--repo` flag wins (the binary owns that check), else the
-//! working directory's deterministic longest-ancestor match against
-//! the registered checkouts (§7, the same rule the server's default
-//! tier applies). The binary reads the cwd once and passes it in; this
-//! crate never touches the environment.
-//!
-//! (This module is over the production-line target and under the cap:
-//! the model, the document and — with t69's page — the render are one
-//! responsibility until the page lands; the split point is t69's
-//! growth, the model and document halves. The ledger is board §5
-//! U37.)
+
+mod json;
+mod page;
+mod svg;
+
+pub use self::json::json;
+pub use self::page::{Outputs, page};
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
-use serde::Serialize;
 use todo_domain::{
     BlockEnd, Decision, DecisionId, DecisionStatus, DomainError, Epic, EpicId, Graph, Repo,
     RepoSlug, Status, Task, TaskId, TaskKind,
@@ -55,148 +64,10 @@ use todo_store::{DataRoot, Registry, StoreError};
 use crate::ToolError;
 use crate::cwd::{MatchOutcome, match_slug};
 
-/// The `progress --json` document (v1, golden-pinned as
-/// `tests/golden/progress.v1`): the Python tool's store-derived fields
-/// — its `generated` (a clock read), `head` (a git subprocess) and
-/// `tracker` (the gitignored session yaml) fields are deliberately
-/// absent, because none can golden-pin and D20's no-new-dependencies
-/// consequence forbids the yaml read. Field order is declaration order
-/// (D14's discipline); short ids (the part after `:`) wherever the
-/// Python tool used them, the full epic id for a node's lane.
-#[derive(Serialize)]
-struct ProgressJson {
-    /// The rendered repository's slug.
-    repo: String,
-    /// The repo node's registration instant — the staleness signal:
-    /// the document renders the last import, not the board as it is.
-    import_instant: String,
-    /// The roll-up: every count the summary prints.
-    totals: TotalsDto,
-    /// The milestone epics in lane order, with the board's M id.
-    milestones: Vec<MilestoneDto>,
-    /// The non-done tasks in (lane, id) order.
-    open_items: Vec<OpenItemDto>,
-    /// Every decision, ascending id, with what it gates.
-    decisions: Vec<DecisionDto>,
-    /// The graph: one node per placed task or decision, the edges.
-    graph: GraphDto,
-}
-
-/// The totals block.
-#[derive(Serialize)]
-struct TotalsDto {
-    /// The lane count (one per epic).
-    epics: usize,
-    /// The milestone epics' done/total.
-    milestones: MilestoneTotalsDto,
-    /// Every task, all kinds.
-    tasks: usize,
-    /// Per-kind counts over the four task kinds.
-    by_kind: KindState,
-    /// The open items' short ids, the `open_items` list's order.
-    open_items: Vec<String>,
-    /// The decisions' signed/total.
-    decisions: DecisionTotalsDto,
-    /// The unplaced-decision and dropped-edge reports — never dropped.
-    not_placed: Vec<String>,
-}
-
-/// The milestone totals.
-#[derive(Serialize)]
-struct MilestoneTotalsDto {
-    /// Milestone epics whose status is closed.
-    done: usize,
-    /// Every milestone epic.
-    total: usize,
-}
-
-/// The decisions' totals.
-#[derive(Serialize)]
-struct DecisionTotalsDto {
-    /// Decisions whose status is signed.
-    signed: usize,
-    /// Every decision.
-    total: usize,
-}
-
-/// One milestone row.
-#[derive(Serialize)]
-struct MilestoneDto {
-    /// The board's M id, recovered from the epic's provenance
-    /// description.
-    id: String,
-    /// The epic's title.
-    title: String,
-    /// The epic's status.
-    status: String,
-}
-
-/// One open-item row.
-#[derive(Serialize)]
-struct OpenItemDto {
-    /// The task's short id.
-    id: String,
-    /// The task's kind.
-    kind: String,
-    /// The task's status.
-    status: String,
-    /// The task's title.
-    title: String,
-    /// The open decisions gating the task's epic, short ids — empty
-    /// when nothing gates it.
-    waits_on: String,
-}
-
-/// One decision row.
-#[derive(Serialize)]
-struct DecisionDto {
-    /// The decision's short id.
-    id: String,
-    /// The decision's status.
-    status: String,
-    /// The decision's title.
-    title: String,
-    /// What the decision gates, short ids, the adjacency's order.
-    gates: Vec<String>,
-}
-
-/// The graph block.
-#[derive(Serialize)]
-struct GraphDto {
-    /// One node per placed task or decision, lane by lane (epic
-    /// ascending), tasks then decisions within a lane, id ascending.
-    nodes: Vec<NodeDto>,
-    /// Every blocks edge, short ids: decision-sourced first (decision
-    /// id ascending, targets in the adjacency's canonical order), then
-    /// task-sourced (task id ascending).
-    edges: Vec<EdgeDto>,
-}
-
-/// One graph node.
-#[derive(Serialize)]
-struct NodeDto {
-    /// The node's short id.
-    id: String,
-    /// The task's kind, or `decision`.
-    kind: String,
-    /// The node's status.
-    status: String,
-    /// The lane's full epic id.
-    lane: String,
-}
-
-/// One graph edge.
-#[derive(Serialize)]
-struct EdgeDto {
-    /// The blocker's short id.
-    from: String,
-    /// The held-back node's short id.
-    to: String,
-}
-
 /// Per-kind counts over the four task kinds (the Python tool's
-/// `kind_state`, the same fixed key order).
-#[derive(Serialize, Default, Clone)]
+/// `kind_state`, the same fixed key order) — a model type the JSON
+/// document serializes and the page's cards read.
+#[derive(Default, Clone, serde::Serialize)]
 struct KindState {
     /// `task`-kind counts.
     task: KindCounts,
@@ -209,7 +80,7 @@ struct KindState {
 }
 
 /// One kind's counts.
-#[derive(Serialize, Default, Clone)]
+#[derive(Default, Clone, serde::Serialize)]
 struct KindCounts {
     /// Tasks of the kind.
     total: usize,
@@ -220,7 +91,7 @@ struct KindCounts {
 }
 
 /// The render model over one graph: every list in a documented total
-/// order (§8). Borrowed from the graph — the model is a view, and both
+/// order (§8). Borrowed from the graph — the model is a view, and the
 /// public functions serialize or narrate from it.
 struct Model<'a> {
     /// The repo node — the slug and the import instant.
@@ -263,17 +134,6 @@ struct Lane<'a> {
     decisions: Vec<&'a Decision>,
 }
 
-/// The `progress --json` document: the golden-pinned v1 JSON, one
-/// trailing newline — exactly the bytes the subcommand prints.
-pub fn json(root: &DataRoot, repo: &RepoSlug) -> Result<String, String> {
-    let graph = resolve(root, repo).map_err(|error| error.message)?;
-    let model = build(&graph).map_err(|error| error.message)?;
-    let mut text = serde_json::to_string_pretty(&document(&model))
-        .map_err(|error| format!("the progress document did not serialize: {error}"))?;
-    text.push('\n');
-    Ok(text)
-}
-
 /// The `progress` human summary: the Python tool's summary block minus
 /// the git sha and the date — narration, not a pinned surface, but
 /// derived from the same model so it can never disagree with the JSON.
@@ -281,6 +141,23 @@ pub fn summary(root: &DataRoot, repo: &RepoSlug) -> Result<String, String> {
     let graph = resolve(root, repo).map_err(|error| error.message)?;
     let model = build(&graph).map_err(|error| error.message)?;
     Ok(summary_text(&model))
+}
+
+/// Every surface from one resolve + one build — the subcommand's
+/// default path, so the page, the JSON twin and the summary can never
+/// disagree with each other (they are one model), and the binary
+/// derives its default output directory from the repo's registered
+/// checkout without a second read.
+pub fn outputs(root: &DataRoot, repo: &RepoSlug) -> Result<Outputs, String> {
+    let graph = resolve(root, repo).map_err(|error| error.message)?;
+    let model = build(&graph).map_err(|error| error.message)?;
+    let slugs = page::switcher_slugs(root)?;
+    Ok(Outputs {
+        page: page::page_text(&model, &slugs)?,
+        json: json::json_text(&model)?,
+        summary: summary_text(&model),
+        checkout: PathBuf::from(graph.repo().path.clone()),
+    })
 }
 
 /// The subcommand's repo tier (§7): the working directory's
@@ -317,7 +194,7 @@ pub fn resolve_by_cwd(root: &DataRoot, cwd: Option<&Path>) -> Result<RepoSlug, S
     }
 }
 
-/// The resolution mirror of [`crate::ServerState::resolve_read`]: the
+/// The resolution mirror of `crate::ServerState::resolve_read`: the
 /// registry consult, the lock-free read, the slug cross-check.
 fn resolve(root: &DataRoot, slug: &RepoSlug) -> Result<Graph, ToolError> {
     let registry = Registry::load(root)?;
@@ -509,98 +386,6 @@ fn build(graph: &Graph) -> Result<Model<'_>, ToolError> {
     })
 }
 
-/// The document from the model.
-fn document(model: &Model) -> ProgressJson {
-    let milestones: Vec<MilestoneDto> = model
-        .milestones
-        .iter()
-        .map(|(epic, id)| MilestoneDto {
-            id: id.clone(),
-            title: epic.title.clone(),
-            status: epic.status.as_str().to_owned(),
-        })
-        .collect();
-    let open_items: Vec<OpenItemDto> = model
-        .open_items
-        .iter()
-        .map(|task| OpenItemDto {
-            id: short_id(&task.id.to_string()),
-            kind: task.kind.as_str().to_owned(),
-            status: task.status.as_str().to_owned(),
-            title: task.title.clone(),
-            waits_on: model.waits.get(&task.id).cloned().unwrap_or_default(),
-        })
-        .collect();
-    let decisions: Vec<DecisionDto> = model
-        .decisions
-        .iter()
-        .map(|decision| DecisionDto {
-            id: short_id(&decision.id.to_string()),
-            status: decision.status.as_str().to_owned(),
-            title: decision.title.clone(),
-            gates: model.gates.get(&decision.id).cloned().unwrap_or_default(),
-        })
-        .collect();
-    let nodes: Vec<NodeDto> = model
-        .lanes
-        .iter()
-        .flat_map(|lane| {
-            lane.tasks
-                .iter()
-                .map(|task| NodeDto {
-                    id: short_id(&task.id.to_string()),
-                    kind: task.kind.as_str().to_owned(),
-                    status: task.status.as_str().to_owned(),
-                    lane: lane.epic.id.to_string(),
-                })
-                .chain(lane.decisions.iter().map(|decision| NodeDto {
-                    id: short_id(&decision.id.to_string()),
-                    kind: "decision".to_owned(),
-                    status: decision.status.as_str().to_owned(),
-                    lane: lane.epic.id.to_string(),
-                }))
-        })
-        .collect();
-    let edges: Vec<EdgeDto> = model
-        .edges
-        .iter()
-        .map(|(from, to)| EdgeDto {
-            from: short_id(from),
-            to: short_id(to),
-        })
-        .collect();
-    ProgressJson {
-        repo: model.repo.slug.as_str().to_owned(),
-        import_instant: model.repo.registered_at.as_str().to_owned(),
-        totals: TotalsDto {
-            epics: model.lanes.len(),
-            milestones: MilestoneTotalsDto {
-                done: milestones
-                    .iter()
-                    .filter(|row| row.status == "closed")
-                    .count(),
-                total: milestones.len(),
-            },
-            tasks: model.task_count,
-            by_kind: model.kind_state.clone(),
-            open_items: open_items.iter().map(|row| row.id.clone()).collect(),
-            decisions: DecisionTotalsDto {
-                signed: model
-                    .decisions
-                    .iter()
-                    .filter(|decision| decision.status == DecisionStatus::Signed)
-                    .count(),
-                total: model.decisions.len(),
-            },
-            not_placed: model.not_placed.clone(),
-        },
-        milestones,
-        open_items,
-        decisions,
-        graph: GraphDto { nodes, edges },
-    }
-}
-
 /// The human summary from the model.
 fn summary_text(model: &Model) -> String {
     let signed = model
@@ -688,6 +473,35 @@ fn milestone_of(epic: &Epic) -> Option<String> {
         return None;
     }
     Some(id.to_owned())
+}
+
+/// The Python `html.escape(quote=True)` equivalent — the same five
+/// entities.
+fn esc(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    for ch in text.chars() {
+        match ch {
+            '&' => out.push_str("&amp;"),
+            '<' => out.push_str("&lt;"),
+            '>' => out.push_str("&gt;"),
+            '"' => out.push_str("&quot;"),
+            '\'' => out.push_str("&#x27;"),
+            _ => out.push(ch),
+        }
+    }
+    out
+}
+
+/// Whitespace-collapsed, char-boundary-safe truncation with the
+/// ellipsis — the Python tool's `short()`.
+fn short(label: &str, n: usize) -> String {
+    let collapsed = label.split_whitespace().collect::<Vec<_>>().join(" ");
+    if collapsed.chars().count() <= n {
+        collapsed
+    } else {
+        let prefix: String = collapsed.chars().take(n.saturating_sub(1)).collect();
+        format!("{prefix}…")
+    }
 }
 
 /// The short form of a full id — the part after the `:`.
