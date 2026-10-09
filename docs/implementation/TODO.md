@@ -3626,7 +3626,7 @@ Oldest first. One line per delivery, with the commit hash once committed.
    four old-path servers from live sessions ran through the change
    untouched — the documented per-session spawn behavior. No code moved:
    the diff is README + this board, every code gate skipped by
-   construction.
+   construction. Landed as `a14f631`.
 
 
 
