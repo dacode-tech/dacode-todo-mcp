@@ -3570,7 +3570,7 @@ Oldest first. One line per delivery, with the commit hash once committed.
   Recorded folds: the §2 heading + card genericization, the svg.rs
   extraction, M6's test strengthening (the spec's cwd-vs-checkout
   mutant is unkillable from the checkout itself — the test now also
-  runs from an unrelated cwd). Landed as `<HASH>`.
+  runs from an unrelated cwd). Landed as `edbd53c`.
 
 
 
