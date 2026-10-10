@@ -214,7 +214,7 @@ shell, which is M3's business.
 
 | Blocking | What | Action |
 |---|---|---|
-| — | nothing blocks: the roadmap is delivered, the dacode repo cut over, the D20 arc under way | **g20 in flight (the user's 2026-10-10 re-plan: ipmi-collector first)**: the stable-binary install (t74), the dialect study (t75), **the ipmi dialect module (t77, dual-reviewed — the live probe's census exactly the prediction) and the registration (t82: imported for real into the durable root, the store verified, the epic separation proven — next_task scoped to Follow-ups answers the current work)** all landed 2026-10-10; next the cutover (the t67 playbook in their repo, simplified: no doc nodes, no scratch — backup beside the store, archive in-repo, harness rewire, instructions rewrite, smoke) with the shareable onboarding instructions written alongside, and the epic-discoverability rider (t76, the user's in-thread sign) anywhere in between; g19's remainder follows — t71 (serve, extended with the user's web/WS ask), t72, t73 — then g21 (this repo's own full-switch cutover, the user's sign); the ikvm-html refresh+cutover waits for its live session to settle (U36 rides that revisit) — see §6's handover |
+| — | nothing blocks: the roadmap is delivered, the dacode and ipmi-collector repos cut over, the D20 arc under way | **g20 closed 2026-10-10 (t83: the cutover landed in their repo as `6e04025`, the smoke green, the onboarding doc in the README)**. Next: g19's remainder — t71 (serve, extended with the user's web/WS ask), t72, t73 — then g21 (this repo's own full-switch cutover, the user's sign); t76 (the status_summary description one-liner, the user's in-thread sign) rides anywhere; the ikvm-html refresh+cutover waits for its live session to settle (U36 rides that revisit) — see §6's handover |
 
 (The user's calls 2026-10-09: **U35 resolved (a)** — the two
 wire-visible repo_list descriptions amended to the hit-or-lock-free
@@ -3682,6 +3682,50 @@ Oldest first. One line per delivery, with the commit hash once committed.
    (read-only import — the board stays their tracker until the
    cutover). Landed as `4f1b149`.
 
+- 2026-10-10 — **t83: the ipmi-collector cutover + the shareable
+   onboarding doc**: the t67 playbook executed on the second repo,
+   simplified (no doc nodes, no scratch). The pre-flight correction:
+   their agent misread the t82 store as "a stale D1-era snapshot" —
+   measured and refuted (`task_show`: `ipmi-collector:U1` carries
+   `board:U7` in references, its title the board's U7 verbatim; the
+   store's `U1`–`U10` are the server's numbering of the ten live
+   items, the resolved board ids correctly absent because the register
+   is open-only). The cutover: refresh-before-archive (`todo-mcp
+   refresh --repo ipmi-collector`, census 6/4/0/10/1 identical — the
+   store matches the archived board by construction), the backup
+   beside the store (all three files byte-identical, shas 58e8ede1 /
+   86f49aff / 9884e7b6), the board archived in their repo (three 100%
+   renames into `docs/archive/board-2026-10-10/`), the harness rewired
+   (`todo-mcp*: allow` + `todowrite: deny` on the five working roles —
+   the md-writer joins dacode's four because its rewritten prompt
+   records follow-ups in the store; the explorer stays without, its
+   state-question routing deferred to the caller), the commands and
+   skill retired with the board, AGENTS.md + the six agent prompts +
+   the knowledge files re-pointed, `HANDOVER.md` created as the cold
+   start. Dual review over two rounds (round 1 both changes_requested:
+   the task-tracking sweep misses, a false `board:U3` store claim the
+   rewrite introduced, live board-id citations, the backup missing
+   README.md, an id-collision `U5` citation, a dacode-inherited path
+   in HANDOVER's trap — all fixed; the re-bind round: the secondary
+   ok, the primary's escalation of its own round-1 disposition — five
+   pre-existing board-id citations in Go/config files it had ruled
+   "no change required, matches the dacode precedent" — dispositioned
+   under the t15 stopping rule and recorded durably as
+   `ipmi-collector:U11`, a finding task, via the server's write path).
+   Their repo's commit: `6e04025` (their style, review-exempt class).
+   The smoke — a real opencode session in their repo through their
+   rewritten orchestrator — drove the exact cold start: HANDOVER read,
+   `todo-mcp_decision_list` / `next_task` / `status_summary` /
+   `task_show` all `action.permission=todo-mcp* action.action=allow`,
+   the quick gates passing in both modules, `next_task` answering
+   `ipmi-collector:U1` with the premise verified against
+   `.gitignore:12` (transcript `tmp/t83-smoke-transcript.txt`). The
+   onboarding doc: README's "Adopting a repository" gains the cutover
+   playbook (the seven steps + the two measured traps), dogfooded —
+   its steps are the exact sequence this cutover executed, each
+   command named and run; the dialect and tracked-repo rows updated
+   for ipmi-collector. Landed as this commit.
+
 
 
 ## 4. Follow-ups
@@ -4701,6 +4745,54 @@ Deliberate shortcuts, acknowledged rather than fixed. Same id rules as §4.
 Newest first. One entry per session, written for someone who was not
 here. The final entry of a session is the handover
 (`.agents/skills/todo-next-imp/SKILL.md` defines the shape).
+
+### 2026-10-10 — t83: the ipmi-collector cutover; g20 closed
+
+**Workspace**: main, clean at `38feb63` at start (the session's opening
+hygiene fix: the t82 backfill had missed the index's README row —
+regenerated and committed as `38feb63`); four crates, rustc 1.98.1; the
+stable binary current.
+
+**Landed**: t83 — the ipmi-collector cutover, the t67 playbook's second
+execution, plus the shareable onboarding doc. The opening correction:
+their agent called the t82 store "a stale D1-era snapshot" — refuted by
+measurement (the store's `U1`–`U10` are the server's numbering of the
+ten live items, `board:<id>` in references; the resolved board ids are
+correctly absent — the register is open-only). The cutover:
+refresh-before-archive (census identical, 6/4/0/10/1), the backup
+beside the store (three files byte-identical), the board archived
+(three 100% renames), the harness rewired (`todo-mcp*` allows +
+`todowrite` deny on the five working roles), the commands and skill
+retired, the instructions rewritten, `HANDOVER.md` created. Dual review
+over two rounds; the primary's re-bind escalation of its own round-1
+disposition dispositioned under the t15 stopping rule and recorded as
+`ipmi-collector:U11` (a finding task, via the server's write path —
+the first real exercise of the enum-param `task_add` over raw stdio).
+Their repo: `6e04025`. The smoke: a real opencode session driving the
+cold start end to end — HANDOVER read, four `todo-mcp_*` calls all
+allowed by the role override, gates passing, `next_task` =
+`ipmi-collector:U1` with the premise verified. The onboarding doc:
+README's cutover playbook, dogfooded (its steps are the sequence this
+cutover executed). g20 closed with it.
+
+**Next step**: g19's remainder — t71 (serve, extended with the user's
+web/WS ask: the switcher + epic lanes are landed in the render; the WS
+push channel is new scope — detection via stat-polling vs a watch
+crate, transport hand-rolled vs a crate, any crate needing the user's
+sign), then t72 (the todo-cli absorption), t73 (the Python retirement
++ doc moves). t76 (the status_summary description one-liner, the
+user's in-thread sign) rides anywhere. Then g21 (this repo's own
+full-switch cutover). The ikvm-html refresh+cutover waits for its live
+session to settle (their agent is mid-flight on U126-b2 under g111 —
+the quote the user relayed; U36 rides that revisit).
+
+**Blocked on you**: unchanged — the standing three (the D18 sub-step
+amendment, the `--epic` default tier, the word to your dacode agent)
+plus the WS preferences whenever t71's spec is authored.
+
+**Unverified**: nothing — the census, the verify, the smoke and the
+review bindings are all measured; their repo's tree is clean at
+`6e04025`.
 
 ### 2026-10-10 — t82: ipmi-collector registered and imported for real
 

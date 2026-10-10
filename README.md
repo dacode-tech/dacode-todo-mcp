@@ -128,8 +128,9 @@ numbering — `U1`…`U170` stays `U1`…`U170`.
 
 Dialects: `dacode` (the three-file board under `docs/implementation/`,
 the only one with a checked-in fixture, at
-`crates/todo-mcp/tests/fixtures/dacode/`), `camera`, `ikvm-html`, and
-`dacode-todo-mcp` (this repo's own board). Live boards are never copied
+`crates/todo-mcp/tests/fixtures/dacode/`), `camera`, `ikvm-html`,
+`ipmi-collector`, and `dacode-todo-mcp` (this repo's own board). Live
+boards are never copied
 into this repository: the importer reads them from their checkouts at
 import time, so the board stays the source of record for prose the
 server does not model.
@@ -138,11 +139,56 @@ After an import is verified against its board, the server is that
 repo's query surface and the markdown keeps the narrative — session
 logs stay files. There is no live two-way sync: re-run `import_md`
 after the board moves (the importer refuses a non-empty graph; the
-refresh is a re-register plus re-import — see
-`tools/progress.py --refresh` for this repo's own board).
+refresh is a re-register plus re-import — `todo-mcp refresh --repo
+<slug>`).
 
-Three repositories are tracked for real on this machine — dacode,
-camera, ikvm-html — plus this repo itself.
+Four repositories are tracked for real on this machine — dacode,
+camera, ikvm-html, ipmi-collector — plus this repo itself.
+
+### The cutover: making the server the tracker of record
+
+The import leaves the board as the tracker. When a repo is ready to
+switch, the playbook (executed for dacode 2026-10-09 and ipmi-collector
+2026-10-10):
+
+1. **Refresh before archiving** — the store must match the board's
+   final state by construction, not by inference: `todo-mcp refresh
+   --repo <slug>` (a re-register plus re-import; it refuses once the
+   board files are gone). Verify with `todo-cli verify`.
+2. **Back the board up beside the store** —
+   `~/.local/share/dacode-todo/board-backup/<slug>/<date>/`, the board
+   files copied byte-identical. The pre-cutover state now survives
+   outside every repo.
+3. **Archive in-repo** — `git mv` the board files to
+   `docs/archive/board-<date>/` (git records 100% renames). The
+   archive is a frozen backup agents never read.
+4. **Rewire the harness** — `todo-mcp*: allow` plus `todowrite: deny`
+   on the working roles' front matter; the server is served by the
+   global mcp entry, so no project entry (it would shadow the global
+   one).
+5. **Rewrite the instructions** — AGENTS.md's tracking sections, the
+   agent prompts, the knowledge files: the cold start becomes
+   `HANDOVER.md` → `decision_list` / `next_task` / `status_summary`;
+   the exit gate becomes the store moving with evidence. Retire the
+   board-reading commands and skill with the board.
+6. **Write `docs/implementation/HANDOVER.md`** — the one prose record
+   a cold session reads before asking the server, rewritten at the end
+   of every session. Record the id vocabulary: the store's task ids
+   are the server's own numbering (a gapped board register cannot be
+   reproduced), pre-cutover nodes carry `board:<id>` in `references`,
+   and new work takes the next server id.
+7. **Smoke** — a real opencode session in that repo driving the cold
+   start end to end: HANDOVER read, the server queried, the quick
+   gates run, `next_task` answering the current work, every
+   `todo-mcp_*` call allowed by the role override.
+
+Two traps worth writing into the adopted repo's HANDOVER, both
+measured: the harness mangles enum-typed MCP tool params (`status`,
+`edge`, `kind` — reads are unaffected; enum-carrying writes fall back
+to the server's stdio interface), and a stdio one-shot client can
+leave its server process alive holding the store's write lock
+(`ps aux | grep todo-mcp`; kill the orphans, not the opencode
+children).
 
 ## The progress page
 
