@@ -9,10 +9,11 @@
 //! The `dialect` parameter selects which sibling board grammar and
 //! file set the tool reads: `dacode` (the default — the absent
 //! parameter keeps every earlier request's meaning), `camera` or
-//! `ikvm-html`, the two live-test subjects, or `dacode-todo-mcp`,
-//! this server's own board (the U28 dogfooding cutover — the same
-//! two-file layout as camera's, its own measured grammar). An
-//! unknown value is §6.1's `invalid` naming it. The board's location
+//! `ikvm-html`, the two live-test subjects, `ipmi-collector` (the
+//! g20 onboarding), or `dacode-todo-mcp`, this server's own board
+//! (the U28 dogfooding cutover — the same two-file layout as
+//! camera's, its own measured grammar). An unknown value is §6.1's
+//! `invalid` naming it. The board's location
 //! is not a parameter for any dialect: the tool resolves the store
 //! handle, reads the repo node's registered checkout path (§7's
 //! mutable attribute — one source of truth, so `repo_set_path` moves
@@ -33,9 +34,10 @@
 //! unregistered); a key with no match is `map_board`'s
 //! `MissingDocPath` refusal, not this layer's (one home); a key
 //! matching more than one file is this layer's `invalid` refusal — a
-//! tree contradiction is refused, never first-wins. The camera and
-//! ikvm-html paths read their two board files and map with an empty
-//! `doc_paths` — neither board has a doc register.
+//! tree contradiction is refused, never first-wins. The camera,
+//! ikvm-html, ipmi-collector and own paths read their two board files
+//! and map with an empty `doc_paths` — none of those boards has a
+//! doc register.
 //!
 //! Faults carry §6.1 codes through D15's carrier: parse and map
 //! refusals — and the apply refusal, via [`ApplyError::Refused`] —
@@ -60,6 +62,7 @@ use todo_store::StoreError;
 use crate::import::camera::{CameraError, map_camera, parse_camera_board};
 use crate::import::dacode::{DocEntry, ImportError, map_board, parse_board};
 use crate::import::ikvm::{IkvmError, map_ikvm, parse_ikvm_board};
+use crate::import::ipmi::{IpmiError, map_ipmi, parse_ipmi_board};
 use crate::import::own::{OwnError, map_own, parse_own_board};
 use crate::import::plan::{ApplyError, ImportOptions, ImportPlan, apply_plan};
 use crate::{ServerState, TodoServer, ToolError, error_carrier, repo_of, structured, time};
@@ -92,7 +95,7 @@ const DECISIONS_MD: &str = "decisions.md";
 pub(crate) struct ImportMdParams {
     /// The repository's stable slug key (§7): ASCII lowercase segments joined by single hyphens; the repo whose board is imported; absent means the configured default repo; an explicit value always wins.
     pub repo: Option<String>,
-    /// The board dialect to import: `dacode` (the default when absent), `camera`, `ikvm-html` or `dacode-todo-mcp` (this server's own board); any other value is `invalid` naming it.
+    /// The board dialect to import: `dacode` (the default when absent), `camera`, `ikvm-html`, `ipmi-collector` or `dacode-todo-mcp` (this server's own board); any other value is `invalid` naming it.
     pub dialect: Option<String>,
 }
 
@@ -108,6 +111,10 @@ pub(crate) enum Dialect {
     /// The ikvm-html dialect: TODO.md plus decisions.md, no doc
     /// register — the same two files as camera's.
     IkvmHtml,
+    /// The ipmi-collector dialect: TODO.md plus decisions.md, no doc
+    /// register — the same two files as camera's, its own measured
+    /// grammar (the g20 onboarding).
+    IpmiCollector,
     /// The own dialect (`dacode-todo-mcp`): this server's own board —
     /// TODO.md plus decisions.md, the same two files as camera's, its
     /// own measured grammar.
@@ -124,9 +131,10 @@ impl Dialect {
             None | Some("dacode") => Ok(Self::Dacode),
             Some("camera") => Ok(Self::Camera),
             Some("ikvm-html") => Ok(Self::IkvmHtml),
+            Some("ipmi-collector") => Ok(Self::IpmiCollector),
             Some("dacode-todo-mcp") => Ok(Self::Own),
             Some(other) => Err(ToolError::invalid(&format!(
-                "the dialect '{other}' is not known: 'dacode', 'camera', 'ikvm-html' or 'dacode-todo-mcp'"
+                "the dialect '{other}' is not known: 'dacode', 'camera', 'ikvm-html', 'dacode-todo-mcp' or 'ipmi-collector'"
             ))),
         }
     }
@@ -179,6 +187,16 @@ impl From<CameraError> for ToolError {
 /// `Display` passing through unwrapped for the same reasons.
 impl From<IkvmError> for ToolError {
     fn from(error: IkvmError) -> Self {
+        Self::invalid(&error.to_string())
+    }
+}
+
+/// The ipmi-collector error-mapping home, the dacode one's twin: every
+/// [`IpmiError`] — a parse failure or a map failure — is §6.1's
+/// `invalid` (U9: the board text is a value this server parses), its
+/// `Display` passing through unwrapped for the same reasons.
+impl From<IpmiError> for ToolError {
+    fn from(error: IpmiError) -> Self {
         Self::invalid(&error.to_string())
     }
 }
@@ -237,6 +255,7 @@ pub(crate) fn plan_for(
         Dialect::Dacode => dacode_plan(&board_dir, slug),
         Dialect::Camera => camera_plan(&board_dir, slug),
         Dialect::IkvmHtml => ikvm_plan(&board_dir, slug),
+        Dialect::IpmiCollector => ipmi_plan(&board_dir, slug),
         Dialect::Own => own_plan(&board_dir, slug),
     }
 }
@@ -320,6 +339,27 @@ fn ikvm_plan(board_dir: &Path, slug: &RepoSlug) -> Result<ImportPlan, ToolError>
         doc_paths: BTreeMap::new(),
     };
     Ok(map_ikvm(&board, &opts)?)
+}
+
+/// The ipmi-collector path's plan: read the two board files — the same
+/// two filenames as camera's and ikvm-html's, the dialect's measured
+/// layout — parse, map with an empty `doc_paths` (no doc register
+/// here either).
+fn ipmi_plan(board_dir: &Path, slug: &RepoSlug) -> Result<ImportPlan, ToolError> {
+    let todo_md = read_sibling_file(board_dir, TODO_MD, "board file TODO.md", "ipmi")?;
+    let decisions = read_sibling_file(
+        board_dir,
+        DECISIONS_MD,
+        "decisions file decisions.md",
+        "ipmi",
+    )?;
+    let board = parse_ipmi_board(&todo_md, &decisions)?;
+    let opts = ImportOptions {
+        slug: slug.clone(),
+        imported_at: time::now(),
+        doc_paths: BTreeMap::new(),
+    };
+    Ok(map_ipmi(&board, &opts)?)
 }
 
 /// The own path's plan: read the two board files — the same two
@@ -475,7 +515,7 @@ fn stem_matches(file: &str, key: &str) -> bool {
 
 #[tool_router(router = import_router, vis = "pub(crate)")]
 impl TodoServer {
-    /// One-shot import of the repo's sibling markdown board — the dialect parameter selects the grammar (dacode by default, camera and ikvm-html as the live-test subjects, dacode-todo-mcp for this server's own board); the files are read from the repo's registered checkout path, parsed strictly, mapped and applied to the repo's empty store — answering the landed counts of epics, decisions, docs, tasks and blocks edges.
+    /// One-shot import of the repo's sibling markdown board — the dialect parameter selects the grammar (dacode by default, camera and ikvm-html as the live-test subjects, ipmi-collector for the g20 onboarding, dacode-todo-mcp for this server's own board); the files are read from the repo's registered checkout path, parsed strictly, mapped and applied to the repo's empty store — answering the landed counts of epics, decisions, docs, tasks and blocks edges.
     #[tool(
         name = "import_md",
         output_schema = crate::schema::output_for_type::<ImportedDto>(),

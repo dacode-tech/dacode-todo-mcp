@@ -1479,7 +1479,7 @@ fn import_md_with_dialect_own_drives_the_own_path() {
     assert_carrier(
         &driven.responses[1],
         "invalid",
-        "the dialect 'shelly' is not known: 'dacode', 'camera', 'ikvm-html' or 'dacode-todo-mcp'",
+        "the dialect 'shelly' is not known: 'dacode', 'camera', 'ikvm-html', 'dacode-todo-mcp' or 'ipmi-collector'",
     );
 
     // The absent dialect: the dacode path — the own tree lacks the

@@ -1285,7 +1285,7 @@ fn import_md_with_dialect_camera_drives_the_camera_path() {
     assert_carrier(
         &driven.responses[1],
         "invalid",
-        "the dialect 'ikvm' is not known: 'dacode', 'camera', 'ikvm-html' or 'dacode-todo-mcp'",
+        "the dialect 'ikvm' is not known: 'dacode', 'camera', 'ikvm-html', 'dacode-todo-mcp' or 'ipmi-collector'",
     );
 
     // The absent dialect: the dacode path — the camera tree lacks the

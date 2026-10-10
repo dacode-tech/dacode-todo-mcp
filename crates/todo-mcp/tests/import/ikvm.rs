@@ -1539,7 +1539,7 @@ fn import_md_with_dialect_ikvm_html_drives_the_ikvm_path() {
     assert_carrier(
         &driven.responses[1],
         "invalid",
-        "the dialect 'shelly' is not known: 'dacode', 'camera', 'ikvm-html' or 'dacode-todo-mcp'",
+        "the dialect 'shelly' is not known: 'dacode', 'camera', 'ikvm-html', 'dacode-todo-mcp' or 'ipmi-collector'",
     );
 
     // A tree missing its decisions file: the io fault names the ikvm

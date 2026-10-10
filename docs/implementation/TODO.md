@@ -214,7 +214,7 @@ shell, which is M3's business.
 
 | Blocking | What | Action |
 |---|---|---|
-| — | nothing blocks: the roadmap is delivered, the dacode repo cut over, the D20 arc under way | **g20 in flight (the user's 2026-10-10 re-plan: ipmi-collector first)**: the stable-binary install landed 2026-10-10 (`~/.local/bin/todo-mcp`, the global-config repoint, the README rider); the dialect study landed 2026-10-10 (t75: a new camera-family sibling module `src/import/ipmi/` decided — the open-only U register, the checkbox-less D-N debt register and the decisions column set are the load-bearing differences; the census predicted 6 epics / 4 decisions / 0 docs / 10 tasks / 1 edge; no tasks.py — the board is their only tracker); next the dialect module (spec from the study), the epic-discoverability rider (t76, the user's in-thread sign), then the onboarding itself (register/import/cutover per the t67 playbook) with the shareable onboarding instructions written alongside; g19's remainder follows — t71 (serve, extended with the user's web/WS ask: the switcher + epic lanes are landed in the render, the WS push channel is new scope), t72, t73 — then g21 (this repo's own full-switch cutover, the user's sign); the ikvm-html refresh+cutover waits for its live session to settle (U36 rides that revisit) — see §6's handover |
+| — | nothing blocks: the roadmap is delivered, the dacode repo cut over, the D20 arc under way | **g20 in flight (the user's 2026-10-10 re-plan: ipmi-collector first)**: the stable-binary install landed 2026-10-10 (`~/.local/bin/todo-mcp`, the global-config repoint, the README rider); the dialect study landed 2026-10-10 (t75: a new camera-family sibling module decided; the census predicted 6 epics / 4 decisions / 0 docs / 10 tasks / 1 edge; no tasks.py — the board is their only tracker); **the ipmi dialect module landed 2026-10-10 (t77: the fifth sibling, the live probe's census exactly the prediction, dual-reviewed over two rounds)**; next the registration (register + import + verify + the query session over the durable root), then the cutover (the t67 playbook, simplified: no doc nodes to re-point, no scratch to migrate) with the shareable onboarding instructions written alongside, and the epic-discoverability rider (t76, the user's in-thread sign) anywhere in between; g19's remainder follows — t71 (serve, extended with the user's web/WS ask), t72, t73 — then g21 (this repo's own full-switch cutover, the user's sign); the ikvm-html refresh+cutover waits for its live session to settle (U36 rides that revisit) — see §6's handover |
 
 (The user's calls 2026-10-09: **U35 resolved (a)** — the two
 wire-visible repo_list descriptions amended to the hit-or-lock-free
@@ -3628,6 +3628,37 @@ Oldest first. One line per delivery, with the commit hash once committed.
    the diff is README + this board, every code gate skipped by
    construction. Landed as `a14f631`.
 
+- 2026-10-10 — **t77: the ipmi dialect module**: the fifth sibling
+   dialect (`src/import/ipmi/` — mod/board/decisions/map/error, the
+   ikvm structural template on the t50 neutral homes), the
+   `ipmi-collector` dialect value (matching the slug, so the refresh's
+   dialect=slug resolution holds), and 15 tests on fully synthetic
+   corpora. The live probe (temporary, removed, rg-proven gone, no
+   golden per D12): the census **exactly the study's prediction** — 6
+   epics (M0–M3 closed + Follow-ups + Debt) / 4 decisions (2 signed
+   with resolutions, 2 open) / 0 docs / 10 tasks (9 U open + 1 debt) /
+   1 blocks edge (D4 → U14), the id reproduction U1–U10 / D1–D4 /
+   E1–E6, every register node carrying `board:<id>` in references.
+   Dual review over two rounds: round 1 both changes_requested — the
+   corpus carried live prose (the t42 rule; rewritten fully synthetic,
+   falsified by both reviewers' rg sweeps) and the primary VETOED the
+   implementer's unresolvable-Gates-token refusal with the design
+   argument that stuck: the open-only register makes stale Gates refs
+   an expected future state (deletion IS resolution), so a refusal
+   would hard-fail every future refresh — replaced with the sibling
+   findings shape (a Finding task under Follow-ups, titled
+   "<D-id> gates <token>", the camera/map.rs precedent); round 2 both
+   ok bound to the final shas. The mutations M1–M6 killed at their
+   pins and reverted sha-verified (M3 widened by the finding's
+   reference pin); the frozen baselines 64/70 with the 6 divergences
+   exactly the owned set + the three one-line invalid-dialect pins
+   (the pin lives in camera.rs AND ikvm.rs AND own.rs — the spec
+   error, ratified by both reviewers); 328 todo-mcp tests, every gate
+   green, the golden ritual byte-identical over all 21 tracked
+   goldens. The secondary's residual low (a synthetic §6 date
+   coinciding with a live date) dispositioned under the t15 stopping
+   rule — rides the file's next touch. Landed as `<hash>`.
+
 
 
 ## 4. Follow-ups
@@ -4647,6 +4678,49 @@ Deliberate shortcuts, acknowledged rather than fixed. Same id rules as §4.
 Newest first. One entry per session, written for someone who was not
 here. The final entry of a session is the handover
 (`.agents/skills/todo-next-imp/SKILL.md` defines the shape).
+
+### 2026-10-10 — t77: the ipmi dialect module
+
+**Workspace**: main, clean at `caa8b5f` at start; the module lands as
+this session's third delivery (after t74 the stable-binary install and
+t75 the study).
+
+**Landed**: t77 — the fifth sibling dialect, `src/import/ipmi/`
+(mod/board/decisions/map/error, the ikvm structural template on the
+t50 neutral homes), the `ipmi-collector` dialect value, 15 tests on
+fully synthetic corpora. The live probe (temporary, removed,
+rg-proven gone, no golden per D12): the census exactly the study's
+prediction — 6 epics / 4 decisions / 0 docs / 10 tasks / 1 blocks
+edge, the id reproduction U1–U10 / D1–D4 / E1–E6, every register node
+carrying `board:<id>` in references. Dual review over two rounds: the
+round-1 findings were the live-prose corpus (rewritten synthetic, both
+reviewers' rg sweeps falsifying) and the primary's veto of the
+unresolvable-Gates-token refusal — the open-only register makes stale
+Gates refs an expected future state (deletion IS resolution), so the
+refusal became the sibling findings shape (a Finding task under
+Follow-ups, "<D-id> gates <token>", the camera precedent). Round 2
+both ok bound to the final shas. The mutations killed at their pins
+and reverted sha-verified; the frozen baselines 64/70 (the 6
+divergences = the owned set + the three one-line invalid-dialect pins
+— the pin lives in camera.rs AND ikvm.rs AND own.rs, the spec error
+both reviewers ratified); 328 todo-mcp tests; every gate green; the
+golden ritual byte-identical over all 21 tracked goldens (the spec's
+"19" was a stale count — 21 since t69's page.v1).
+
+**Next step**: the registration — rebuild + re-copy the stable binary
+(the README's update verb, its first real exercise), then
+repo_register + import_md over the wire into the durable root, verify,
+and the query session proving the epic separation (next_task scoped
+to Follow-ups answering the current work). Then the cutover (the t67
+playbook in their repo, simplified: no doc nodes, no scratch) with the
+shareable instructions written alongside.
+
+**Blocked on you**: nothing new.
+
+**Unverified**: nothing — the census is measured (the probe, re-run
+independently by both reviewers); the secondary's dispositioned low
+(a synthetic §6 date coinciding with a live date) rides
+tests/import/ipmi.rs's next touch.
 
 ### 2026-10-10 — t75: the ipmi-collector dialect study
 
