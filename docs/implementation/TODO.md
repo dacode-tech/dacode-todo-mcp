@@ -3680,7 +3680,7 @@ Oldest first. One line per delivery, with the commit hash once committed.
    + 2 open decisions. The transcript at `tmp/t82-drive-transcript.txt`.
    No code moved (the drive is scratch); their repo untouched
    (read-only import — the board stays their tracker until the
-   cutover). Landed as `<hash>`.
+   cutover). Landed as `4f1b149`.
 
 
 
