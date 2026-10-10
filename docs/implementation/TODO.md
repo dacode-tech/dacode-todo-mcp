@@ -214,7 +214,7 @@ shell, which is M3's business.
 
 | Blocking | What | Action |
 |---|---|---|
-| — | nothing blocks: the roadmap is delivered, the dacode and ipmi-collector repos cut over, the D20 arc under way | g20 closed 2026-10-10 (t83, their repo's `6e04025`). **t71 landed 2026-10-10** (the `serve` subcommand: the live view + the WS push channel, the page.v1 golden moved for the script block — the compatibility event called out in the session log). **t72 landed 2026-10-10** (the todo-cli absorption: `dump`/`verify`/`repair` as subcommands, the crate retired, the golden moved byte-identical as `dump.v1`, U38's split — main.rs 422, args.rs 476 production lines). Next: g19's remainder — t73 (the Python retirement + doc moves; the README/AGENTS/skill rows naming `todo-cli` ride it, and the release binary needs the rebuild) — then t84 (the activity panel) and g21 (this repo's own full-switch cutover, the user's sign); the D13-shaped live-view question (the default server serving HTTP, per-root port reuse) raised in-thread 2026-10-10 awaits the user's shape; the ikvm-html refresh+cutover waits for its live session to settle (U36 rides that revisit) — see §6's handover |
+| — | nothing blocks: the roadmap is delivered, the dacode and ipmi-collector repos cut over, the D20 arc under way | g20 closed 2026-10-10 (t83, their repo's `6e04025`). **t71 landed 2026-10-10** (the `serve` subcommand: the live view + the WS push channel, the page.v1 golden moved for the script block — the compatibility event called out in the session log). **t72 landed 2026-10-10** (the todo-cli absorption: `dump`/`verify`/`repair` as subcommands, the crate retired, the golden moved byte-identical as `dump.v1`, U38's split — main.rs 422, args.rs 476 production lines). Next: g19's remainder — t73 (the Python retirement + doc moves; the README/AGENTS/skill rows naming `todo-cli` ride it, and the release binary needs the rebuild) — then t85 (D13's default-server live view, the user's sign (a) 2026-10-10, under g22), t84 (the activity panel) and g21 (this repo's own full-switch cutover, the user's sign); the ikvm-html refresh+cutover waits for its live session to settle (U36 rides that revisit) — see §6's handover |
 
 (The user's calls 2026-10-10: **the `--epic` default tier resolved
 (a)** — the param convention carried by the base instructions, t76's
@@ -4898,35 +4898,50 @@ owner, both reviewers ruled). The README/AGENTS/skill rows naming
 `todo-cli` ride t73 per the decomposition.
 
 **The live-view question raised in-thread** (the user's ask, answered
-not implemented): make the default `todo-mcp` (the global entry's
+then signed): make the default `todo-mcp` (the global entry's
 no-subcommand server) serve HTTP, reusing one port across sessions of
-the same root, with the port identifiable per root. Today's answer is
+the same root, with the port identifiable per root. Today's answer was
 `todo-mcp --root <root> serve` — one listener, attach on re-invocation,
 the port published to `~/.local/state/dacode-todo-mcp/serve.port`
 (per-user, not per-root; `serve/mod.rs` records the root-scoped flip as
-"a flip, not a defect"). Making the *default* server do it is D13's
+"a flip, not a defect"). Making the *default* server do it was D13's
 reserved territory (U18's shape B, declined at the M5 decomposition
-with D13 left reserved). The shape presented in-thread: a startup
+with D13 left reserved). The shape was presented in-thread — a startup
 ensure-listener (probe the per-root publication; alive → reuse the
 same port; dead → bind `:0`, publish, run the listener on a std thread
 beside the tokio runtime — the serve module is already a std-thread
 design), a per-root port file, and the lifecycle choice — (a) watchdog
-takeover by surviving sessions (recommended), (b) a detached listener
-child (shape B proper, needs a stop story), (c) status quo. Awaiting
-the user's word; if signed it lands as its own task after g19's
-remainder.
+takeover by surviving sessions, (b) a detached listener child (shape B
+proper, needs a stop story), (c) status quo. **D13 signed (a)
+2026-10-10** ("let's take (a) option as you suggest"): the dossier in
+`decisions.md`, spec §13's ensure-listener paragraph and §12's signing
+record landed in the same change; the implementation is t85 under g22,
+queued after t73.
+
+**Two client reports triaged** (relayed from the adopted repos the
+same day, both measured closed on temp stores — f119/f120 in the
+tracker): the priority "enum serialization bug" from
+infra-hostrail-server — the server's path is consistent end-to-end
+(the schema advertises `high`/`medium`/`low`, `task_add` and the
+three-state `task_update` accept and echo them; the only rejection is
+the capitalized spelling, whose error names the expected variants) —
+and the dacode repo's `task_update` "JSON parsing failed" — the
+arguments text itself was invalid JSON (`in_work` unquoted), rejected
+by opencode's own parser before the wire; the quoted form is accepted
+and echoed. Both remedies are model-side: send the spelling the schema
+advertises, quote the enum values.
 
 **Handover.** Workspace: main, clean after this commit; three crates
 (todo-domain, todo-store, todo-mcp — the four-member map is history);
-rustc 1.98.1. Landed this session: t72 (this commit). Next step:
+rustc 1.98.1. Landed this session: t72, the D13 recording (this
+commit). Next step:
 **t73** — the Python retirement + the doc moves (`tools/progress.py`
 and the two drivers deleted, the README/AGENTS/skill rows moved to the
 subcommands, the release rebuild + the re-copy to `~/.local/bin` + the
-live smoke) — then t84 (the activity panel) and g21 (the own
-full-switch cutover). The D13-shaped live-view question above may
-reorder the tail if the user signs a shape. Blocked on you: the D13
-shape — (a), (b), (c) or your own — if you want the default server
-serving HTTP. Unverified: nothing new — every gate ran on the final
+live smoke) — then t85 (D13's default-server live view, signed (a),
+under g22), t84 (the activity panel) and g21 (the own
+full-switch cutover). Blocked on you: nothing — D13 signed (a)
+2026-10-10. Unverified: nothing new — every gate ran on the final
 tree; the standing caveats unchanged (the release binary predates t72's
 subcommands until t73 rebuilds it).
 

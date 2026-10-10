@@ -814,10 +814,13 @@ second-process contention — no §12 item sat open (the in-thread
 precedent). The sections they
 settled are normative above, and a future change to a signed
 shape is a new decision, not an edit (the D6/D11 priority boundary is
-the worked example). Numbers are never reused, and **D13 is reserved**
-for the transport question board U18 defers — a shared per-user server
-instance against the signed D5 stdio — which is not drafted because
-nothing there starts before M4's importer check.
+the worked example). Numbers are never reused. **D13**, reserved
+since the M5 decomposition for the transport question board U18
+deferred (a shared per-user server instance against the signed D5
+stdio), was signed (a) 2026-10-10 out of the user's in-thread ask —
+the default server ensuring a per-root live-view listener with
+watchdog takeover, the stdio wire unchanged — no §12 item sat open
+(the in-thread precedent, D19's).
 
 None — the list is closed.
 
@@ -846,6 +849,19 @@ subcommands take `--root` and `--repo` with the same resolution order
 as the server (§7), and their output is golden-pinned per §10.
 `tools/progress.py` and its two committed drivers retire with the
 port.
+
+The no-subcommand server itself ensures the live view (D13, signed
+2026-10-10): at startup it probes the per-root publication
+(`<root>/serve.port`) — a live listener is reused, the same port; a
+dead, stale or absent publication is bound (`127.0.0.1:0`, the
+assigned port read back, never a chosen port), published, and served
+on a std thread beside the runtime — and servers that do not own the
+listener re-probe periodically, taking over when the owner dies, so
+the view is up while at least one session server (or a manual
+`serve`) is alive. The `serve` subcommand publishes to the same
+per-root file — one discipline for both paths. The MCP wire surface
+is unchanged: no new tool, the stdio server's protocol behavior
+identical.
 
 ## 14. Roadmap
 

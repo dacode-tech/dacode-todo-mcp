@@ -33,6 +33,7 @@ and the meta block below; keep the shapes it parses.
 | ~~**D10**~~ | References, specs and decisions as server entities | (b) layered: references list; decision nodes that can block; registered docs, prose stays in git | medium | M1 | resolved (b) 2026-09-25 |
 | ~~**D11**~~ | Next-items surface and derived weight | (a) next_items batch with blocks annotations + derived weight, display-only | medium | M2 | resolved (a) 2026-09-25 — plus agent-set priority field, display-only |
 | ~~**D12**~~ | Importer fixture scope (amends D7) | dacode dialect first; camera and ikvm-html are live-test subjects only, never checked in here | high | M4 | resolved 2026-09-29 — user decision, reversing D7's order |
+| ~~**D13**~~ | The default server's live view: the per-root listener | (a) startup ensure-listener + watchdog takeover; the publication per-root | medium | — | resolved (a) 2026-10-10 — user decision, in-thread at drafting; the implementation lands as t85 under g22 |
 | ~~**D14**~~ | The wire's canonical JSON key order | (a) enable `serde_json/preserve_order` here, with a golden pinning the wire bytes | medium | M3 | resolved (a) 2026-09-30 — user decision, with the wire golden named as part of it |
 | ~~**D15**~~ | Where a §6.1 code lives on the wire | (a) `structuredContent.code` via `structured_error`, §6.1 naming the carrier | medium | M3 | resolved (a) 2026-09-30 — user decision |
 | ~~**D16**~~ | The progress roll-up: a tool, a field, or a client concern | (a) a `status_summary(repo?, epic?)` tool, plus `blocked_by` on `task_list` rows whichever option wins | medium | M2 | resolved (a) 2026-10-03 — signed after M2 closed at g7; the domain aggregation task lands under M3's goal |
@@ -1254,3 +1255,59 @@ carry the tool surface, per project:
 dispatch skeleton with the JSON render, the HTML page, the refresh,
 the serve, the todo-cli absorption, the Python retirement plus docs.
 The blocking table carries the arc until it lands.
+
+### D13 — The default server's live view: the per-root listener
+
+**Status:** signed (a) 2026-10-10 — the user's in-thread "D13. Let's
+take (a) option as you suggest", answering the shape presented at
+their ask ("make the default todo-mcp serve http, reusing the same
+port across sessions of the same root, with the port identifiable
+per root").
+
+**The question.** Reserved at the M5 decomposition as U18's shape B
+territory: a listener whose lifetime is not any one session's. Every
+opencode session spawns its own stdio server through the global
+entry; the live view today is `todo-mcp serve`, a manual foreground
+process publishing to a per-user port file — nothing guarantees a
+listener is up when a session is, and two roots share one
+publication slot.
+
+**The signed shape (a) — the startup ensure-listener with watchdog
+takeover.** Every no-subcommand server, at startup, probes the
+per-root publication: a live listener means reuse — the same port, no
+second listener; dead, stale or absent means bind `127.0.0.1:0`,
+publish, and run the listener on a std thread beside the tokio
+runtime (the serve module's existing design — no async-core change).
+The publication is per-root (`<root>/serve.port`, the flip the serve
+module's own doc already named), which is also the port's discovery:
+a machine-readable file per root. Servers that do not own the
+listener re-probe periodically and take over when the owner dies —
+the view is up while at least one session server (or a manual
+`serve`) is alive, with an interval-scale gap after an owner exits.
+The MCP wire surface is untouched: no new tool, the stdio server
+unchanged.
+
+**Consequences settled with the sign (each veto-able):**
+
+- The `serve` subcommand's publication moves to the same per-root
+  file — one discipline for both paths; the per-user state file
+  (`~/.local/state/dacode-todo-mcp/serve.port`) retires, its Python
+  interop constraint dying with t73's retirement of the Python.
+- A server spawn is no longer pure stdio: the listener thread is a
+  side effect of startup. It is a std thread (the serve module's
+  shape), so the async core and the wire are untouched.
+- Stale publications are the norm — a session server dies with its
+  process and cannot clean up; the probe-then-takeover handles them
+  (the existing serve semantics, run periodically). The double-bind
+  race leaves one benign orphan listener, already spec-recorded as
+  acceptable.
+- The declined alternatives: (b) a detached listener child (shape B
+  proper — a process nobody owns, needing an explicit stop story)
+  and (c) the status quo (`serve` stays manual).
+
+**On sign-off:** §13's tool-CLI paragraph gains the ensure-listener
+sentence; §12's reserved-D13 sentence becomes the signing record;
+strike this row; TODO.md §1/§6. The implementation is one task (t85
+under g22): the per-root publication, the startup ensure-listener,
+the watchdog, and the pins — probe/attach/bind, per-root keying,
+takeover after owner death.
