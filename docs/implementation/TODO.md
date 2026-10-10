@@ -214,7 +214,7 @@ shell, which is M3's business.
 
 | Blocking | What | Action |
 |---|---|---|
-| — | nothing blocks: the roadmap is delivered, the dacode repo cut over, the D20 arc under way | **g20 in flight (the user's 2026-10-10 re-plan: ipmi-collector first)**: the stable-binary install landed 2026-10-10 (`~/.local/bin/todo-mcp`, the global-config repoint, the README rider); the dialect study landed 2026-10-10 (t75: a new camera-family sibling module decided; the census predicted 6 epics / 4 decisions / 0 docs / 10 tasks / 1 edge; no tasks.py — the board is their only tracker); **the ipmi dialect module landed 2026-10-10 (t77: the fifth sibling, the live probe's census exactly the prediction, dual-reviewed over two rounds)**; next the registration (register + import + verify + the query session over the durable root), then the cutover (the t67 playbook, simplified: no doc nodes to re-point, no scratch to migrate) with the shareable onboarding instructions written alongside, and the epic-discoverability rider (t76, the user's in-thread sign) anywhere in between; g19's remainder follows — t71 (serve, extended with the user's web/WS ask), t72, t73 — then g21 (this repo's own full-switch cutover, the user's sign); the ikvm-html refresh+cutover waits for its live session to settle (U36 rides that revisit) — see §6's handover |
+| — | nothing blocks: the roadmap is delivered, the dacode repo cut over, the D20 arc under way | **g20 in flight (the user's 2026-10-10 re-plan: ipmi-collector first)**: the stable-binary install (t74), the dialect study (t75), **the ipmi dialect module (t77, dual-reviewed — the live probe's census exactly the prediction) and the registration (t82: imported for real into the durable root, the store verified, the epic separation proven — next_task scoped to Follow-ups answers the current work)** all landed 2026-10-10; next the cutover (the t67 playbook in their repo, simplified: no doc nodes, no scratch — backup beside the store, archive in-repo, harness rewire, instructions rewrite, smoke) with the shareable onboarding instructions written alongside, and the epic-discoverability rider (t76, the user's in-thread sign) anywhere in between; g19's remainder follows — t71 (serve, extended with the user's web/WS ask), t72, t73 — then g21 (this repo's own full-switch cutover, the user's sign); the ikvm-html refresh+cutover waits for its live session to settle (U36 rides that revisit) — see §6's handover |
 
 (The user's calls 2026-10-09: **U35 resolved (a)** — the two
 wire-visible repo_list descriptions amended to the hit-or-lock-free
@@ -3657,7 +3657,30 @@ Oldest first. One line per delivery, with the commit hash once committed.
    green, the golden ritual byte-identical over all 21 tracked
    goldens. The secondary's residual low (a synthetic §6 date
    coinciding with a live date) dispositioned under the t15 stopping
-   rule — rides the file's next touch. Landed as `<hash>`.
+   rule — rides the file's next touch. Landed as `7371e32`.
+
+- 2026-10-10 — **t82: ipmi-collector registered and imported for
+   real**: the stable binary updated (the README's update verb, which
+   immediately exposed a real trap — `cp` in place over
+   `~/.local/bin/todo-mcp` while a live session's server executes the
+   path leaves every NEW execution SIGKILL'd on macOS's stale
+   code-signature cache; the fix is the fresh-inode copy, cp-to-temp +
+   `mv`, and the README's install section plus the live config's
+   comment now carry that shape with the why), then `repo_register` +
+   `import_md` over the wire into the durable root: **the import clean
+   on the first composed run, the census exactly the study's
+   prediction** — 6 epics / 4 decisions / 0 docs / 10 tasks / 1 blocks
+   edge — the store verified (`todo-cli verify` exit 0, status ok).
+   The query session proving the epic separation: `epic_list` shows
+   E1–E4 (the milestones, closed) + E5 Follow-ups + E6 Debt;
+   `next_task` scoped to E5 answers `ipmi-collector:U1` (the board's
+   U7, the first §4 item — the current work), the unscoped answer the
+   same (the closed milestones are out of every open-scoped query);
+   `status_summary` — 4 closed epics / 2 open, 10 open tasks, 2 signed
+   + 2 open decisions. The transcript at `tmp/t82-drive-transcript.txt`.
+   No code moved (the drive is scratch); their repo untouched
+   (read-only import — the board stays their tracker until the
+   cutover). Landed as `<hash>`.
 
 
 
@@ -4678,6 +4701,50 @@ Deliberate shortcuts, acknowledged rather than fixed. Same id rules as §4.
 Newest first. One entry per session, written for someone who was not
 here. The final entry of a session is the handover
 (`.agents/skills/todo-next-imp/SKILL.md` defines the shape).
+
+### 2026-10-10 — t82: ipmi-collector registered and imported for real
+
+**Workspace**: main, clean at `7371e32` at start; the stable binary
+updated twice (the second time correctly — see the trap below).
+
+**Landed**: t82 — ipmi-collector is ON the server: `repo_register` +
+`import_md` over the wire into the durable root, **the import clean on
+the first composed run with the census exactly the study's prediction**
+(6 epics / 4 decisions / 0 docs / 10 tasks / 1 blocks edge), the store
+verified (`todo-cli verify` exit 0, status ok). The query session
+proving the epic separation: `epic_list` shows E1–E4 (the milestones,
+closed) + E5 Follow-ups + E6 Debt; `next_task` scoped to E5 answers
+`ipmi-collector:U1` (the board's U7, the first §4 item — the current
+work), the unscoped answer the same (the closed milestones are out of
+every open-scoped query); `status_summary`: 4 closed epics / 2 open,
+10 open tasks, 2 signed + 2 open decisions. The transcript at
+`tmp/t82-drive-transcript.txt`.
+
+**The trap the update verb exposed** (a hard-won fact, now in the
+README): `cp` in place over `~/.local/bin/todo-mcp` while a live
+session's server executes the path leaves every NEW execution
+SIGKILL'd — macOS's stale code-signature cache on the modified inode.
+The fix is the fresh-inode copy (cp to a temp name + `mv`): the rename
+swaps the directory entry atomically, the running server keeps its old
+inode undisturbed, the next spawn gets the fresh binary. The README's
+install section and the live config's comment now carry that shape.
+
+**Next step**: the cutover (the t67 playbook in their repo,
+simplified: no doc nodes to re-point, no scratch to migrate — backup
+beside the store, archive in-repo, harness rewire, instructions
+rewrite, smoke) with the shareable onboarding instructions written
+alongside; t76 (the status_summary description one-liner) can ride
+anywhere. Then g19's remainder (t71 serve + the user's web/WS ask,
+t72, t73), g21, and the ikvm-html refresh+cutover when its session
+settles.
+
+**Blocked on you**: nothing new — the standing three (the D18 sub-step
+amendment, the `--epic` default tier, the word to your dacode agent)
+and the WS preferences whenever t71's spec is authored.
+
+**Unverified**: nothing — the census, the verify, the epic separation
+and the trap are all measured; their repo is untouched (a read-only
+import; the board stays their tracker until the cutover).
 
 ### 2026-10-10 — t77: the ipmi dialect module
 

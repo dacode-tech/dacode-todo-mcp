@@ -31,11 +31,16 @@ binary, four crates — `todo-domain` (the pure graph, no I/O),
 ## Wiring it into opencode
 
 Build the release binary and install a stable copy — the config names
-the copy, not the checkout's `target/` (which `cargo clean` deletes):
+the copy, not the checkout's `target/` (which `cargo clean` deletes).
+The copy lands via a fresh inode (cp to a temp name, then `mv`), never
+`cp` in place: on macOS, a signed binary modified in place while any
+process executes it — an opencode session's server, normally — leaves
+every NEW execution SIGKILL'd on a stale code-signature cache:
 
 ```sh
 cargo build --release -p todo-mcp
-cp target/release/todo-mcp ~/.local/bin/todo-mcp
+cp target/release/todo-mcp ~/.local/bin/todo-mcp.next
+mv ~/.local/bin/todo-mcp.next ~/.local/bin/todo-mcp
 ```
 
 Then add an `mcp` entry to your global opencode config
@@ -54,14 +59,14 @@ machine runs — substitute your own root path:
 }
 ```
 
-Updating it is the same two commands — rebuild, re-copy. No restart is
-needed: each opencode session spawns its own server process, so the
-next session picks up the new binary (a running session keeps its
-process; replacing the file under it is safe). The staleness tradeoff
-is deliberate and documented in the entry's comment in the live
-config: the installed copy goes stale after pulls until re-copied, and
-the store-format version gate (`version_mismatch`) makes a too-old
-binary refuse a newer store rather than guessing.
+Updating it is the same commands. No restart is needed: each opencode
+session spawns its own server process, so the next session picks up
+the new binary, and the rename leaves a running session's server on
+its old inode, undisturbed. The staleness tradeoff is deliberate and
+documented in the entry's comment in the live config: the installed
+copy goes stale after pulls until re-copied, and the store-format
+version gate (`version_mismatch`) makes a too-old binary refuse a
+newer store rather than guessing.
 
 A per-project mcp entry may pass a default repo slug (the `--repo`
 flag), and absent one the server derives the default from the directory
