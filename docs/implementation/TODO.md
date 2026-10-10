@@ -3803,8 +3803,33 @@ Oldest first. One line per delivery, with the commit hash once committed.
    Spec §2's crate map amended to three members and §4.3's two
    references reworded (D20's consequences). f117 recorded (e2e.rs's
    stale Dump-mirror rationale, rides its next owner); f118 fixed in
-   the review round (lib.rs's stale parse attribution, one sentence,
+   the    review round (lib.rs's stale parse attribution, one sentence,
    ratified by both reviewers). Landed as this commit.
+ - 2026-10-10 — **t86: the tool-failure recovery rule in the base
+   instructions** (U16a's amendment, the user's in-thread ask after
+   two adopted-client reports): the instructions every session
+   receives at initialize now carry the rule — tool arguments are
+   strict JSON (every string value quoted, enum spellings exactly as
+   the schema lists them); a failed call's error text is the remedy
+   (argument faults carry no code; the text names the missing or
+   unknown field, a misspelled value's expected variants); correct
+   and retry once; the same failure twice means stop and tell the
+   user, quoting the tool, the arguments and the error verbatim —
+   never work around a failing tracker by editing files or guessing
+   state. The protocol suite's frozen instructions pin moved with it
+   (called out — the t76 precedent); the README gains the
+   adoption-door paragraph and the skill the map line. The reports
+   that prompted it (f119: an agent sent `priority: "High"` and gave
+   up on the honest unknown-variant rejection; f120: an agent emitted
+   unquoted JSON, rejected by opencode's parser pre-wire) were both
+   probed server-side-correct on temp stores — the fixable half was
+   the agents' recovery behavior, which the instructions now govern.
+   Dual review over two rounds (the primary's med: the first wording
+   over-promised "the expected variants" on every argument fault —
+   the missing-field shape names the field only, wire-probed; fixed
+   with the no-code carve-out named). The release binary rebuilt and
+   re-copied (the fresh-inode update), the live initialize smoke
+   carrying the new text. Landed as this commit.
 
 
 
@@ -4931,10 +4956,21 @@ by opencode's own parser before the wire; the quoted form is accepted
 and echoed. Both remedies are model-side: send the spelling the schema
 advertises, quote the enum values.
 
+**The instructions fix landed** (the user's ask, t86): the base
+instructions now carry the tool-failure recovery rule — strict JSON
+arguments, read the error text (the remedy: the named field or the
+expected variants), correct and retry once, then stop and tell the
+user quoting the tool, the arguments and the error; never work around
+the tracker. The frozen pin moved (the t76 precedent), the README and
+the skill carry the companion rows, and the release binary was
+rebuilt and re-copied so the adopted repos' next sessions receive it
+(a live session keeps its old instructions until it restarts). Dual
+review over two rounds.
+
 **Handover.** Workspace: main, clean after this commit; three crates
 (todo-domain, todo-store, todo-mcp — the four-member map is history);
-rustc 1.98.1. Landed this session: t72, the D13 recording (this
-commit). Next step:
+rustc 1.98.1. Landed this session: t72, the D13 recording, the
+f119/f120 triage + the instructions fix (t86). Next step:
 **t73** — the Python retirement + the doc moves (`tools/progress.py`
 and the two drivers deleted, the README/AGENTS/skill rows moved to the
 subcommands, the release rebuild + the re-copy to `~/.local/bin` + the
@@ -4942,8 +4978,8 @@ live smoke) — then t85 (D13's default-server live view, signed (a),
 under g22), t84 (the activity panel) and g21 (the own
 full-switch cutover). Blocked on you: nothing — D13 signed (a)
 2026-10-10. Unverified: nothing new — every gate ran on the final
-tree; the standing caveats unchanged (the release binary predates t72's
-subcommands until t73 rebuilds it).
+tree; the standing caveats unchanged (the release binary is current —
+t86 rebuilt and re-copied it; t73's rebuild re-verifies).
 
 ### 2026-10-10 — t71: the serve subcommand — the live view + the WS push channel
 

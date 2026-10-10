@@ -114,6 +114,15 @@ cross. There is deliberately no flag or server-side default: the
 global mcp entry serves every session the same command, so a flag
 cannot vary per session.
 
+**Tool failures**: the same base instructions carry the recovery rule.
+Tool arguments are strict JSON — every string value quoted, enum
+spellings exactly as the schema lists them (`high`/`medium`/`low`,
+`in_work`, …). A failed call's error text is the remedy: argument
+faults name the missing or unknown field, a misspelled value's
+expected variants. Correct the arguments and retry once; the same
+failure twice means stop and tell the user — never work around the
+tracker by editing files or guessing state.
+
 The authoritative table — every tool, its parameters, the error code
 list — is [docs/todo-mcp-design.md](docs/todo-mcp-design.md) §6. The
 README groups; the spec is the contract.

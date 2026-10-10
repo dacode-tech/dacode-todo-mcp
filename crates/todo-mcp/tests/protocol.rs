@@ -49,7 +49,15 @@ mod protocol {
         `deferred` require a `note`; signing a decision requires a \
         `resolution`. Writes return the new state. Errors carry a stable code \
         in `structuredContent.code` — branch on the code, never parse the \
-        message. Tasks carry an agent-set `priority` (high, medium, low) — set \
+        message. Tool arguments are strict JSON — every string value quoted, \
+        enum spellings exactly as the schema lists them. If a call fails, read \
+        the error text — argument faults carry no code, and the text is the \
+        remedy: it names the missing or unknown field, and a misspelled \
+        value's expected variants; correct the arguments and retry once. The \
+        same failure twice means stop and tell the user, quoting the tool, the \
+        arguments and the error verbatim — never work around a failing \
+        tracker by editing files or guessing state. Tasks carry an agent-set \
+        `priority` (high, medium, low) — set \
         it when triaging, prefer higher priority when choosing among \
         actionable rows yourself; the server's order is dependency-driven and \
         ignores it by design.";
