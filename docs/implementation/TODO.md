@@ -3752,6 +3752,12 @@ Oldest first. One line per delivery, with the commit hash once committed.
    arms untested, D9's board parking unopened) fixed as review-round
    riders — the control-frame pins added, U39 opened (the call-counts
    parked), t84 queued (the activity panel). Landed as this commit.
+   Post-delivery (the user's first live run): the header-timeout drop
+   of an idle browser preconnect logged itself as a scary EAGAIN
+   error — fixed (f116: `ReadHeadError::TimedOut` classifies the
+   expiry, `handle_connection` drops silently; real faults keep the
+   byte-identical messages and the 400), live-verified (an idle
+   connection dropped at 10.0 s with no stderr line), dual-reviewed.
 
 
 

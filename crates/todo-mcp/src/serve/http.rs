@@ -39,32 +39,64 @@ impl Request {
     }
 }
 
+/// Why a request head could not be read.
+///
+/// `Debug` is derived for the test helper's `expect` — production
+/// matches on the variants and never prints them.
+#[derive(Debug)]
+pub(super) enum ReadHeadError {
+    /// The header timeout expired before the head completed — an
+    /// idle or speculative connection (a browser preconnect). The
+    /// caller drops it silently: the peer is not waiting for an
+    /// answer, and on this platform the expiry surfaces as `EAGAIN`,
+    /// which is a timeout, not a fault.
+    TimedOut,
+    /// The connection closed, malformed, or overshot the cap — the
+    /// caller answers 400 and logs the reason.
+    Fault(String),
+}
+
 /// Reads one request head: lines through the first blank line, then
 /// the request line and the headers parsed out of them. A connection
 /// that closes mid-head, a head over the cap, or a malformed line is
-/// a named error — the caller answers 400 and closes.
-pub(super) fn read_request(reader: &mut impl BufRead) -> Result<Request, String> {
+/// a named error — the caller answers 400 and closes. A read that
+/// times out (the header timeout the caller armed) is `TimedOut`:
+/// an idle connection is a normal drop, never a logged fault.
+pub(super) fn read_request(reader: &mut impl BufRead) -> Result<Request, ReadHeadError> {
     let mut head = String::new();
     loop {
         let mut line = Vec::new();
-        let read = reader
-            .read_until(b'\n', &mut line)
-            .map_err(|error| format!("read the request: {error}"))?;
+        let read = reader.read_until(b'\n', &mut line).map_err(|error| {
+            if matches!(
+                error.kind(),
+                std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut
+            ) {
+                ReadHeadError::TimedOut
+            } else {
+                ReadHeadError::Fault(format!("read the request: {error}"))
+            }
+        })?;
         if read == 0 {
-            return Err("the connection closed before the request head completed".to_owned());
+            return Err(ReadHeadError::Fault(
+                "the connection closed before the request head completed".to_owned(),
+            ));
         }
         if !line.ends_with(b"\n") {
-            return Err("the connection closed mid-line".to_owned());
+            return Err(ReadHeadError::Fault(
+                "the connection closed mid-line".to_owned(),
+            ));
         }
         if head.len() + line.len() > MAX_HEAD {
-            return Err("the request head exceeds the size cap".to_owned());
+            return Err(ReadHeadError::Fault(
+                "the request head exceeds the size cap".to_owned(),
+            ));
         }
         head.push_str(&String::from_utf8_lossy(&line));
         if line == b"\r\n" || line == b"\n" {
             break;
         }
     }
-    parse_head(&head)
+    parse_head(&head).map_err(ReadHeadError::Fault)
 }
 
 /// Parses the head text: `METHOD SP TARGET SP VERSION`, then `Name:
@@ -222,6 +254,42 @@ mod tests {
             .is_err()
         );
         assert!(read_request(&mut Cursor::new(b"GET / HTTP/1.1\r\nHost: x\r\n".to_vec())).is_err());
+    }
+
+    /// A read that surfaces the header timeout (WouldBlock on this
+    /// platform, TimedOut elsewhere) classifies as `TimedOut` — the
+    /// idle-connection drop — never as a fault; any other io error
+    /// stays a fault.
+    #[test]
+    fn a_timeout_classifies_as_an_idle_drop_not_a_fault() {
+        struct Failing {
+            kind: std::io::ErrorKind,
+        }
+        impl std::io::Read for Failing {
+            fn read(&mut self, _buf: &mut [u8]) -> std::io::Result<usize> {
+                Err(std::io::Error::from(self.kind))
+            }
+        }
+        impl std::io::BufRead for Failing {
+            fn fill_buf(&mut self) -> std::io::Result<&[u8]> {
+                Err(std::io::Error::from(self.kind))
+            }
+            fn consume(&mut self, _n: usize) {}
+        }
+        for kind in [std::io::ErrorKind::WouldBlock, std::io::ErrorKind::TimedOut] {
+            let mut reader = Failing { kind };
+            assert!(
+                matches!(read_request(&mut reader), Err(ReadHeadError::TimedOut)),
+                "{kind:?} is the idle drop"
+            );
+        }
+        let mut reader = Failing {
+            kind: std::io::ErrorKind::ConnectionReset,
+        };
+        assert!(
+            matches!(read_request(&mut reader), Err(ReadHeadError::Fault(_))),
+            "a reset is a fault, not the idle drop"
+        );
     }
 
     /// The repo param: the first wins, unknown params ignored, a bare

@@ -293,7 +293,13 @@ fn handle_connection(stream: TcpStream, state: Arc<ConnState>) {
     let mut reader = BufReader::new(stream);
     let request = match http::read_request(&mut reader) {
         Ok(request) => request,
-        Err(message) => {
+        Err(http::ReadHeadError::TimedOut) => {
+            // An idle or speculative connection dropped at the header
+            // timeout — the peer is not waiting for anything, so there
+            // is nothing to answer and nothing to log.
+            return;
+        }
+        Err(http::ReadHeadError::Fault(message)) => {
             eprintln!("todo-mcp serve: {message}");
             http::write_plain_response(
                 reader.get_mut(),
