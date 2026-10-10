@@ -85,6 +85,17 @@
 //! answer). The binary owns the argument parse, the one cwd read and
 //! the output writes; the module owns the model.
 //!
+//! # The live listener (D20, t71)
+//!
+//! `serve` ([`serve::serve`]) is the live view: a listener over
+//! hand-rolled HTTP/1.1 on 127.0.0.1 — every route a fresh render,
+//! the repo a URL parameter — plus the WebSocket push channel, the
+//! port published to a per-user runtime file so a second invocation
+//! attaches instead of starting a second listener. The module is
+//! parameterized and env-free like the rest of the lib: the binary
+//! computes the default port-file path from the home directory, reads
+//! the cwd once, and owns the SIGINT shutdown.
+//!
 //! # The error carrier (D15)
 //!
 //! Every tool failure travels through the `error_carrier` helper as
@@ -150,6 +161,7 @@ pub mod refresh;
 mod registry;
 pub mod render;
 mod schema;
+pub mod serve;
 mod time;
 
 /// U16(a)'s base instructions: the one text an agent that has never

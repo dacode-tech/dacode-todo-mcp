@@ -1,8 +1,11 @@
 //! The `progress` HTML page (D20's second slice): the Python tool's
 //! template ported to hand-built strings — the totals cards, the
 //! milestone bar, the SVG dependency graph, the open-items and
-//! decisions tables, the click-detail script, and the project
-//! switcher the registry drives. Like the JSON document it is a pure
+//! decisions tables, the click-detail script, the project
+//! switcher the registry drives, and the live-update script t71's
+//! `serve` answers (the WebSocket reload; inert on a static page,
+//! which is honest — the static page is one repo's snapshot). Like
+//! the JSON document it is a pure
 //! function of `(root, repo)` — the Python page's `date.today()`,
 //! `head_sha()` and session-tracker overlay are deliberately absent
 //! (none can golden-pin; D20's no-new-dependencies consequence forbids
@@ -133,8 +136,23 @@ pub(super) fn page_text(model: &Model, slugs: &[RepoSlug]) -> Result<String, Str
     let data = detail_data(model)?;
     page.push_str(&format!("<script>\nconst DATA = {data};\n"));
     page.push_str(SCRIPT);
+    page.push_str(&live_script(slug));
     page.push_str("\n</script>\n</body></html>\n");
     Ok(page)
+}
+
+/// The live-update script (t71's D6): the WebSocket URL built from
+/// `location.host` and the page's repo; `onmessage` reloads. The
+/// try/catch degrades silently on a static `file://` page — an empty
+/// `location.host` makes the URL invalid, the constructor throws, the
+/// catch swallows it. The script rides every render: a static page
+/// simply never receives a push. The slug's charset needs no JS
+/// string escaping.
+fn live_script(slug: &str) -> String {
+    format!(
+        "\ntry {{\n  const ws = new WebSocket('ws://' + location.host + '/ws?repo={slug}');\n  \
+         ws.onmessage = () => location.reload();\n}} catch (e) {{}}"
+    )
 }
 
 /// The switcher: one entry per registered slug, the rendered repo as

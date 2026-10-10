@@ -122,5 +122,9 @@ document.querySelectorAll('.node').forEach(n => n.addEventListener('click', () =
     + `<br><br><b>edges</b><br>${rel || 'none drawn'}`;
   box.style.display = 'block';
 }));
+try {
+  const ws = new WebSocket('ws://' + location.host + '/ws?repo=fixture');
+  ws.onmessage = () => location.reload();
+} catch (e) {}
 </script>
 </body></html>

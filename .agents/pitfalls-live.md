@@ -78,3 +78,21 @@ cites `P-LIVE-007`/`P-LIVE-008`. Where they now live:
 The next entry is `P-LIVE-010`. Do not reuse a promoted id.
 
 ---
+
+### P-LIVE-010 — macOS `accept()` inherits the listener's `O_NONBLOCK`
+
+`t71` (2026-10-10): a `TcpListener` set non-blocking (so a stop flag
+can be observed between accepts) hands its `O_NONBLOCK` down to every
+accepted stream **on macOS** — Linux does not. The symptom is
+delayed and misleading: plain HTTP requests keep working (their bytes
+are usually already in the socket buffer when the connection thread
+reads), and the first genuinely blocking read — the WS connection
+loop's frame read — fails instantly with `EAGAIN` ("Resource
+temporarily unavailable"), closing the connection right after a
+successful handshake. The fix is one line in the accept loop:
+`stream.set_nonblocking(false)` on every accepted stream (a no-op
+where the platform already hands over a blocking socket). Any future
+listener in this tree carries it; a read that "should block" erroring
+with EAGAIN on a silent socket is this entry's signature.
+
+---

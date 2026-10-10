@@ -214,7 +214,7 @@ shell, which is M3's business.
 
 | Blocking | What | Action |
 |---|---|---|
-| — | nothing blocks: the roadmap is delivered, the dacode and ipmi-collector repos cut over, the D20 arc under way | **g20 closed 2026-10-10 (t83: the cutover landed in their repo as `6e04025`, the smoke green, the onboarding doc in the README)**. Next: g19's remainder — t71 (serve, extended with the user's web/WS ask), t72, t73 — then g21 (this repo's own full-switch cutover, the user's sign); t76 (the status_summary description one-liner, the user's in-thread sign) rides anywhere; the ikvm-html refresh+cutover waits for its live session to settle (U36 rides that revisit) — see §6's handover |
+| — | nothing blocks: the roadmap is delivered, the dacode and ipmi-collector repos cut over, the D20 arc under way | g20 closed 2026-10-10 (t83, their repo's `6e04025`). **t71 landed 2026-10-10** (the `serve` subcommand: the live view + the WS push channel, the page.v1 golden moved for the script block — the compatibility event called out in the session log). Next: g19's remainder — t72 (the todo-cli absorption, U38's split rides it), t73 (the Python retirement + doc moves) — then g21 (this repo's own full-switch cutover, the user's sign); t76 (the status_summary description one-liner, the user's in-thread sign) rides anywhere; the ikvm-html refresh+cutover waits for its live session to settle (U36 rides that revisit) — see §6's handover |
 
 (The user's calls 2026-10-09: **U35 resolved (a)** — the two
 wire-visible repo_list descriptions amended to the hit-or-lock-free
@@ -3726,6 +3726,33 @@ Oldest first. One line per delivery, with the commit hash once committed.
    command named and run; the dialect and tracked-repo rows updated
    for ipmi-collector. Landed as this commit.
 
+- 2026-10-10 — **t71: the `serve` subcommand — the live view + the WS
+   push channel**: `todo-mcp serve` ports the Python tool's mechanics
+   (t55, U18 shape A) — bind `127.0.0.1:0`, the per-user port
+   publication (the Python's exact path, interop until t73), the
+   attach / stale-takeover / SIGINT-cleanup contract — and gains the
+   per-repo URL surface (`/?repo=<slug>`, the t69 switcher answered;
+   the default repo via the cwd tier with a first-slug fallback) and
+   the WS push channel: hand-rolled RFC 6455 (the handshake, the frame
+   codec, SHA-1+base64 — zero new crates; the tokio `signal` feature
+   on the existing dep is the one dependency-surface change) with
+   stat-polling detection (the repo's event-log + snapshot, mtime+len,
+   500 ms) pushing one text frame on change, the page's inline script
+   reloading on it. The module split by responsibility
+   (`serve/{mod,http,ws,poll}.rs`); `main.rs` crossed the 600 target
+   (U38, the split rides t72); f115 (macOS `accept()` inheriting
+   `O_NONBLOCK`) found and fixed, P-LIVE-010. The `page.v1` golden
+   moved — exactly the script block, the compatibility event called
+   out. 357 todo-mcp tests (the serve target's 8 integration pins +
+   the unit pins); the mutations M1–M7 killed; the live smoke: the
+   release binary on the real root, every route curl-checked, the WS
+   handshake + close-echo observed, SIGINT clean, and the
+   Rust-attaches-to-live-Python interop probe green. Dual review: the
+   primary ok in one round; the secondary's meds (the WS ping/close
+   arms untested, D9's board parking unopened) fixed as review-round
+   riders — the control-frame pins added, U39 opened (the call-counts
+   parked), t84 queued (the activity panel). Landed as this commit.
+
 
 
 ## 4. Follow-ups
@@ -4740,11 +4767,139 @@ Deliberate shortcuts, acknowledged rather than fixed. Same id rules as §4.
       module doc). The old `render.rs` (719) is deleted; the JSON
       golden and the summary tests pin the behavior as unchanged.
 
+- [ ] **U38 · `todo-mcp/src/main.rs` is over the 600-line target**
+      (680 production lines after t71's serve subcommand; 526 before
+      it). The exception is recorded in the module doc: the argument
+      layer is one file by design — t71's spec names this file as the
+      dispatch parse tests' home, so a split would move what the spec
+      pins. The split that retires it: the `USAGE` text and the parse
+      into an `args` module, the run_* drivers staying in `main.rs`.
+      Rides t72 (the todo-cli absorption grows this file again — split
+      there, not before).
+- [ ] **U39 · Live tool-call statistics on the web page — the
+      cross-instance question** (the user's 2026-10-10 wish, parked):
+      raw tool-call counts including reads are per-process and
+      volatile — every opencode session spawns its own server, and
+      reads are deliberately unlogged (D19: reads write nothing, never
+      take a lock), so counting them needs a sidecar channel with a
+      sync story (per-instance stat files merged at render? a
+      heartbeat?) — staleness and volatility are the recorded costs.
+      The clean subset that needs none of it: the store-derived
+      activity panel (every write is an event line — centralized by
+      construction, durable, accumulated since registration), tracked
+      as t84. Revisit the call-counts only with a deliberate sidecar
+      design; until then this stays parked.
+
 ## 6. Session log
 
 Newest first. One entry per session, written for someone who was not
 here. The final entry of a session is the handover
 (`.agents/skills/todo-next-imp/SKILL.md` defines the shape).
+
+### 2026-10-10 — t71: the serve subcommand — the live view + the WS push channel
+
+**Workspace**: main, clean at `ce4b2fa` at start; the tree left dirty
+for the orchestrator's review (the implementer was dispatched, not
+directly invoked — no commit, no review trailers).
+
+**Landed**: t71 — `todo-mcp serve`, the g19 arc's third slice after
+t68 (dispatch+JSON) and t69 (the page): the Python tool's `--serve`
+mechanics (t55, U18 shape A) ported onto the binary, the per-repo URL
+surface the page's switcher links, and the WS push channel (the
+user's ask). The lib module `src/serve/` — four files split by
+responsibility (the spec's D8 names one file; the split is the house
+pattern, recorded in the module doc): `mod.rs` 460 (the listener: the
+attach / takeover / publication contract, the accept loop, the
+dispatch, the default-repo tier), `http.rs` 183 (the hand-rolled
+HTTP/1.1 parser and response writer), `ws.rs` 371 (the RFC 6455
+handshake, the frame codec, SHA-1 + base64 hand-rolled — the t45
+test's algorithm lifted to src, pinned by the published vectors), and
+`poll.rs` 81 (the stat-polling change detection). Zero new
+dependencies: the one dependency-surface change is tokio's `signal`
+FEATURE on the existing workspace dep (spec-approved, veto-able
+reading (ii)) for the SIGINT clean shutdown. The binary owns the
+argument parse (the `serve` subcommand, `--port-file`, `--open`, the
+default port-file path via `std::env::home_dir()` — the lib stays
+env-free), the no-subcommand MCP variant renamed `Command::McpServer`
+(D7, internal only — the protocol suite and every wire golden
+unmoved, pinned). The page gains the live-update script (D6): the WS
+URL from `location.host`, `onmessage` → reload, a try/catch so a
+static `file://` page degrades silently.
+
+**The golden moved** — the compatibility event: `page.v1.golden`
+regenerated, the diff exactly the script block (4 lines, +137 bytes),
+staged before the first plain run per the f101 ritual order (plain
+red → UPDATE_GOLDEN → staged → plain green → UPDATE_GOLDEN idempotent
+→ `git diff --exit-code` over the golden dir = 0). Every other golden
+byte-identical.
+
+**The tests**: `tests/serve.rs` — the seven integration pins from the
+task spec (mirroring the Python driver): the static invocation
+publishes no port; serve publishes and answers every route (the
+serving line, `/` the first-slug fallback, `/?repo=` that repo's
+page, `/json` parses, `/health` the marker, 404); the second
+invocation attaches (bounded wait — a regression that binds instead
+blocks forever); the stale publication taken over (SIGTERM via
+`/bin/kill`, unix-gated); SIGINT the clean shutdown (exit 0, the
+publication removed); the WS push end-to-end (the RFC 6455 example
+key → the published accept, a store write through the `Store` trait →
+the push frame, no write → no frame); the corrupt-store root
+(`/health` 200, `/` 500, the listener stays up). The unit pins
+in-file: SHA-1's vectors, base64's padding, the frame codec (masking,
+the length forms, the cap, the unmasked refusal), the handshake
+validation, the poller over a real TCP pair, the HTTP parser and
+routes, the publication round-trip, the first-slug fallback; the
+dispatch rows in main.rs (serve routing, `--port-file`, `--repo`
+refused on serve, the usage text). 356 todo-mcp tests (40 lib + 26
+bin + 290 integration), 713 workspace, every gate green (fmt, check,
+clippy on a forced recompile, doc under both invocations). The
+mutations M1–M7 each observed failing at its predicted test (M5 in
+both halves) and reverted sha-verified; the frozen baselines hold —
+exactly the owned set moved (the four serve files new, main.rs,
+lib.rs, page.rs, the root Cargo.toml, the golden, tests/serve.rs
+new), all 172 other files sha-identical. The Python driver
+`tools/progress-serve-check.py` still exit 0.
+
+**The live smoke**: the release binary on the real durable root —
+every route curl-checked (`/`, `/?repo=dacode`, `/json`,
+`/json?repo=camera`, `/health`, 404), the WS handshake observed (the
+101 with the RFC-published accept, no push without a write, the close
+frame echoed and the connection dropped), SIGINT the clean shutdown
+with the publication removed. The interop probe: the Rust binary
+ATTACHED to a live Python listener (the probe accepts the Python's
+HTTP/1.0 `/health` marker — the transition contract until t73).
+
+**Recorded divergences and findings** (the folding convention): the
+Python's render-level fail-fast is ported as a registry-level check —
+the spec's test 7 requires a corrupt default repo to still start the
+listener, so a render of the default repo cannot gate the startup; a
+root whose registry will not load or holds no repo is the startup
+error (the fail-fast's rationale, kept). Non-GET methods answer 405,
+not the Python base class's 501 (the deliberate correction, commented
+at the site). `--repo` + `serve` is a usage fault (the spec did not
+name it; the house rule — a flag that would be silently ignored is a
+fault, never a no-op — forced it). **f115**: macOS's `accept()`
+inherits the listener's `O_NONBLOCK`, so every accepted stream needs
+an explicit `set_nonblocking(false)` — the WS reader's first blocking
+read failed with EAGAIN until it landed (consolidated into
+pitfalls-live). **U38** opened: main.rs crossed the 600-line target
+(680) — the exception recorded in its module doc, the split rides
+t72.
+
+**Next step**: t72 — the todo-cli absorption (dump/verify/repair as
+subcommands, the cli goldens moved to the new spelling, the todo-cli
+crate retired; U38's split rides it), then t73 (the Python
+retirement + doc moves), then g21. t76 rides anywhere.
+
+**Blocked on you**: nothing new — the standing three (the D18
+sub-step amendment, the `--epic` default tier, the word to your
+dacode agent) unchanged; the WS preferences were settled by t71's
+spec (stat-polling, hand-rolled, no new crates).
+
+**Unverified**: nothing — every gate, the mutation kill set, the
+baselines, the smoke and the interop probe are measured above; the
+tree is dirty at the owned set awaiting the orchestrator's dual
+review and commit.
 
 ### 2026-10-10 — t83: the ipmi-collector cutover; g20 closed
 
