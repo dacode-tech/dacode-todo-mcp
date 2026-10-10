@@ -476,7 +476,7 @@ impl TodoServer {
         }
     }
 
-    /// The roll-up of a scope: counts of epics and tasks by status, decisions by decision status, docs as one total, the non-terminal open totals and the deferred summary.
+    /// The roll-up of a repository (optionally one epic): counts of epics and tasks by status, decisions by decision status, docs as one total, the non-terminal open totals and the deferred summary.
     #[tool(
         name = "status_summary",
         output_schema = crate::schema::output_for_type::<StatusSummaryDto>(),

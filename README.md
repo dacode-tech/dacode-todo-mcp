@@ -105,6 +105,15 @@ Writes return the new state, so a client never needs a
 read-after-write round trip; errors are structured data with stable
 codes, never bare strings.
 
+**Work streams**: every selection tool takes an `epic` parameter, and
+the server's base instructions (delivered at initialize, so every
+session of every adopted repo receives them) carry the rule — a
+session assigned one epic passes it on every selection call, and
+parallel sessions scoped to different epics of one repository never
+cross. There is deliberately no flag or server-side default: the
+global mcp entry serves every session the same command, so a flag
+cannot vary per session.
+
 The authoritative table — every tool, its parameters, the error code
 list — is [docs/todo-mcp-design.md](docs/todo-mcp-design.md) §6. The
 README groups; the spec is the contract.

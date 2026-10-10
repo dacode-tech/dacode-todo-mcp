@@ -41,7 +41,11 @@ mod protocol {
         work until the user signs it, and a doc is a registered document cited \
         by stable id. Ids are stable and never reused. Ask `next_task` for what \
         to do now, `next_items` for the batch, `status_summary` for the \
-        roll-up. Closing a task requires `verify` and `evidence`; `blocked` and \
+        roll-up. When the user assigns a work stream (one epic), pass its \
+        `epic` on every selection call — `next_task`, `next_items`, \
+        `task_list` and `status_summary` all take it; sessions scoped to \
+        different epics of one repository never cross. Closing a task requires \
+        `verify` and `evidence`; `blocked` and \
         `deferred` require a `note`; signing a decision requires a \
         `resolution`. Writes return the new state. Errors carry a stable code \
         in `structuredContent.code` — branch on the code, never parse the \

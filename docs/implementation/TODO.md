@@ -216,7 +216,10 @@ shell, which is M3's business.
 |---|---|---|
 | — | nothing blocks: the roadmap is delivered, the dacode and ipmi-collector repos cut over, the D20 arc under way | g20 closed 2026-10-10 (t83, their repo's `6e04025`). **t71 landed 2026-10-10** (the `serve` subcommand: the live view + the WS push channel, the page.v1 golden moved for the script block — the compatibility event called out in the session log). Next: g19's remainder — t72 (the todo-cli absorption, U38's split rides it), t73 (the Python retirement + doc moves) — then g21 (this repo's own full-switch cutover, the user's sign); t76 (the status_summary description one-liner, the user's in-thread sign) rides anywhere; the ikvm-html refresh+cutover waits for its live session to settle (U36 rides that revisit) — see §6's handover |
 
-(The user's calls 2026-10-09: **U35 resolved (a)** — the two
+(The user's calls 2026-10-10: **the `--epic` default tier resolved
+(a)** — the param convention carried by the base instructions, t76's
+description landing with it; the flag tier declined (the
+global-entry constraint). The user's calls 2026-10-09: **U35 resolved (a)** — the two
 wire-visible repo_list descriptions amended to the hit-or-lock-free
 wording, landed this session. **U33 fixed** on the user's order —
 the duplicate-D hoist landed with f103's camera riders. The
@@ -3758,6 +3761,22 @@ Oldest first. One line per delivery, with the commit hash once committed.
    expiry, `handle_connection` drops silently; real faults keep the
    byte-identical messages and the 400), live-verified (an idle
    connection dropped at 10.0 s with no stderr line), dual-reviewed.
+- 2026-10-10 — **t76 + the (a) epic-scoping settlement**: the user
+   signed (a) — the param convention, no flag, no server-side default
+   (the global mcp entry serves every session the same command, so a
+   flag cannot vary per session; the recorded recommendation stood).
+   Landed: `status_summary`'s description names the repo-vs-epic scope
+   ("a repository (optionally one epic)" — the one vague spot, the
+   user's in-thread sign), and the base instructions (U16a, delivered
+   at initialize — every session of every adopted repo receives them)
+   gain the work-stream rule: a session assigned one epic passes its
+   `epic` on every selection call; parallel sessions scoped to
+   different epics of one repository never cross. The skill and the
+   README carry the rows. The protocol suite's frozen instructions
+   const is the one pin that moved (called out); no golden moved. The
+   live drive: initialize carries the rule, tools/list shows the
+   amended description. The `--epic` standing item resolves with it —
+   the standing calls are now two. Landed as this commit.
 
 
 
@@ -4947,9 +4966,16 @@ full-switch cutover). The ikvm-html refresh+cutover waits for its live
 session to settle (their agent is mid-flight on U126-b2 under g111 —
 the quote the user relayed; U36 rides that revisit).
 
-**Blocked on you**: unchanged — the standing three (the D18 sub-step
-amendment, the `--epic` default tier, the word to your dacode agent)
-plus the WS preferences whenever t71's spec is authored.
+**Blocked on you**: the standing two (the D18 sub-step amendment,
+the word to your dacode agent) — the `--epic` default tier resolved
+(a) 2026-10-10, landed with t76 below; the WS preferences settled in
+t71's spec (stat-polling, hand-rolled, zero new crates).
+
+**Post-delivery (same session)**: f116 (the header-timeout EAGAIN
+noise, fixed and live-verified) and t76 + the (a) epic-scoping
+settlement — status_summary's description, the base-instructions
+work-stream rule, the skill/README rows; the protocol pin moved, no
+golden; the live drive green. The stable binary carries both.
 
 **Unverified**: nothing — the census, the verify, the smoke and the
 review bindings are all measured; their repo's tree is clean at

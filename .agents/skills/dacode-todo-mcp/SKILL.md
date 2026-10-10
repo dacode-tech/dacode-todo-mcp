@@ -61,7 +61,14 @@ task-scoped — annotated with what blocks what, a derived
 transitive-dependent weight, and a deferred summary (`total`/`ready`,
 D9); `graph_show` (§6.2) dumps the complete graph as canonical-JSON
 nodes with per-node adjacency; the agent-set `priority` field is
-display-only and never reorders.
+display-only and never reorders. **Work streams** (the user's (a)
+settlement 2026-10-10): a session assigned one epic passes its `epic`
+on every selection call (`next_task`, `next_items`, `task_list`,
+`status_summary` all take it) — the base instructions carry the rule,
+and parallel sessions scoped to different epics of one repo never
+cross; there is deliberately no flag or server-side default (the
+global mcp entry serves every session the same command, so a flag
+cannot vary per session).
 
 ## The property that makes this project exist
 
