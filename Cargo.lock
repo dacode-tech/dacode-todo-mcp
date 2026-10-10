@@ -647,17 +647,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "todo-cli"
-version = "0.1.0"
-dependencies = [
- "lexopt",
- "serde",
- "tempfile",
- "todo-domain",
- "todo-store",
-]
-
-[[package]]
 name = "todo-domain"
 version = "0.1.0"
 dependencies = [

@@ -1,8 +1,9 @@
 //! The MCP server (spec §2, §6): the rmcp wire surface over stdio.
 //!
 //! This crate is the binary's library half — the server, its state and
-//! the wire DTOs; `main.rs` owns the argument parse, the runtime and
-//! the serve call. The binary translates and never decides: all
+//! the wire DTOs; the argument parse lives in the [`args`] module
+//! (U38's split) and `main.rs` owns the runtime and the serve call.
+//! The binary translates and never decides: all
 //! selection, ordering and query logic lives in `todo-domain`, all
 //! persistence in `todo-store`, and this crate maps tool calls onto
 //! those. The storage engine stays sealed inside `todo-store` (§2):
@@ -82,8 +83,14 @@
 //! environment — which is what makes its surfaces golden-pinnable;
 //! the page carries a project switcher driven by the
 //! registry (the `?repo=<slug>` URL shape the `serve` subcommand will
-//! answer). The binary owns the argument parse, the one cwd read and
-//! the output writes; the module owns the model.
+//! answer). The binary owns the one cwd read and the output writes;
+//! the lib's [`args`] module owns the argument parse (U38's split,
+//! landed with t72), and the module owns the model. The inspector
+//! the `todo-cli` crate carried is absorbed here as [`inspect`] —
+//! the `dump`/`verify`/`repair` subcommands (D20, t72) — formatting,
+//! prompting and picking exit codes over the store's own facts,
+//! every classification and byte offset the store's; the crate
+//! retired with the move.
 //!
 //! # The live listener (D20, t71)
 //!
@@ -149,11 +156,13 @@ use serde::Serialize;
 use todo_domain::{DomainError, Graph, RepoSlug, ValueError};
 use todo_store::{DataRoot, Registry, Store, StoreError};
 
+pub mod args;
 mod cwd;
 mod dto;
 mod edges;
 pub mod import;
 mod importer;
+pub mod inspect;
 mod listing;
 mod nodes;
 mod query;

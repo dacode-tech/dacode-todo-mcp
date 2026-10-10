@@ -9,7 +9,7 @@
 //! [`DataRoot::repair`]'s dry run for a corrupt store). There is
 //! deliberately **no line count**: counting lines would put a second
 //! notion of "line" beside the log's own `LineSplit` (f25's parked
-//! boundary — the cli reads no raw bytes at all).
+//! boundary — the inspector reads no raw bytes at all).
 //!
 //! The report is deterministic for a given store state (§8): fixed lines
 //! in a fixed order, no clock, no map iteration, and no host path beyond
@@ -18,25 +18,22 @@
 
 use std::fs;
 use std::io::ErrorKind;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::ExitCode;
 
-use todo_domain::RepoSlug;
-use todo_store::{DataRoot, JsonlStore, Store, StoreError};
+use todo_domain::{Graph, RepoSlug};
+use todo_store::{DataRoot, Store, StoreError};
 
-use crate::args::Invocation;
-use crate::repair::outcome_report;
-use crate::{EXIT_FAULT, EXIT_OK, fault_lines, store_refused};
+use super::repair::outcome_report;
+use super::{EXIT_FAULT, EXIT_OK, fault_lines, store_refused};
 
 /// Runs `verify`: open the store; on success print the state report to
 /// stdout and exit 0; on a corrupt store print the fault and the store's
 /// own dry-run classification to stderr and exit 1; on any other store
 /// refusal print its §6.1 code and report to stderr and exit 3.
-pub fn run(invocation: &Invocation) -> ExitCode {
-    let root = DataRoot::new(PathBuf::from(&invocation.root));
-    let slug = &invocation.slug;
+pub fn run(root: &DataRoot, slug: &RepoSlug) -> ExitCode {
     match root.open(slug) {
-        Ok(store) => match opened_report(&root, slug, &store) {
+        Ok(store) => match opened_report(root, slug, store.graph()) {
             Ok(report) => {
                 print!("{report}");
                 ExitCode::from(EXIT_OK)
@@ -48,7 +45,7 @@ pub fn run(invocation: &Invocation) -> ExitCode {
         // failed open already dropped its lock guard, so the dry-run
         // classification below is not contention.
         Err(StoreError::CorruptStore { offset, detail }) => {
-            eprint!("{}", corrupt_report(&root, slug, offset, &detail));
+            eprint!("{}", corrupt_report(root, slug, offset, &detail));
             ExitCode::from(EXIT_FAULT)
         }
         // `locked`, `version_mismatch`, `io` (a missing store directory
@@ -65,13 +62,8 @@ pub fn run(invocation: &Invocation) -> ExitCode {
 /// snapshot line is `none` when no snapshot file exists — its absence is
 /// a state, not a fault (§4.3: a store without a snapshot replays its
 /// whole log). A stat that fails any other way is the store refusing the
-/// operation, reported through the crate's io shape.
-fn opened_report(
-    root: &DataRoot,
-    slug: &RepoSlug,
-    store: &JsonlStore,
-) -> Result<String, StoreError> {
-    let graph = store.graph();
+/// operation, reported through the module's io shape.
+fn opened_report(root: &DataRoot, slug: &RepoSlug, graph: &Graph) -> Result<String, StoreError> {
     let log_bytes = size_or_none(stat_bytes(&root.log_path(slug), "stat the event log")?);
     let snapshot_bytes = size_or_none(stat_bytes(&root.snapshot_path(slug), "stat the snapshot")?);
     Ok(format!(

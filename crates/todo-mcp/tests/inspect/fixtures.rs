@@ -1,6 +1,7 @@
-//! The cli suite's shared fixtures: stores built through the real API
-//! under an injected data root, the byte-splicing helpers that tear a
-//! real line, the cli runner, and the debris scan every case ends with.
+//! The inspector suite's shared fixtures: stores built through the real
+//! API under an injected data root, the byte-splicing helpers that tear
+//! a real line, the binary runner, and the debris scan every case ends
+//! with.
 //!
 //! The shape is the one `crates/todo-store/tests/repair/fixtures.rs`
 //! established (required test 5): torn bytes are spliced **from real
@@ -11,6 +12,8 @@
 //! repo's `path` is a fixed literal — `Repo.path` is *data* (§7: the
 //! tracked repository's location), so a host path in a golden would make
 //! it unreproducible while a literal one is exactly what a store holds.
+//! The cwd-tier pin builds its own real-path fixture instead (the two
+//! concerns do not mix).
 //!
 //! Nothing here is a test, so this module contributes no test names of
 //! its own (P-LIVE-002).
@@ -60,7 +63,7 @@ pub(super) fn repo() -> Repo {
     }
 }
 
-/// The camera slug every case drives the cli with.
+/// The camera slug every case drives the binary with.
 pub(super) fn camera_slug() -> RepoSlug {
     RepoSlug::from_str("camera").unwrap()
 }
@@ -608,12 +611,12 @@ pub(super) fn with_header_version(valid: &[u8], version: u32) -> Vec<u8> {
 }
 
 // =================================================================
-// The cli runner and the debris scan.
+// The binary runner and the debris scan.
 // =================================================================
 
-/// One cli run's observable surface: the exit code and the two streams as
-/// UTF-8 text — the end-to-end cases assert exactly these, and nothing
-/// else (no in-process state survives a spawn).
+/// One binary run's observable surface: the exit code and the two
+/// streams as UTF-8 text — the end-to-end cases assert exactly these,
+/// and nothing else (no in-process state survives a spawn).
 pub(super) struct CliRun {
     pub(super) code: i32,
     pub(super) stdout: String,
@@ -623,7 +626,7 @@ pub(super) struct CliRun {
 /// Spawns the built binary with `args` and an empty (EOF) stdin.
 pub(super) fn run_cli(args: &[&str]) -> CliRun {
     finish(
-        Command::new(env!("CARGO_BIN_EXE_todo-cli"))
+        Command::new(env!("CARGO_BIN_EXE_todo-mcp"))
             .args(args)
             .output()
             .unwrap(),
@@ -633,8 +636,43 @@ pub(super) fn run_cli(args: &[&str]) -> CliRun {
 /// Spawns the built binary with `args`, piping `stdin` to it — the
 /// prompt cases' `y`/`n` answers.
 pub(super) fn run_cli_stdin(args: &[&str], stdin: &str) -> CliRun {
-    let mut child = Command::new(env!("CARGO_BIN_EXE_todo-cli"))
+    let mut child = Command::new(env!("CARGO_BIN_EXE_todo-mcp"))
         .args(args)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    child
+        .stdin
+        .take()
+        .unwrap()
+        .write_all(stdin.as_bytes())
+        .unwrap();
+    finish(child.wait_with_output().unwrap())
+}
+
+/// Spawns the built binary with `args` and `cwd` as its working
+/// directory — the cwd-tier pin's runner (§7's third tier, D2: the
+/// inspector resolves through it when no `--repo` is given).
+pub(super) fn run_cli_cwd(args: &[&str], cwd: &Path) -> CliRun {
+    finish(
+        Command::new(env!("CARGO_BIN_EXE_todo-mcp"))
+            .args(args)
+            .current_dir(cwd)
+            .output()
+            .unwrap(),
+    )
+}
+
+/// Spawns the built binary with `args`, `cwd` as its working directory
+/// and `stdin` piped to it — the cwd-tier consent pin's runner (the
+/// two variants composed: the tier resolves the repo, the piped line
+/// answers the prompt it shows).
+pub(super) fn run_cli_cwd_stdin(args: &[&str], cwd: &Path, stdin: &str) -> CliRun {
+    let mut child = Command::new(env!("CARGO_BIN_EXE_todo-mcp"))
+        .args(args)
+        .current_dir(cwd)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())

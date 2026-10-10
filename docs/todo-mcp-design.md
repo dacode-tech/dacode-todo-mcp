@@ -45,7 +45,7 @@ Stated user constraints, which are requirements, not proposals:
 
 ## 2. Architecture and Crate Layout
 
-Normative (D1–D5 signed 2026-09-25). Four Cargo workspace members, one
+Normative (D1–D5 signed 2026-09-25). Three Cargo workspace members, one
 binary:
 
 | Crate | Job | Depends on |
@@ -53,7 +53,10 @@ binary:
 | `todo-domain` | nodes, edges, graph invariants, selection rules. No I/O, no async, no workspace deps | nothing |
 | `todo-store` | persistence behind a single `Store` trait; the JSONL engine (D1) is sealed inside this crate | `todo-domain` |
 | `todo-mcp` | the server binary: rmcp (official Rust MCP SDK) wire surface over stdio. Translates, never decides | both |
-| `todo-cli` | inspect/debug the store without an MCP client. Ships (D5) | domain + store |
+
+The inspector `todo-cli` carried (D5) lives as `todo-mcp`'s
+`dump`/`verify`/`repair` subcommands (D20, t72); that crate retired with
+the absorption.
 
 Rules, enforced at review:
 
@@ -230,8 +233,8 @@ that corruption is a named error, never a silent truncation:
   flight, not damage — the read answers the committed prefix without
   it. A terminated but unparseable final line is corruption on every
   path; the reading weakens nothing else.
-- **Repair** is explicit only — a repair operation (surfaced as a
-  `todo-cli` command) shows the torn line and truncates it on
+- **Repair** is explicit only — a repair operation (surfaced as the
+  `todo-mcp repair` subcommand) shows the torn line and truncates it on
   confirmation, losing exactly that one in-flight event. No automatic
   repair path exists.
 - **Snapshots are the recovery unit**: written temp-file + `fsync` +
@@ -248,7 +251,7 @@ that corruption is a named error, never a silent truncation:
   truncation bounds that retention. Nothing in v1 calls `compact()`: §6
   lists no tool for it and §4.1's own scale argument (10^3–10^5 nodes,
   every query a traversal) says replay is already cheap, so no
-  `todo-cli` subcommand exposes it either. If a caller ever lands, taking
+  `todo-mcp` subcommand exposes it either. If a caller ever lands, taking
   a backup first is the contract, and the log header gains a persistent
   compaction marker at that point — a golden-moving format change spent
   only when something can actually compact.

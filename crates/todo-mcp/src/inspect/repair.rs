@@ -28,23 +28,21 @@
 //! each make the single call with the caller's own `dry_run` value.
 
 use std::io::BufRead;
-use std::path::PathBuf;
 use std::process::ExitCode;
 
 use todo_domain::RepoSlug;
 use todo_store::{DataRoot, RepairOutcome, TornTail};
 
-use crate::args::Invocation;
-use crate::{EXIT_FAULT, EXIT_OK, fault_lines};
+use super::{EXIT_FAULT, EXIT_OK, fault_lines, store_refused};
 
 /// The report lines of a [`RepairOutcome`] — the one spelling of the
 /// store's classification, shared by this command's own output and by
 /// `verify`'s corrupt-store report, so the same state reads the same
-/// wherever the cli shows it. Every fact is the store's; the labels are
-/// this crate's, as is the one remedy line the store documents but does
-/// not print (`Diverged`'s re-base). A refusal's detail is printed
-/// **verbatim**: it is cli-facing contract text (f33) and already names
-/// §4.3's backup.
+/// wherever the inspector shows it. Every fact is the store's; the
+/// labels are this module's, as is the one remedy line the store
+/// documents but does not print (`Diverged`'s re-base). A refusal's
+/// detail is printed **verbatim**: it is cli-facing contract text (f33)
+/// and already names §4.3's backup.
 pub(crate) fn outcome_report(outcome: &RepairOutcome) -> String {
     match outcome {
         RepairOutcome::Clean => "classification: clean\n".to_owned(),
@@ -59,7 +57,7 @@ pub(crate) fn outcome_report(outcome: &RepairOutcome) -> String {
             log_offset,
             log_len,
         } => format!(
-            // The remedy wording is this crate's rendering of the store's
+            // The remedy wording is this module's rendering of the store's
             // documented remedy — the outcome itself carries only its two
             // numbers, and a refusal's detail is the store's own text.
             "classification: diverged\nsnapshot_log_offset: {log_offset}\nlog_bytes: {log_len}\n\
@@ -76,13 +74,14 @@ pub fn consent(answer: &str) -> bool {
     matches!(answer.trim().to_ascii_lowercase().as_str(), "y" | "yes")
 }
 
-/// The confirmation prompt: the offset, the byte count and the bounded
-/// preview line — the store's own facts — then the question. The preview
-/// is already cut at the store's bound, so a tear of any size cannot
-/// flood the terminal.
-fn prompt_report(torn: &TornTail) -> String {
+/// The confirmation prompt: the repo (D2 — a human confirming a
+/// truncation sees which store a cwd-derived resolution picked), the
+/// offset, the byte count and the bounded preview line — the store's
+/// own facts — then the question. The preview is already cut at the
+/// store's bound, so a tear of any size cannot flood the terminal.
+fn prompt_report(slug: &RepoSlug, torn: &TornTail) -> String {
     format!(
-        "torn line at offset {} ({} bytes):\n{}\n\
+        "repo: {slug}\ntorn line at offset {} ({} bytes):\n{}\n\
          truncate it, losing exactly this one in-flight event? [y/N]\n",
         torn.offset, torn.removed, torn.line
     )
@@ -105,19 +104,17 @@ fn read_consent() -> bool {
 /// the call discipline per flag combination). `--dry-run` wins when both
 /// flags are given: a run that classifies and writes nothing is the safe
 /// arm, and `--yes` only ever skips a prompt for the act.
-pub fn run(invocation: &Invocation) -> ExitCode {
-    let root = DataRoot::new(PathBuf::from(&invocation.root));
-    let slug = &invocation.slug;
-    if invocation.dry_run {
-        return classify_only(&root, slug);
+pub fn run(root: &DataRoot, slug: &RepoSlug, dry_run: bool, yes: bool) -> ExitCode {
+    if dry_run {
+        return classify_only(root, slug);
     }
-    if invocation.yes {
-        return act(&root, slug);
+    if yes {
+        return act(root, slug);
     }
     // The consent path: the facts come from a dry run, which writes
     // nothing, and only consent reaches the act (module docs).
     match root.repair(slug, true) {
-        Err(error) => crate::store_refused(&error),
+        Err(error) => store_refused(&error),
         Ok(RepairOutcome::Clean) => nothing_to_repair(),
         Ok(RepairOutcome::TornTail {
             torn,
@@ -125,9 +122,9 @@ pub fn run(invocation: &Invocation) -> ExitCode {
         }) => {
             // stderr is unbuffered, so the prompt is on the terminal
             // before stdin is read — a piped answer cannot race it.
-            eprint!("{}", prompt_report(&torn));
+            eprint!("{}", prompt_report(slug, &torn));
             if read_consent() {
-                act(&root, slug)
+                act(root, slug)
             } else {
                 aborted()
             }
@@ -144,7 +141,7 @@ pub fn run(invocation: &Invocation) -> ExitCode {
 /// a success — the command did its job, which was to look.
 fn classify_only(root: &DataRoot, slug: &RepoSlug) -> ExitCode {
     match root.repair(slug, true) {
-        Err(error) => crate::store_refused(&error),
+        Err(error) => store_refused(&error),
         Ok(RepairOutcome::Clean) => nothing_to_repair(),
         Ok(outcome @ RepairOutcome::TornTail { .. }) => {
             eprint!("{}", outcome_report(&outcome));
@@ -162,7 +159,7 @@ fn classify_only(root: &DataRoot, slug: &RepoSlug) -> ExitCode {
 /// moment earlier.
 fn act(root: &DataRoot, slug: &RepoSlug) -> ExitCode {
     match root.repair(slug, false) {
-        Err(error) => crate::store_refused(&error),
+        Err(error) => store_refused(&error),
         Ok(RepairOutcome::Clean) => nothing_to_repair(),
         Ok(
             outcome @ RepairOutcome::TornTail {

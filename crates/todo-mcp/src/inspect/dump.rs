@@ -34,21 +34,20 @@
 //! (`epics()`/`tasks()`/`decisions()`/`docs()` are `BTreeMap` values,
 //! `blocks_edges()` and `relates_pairs()` are documented orders), so the
 //! document is deterministic by construction (§8) and
-//! `tests/golden/cli_dump.v1.golden` pins it. Field order *is* byte order
+//! `tests/golden/dump.v1.golden` pins it. Field order *is* byte order
 //! (the codec's contract); serialization goes through
 //! [`todo_store::to_bytes`] — the engine stays sealed in the store, and
 //! there is no `--pretty` because canonical is the only shape (U14).
 
 use std::io::Write;
-use std::path::PathBuf;
 use std::process::ExitCode;
 
 use serde::{Deserialize, Serialize};
 use todo_domain::{Counters, Decision, Doc, Epic, Graph, Repo, Task, TaskId};
 use todo_store::{BlocksEdgeDto, DataRoot, Store, StoreError, to_bytes};
 
-use crate::args::Invocation;
-use crate::{EXIT_OK, store_refused};
+use super::{EXIT_OK, store_refused};
+use todo_domain::RepoSlug;
 
 /// The dump's line terminator: the log's discipline and the golden
 /// workflow's "exactly one trailing newline".
@@ -82,9 +81,9 @@ pub struct Dump {
     pub relates: Vec<(TaskId, TaskId)>,
 }
 
-/// The §3 counters as four named fields — the cli-side mirror of the
-/// domain's serde-free [`Counters`], shaped exactly like the store's own
-/// snapshot DTO so the two documents read alike. Named per kind so a
+/// The §3 counters as four named fields — the inspector-side mirror of
+/// the domain's serde-free [`Counters`], shaped exactly like the store's
+/// own snapshot DTO so the two documents read alike. Named per kind so a
 /// transposition cannot ride a positional shape into the golden.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -144,9 +143,8 @@ impl Dump {
 /// `| jq .` both work. Any store refusal is its §6.1 code on stderr and
 /// the exit-code table's 3; a dump classifies nothing and repairs
 /// nothing.
-pub fn run(invocation: &Invocation) -> ExitCode {
-    let root = DataRoot::new(PathBuf::from(&invocation.root));
-    let store = match root.open(&invocation.slug) {
+pub fn run(root: &DataRoot, slug: &RepoSlug) -> ExitCode {
+    let store = match root.open(slug) {
         Ok(store) => store,
         Err(error) => return store_refused(&error),
     };

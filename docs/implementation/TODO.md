@@ -214,7 +214,7 @@ shell, which is M3's business.
 
 | Blocking | What | Action |
 |---|---|---|
-| — | nothing blocks: the roadmap is delivered, the dacode and ipmi-collector repos cut over, the D20 arc under way | g20 closed 2026-10-10 (t83, their repo's `6e04025`). **t71 landed 2026-10-10** (the `serve` subcommand: the live view + the WS push channel, the page.v1 golden moved for the script block — the compatibility event called out in the session log). Next: g19's remainder — t72 (the todo-cli absorption, U38's split rides it), t73 (the Python retirement + doc moves) — then g21 (this repo's own full-switch cutover, the user's sign); t76 (the status_summary description one-liner, the user's in-thread sign) rides anywhere; the ikvm-html refresh+cutover waits for its live session to settle (U36 rides that revisit) — see §6's handover |
+| — | nothing blocks: the roadmap is delivered, the dacode and ipmi-collector repos cut over, the D20 arc under way | g20 closed 2026-10-10 (t83, their repo's `6e04025`). **t71 landed 2026-10-10** (the `serve` subcommand: the live view + the WS push channel, the page.v1 golden moved for the script block — the compatibility event called out in the session log). **t72 landed 2026-10-10** (the todo-cli absorption: `dump`/`verify`/`repair` as subcommands, the crate retired, the golden moved byte-identical as `dump.v1`, U38's split — main.rs 422, args.rs 476 production lines). Next: g19's remainder — t73 (the Python retirement + doc moves; the README/AGENTS/skill rows naming `todo-cli` ride it, and the release binary needs the rebuild) — then t84 (the activity panel) and g21 (this repo's own full-switch cutover, the user's sign); the D13-shaped live-view question (the default server serving HTTP, per-root port reuse) raised in-thread 2026-10-10 awaits the user's shape; the ikvm-html refresh+cutover waits for its live session to settle (U36 rides that revisit) — see §6's handover |
 
 (The user's calls 2026-10-10: **the `--epic` default tier resolved
 (a)** — the param convention carried by the base instructions, t76's
@@ -3777,6 +3777,34 @@ Oldest first. One line per delivery, with the commit hash once committed.
    live drive: initialize carries the rule, tools/list shows the
    amended description. The `--epic` standing item resolves with it —
    the standing calls are now two. Landed as this commit.
+ - 2026-10-10 — **t72: the todo-cli absorption + U38's split**: D20's
+   fifth slice — the inspector (`dump`/`verify`/`repair`) absorbed as
+   `todo-mcp` subcommands (`--repo` resolving flag > cwd, §13's signed
+   resolution order; the repair prompt gains a `repo:` line so a
+   cwd-derived truncation names its store — the one sanctioned
+   prompt-bytes change, pinned), the `todo-cli` crate retired (the
+   workspace members list, the Cargo.lock entry, the lexopt comment),
+   the golden moved byte-identical as `dump.v1.golden` (the sha
+   unchanged through the ritual — a move, not a rewrite), and U38's
+   split landed (USAGE + `Command` + the parse + the parse tests →
+   `src/args.rs`, 476 production lines; main.rs 680 → 422; both under
+   target — U38 struck). `--help`/`--version` absorbed into the host
+   parse. The absorbed behavior proven byte-identical three ways: the
+   golden's bytes, the absorbed suites' assertions (moved with only
+   the sanctioned deltas), and the old-vs-new binary smoke —
+   `target/debug/todo-cli` vs the new subcommands, back-to-back over
+   the five real stores, every verify report and camera's dump
+   byte-identical (sha `3dc13900…fa89`, matching the pre-dispatch
+   capture). 722 workspace tests (the todo-cli targets gone; 28 tests
+   absorbed verbatim, the parse suites merged, and two new repair
+   resolution pins — the review round's med: repair's cwd tier was
+   unpinned, a flag-only `run_repair` mutant surviving 720 tests,
+   killed by exactly those two pins, re-proven by both reviewers).
+   Spec §2's crate map amended to three members and §4.3's two
+   references reworded (D20's consequences). f117 recorded (e2e.rs's
+   stale Dump-mirror rationale, rides its next owner); f118 fixed in
+   the review round (lib.rs's stale parse attribution, one sentence,
+   ratified by both reviewers). Landed as this commit.
 
 
 
@@ -4792,7 +4820,7 @@ Deliberate shortcuts, acknowledged rather than fixed. Same id rules as §4.
       module doc). The old `render.rs` (719) is deleted; the JSON
       golden and the summary tests pin the behavior as unchanged.
 
-- [ ] **U38 · `todo-mcp/src/main.rs` is over the 600-line target**
+- [x] **U38 · `todo-mcp/src/main.rs` is over the 600-line target**
       (680 production lines after t71's serve subcommand; 526 before
       it). The exception is recorded in the module doc: the argument
       layer is one file by design — t71's spec names this file as the
@@ -4801,6 +4829,14 @@ Deliberate shortcuts, acknowledged rather than fixed. Same id rules as §4.
       into an `args` module, the run_* drivers staying in `main.rs`.
       Rides t72 (the todo-cli absorption grows this file again — split
       there, not before).
+      **Resolved 2026-10-10 by t72**, exactly as the entry prescribed:
+      the `USAGE` text, the `Command` enum, the parse and the parse
+      tests moved to `src/args.rs` (476 production lines), the run_*
+      drivers staying in `main.rs` (422) — both under the target, the
+      awk measure re-run at the gate. The inspector absorption grew the
+      dispatch and the split absorbed the growth; the module docs
+      rewritten where the split falsified them (f118's sentence among
+      them, fixed in the review round).
 - [ ] **U39 · Live tool-call statistics on the web page — the
       cross-instance question** (the user's 2026-10-10 wish, parked):
       raw tool-call counts including reads are per-process and
@@ -4820,6 +4856,79 @@ Deliberate shortcuts, acknowledged rather than fixed. Same id rules as §4.
 Newest first. One entry per session, written for someone who was not
 here. The final entry of a session is the handover
 (`.agents/skills/todo-next-imp/SKILL.md` defines the shape).
+
+### 2026-10-10 — t72: the todo-cli absorption; U38's split
+
+**Workspace**: main, clean at `a91d121` at start; the tree left dirty
+through the implementer round and both review rounds, committed with
+this entry.
+
+**t72 landed** (the user's "let's continue" over the handover's
+proposal): D20's fifth slice — the inspector absorbed as `dump` /
+`verify` / `repair` subcommands, the `todo-cli` crate retired, the
+golden moved byte-identical, U38's split landed. The dispatch spec at
+`tmp/t72-spec.md` (12 decisions, 6 judgment calls, 3 veto-able readings
+each pinned by test, 6 mandatory mutations, frozen baselines at
+`a91d121`); the pre-smoke baseline captured before dispatch
+(`tmp/t72-pre-smoke.txt`). Dual review over two rounds: round 1 both
+changes_requested — the shared med was real and load-bearing (repair's
+cwd-tier resolution unpinned: a flag-only `run_repair` mutant, the
+exact alternative the spec's veto-able (i) rejects, survived all 720
+tests; the fix round's two pins kill it exactly, X1 re-run by both
+reviewers), plus the `--version`-after-subcommand pin widened to all
+six subcommands and f118 (lib.rs's stale "main.rs owns the argument
+parse") fixed in-diff on the secondary's ruling — the primary
+withdrew its ride-the-named-owner ruling on the actual one-sentence
+edit and both ratified. Round 2 both ok, bound to the final shas. The
+orchestrator's gates on the final tree: fmt / check / test (722 passed
+0 failed 1 ignored — domain 183, mcp 400, store 139) / clippy-forced /
+doc under both invocations all green; the golden ritual byte-identical;
+the awk measure (main 422, args 476, inspect 68/170/139/216); the
+scoped todo-cli grep empty (the spec's unscoped gate was false at
+baseline — the golden world's own task data pins "cargo test
+-p todo-cli" as a verify string, honestly reported and folded); and
+the byte-identity smoke: the old `target/debug/todo-cli` binary vs the
+new subcommands, back-to-back over the five real stores — every verify
+report and camera's dump byte-identical (the pre-smoke file's
+dacode/ipmi-collector rows had drifted with live-session writes; the
+back-to-back form is the honest comparison and it is clean). f117
+recorded (e2e.rs's stale Dump-mirror rationale — the local mirror
+predates `inspect::dump::Dump` being importable; rides e2e.rs's next
+owner, both reviewers ruled). The README/AGENTS/skill rows naming
+`todo-cli` ride t73 per the decomposition.
+
+**The live-view question raised in-thread** (the user's ask, answered
+not implemented): make the default `todo-mcp` (the global entry's
+no-subcommand server) serve HTTP, reusing one port across sessions of
+the same root, with the port identifiable per root. Today's answer is
+`todo-mcp --root <root> serve` — one listener, attach on re-invocation,
+the port published to `~/.local/state/dacode-todo-mcp/serve.port`
+(per-user, not per-root; `serve/mod.rs` records the root-scoped flip as
+"a flip, not a defect"). Making the *default* server do it is D13's
+reserved territory (U18's shape B, declined at the M5 decomposition
+with D13 left reserved). The shape presented in-thread: a startup
+ensure-listener (probe the per-root publication; alive → reuse the
+same port; dead → bind `:0`, publish, run the listener on a std thread
+beside the tokio runtime — the serve module is already a std-thread
+design), a per-root port file, and the lifecycle choice — (a) watchdog
+takeover by surviving sessions (recommended), (b) a detached listener
+child (shape B proper, needs a stop story), (c) status quo. Awaiting
+the user's word; if signed it lands as its own task after g19's
+remainder.
+
+**Handover.** Workspace: main, clean after this commit; three crates
+(todo-domain, todo-store, todo-mcp — the four-member map is history);
+rustc 1.98.1. Landed this session: t72 (this commit). Next step:
+**t73** — the Python retirement + the doc moves (`tools/progress.py`
+and the two drivers deleted, the README/AGENTS/skill rows moved to the
+subcommands, the release rebuild + the re-copy to `~/.local/bin` + the
+live smoke) — then t84 (the activity panel) and g21 (the own
+full-switch cutover). The D13-shaped live-view question above may
+reorder the tail if the user signs a shape. Blocked on you: the D13
+shape — (a), (b), (c) or your own — if you want the default server
+serving HTTP. Unverified: nothing new — every gate ran on the final
+tree; the standing caveats unchanged (the release binary predates t72's
+subcommands until t73 rebuilds it).
 
 ### 2026-10-10 — t71: the serve subcommand — the live view + the WS push channel
 

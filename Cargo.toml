@@ -3,7 +3,6 @@ members = [
     "crates/todo-domain",
     "crates/todo-store",
     "crates/todo-mcp",
-    "crates/todo-cli",
 ]
 resolver = "3"
 
@@ -19,7 +18,8 @@ todo-store = { path = "crates/todo-store" }
 # compatible bytes, sealed inside todo-store (spec §2). Path dependencies
 # appear once, here, like the lint regime.
 dacode-json = { path = "../rust/json-tiers" }
-# The cli's argument parser (U14, resolved 2026-09-29): one dependency,
+# The host binary's argument parser (U14, resolved 2026-09-29; the cli's
+# until its absorption into todo-mcp at t72): one dependency,
 # zero transitive, no proc macros, pedantic parsing — declared once at
 # the root like every other (U8's precedent), consumed as
 # `lexopt = { workspace = true }`.
