@@ -25,7 +25,7 @@ You are implementing a complete module for dacode-todo-mcp. Load the
 
 ## Task
 - **Task ID:** {task_id}
-- **Milestone:** {milestone}
+- **Epic:** {epic}
 - **Module:** {crate or module name, e.g., "todo-domain task graph", "todo-store event log"}
 - **Specifications:** {list of ALL design-doc sections this module implements}
 - **Files to create:**

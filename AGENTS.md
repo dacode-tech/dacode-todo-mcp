@@ -17,125 +17,19 @@ If `MYAGENTS.md` exists at the repo root, it is untracked, personal, and
 
 ## Project State
 
-**Phase: complete — M5 (packaging, docs, cross-repo ergonomics, polish)
-closed 2026-10-08: g13, the exit gate, ran green (every code gate, the
-golden ritual over all 24 goldens, the f41 sweep, the
-packaging/cutover/live-view evidence re-run) and closed g3 — the M0–M5
-roadmap is delivered; what remains is the recorded ledger (U27,
-U13/U24/U25/U29/U30) and the user's calls. The M5 tree was t52–t58 +
-t57 + g13, both shaping calls confirmed — U28 (dogfooding) yes, U18
-(the live view) shape A with D13 left reserved. t52 (packaging per
-§13) landed
-2026-10-07 — the release binary named by the global-config mcp entry
-serving the durable root, the t39 wiring moved, g11's no-live-client
-caveat closed; t58 (U32's schema-format strip, the user's in-thread
-sign) landed 2026-10-07 — the integer-family format hints gone from
-every advertised schema, the client-side validator noise with them;
-t53 (cwd auto-detection, D8's deferred arming) landed 2026-10-07 —
-the three-tier default (param > flag > cwd), the deterministic
-longest-ancestor match, the §7 amendment; t54 (the U28 dogfooding
-cutover) landed 2026-10-07 — the `own` dialect (wire value
-`dacode-todo-mcp`) importing this repo's board into the durable root
-(the census matching the prediction exactly), `progress.py` a thin
-client over a per-render stdio spawn with the four hand-maintained
-tables deleted, U22 resolved; t55 (U18's shape A, `progress.py
---serve`) landed 2026-10-08 — the live listener on 127.0.0.1:0 with the
-per-user port publication (a second invocation attaches, a stale one is
-taken over, SIGINT cleans up), f109's census to stderr; t56 (the
-adoption README) landed 2026-10-08 — the front door (wiring, store,
-tool surface, dialects), both hygiene tools grown to cover a root
-README; t57 (U21's duplicate-key check) landed 2026-10-08 — the strict
-loader in tools/agents-sync.py refusing a duplicate key anywhere in
-agent-rules.yaml, the f42 silent-shadowing failure made a named hard
-error; g13 ran green 2026-10-08, closing g3.**
-M4 (adoption) is
-closed — g11, the exit gate, ran green
-2026-10-07. The gate ran every line of its verify method on the committed
-tree: every code gate (543 workspace tests), the golden ritual
-byte-identical over all 24 goldens (19 mcp including the fixture
-golden, 4 store, 1 cli), the §6 tool-surface check (a live
-tools/list drive: exactly the spec table's 26 tools, import_md
-included), the live-run evidence (t46/t47's probes + t48's real
-imports), f102 swept in wire.rs (dual-reviewed), the f41 sweep (f99
-promoted to U32), and M4's lessons consolidated into
-.agents/pitfalls.md (4.7, 4.8, 5.11–5.13; top rules 15–16). The M4
-deliveries, oldest first: the dialect study and D18 signed (a); t42
-the dacode parser — parse_board total over the live board; t43 the
-D18 mapping — the ImportPlan + apply_plan with id reproduction
-pinned at the live board's scale; t44 the import_md wire tool — the
-importer cluster with the ApplyError refusal seam and the
-import_md.v1 golden; t45 the checked-in dacode fixture + the
-end-to-end golden — the three real files per D12/§10, the first
-composed run on the real board clean, dacode_dump.v1 pinning the
-expected graph; t46 the camera dialect — the study first, the
-sibling module, the dialect param on import_md, the live probe at
-178 tasks with no golden per D12; t50 the U31 lift — the plan types
-and the shared helpers in dialect-neutral homes under src/import/
-(plan.rs + helpers.rs behind a HelperError seam), zero behavior
-change, U31 resolved; t47 the ikvm-html dialect — the study, the
-third sibling module on the neutral homes, the ikvm-html dialect
-value, the live probe at 132 tasks with no golden per D12; and t48
-the three repos tracked for real — the §9 cutover executed:
-dacode/camera/ikvm-html registered in the durable D4 root
-(~/.local/share/dacode-todo/), every import clean on the first
-composed run (dacode's census = the golden's, camera = its probe's,
-ikvm-html = the predicted post-U129 count), all three stores
-verified, the query session recorded and byte-identical across two
-runs.**
-An MCP server that replaces
-markdown TODO boards with a deterministic task graph: tasks are typed
-nodes, dependencies are typed edges, everything lives in local
-per-repo non-relational stores (D4), and "what is next in repo X under
-epic Y" is a query, not a prose parse. Rust, rmcp, stdio transport.
-
-§12 is closed: **D18** (the dacode-dialect mapping — the importer's
-semantics for the five populations §9's signed table did not cover)
-was signed (a) 2026-10-05, drafted and signed in one exchange out of
-the M4 dialect study; its rows are in §9's mapping table and its
-conventions ride t43's task spec. **D17**
-(priority on the triage surfaces — the echo on
-`next_task`/`next_items`/`task_list`, the order untouched) was signed
-2026-10-04, the last decision of M3, and **D13 stays reserved** for the
-transport question (U18's shape B, the shared per-user server instance,
-declined at the M5 decomposition 2026-10-07). Everything else is signed: all
-eleven decisions on 2026-09-25, D12 added 2026-09-29, D14/D15 on
-2026-09-30 out of U2's rmcp survey (the wire's canonical key order and
-§6.1's error carrier), and D16 on 2026-10-03 (the progress roll-up)
-(`docs/implementation/decisions.md`); the spec is normative
-throughout, and signed shapes move only by a new user decision (new
-D-entries), never by edit. M0 landed 2026-09-25: four crates, the
-workspace lint regime, all code gates green. M1 landed 2026-09-30: the
-domain model (§3's value types and closure discipline, §5's graph and
-canonical order), the signed D1 JSONL store behind the `Store` trait with
-the D4 layout, advisory locking, snapshots, compaction and §4.3's repair
-primitive, and the `todo-cli` inspector — 253 tests, five goldens, every
-gate green at the g5 exit. M2 landed 2026-10-02: the query layer — §5.2's
-selection (`graph/select.rs`), batch (`graph/items.rs`) and listing
-(`graph/list.rs`) surfaces, plus the registry queries
-(`DataRoot::repo_list`/`repo_show`) — 322 tests, every gate green at the
-g7 exit, M2's lessons consolidated into `.agents/pitfalls.md`. M3 landed
-2026-10-04: the wire — 25 tools over rmcp (every §6 tool except
-`import_md`, M4's per D12), 17 wire goldens, the D14/D15 pins, the §8
-concurrency proof, the default-repo slug (D8), and a real opencode
-session as the smoke (the server is wired into this repo's own harness
-config, the orchestrator's native todo tool denied per U16b) — 423
-tests, every gate green at the g9 exit, U26 reproduced/isolated/fixed
-at the gate (U27 carries the store-side question), M3's lessons
-consolidated into `.agents/pitfalls.md`. M4 landed 2026-10-07: the
-dacode-dialect importer (D12/D18) with its board the only fixture
-checked in per §10, camera and ikvm-html as live-test subjects never
-copied into this repo, the three repos tracked for real — 543 tests,
-every gate green at the g11 exit, M4's lessons consolidated into
-`.agents/pitfalls.md`. **M5 is in progress**: decomposed 2026-10-07
-(t51) — t52 packaging per §13 landed (the release binary + the
-global-config mcp entry + the durable root), t53 cwd auto-detection
-(D8's deferred arming) next, then t54 the U28 dogfooding cutover
-(this repo
-registered + imported, progress.py a thin client), t55 U18's shape A
-(progress.py --serve), t56 the adoption README, t57 U21's
-duplicate-key check; g13 the exit gate, which also closes g3. Run
-`tools/attention.py` for the current picture rather than trusting this
-paragraph.
+**Phase: complete — the M0–M5 roadmap delivered (g13 closed
+2026-10-08), and this repo cut over to its own server as the tracker
+of record on 2026-10-12 (g21's flip, the user's 2026-10-09 sign).**
+The store under `~/.local/share/dacode-todo/` holds this repo's
+nodes; the markdown board is archived at
+`docs/archive/board-2026-10-12/` (a frozen backup agents never read);
+session tracking runs through the wired `todo-mcp_*` tools, and the
+live epic's handover lives under `docs/implementation/handover/`.
+The current picture is a query, not a paragraph: `todo-mcp --root
+~/.local/share/dacode-todo progress --json`. §12 is closed — all
+decisions signed (`docs/implementation/decisions.md`); the spec is
+normative throughout, and signed shapes move only by a new user
+decision.
 
 ## The three rules that are not negotiable
 
@@ -164,8 +58,9 @@ paragraph.
 | `/todo-close` | Runs the exit gate over the current unit of work and reports what is still missing before it counts as delivered |
 
 Both are generated from `.agents/commands/*.md` by `tools/agents-sync.py`
-and inject the live state (attention table, board, tracker, workspace and
-harness status) into the prompt, so neither costs a round of exploration.
+and inject the live state (the store, the live epic's handover,
+workspace and harness status) into the prompt, so neither costs a round
+of exploration.
 
 ## Quick Reference
 
@@ -183,20 +78,6 @@ todo-mcp --root ~/.local/share/dacode-todo progress            # writes the rend
 todo-mcp --root ~/.local/share/dacode-todo progress --open     # ...and opens the page in a browser
 todo-mcp --root ~/.local/share/dacode-todo refresh             # re-register + re-import this repo's board (refuses once cut over — the store is primary)
 todo-mcp --root ~/.local/share/dacode-todo serve               # the live page on 127.0.0.1 (per-root listener, <root>/serve.port; every session's server ensures it); serve --open attaches or binds it and opens the page — the live view's discovery
-
-# Transitional — until the cutover flip (t92) lands, the board and the
-# session tracker below are still the trackers of record.
-tools/attention.py
-tools/attention.py --check
-
-# Session task tree (gitignored, branch-keyed) — transitional, retires
-# at the flip. Convention: .agents/knowledge/workflows/task-tracking.md
-tools/tasks.py show -v
-tools/tasks.py add - goal "..." --verify "..."
-tools/tasks.py add g1 task "one commit" --verify "cargo test -p <crate> <name>"
-tools/tasks.py set t1 --status blocked --note "why"     # a block needs a reason
-tools/tasks.py set t1 --status done --evidence "what you actually ran"
-tools/tasks.py check
 
 # Harness self-checks
 tools/agents-sync.py --check        # .opencode/ matches agent-rules.yaml
@@ -254,11 +135,12 @@ spec moves only by user decision.
 │   └── commands/                   #   the slash commands
 ├── docs/
 │   ├── todo-mcp-design.md          # THE spec; §12 mirrors decisions (closed); no links by convention
+│   ├── archive/                    # frozen backups agents never read (the board, 2026-10-12)
 │   └── implementation/
 │       ├── README.md               # plan index: which file holds Truth / Reasoning / State
-│       ├── TODO.md                 # the committed board
-│       └── decisions.md            # sign-off record for §12
-├── tools/                          # agents-sync, tasks, agents-index, check-links, attention
+│       ├── decisions.md            # sign-off record for §12
+│       └── handover/               # the per-epic HANDOVER files (E<n>.md)
+├── tools/                          # agents-sync, agents-index, check-links
 ├── crates/                         # the Cargo workspace — created at M0, not before
 └── tmp/                            # scratch, gitignored
 ```
@@ -306,10 +188,11 @@ not rephrase. Full policy: `.agents/roles/_search.md`.
 
 - Read the spec section a change implements before writing it.
 - Report `skipped` for any check you did not run.
-- Update `docs/implementation/TODO.md` in the same change that delivers.
+- Move the store and the epic's handover in the same change that
+  delivers.
 - Put a fact you established the hard way into the spec's numbered
   sections, not only into a commit message.
-- Record findings and debt in the tracker the moment they appear.
+- Record findings and debt in the store the moment they appear.
 
 ### Ask First
 
@@ -333,7 +216,8 @@ not rephrase. Full policy: `.agents/roles/_search.md`.
 - Bind anything to `0.0.0.0`; `127.0.0.1` only.
 - Rewrite a golden fixture without calling the diff out as the
   compatibility event it is.
-- Dogfood this server for this repo's tracking before M3 (spec §9).
+- Track this repo's work anywhere but the store (the cutover landed
+  2026-10-12; the board is a frozen archive, not a tracker).
 
 ## Committing — a required step of the cycle
 
@@ -407,12 +291,12 @@ session**; a fix does not take effect mid-session.
 | Need | Path |
 |---|---|
 | Scope, domain model, storage, tool surface, §12, roadmap | `docs/todo-mcp-design.md` |
-| What has landed and what is next | `docs/implementation/TODO.md` |
+| What is open, what is verified, what is next | the store — `todo-mcp --root ~/.local/share/dacode-todo progress --json`, or the wired `todo-mcp_*` tools |
+| The live epic's handover | `docs/implementation/handover/E<n>.md` |
 | Sign-off record for open decisions | `docs/implementation/decisions.md` |
-| Prioritized "what needs you" | `tools/attention.py` → `.agents/cache/ATTENTION.md` |
 | Total progress: graph, totals, open items | `todo-mcp progress` → `.agents/cache/progress.{html,json}` |
 | Roles, models, commands, gates, prohibitions | `.agents/config/agent-rules.yaml` |
-| The three trackers and their conventions | `.agents/knowledge/workflows/task-tracking.md` |
+| The tracking conventions | `.agents/knowledge/workflows/task-tracking.md` |
 | Rust conventions, architecture rules, determinism | `.agents/roles/_rust.md` |
 | Search policy | `.agents/roles/_search.md` |
 | Domain knowledge | `.agents/skills/dacode-todo-mcp/SKILL.md` |

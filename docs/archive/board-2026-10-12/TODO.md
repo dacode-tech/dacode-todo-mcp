@@ -5091,16 +5091,39 @@ commands regenerated, adapters up to date. The transitional marks —
 honest: the board + `tasks.py` remain the trackers of record until t92
 removes them (its sweep: `rg 'cutover flip'` → zero). No Rust moved.
 
-**Handover.** Workspace: main, clean at this commit; the stable
-binary current. Landed: the g21 decomposition (`154f118`) and t91, the
-conventions rewrite (this commit). Next step: **t92, the cutover
-flip** — the final refresh at the commit (f113), the board backup
-beside the store, the open items migrated to store nodes, the board
-archived + git-rm'd, `tasks.py` + `attention.py` retired, the
-transitional marks removed, the live epic's first HANDOVER written,
-the flip smoke. Blocked on you: the top switcher's retention (a taste
-call, default keep) and the ikvm wait. Unverified: the flatten's
-field test (t88) remains the adopted repos' sessions.
+**t92 — the cutover flip — landed (this commit)**: the final refresh
+at the commit (f113's rule) — `todo-mcp refresh` imported 8 epics /
+20 decisions / 0 docs / **40 tasks** / 17 blocks (U40 now in the
+register, struck; U39 closed), `verify` status ok; the board backed
+up beside the store
+(`~/.local/share/dacode-todo/board-backup/dacode-todo-mcp/2026-10-12/TODO.md`,
+sha `39181736…` byte-identical); the migration over the wire —
+`epic_add` **E9** (the tracker cutover, in_work, carrying g21's exit
+criteria in its description), `task_add` **U42** (the dacode retrofit,
+E9 — the first store-tracked unit, g21's smoke line) + **U46** (the
+ipmi retrofit, E9) + the four riders as finding-kind tasks under E7
+(**U41** the t88 pin escape, **U43** the repos.rs Instant census,
+**U44** the D4 residual, **U45** the e2e.rs Dump mirror), and
+`task_update` **U36** → deferred (rides the ikvm cutover); the board
+archived (`git mv` to `docs/archive/board-2026-10-12/`, 100% rename —
+the archive is a frozen backup agents never read); `tools/tasks.py` +
+`tools/attention.py` retired (git-rm'd, their config rows removed);
+the transitional marks removed (`rg 'cutover flip'` → zero); the live
+epic's first HANDOVER written at `docs/implementation/handover/E9.md`;
+the flip smoke — a fresh server over stdio answering status_summary /
+next_task / task_show, and the command injections (`progress --json`
++ the handover read) verified. **The store is the tracker of record
+from this commit.**
+
+**Handover.** The board is archived; the handover now lives at
+`docs/implementation/handover/E9.md` (the live epic's) — this is the
+board's last entry. Workspace: main, clean at this commit; the stable
+binary current. Next step: the dacode retrofit (the store node
+`dacode-todo-mcp:U42`) — the first store-tracked unit, its session
+closing it with evidence via `task_update`. Blocked on you: the top
+switcher's retention (a taste call, default keep); the ikvm wait.
+Unverified: the flatten's field test (t88) remains the adopted repos'
+sessions.
 
 ### 2026-10-12 — the session close: the sequencing flip, the listener reset
 

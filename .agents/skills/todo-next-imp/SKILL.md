@@ -34,12 +34,6 @@ reads in steps 1–3 arrive already done:
 The commands are generated from `.agents/commands/*.md`; when invoked
 directly rather than through them, run steps 1–3 yourself.
 
-> **Transitional — until the cutover flip (t92) lands:** the markdown
-> board and `tools/tasks.py` are still the trackers of record. If
-> `docs/implementation/handover/` is empty, the flip has not happened:
-> read the board's §6 and the tracker, and follow the older conventions
-> wherever the sections below name the store.
-
 **Prefer unfinished work over new work.** An open store node, a node
 closed on evidence that does not name a command, a handover whose
 "landed" claim has no commit behind it — all of those come before

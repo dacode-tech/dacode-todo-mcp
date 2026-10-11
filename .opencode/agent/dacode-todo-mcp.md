@@ -570,12 +570,6 @@ never write the same file.
 
 ## Tracking multi-step work
 
-> **Transitional — until the cutover flip (t92) lands:** the markdown
-> board and `tools/tasks.py` are still the trackers of record. If
-> `docs/implementation/handover/` is empty, the flip has not happened;
-> follow the board and the tracker, and treat the conventions below as
-> the shape being armed.
-
 The tracker of record is **the server's own store** (the full-switch
 cutover, the user's 2026-10-09 sign): this repo's nodes live in the
 durable root under the `dacode-todo-mcp` slug, and session work is
@@ -667,10 +661,7 @@ Do not leave `verify` unset and move on. Either decide, or ask.
 
 ## Sizing work for a subagent
 
-`tools/tasks.py budget` prints the model's context window and the
-per-unit work budget, read from the model cache rather than guessed.
-
-Nothing measures tokens before dispatch, so this is an estimate, not a
+Nothing measures tokens before dispatch, so sizing is an estimate, not a
 gate. Use it as a splitting heuristic: if a task needs a subagent to read
 more than a handful of large files, or the whole of a 1000-line source
 file plus the spec, split it before dispatching rather than watching it

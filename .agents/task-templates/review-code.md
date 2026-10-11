@@ -16,7 +16,7 @@ skill first.
 
 ## Task Being Reviewed
 - **Task ID:** {task_id}
-- **Milestone:** {milestone}
+- **Epic:** {epic}
 - **Original spec:** {brief summary of what was requested}
 - **Specifications implemented:** {design-doc section list}
 - **Your emphasis:** {Deep semantic and logic analysis | Pattern consistency, spec compliance, convention drift}

@@ -16,7 +16,7 @@ state is already injected below, so do not re-run these commands.
 
 ## Handover (the live epic's, most recent first)
 
-!`ls -t docs/implementation/handover/*.md 2>/dev/null | head -5; echo '--- the live epic handover (most recent) ---'; F=$(ls -t docs/implementation/handover/*.md 2>/dev/null | head -1); if [ -n "$F" ]; then head -120 "$F"; else echo '<no handover files — the cutover flip (t92) has not landed; the board + tools/tasks.py are still the trackers of record, and docs/implementation/TODO.md is still live>'; fi`
+!`ls -t docs/implementation/handover/*.md 2>/dev/null | head -5; echo '--- the live epic handover (most recent) ---'; F=$(ls -t docs/implementation/handover/*.md 2>/dev/null | head -1); if [ -n "$F" ]; then head -120 "$F"; else echo '<no handover files — docs/implementation/handover/ is empty>'; fi`
 
 ## Workspace and harness state
 

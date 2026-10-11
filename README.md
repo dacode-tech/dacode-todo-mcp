@@ -273,8 +273,9 @@ one).
 - [docs/todo-mcp-design.md](docs/todo-mcp-design.md) — the spec,
   normative throughout: the domain model, the storage format, the tool
   surface, the determinism discipline.
-- [docs/implementation/TODO.md](docs/implementation/TODO.md) — the
-  project board: what has landed, what is next, what is blocking.
+- [docs/implementation/handover/](docs/implementation/handover/) — the
+  live epic's handover: where this repo's work stands (the store is the
+  tracker of record; the markdown board is archived).
 - [docs/implementation/decisions.md](docs/implementation/decisions.md)
   — the sign-off record for every design decision.
 - [AGENTS.md](AGENTS.md) — repository-wide instructions for agents

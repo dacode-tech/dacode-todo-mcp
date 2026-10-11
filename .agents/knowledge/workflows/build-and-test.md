@@ -52,11 +52,9 @@ The workspace exists (M0, 2026-09-25), so these run *alongside* the code
 gates at every delivery, and carry the weight alone on docs-only changes:
 
 ```bash
-tools/attention.py --check        # spec/decisions/board consistency
 tools/check-links.py              # every relative link and anchor resolves
 tools/agents-sync.py --check      # .opencode/ matches agent-rules.yaml
 tools/agents-index.py --check     # INDEX.md is current
-tools/tasks.py check              # tracker discipline
 ```
 
 ## Golden files and fixtures
@@ -84,8 +82,8 @@ cargo run -p todo-mcp -- --stdio   # then send an initialize request on stdin
 
 Until the server crate exists this is `skipped`. When it does, the smoke
 test belongs in every delivery that touches the wire surface, and the
-request/response pair belongs in the evidence (`tools/tasks.py set <id>
---status done --evidence "..."`).
+request/response pair belongs in the evidence (`task_update` →
+`status: closed` with the pair quoted).
 
 ## Installing what is missing
 

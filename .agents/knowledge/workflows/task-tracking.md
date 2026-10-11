@@ -5,11 +5,6 @@
 Always, once work has more than three steps. This article defines the
 convention concretely, so nobody has to infer it from the tool surface.
 
-> **Transitional — until the cutover flip (t92) lands:** the markdown
-> board and `tools/tasks.py` are still the trackers of record. If
-> `docs/implementation/handover/` is empty, the flip has not happened;
-> follow the older board-and-tracker conventions.
-
 ## The record homes
 
 The store is the tracker of record (the full-switch cutover, the user's

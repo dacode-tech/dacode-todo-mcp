@@ -10,7 +10,7 @@
 # ─── Template Versioning ───────────────────────────────────────────────
 version:
   template: "0.1"          # Inherited from the dacode agent-rules layout
-  custom: 15               # Local adjustment counter
+  custom: 16               # Local adjustment counter
 
 # ─── Project Identity ──────────────────────────────────────────────────
 project:
@@ -24,7 +24,7 @@ project:
 paths:
   project_root: "."
   docs_dir: "docs"                   # docs/todo-mcp-design.md is the spec
-  tools_dir: "tools"                 # agents-sync.py, tasks.py, agents-index.py, check-links.py, attention.py
+  tools_dir: "tools"                 # agents-sync.py, agents-index.py, check-links.py
   tmp_dir: "tmp"                     # Scratch directory (gitignored)
   crates_dir: "crates"               # Cargo workspace members (created at M0)
 
@@ -55,7 +55,6 @@ build_commands:
   agents_sync_check: "tools/agents-sync.py --check"
   links_check: "tools/check-links.py"
   index_check: "tools/agents-index.py --check"
-  attention: "tools/attention.py"
   progress: "todo-mcp --root ~/.local/share/dacode-todo progress   # the render + totals (D20's subcommand), writing the rendered repo's .agents/cache/progress.{html,json}"
 
 # Verification steps run after each task (ordered).
@@ -425,18 +424,6 @@ session:
       - "user has corrected the same misunderstanding twice"
     suggested_action: "summarize progress, then start a fresh session"
 
-  # ─── Persistent task tree ───────────────────────────────────────────
-  # Harness todo tools are session-scoped and flat. Multi-step work needs
-  # a tree that survives sessions and records HOW each item is verified.
-  # tools/tasks.py.
-  tasks:
-    enabled: true
-    # Gitignored, but inside the worktree so it shows up in an editor.
-    # Keyed by branch: switching branches switches trackers.
-    path: ".agents/cache/tasks/{branch}.yaml"
-    use_when_steps_exceed: 3
-    kinds: [goal, task, gate, finding, debt]
-
   # ─── Context budgeting ───────────────────────────────────────────────
   # Advisory ceilings for the orchestrator to size work against, not
   # enforcement. Treat an overrun as a signal to split the task.
@@ -645,20 +632,6 @@ domain:
 
 # ─── Milestones ────────────────────────────────────────────────────────
 # TENTATIVE — the authoritative roadmap is docs/todo-mcp-design.md §14.
-milestones:
-  - id: "M0"
-    name: "spec settled: §12 decisions signed, Cargo workspace skeleton + gates green"
-  - id: "M1"
-    name: "domain model + storage engine: graph, statuses, persistence behind the store trait, golden files"
-  - id: "M2"
-    name: "queries: repo/epic selection, dependency resolution, deterministic next-task; repo registry with path updates"
-  - id: "M3"
-    name: "MCP server: the §6 tool surface over the wire, protocol-level tests, smoke against a real client"
-  - id: "M4"
-    name: "adoption: importers for the camera/ikvm-html/dacode markdown boards; the three repos tracked for real"
-  - id: "M5"
-    name: "packaging, docs, cross-repo access (if D8 arms it), polish"
-
 # ─── Synced Sources ────────────────────────────────────────────────────
 synced_sources: []
 

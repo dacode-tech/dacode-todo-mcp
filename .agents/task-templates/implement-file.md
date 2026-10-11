@@ -23,7 +23,7 @@ skill first.
 
 ## Task
 - **Task ID:** {task_id}
-- **Milestone:** {milestone}
+- **Epic:** {epic}
 - **Specification:** {design-doc section reference, e.g. "docs/todo-mcp-design.md §5.2"}
 - **Crate:** {crates/<crate>}
 - **Source files to create:**
@@ -71,7 +71,7 @@ silently picking a side of a spec contradiction.
 | Variable | Source |
 |----------|--------|
 | `{task_id}` | The store node id, from the dispatch (the orchestrator's `task_add`) |
-| `{milestone}` | Current milestone (agent-rules.yaml → milestones) |
+| `{epic}` | The store epic the work lands under (the dispatch names it) |
 | `{spec reference}` | `docs/todo-mcp-design.md` section numbers |
 | `{crate}` | Spec §2 crate map |
 | `{file paths}` | From the decomposition (one task never shares a file with another) |

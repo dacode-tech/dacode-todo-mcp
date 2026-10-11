@@ -40,8 +40,8 @@ Agents update this knowledge base as part of the post-commit workflow.
 | Reusable code shapes | `.agents/knowledge/patterns/` | How a new MCP tool is added end to end |
 | Build/verification procedures | `.agents/knowledge/workflows/` | How to regenerate a golden file and review its diff |
 | Traps, gotchas, workarounds | `.agents/pitfalls-live.md` | A clippy lint that fires only on macOS; a client quirk in the handshake |
-| What I am doing now, and how I will know it worked | `tools/tasks.py` → `.agents/cache/tasks/<branch>.yaml` | Gitignored, branch-keyed. Convention in `workflows/task-tracking.md` |
-| What the project has done, and what blocks it | `docs/implementation/TODO.md` | Committed. The only tracker a reviewer can see |
+| What I am doing now, and how I will know it worked | the store — this repo's nodes under the durable root | Session tracking via the wired `todo-mcp_*` tools. Convention in `workflows/task-tracking.md` |
+| What the project has done, and what blocks it | the store + the live epic's handover (`docs/implementation/handover/`) | The tracker of record since the 2026-10-12 cutover; the markdown board is archived |
 | Recurring confirmed lessons | `.agents/pitfalls.md` | Promoted from `pitfalls-live.md` at milestone gates |
 
 ### Article format
