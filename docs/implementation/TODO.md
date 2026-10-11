@@ -214,7 +214,7 @@ shell, which is M3's business.
 
 | Blocking | What | Action |
 |---|---|---|
-| — | nothing blocks: the roadmap is delivered, the dacode and ipmi-collector repos cut over, the D20 arc complete | g20 closed 2026-10-10 (t83, their repo's `6e04025`). **t71 landed 2026-10-10** (the `serve` subcommand: the live view + the WS push channel, the page.v1 golden moved for the script block — the compatibility event called out in the session log). **t72 landed 2026-10-10** (the todo-cli absorption: `dump`/`verify`/`repair` as subcommands, the crate retired, the golden moved byte-identical as `dump.v1`, U38's split — main.rs 422, args.rs 476 production lines). **t88 (the schema flatten) landed 2026-10-10** — every advertised enum field now presents its values inline and quoted; the field test passed (the user confirmed the failures stopped). **t85 (D13's default-server live view) landed 2026-10-10, closing g22** — every session's server ensures the per-root listener (`<root>/serve.port` is the port's discovery; the page is up while ≥1 session lives). **t73 landed 2026-10-11 — g19 closed with it**: the Python retirement (`tools/progress.py` and the two drivers deleted, their checks Rust pins since t70/t71; every live row — README, AGENTS, the skill, agent-rules — moved to the subcommands; the release rebuilt + re-copied, the live refresh/progress/serve smoke green, the workspace suite + golden ritual re-run for the exit lines). **t84 landed 2026-10-11** (the page rework: the left sidebar — every registered project with its epics — and the activity panel over a new lock-free event-census read, both page goldens moved as called-out compatibility events, U39 resolved with it). Next: the ikvm-html refresh+cutover (its live session settled — the t258 closure is the signal; the t83 playbook, U36's footer hoist riding it) and g21 (this repo's own full-switch cutover, the user's sign; U40's per-epic-handover shape rides its conventions rewrite) — see §6's handover |
+| — | nothing blocks: the roadmap is delivered, the dacode and ipmi-collector repos cut over, the D20 arc complete | g20 closed 2026-10-10 (t83, their repo's `6e04025`). **t71 landed 2026-10-10** (the `serve` subcommand: the live view + the WS push channel, the page.v1 golden moved for the script block — the compatibility event called out in the session log). **t72 landed 2026-10-10** (the todo-cli absorption: `dump`/`verify`/`repair` as subcommands, the crate retired, the golden moved byte-identical as `dump.v1`, U38's split — main.rs 422, args.rs 476 production lines). **t88 (the schema flatten) landed 2026-10-10** — every advertised enum field now presents its values inline and quoted; the field test passed (the user confirmed the failures stopped). **t85 (D13's default-server live view) landed 2026-10-10, closing g22** — every session's server ensures the per-root listener (`<root>/serve.port` is the port's discovery; the page is up while ≥1 session lives). **t73 landed 2026-10-11 — g19 closed with it**: the Python retirement (`tools/progress.py` and the two drivers deleted, their checks Rust pins since t70/t71; every live row — README, AGENTS, the skill, agent-rules — moved to the subcommands; the release rebuilt + re-copied, the live refresh/progress/serve smoke green, the workspace suite + golden ritual re-run for the exit lines). **t84 landed 2026-10-11** (the page rework: the left sidebar — every registered project with its epics — and the activity panel over a new lock-free event-census read, both page goldens moved as called-out compatibility events, U39 resolved with it). Next: g21 (this repo's own full-switch cutover, the user's sign; U40's per-epic-handover shape opens it — the convention g21 itself lives under) — the ikvm-html refresh+cutover waits again (its session is actively working, the user's word; the t83 playbook, U36's footer hoist riding it, when it settles) — see §6's handover |
 
 (The user's calls 2026-10-10: **the `--epic` default tier resolved
 (a)** — the param convention carried by the base instructions, t76's
@@ -5045,6 +5045,52 @@ Deliberate shortcuts, acknowledged rather than fixed. Same id rules as §4.
 Newest first. One entry per session, written for someone who was not
 here. The final entry of a session is the handover
 (`.agents/skills/todo-next-imp/SKILL.md` defines the shape).
+
+### 2026-10-12 — the session close: the sequencing flip, the listener reset
+
+**Workspace**: main, clean at this commit; three crates, rustc 1.98.1,
+the stable binary current since the t84 re-copy.
+
+**The close**: this session landed t73 (the Python retirement, g19
+closed — the D20 arc complete), the asks' recording (U40 opened, t84
+reshaped), and t84 (the sidebar + the activity panel, U39 resolved).
+The sequencing flipped at the close: the ikvm-html session is
+actively working (the user's word), so its refresh+cutover waits
+again — **g21 is the proposed next step**, U40's shape decision
+opening it. The live view's reset: the user killed the listener's
+owner (a pre-re-copy server); a surviving old-binary server took the
+takeover on a new port (the port file is the discovery, never the
+bookmark), and with every alive server predating the re-copy the
+served page stayed the old layout — so at the close every
+`todo-mcp`-named server was killed (`pkill -x todo-mcp`): the next
+session's server binds fresh on the current binary and the new page
+comes up with it (or `todo-mcp serve --root
+~/.local/share/dacode-todo --open` stands it up immediately).
+
+**Handover.** Workspace: main, clean at this commit; three crates
+(todo-domain, todo-store, todo-mcp), rustc 1.98.1, the stable binary
+`~/.local/bin/todo-mcp` current with the tree. Landed: t73 (`56e962d`
+— the Python retirement, g19 closed), the asks' recording (`c3738d4`
+— U40 opened, t84 reshaped), t84 (`39942e8` — the left sidebar with
+the epics, the activity panel over the new census read, U39
+resolved), the index backfills (`2b1f897`, `730396a`). Next step:
+**g21** — this repo's own full-switch cutover (the user's 2026-10-09
+sign): the store becomes the tracker of record, session tracking
+moves to todo-mcp tool calls, the markdown board archived, the
+harness conventions rewritten. Why g21 and not the ikvm cutover: the
+ikvm session is actively working — its cutover waits for the work to
+land (the t83 playbook, U36's footer hoist riding it; the refresh
+itself needs no pause — reads are lock-free and pre-cutover sessions
+never arm a write handle). U40's shape opens g21 (the per-epic
+HANDOVER convention it lives under): one file with per-epic sections
+vs per-epic files; server-tied (doc nodes cited from the epic's
+`references`) vs pure playbook convention; the retrofit of dacode's
+and ipmi-collector's existing HANDOVERs. Blocked on you: nothing
+hard — U40's shape, the top switcher's retention on the page (a
+taste call), and the ikvm wait. Unverified: the served page after
+the reset (the next session brings it up — verify the sidebar
+renders); the flatten's field test (t88) remains the adopted repos'
+sessions.
 
 ### 2026-10-11 — t84: the sidebar and the activity panel
 
