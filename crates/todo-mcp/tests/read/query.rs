@@ -393,6 +393,157 @@ fn collect_integer_formats(value: &Value, path: &str, offenders: &mut Vec<String
     }
 }
 
+/// `tools/list` advertises every enum field in the flat idiom (t88,
+/// the f120/f121 class's generation-side lever): the values inline,
+/// quoted, in the enum's declaration order — `{"type": "string",
+/// "enum": […]}` directly on a non-nullable field, the flattened arm
+/// plus the null arm inside the kept `anyOf` wrapper on a nullable
+/// one — never schemars' oneOf-of-consts indirection, and never a
+/// type-array with `null` inside the values. Struct definitions stay
+/// `$ref`s: the failure evidence is enum-specific. The walk covers
+/// every advertised schema on both sides, so an enum type that misses
+/// the inline mark or a shape the flatten does not recognize fails
+/// here — the class is closed by this pin, not by the call sites.
+#[test]
+fn tools_list_advertises_enum_values_in_the_flat_idiom() {
+    let root = fixture();
+    let request = r#"{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}"#.to_owned();
+    let driven = drive(root.path(), &[request]);
+    assert!(
+        driven.status.success(),
+        "a completed handshake ends 0; stderr: {}",
+        driven.stderr
+    );
+    let value: Value = serde_json::from_str(&driven.responses[0]).expect("tools/list answers JSON");
+    let tools = value["result"]["tools"].as_array().expect("the tool list");
+    let mut offenders: Vec<String> = Vec::new();
+    for tool in tools {
+        let name = tool["name"].as_str().expect("a tool name");
+        for side in ["inputSchema", "outputSchema"] {
+            if let Some(schema) = tool.get(side) {
+                let defs = schema.get("$defs").cloned().unwrap_or(Value::Null);
+                collect_flat_enum_offenses(
+                    schema,
+                    &defs,
+                    &format!("{name}.{side}"),
+                    &mut offenders,
+                );
+            }
+        }
+    }
+    assert!(
+        offenders.is_empty(),
+        "schemas off the flat enum idiom: {offenders:?}"
+    );
+    let by_name = |name: &str| {
+        tools
+            .iter()
+            .find(|tool| tool["name"] == name)
+            .unwrap_or_else(|| panic!("{name} is advertised"))
+    };
+    // The spot pins: the three vocabularies an agent picks by, the
+    // values exactly and in declaration order — the nullable fields
+    // through the kept anyOf wrapper's flattened arm with the null
+    // arm beside it, the non-nullable kind directly.
+    let status = &by_name("task_update")["inputSchema"]["properties"]["status"];
+    assert_eq!(
+        status["anyOf"][0]["enum"],
+        json!([
+            "open", "in_work", "blocked", "deferred", "closed", "wontfix"
+        ])
+    );
+    assert_eq!(status["anyOf"][1], json!({ "type": "null" }));
+    let priority = &by_name("task_add")["inputSchema"]["properties"]["priority"];
+    assert_eq!(
+        priority["anyOf"][0]["enum"],
+        json!(["high", "medium", "low"])
+    );
+    assert_eq!(priority["anyOf"][1], json!({ "type": "null" }));
+    assert_eq!(
+        by_name("task_add")["inputSchema"]["properties"]["kind"]["enum"],
+        json!(["task", "gate", "finding", "debt"])
+    );
+    // ReferenceParam survives as a `$ref`: the struct definitions are
+    // untouched by the flatten.
+    let references = &by_name("task_add")["inputSchema"]["properties"]["references"];
+    assert_eq!(
+        references["items"],
+        json!({ "$ref": "#/$defs/ReferenceParam" })
+    );
+    assert_eq!(
+        by_name("task_add")["inputSchema"]["$defs"]["ReferenceParam"]["type"],
+        json!("object")
+    );
+}
+
+/// The walk behind the flat-enum pin: collects every offense against
+/// the flat idiom, with its path, so a failure names the offender
+/// instead of counting — a oneOf-of-consts anywhere (inline or behind
+/// a `$ref`), a `$ref` that resolves to nothing, and an `enum` that
+/// is not a non-empty array of strings. The const-arm recognizer
+/// below is this test's own copy, the independent-oracle pattern, not
+/// a constant shared with production.
+fn collect_flat_enum_offenses(
+    value: &Value,
+    defs: &Value,
+    path: &str,
+    offenders: &mut Vec<String>,
+) {
+    let Value::Object(map) = value else {
+        return;
+    };
+    if let Some(Value::Array(arms)) = map.get("oneOf")
+        && !arms.is_empty()
+        && arms.iter().all(is_string_const_arm)
+    {
+        offenders.push(format!("{path} (a oneOf-of-consts survived the flatten)"));
+    }
+    if let Some(reference) = map.get("$ref").and_then(Value::as_str) {
+        match reference
+            .strip_prefix("#/$defs/")
+            .and_then(|name| defs.get(name))
+        {
+            Some(target) => {
+                if let Some(Value::Array(arms)) = target.get("oneOf")
+                    && !arms.is_empty()
+                    && arms.iter().all(is_string_const_arm)
+                {
+                    offenders.push(format!(
+                        "{path} ($ref {reference} resolves to a oneOf-of-consts)"
+                    ));
+                }
+            }
+            None => offenders.push(format!(
+                "{path} (a $ref that resolves to nothing: {reference})"
+            )),
+        }
+    }
+    if let Some(Value::Array(values)) = map.get("enum")
+        && !(values.is_empty() || values.iter().all(Value::is_string))
+    {
+        offenders.push(format!(
+            "{path} (an enum that is not a non-empty array of strings)"
+        ));
+    }
+    for (key, inner) in map {
+        collect_flat_enum_offenses(inner, defs, &format!("{path}.{key}"), offenders);
+    }
+}
+
+/// Whether one `oneOf` arm is schemars' const spelling of a string
+/// enum variant: a string `const` with at most a `description` beside
+/// it.
+fn is_string_const_arm(arm: &Value) -> bool {
+    let Value::Object(map) = arm else {
+        return false;
+    };
+    map.get("type").and_then(Value::as_str) == Some("string")
+        && map.get("const").is_some_and(Value::is_string)
+        && map
+            .keys()
+            .all(|key| key == "description" || key == "type" || key == "const")
+}
+
 // =================================================================
 // The unknown-id codes via the carrier
 // =================================================================

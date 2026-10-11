@@ -285,6 +285,14 @@ impl TodoServer {
         tool_router.merge(Self::nodes_router());
         tool_router.merge(Self::edges_router());
         tool_router.merge(Self::import_router());
+        // The input schemas' enum flatten (t88): the `#[tool]` macro
+        // generates them inside rmcp, so the merged router is the one
+        // seam this crate owns over what `tools/list` advertises —
+        // every route's schema is rewritten in place before the first
+        // request, once per tool at startup.
+        for route in tool_router.map.values_mut() {
+            schema::flatten_input(&mut route.attr.input_schema);
+        }
         Self {
             tool_router,
             state: Arc::new(Mutex::new(ServerState {

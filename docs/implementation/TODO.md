@@ -214,7 +214,7 @@ shell, which is M3's business.
 
 | Blocking | What | Action |
 |---|---|---|
-| — | nothing blocks: the roadmap is delivered, the dacode and ipmi-collector repos cut over, the D20 arc under way | g20 closed 2026-10-10 (t83, their repo's `6e04025`). **t71 landed 2026-10-10** (the `serve` subcommand: the live view + the WS push channel, the page.v1 golden moved for the script block — the compatibility event called out in the session log). **t72 landed 2026-10-10** (the todo-cli absorption: `dump`/`verify`/`repair` as subcommands, the crate retired, the golden moved byte-identical as `dump.v1`, U38's split — main.rs 422, args.rs 476 production lines). Next: g19's remainder — t73 (the Python retirement + doc moves; the README/AGENTS/skill rows naming `todo-cli` ride it, and the release binary needs the rebuild) — then t85 (D13's default-server live view, the user's sign (a) 2026-10-10, under g22), t84 (the activity panel) and g21 (this repo's own full-switch cutover, the user's sign); the ikvm-html refresh+cutover waits for its live session to settle (U36 rides that revisit) — see §6's handover |
+| — | nothing blocks: the roadmap is delivered, the dacode and ipmi-collector repos cut over, the D20 arc under way | g20 closed 2026-10-10 (t83, their repo's `6e04025`). **t71 landed 2026-10-10** (the `serve` subcommand: the live view + the WS push channel, the page.v1 golden moved for the script block — the compatibility event called out in the session log). **t72 landed 2026-10-10** (the todo-cli absorption: `dump`/`verify`/`repair` as subcommands, the crate retired, the golden moved byte-identical as `dump.v1`, U38's split — main.rs 422, args.rs 476 production lines). **t88 (the schema flatten) landed 2026-10-10** — every advertised enum field now presents its values inline and quoted; the field test is the adopted repos' next sessions (if the unquoted-enum failures survive it, the model binding is the remaining lever, f121 (a)). Next: g19's remainder — t73 (the Python retirement + doc moves; the README/AGENTS/skill rows naming `todo-cli` ride it, and the release binary needs the rebuild) — then t85 (D13's default-server live view, the user's sign (a) 2026-10-10, under g22), t84 (the activity panel) and g21 (this repo's own full-switch cutover, the user's sign); the ikvm-html refresh+cutover waits for its live session to settle (U36 rides that revisit) — see §6's handover |
 
 (The user's calls 2026-10-10: **the `--epic` default tier resolved
 (a)** — the param convention carried by the base instructions, t76's
@@ -3849,6 +3849,38 @@ Oldest first. One line per delivery, with the commit hash once committed.
    levers (the model binding — the certain fix; the schema flatten —
    the server-side bet, awaiting the user's word). Landed as this
    commit.
+ - 2026-10-10 — **t88: the schema flatten** (f121's lever (c), the
+   user's in-thread sign "let's do 'flatten'"): every enum field in
+   every advertised schema — input and output — now presents its
+   values inline, quoted, in the flat idiom
+   (`{"type": "string", "enum": ["open", "in_work", …]}`) instead of
+   the `$ref`'d oneOf-of-consts footnote style that put the values two
+   indirections from where the model writes the argument (the
+   always-correct plain-string fields were inline all along — the
+   differential the f120/f121 class tracked). Structs stay as `$ref`s
+   (ReferenceParam and kin — the failure evidence is enum-specific);
+   BlockerDto's tagged union untouched. **No behavior change**: the
+   params structs, the serde acceptance and every wire response are
+   unchanged — 728 tests (the baseline 722 + the schema unit tests +
+   the wire pin), the golden ritual byte-identical, all existing pins
+   hold. The mechanism was measured, not assumed: the preferred form
+   (a manual `JsonSchema` impl) was rejected in a scratch probe —
+   schemars 1.2.2's Option handling turns a flat inline schema into
+   the barred type-array form — so the landed form is
+   `#[schemars(inline)]` on the seven enum DTO derives plus a
+   `flatten_inline_enums` post-pass in `schema.rs`, with the input
+   seam a router walk in `lib.rs` after the merges (the spec's
+   fallback ladder, taken exactly as written). The wire pin (in the
+   t58 pin's home) walks every advertised schema on both sides: no
+   `$ref` to a oneOf-of-consts, every `enum` a non-empty string
+   array, the status/priority/kind spot pins, ReferenceParam's
+   survival; all four mutations killed exactly it. The release binary
+   rebuilt and re-copied; the live smoke shows the flat schemas on
+   the wire through `~/.local/bin/todo-mcp`. The field test is the
+   adopted repos' next sessions. f122 (the t86/t87 index-backfill
+   miss, caught and regen'd) and f123 (the pin's non-array-enum
+   escape, a low riding the pin's next owner) recorded. Landed as
+   this commit.
 
 
 
@@ -4995,6 +5027,20 @@ release binary re-copied again. The remaining levers are the model
 binding (the certain fix — the failure is the model's JSON
 discipline, not the server's) and the schema flatten (the server-side
 bet, f121's lever (c), awaiting the user's word).
+
+**The flatten landed** (the user's sign, t88): every advertised enum
+field now presents its values inline and quoted —
+`{"type": "string", "enum": ["open", "in_work", …]}` — on both the
+input and the output schemas, structs untouched, no behavior change
+(728 tests, the golden ritual byte-identical, every existing pin
+holding). The mechanism was measured (the manual-impl form rejected
+on schemars 1.2.2's Option handling; the landed form is
+`#[schemars(inline)]` + a post-pass, the input seam a router walk).
+The release binary re-copied; **the field test is the adopted repos'
+next sessions** — if the unquoted-enum failures survive the flat
+schemas, the model binding is the remaining lever. f122 (the
+t86/t87 index-backfill miss, caught at t88 and regen'd) and f123 (the
+pin's non-array-enum escape, a low) recorded.
 
 **Handover.** Workspace: main, clean after this commit; three crates
 (todo-domain, todo-store, todo-mcp — the four-member map is history);

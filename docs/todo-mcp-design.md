@@ -612,6 +612,26 @@ while `prompt_router`'s is a *string*
 `path` `` and the working form is
 `#[prompt_router(router = "prompt_router")]`.
 
+**Enum values advertise in the flat idiom (t88, 2026-10-11).** The
+f120/f121 class — adopted-repo agents emitting enum values unquoted
+(`{"status": open}`) while plain string fields are always quoted —
+traces to the presentation: schemars derives every enum as a
+oneOf-of-consts behind `$ref → $defs`, two indirections from the
+values, while the always-correct string fields sit inline. Every
+vocabulary enum is therefore `#[schemars(inline)]` and the schema
+module's post-pass flattens the oneOf-of-consts to
+`{"type": "string", "enum": ["open", …]}` — the values quoted, in
+declaration order, the shape the function-calling training distribution
+uses almost exclusively. Nullable enum fields keep the `anyOf` wrapper
+(the flattened arm plus the null arm; schemars' own `Option` handling
+would otherwise produce a type-array with `null` inside the values,
+which is why the flatten is a post-pass over the derived oneOf and not
+a manual `JsonSchema` impl emitting the flat form directly), and struct
+definitions stay `$ref`s — the failure evidence is enum-specific.
+Purely descriptive: the params structs, the serde acceptance and every
+wire response are unchanged, and the wire pin in tests/read/query.rs
+walks both sides of every advertisement.
+
 ## 7. Multi-Repo Registry and Path Handling
 
 The server is global: one store, many repositories, reached from

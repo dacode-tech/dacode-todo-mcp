@@ -72,6 +72,7 @@ use crate::{ServerState, TodoServer, ToolError, error_carrier, repo_of, structur
 /// The edge kind discriminator (§6's row names): `blocks` or `relates`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
+#[schemars(inline)]
 pub(crate) enum EdgeKindDto {
     /// A `blocks` edge: directed, the source holds the target back until it finishes (§5.1).
     Blocks,

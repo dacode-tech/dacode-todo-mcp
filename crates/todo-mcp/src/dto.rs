@@ -23,6 +23,11 @@
 //! holds for each struct's own doc, which the outputSchema carries as
 //! its `description` (rmcp strips top-level titles and descriptions
 //! from *input* schemas only, `handler/server/common.rs`).
+//!
+//! The vocabulary enums are `#[schemars(inline)]`: their schemas reach
+//! every use site inline (never a `$defs` entry), where the schema
+//! module's flatten post-pass renders them in the flat idiom — the
+//! presentation t88 pinned.
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -34,6 +39,7 @@ use todo_domain::{
 /// The wire mirror of the task/epic lifecycle status (§3, D9): `open`, `in_work`, `blocked`, `deferred`, `closed`, `wontfix`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
+#[schemars(inline)]
 pub(crate) enum StatusDto {
     /// Not started; actionable if the graph says so (§5.2).
     Open,
@@ -80,6 +86,7 @@ impl From<StatusDto> for Status {
 /// The wire mirror of the task-kind vocabulary (§3): `task`, `gate`, `finding`, `debt`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
+#[schemars(inline)]
 pub(crate) enum TaskKindDto {
     /// One unit of work.
     Task,
@@ -118,6 +125,7 @@ impl From<TaskKindDto> for TaskKind {
 /// The wire mirror of the decision lifecycle status (D10): `open`, `signed`, `superseded`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
+#[schemars(inline)]
 pub(crate) enum DecisionStatusDto {
     /// Awaiting the user's sign-off; may block tasks and epics.
     Open,
@@ -151,6 +159,7 @@ impl From<DecisionStatusDto> for DecisionStatus {
 /// The wire mirror of the agent-set triage priority (D11): `high`, `medium`, `low` — display-only, never an ordering input.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
+#[schemars(inline)]
 pub(crate) enum PriorityDto {
     /// Triage: look at this first.
     High,
@@ -184,6 +193,7 @@ impl From<PriorityDto> for Priority {
 /// The wire mirror of the proposer confidence scale (D10): `low`, `medium`, `high`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
+#[schemars(inline)]
 pub(crate) enum ConfidenceDto {
     /// The shape is a guess; expect rework.
     Low,
@@ -217,6 +227,7 @@ impl From<ConfidenceDto> for Confidence {
 /// The wire mirror of the reference-kind vocabulary (§3, D10): `tracker`, `url`, `doc`, `spec`, `file`, `other`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
+#[schemars(inline)]
 pub(crate) enum ReferenceKindDto {
     /// An external issue tracker entry (e.g. a JIRA key).
     Tracker,

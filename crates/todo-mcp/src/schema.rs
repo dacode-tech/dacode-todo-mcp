@@ -14,6 +14,23 @@
 //! `tools/list` test that walks every advertised schema
 //! (tests/read/query.rs), which is also what closes the class: a
 //! future `u64` field that bypasses these two seams fails that test.
+//!
+//! The same module owns the enum flatten (t88, the f120/f121 class's
+//! generation-side lever): adopted-repo agents emit enum values
+//! unquoted — `{"status": open}` — while plain string fields are
+//! always quoted, and the values sat two indirections away behind
+//! `$ref → $defs oneOf-of-consts`. Every vocabulary enum is
+//! `#[schemars(inline)]` (dto.rs, edges.rs), so its oneOf-of-consts
+//! reaches every use site inline, and [`flatten_inline_enums`] rewrites
+//! it to the flat idiom the function-calling training distribution
+//! uses — `{"type": "string", "enum": ["open", …]}`, the values quoted
+//! in declaration order. Outputs get the flatten inside
+//! [`output_for_type`]; inputs get it through [`flatten_input`] over
+//! the router's advertised schemas (lib.rs), because the `#[tool]`
+//! macro generates input schemas inside rmcp with no seam of ours.
+//! Struct definitions stay `$ref`s — the failure evidence is
+//! enum-specific — and the wire pin in tests/read/query.rs walks both
+//! sides of every advertisement.
 
 use std::any::Any;
 use std::sync::Arc;
@@ -51,7 +68,19 @@ const INTEGER_FORMATS: [&str; 12] = [
 pub(crate) fn output_for_type<T: JsonSchema + Any>() -> Arc<JsonObject> {
     let mut schema = rmcp::handler::server::tool::schema_for_type::<T>();
     strip_integer_formats(Arc::make_mut(&mut schema));
+    flatten_inline_enums(Arc::make_mut(&mut schema));
     schema
+}
+
+/// The input side of the enum flatten: the one seam this crate owns
+/// over an advertised input schema. The `#[tool]` macro generates
+/// input schemas inside rmcp (`schema_for_input`, thread-locally
+/// cached), so the router walk in `TodoServer::new` is where they can
+/// be post-processed — this function is its per-tool step, called once
+/// per tool at startup. The `Arc::make_mut` clone leaves rmcp's cache
+/// entry untouched, the same isolation `output_for_type` relies on.
+pub(crate) fn flatten_input(schema: &mut Arc<JsonObject>) {
+    flatten_inline_enums(Arc::make_mut(schema));
 }
 
 /// The schema for an optional count field (`Option<u64>`), spelled
@@ -100,6 +129,110 @@ fn strip_value(value: &mut Value) {
         }
         _ => {}
     }
+}
+
+// =================================================================
+// The enum flatten (t88)
+// =================================================================
+
+/// Rewrites every inlined vocabulary-enum schema in `map` from
+/// schemars' oneOf-of-consts spelling to the flat idiom: the `oneOf`
+/// key becomes `type: "string"` plus `enum: [values]`, the values in
+/// arm order — the enum's declaration order, the same order the
+/// derive emits. The object's other keys (a property's field
+/// description) stay; the per-variant descriptions drop with the arms,
+/// and the enum's own type-level description drops with the array
+/// element it rode in on — the field-level descriptions carry the
+/// meaning, the values are the point. An object whose `oneOf` is not
+/// all-const-arms (a tagged union like `BlockerDto`, a struct) is
+/// untouched.
+fn flatten_inline_enums(map: &mut Map<String, Value>) {
+    let values = match map.get("oneOf") {
+        Some(Value::Array(arms)) => const_values(arms),
+        _ => None,
+    };
+    if let Some(values) = values {
+        map.remove("oneOf");
+        insert_flat_keys(map, values);
+    }
+    for value in map.values_mut() {
+        flatten_value(value);
+    }
+}
+
+/// The recursive half of the flatten: a schema is a JSON value, and
+/// every object or array inside it may carry a oneOf-of-consts. An
+/// array element that is exactly an inlined enum schema — at most a
+/// `description` beside the oneOf, the arm `Option<Enum>` builds — is
+/// replaced by the bare flat form; anything else is walked, so a
+/// property's own keys survive beside its flattened pair.
+fn flatten_value(value: &mut Value) {
+    match value {
+        Value::Object(map) => flatten_inline_enums(map),
+        Value::Array(items) => {
+            for item in items.iter_mut() {
+                if let Some(flat) = bare_flat(item) {
+                    *item = flat;
+                } else {
+                    flatten_value(item);
+                }
+            }
+        }
+        _ => {}
+    }
+}
+
+/// The flat idiom's values when `arms` is schemars' oneOf-of-consts
+/// spelling of a string enum — every arm exactly a string `const` with
+/// an optional per-variant description, in arm order. `None` when any
+/// arm is anything else, so an unrecognized shape survives untouched
+/// for the wire pin to catch rather than being silently rewritten.
+fn const_values(arms: &[Value]) -> Option<Vec<Value>> {
+    if arms.is_empty() {
+        return None;
+    }
+    let mut values = Vec::with_capacity(arms.len());
+    for arm in arms {
+        let map = arm.as_object()?;
+        let is_const_arm = map.get("type").and_then(Value::as_str) == Some("string")
+            && map.get("const").is_some_and(Value::is_string)
+            && map
+                .keys()
+                .all(|key| key == "description" || key == "type" || key == "const");
+        if !is_const_arm {
+            return None;
+        }
+        values.push(map.get("const").cloned()?);
+    }
+    Some(values)
+}
+
+/// The bare flat form for an array element that is exactly an inlined
+/// enum schema — at most a `description` beside the oneOf-of-consts.
+/// `None` for anything else, which falls through to the walk and is
+/// flattened in place, keeping its other keys.
+fn bare_flat(item: &Value) -> Option<Value> {
+    let map = item.as_object()?;
+    let is_bare =
+        map.contains_key("oneOf") && map.keys().all(|key| key == "description" || key == "oneOf");
+    if !is_bare {
+        return None;
+    }
+    let arms = match map.get("oneOf") {
+        Some(Value::Array(arms)) => arms,
+        _ => return None,
+    };
+    let values = const_values(arms)?;
+    let mut flat = Map::new();
+    insert_flat_keys(&mut flat, values);
+    Some(Value::Object(flat))
+}
+
+/// Inserts the flat idiom's two keys — `type: "string"` then the
+/// `enum` values — into `map`, in that order.
+fn insert_flat_keys(map: &mut Map<String, Value>, values: Vec<Value>) {
+    map.insert("type".to_owned(), Value::String("string".to_owned()));
+    map.insert("enum".to_owned(), Value::Array(values));
 }
 
 #[cfg(test)]
@@ -199,6 +332,148 @@ mod tests {
                 "properties": {
                     "odd": { "type": "string", "format": 5 }
                 }
+            })
+        );
+    }
+
+    /// A non-nullable enum property — the field description beside the
+    /// inlined oneOf-of-consts — flattens to the field description
+    /// beside the flat pair, the values in arm order.
+    #[test]
+    fn a_non_nullable_enum_property_flattens_in_place() {
+        let mut schema = json!({
+            "type": "object",
+            "properties": {
+                "kind": {
+                    "description": "What kind of work this records.",
+                    "oneOf": [
+                        { "description": "One unit.", "type": "string", "const": "task" },
+                        { "description": "A checkpoint.", "type": "string", "const": "gate" }
+                    ]
+                }
+            }
+        });
+        flatten_value(&mut schema);
+        assert_eq!(
+            schema,
+            json!({
+                "type": "object",
+                "properties": {
+                    "kind": {
+                        "description": "What kind of work this records.",
+                        "type": "string",
+                        "enum": ["task", "gate"]
+                    }
+                }
+            })
+        );
+    }
+
+    /// A nullable enum property — the `anyOf` arm carrying the enum's
+    /// own type-level description beside the oneOf-of-consts — keeps
+    /// the `anyOf` wrapper with the flattened arm bare and the null
+    /// arm last: no type-array, no `null` inside the values.
+    #[test]
+    fn a_nullable_enum_property_keeps_its_anyof_wrapper() {
+        let mut schema = json!({
+            "type": "object",
+            "properties": {
+                "status": {
+                    "description": "A new lifecycle status.",
+                    "anyOf": [
+                        {
+                            "description": "The wire mirror of the status.",
+                            "oneOf": [
+                                { "description": "Not started.", "type": "string", "const": "open" },
+                                { "type": "string", "const": "in_work" }
+                            ]
+                        },
+                        { "type": "null" }
+                    ]
+                }
+            }
+        });
+        flatten_value(&mut schema);
+        assert_eq!(
+            schema,
+            json!({
+                "type": "object",
+                "properties": {
+                    "status": {
+                        "description": "A new lifecycle status.",
+                        "anyOf": [
+                            { "type": "string", "enum": ["open", "in_work"] },
+                            { "type": "null" }
+                        ]
+                    }
+                }
+            })
+        );
+    }
+
+    /// A `oneOf` whose arms are not all string consts — a tagged
+    /// union like `BlockerDto`, or a mixed combinator — is not an
+    /// enum vocabulary and survives untouched.
+    #[test]
+    fn a_non_const_oneof_survives() {
+        let mut schema = json!({
+            "oneOf": [
+                {
+                    "type": "object",
+                    "properties": {
+                        "shape": { "const": "task" },
+                        "status": { "type": "string", "enum": ["open"] }
+                    }
+                },
+                { "type": "string", "const": "external" }
+            ]
+        });
+        let before = schema.clone();
+        flatten_value(&mut schema);
+        assert_eq!(schema, before);
+    }
+
+    /// An empty `oneOf` is not a vocabulary (the flat idiom's values
+    /// are non-empty by the wire pin) and survives untouched.
+    #[test]
+    fn an_empty_oneof_survives() {
+        let mut schema = json!({ "oneOf": [] });
+        let before = schema.clone();
+        flatten_value(&mut schema);
+        assert_eq!(schema, before);
+    }
+
+    /// An array element carrying keys beyond `description` beside its
+    /// oneOf-of-consts is not the bare inlined-enum shape: it falls
+    /// through to the walk and flattens in place, keeping its keys.
+    #[test]
+    fn an_element_with_extra_keys_flattens_in_place() {
+        let mut schema = json!({
+            "anyOf": [
+                {
+                    "description": "The type-level doc.",
+                    "default": "open",
+                    "oneOf": [
+                        { "type": "string", "const": "open" },
+                        { "type": "string", "const": "closed" }
+                    ]
+                },
+                { "type": "null" }
+            ]
+        });
+        flatten_value(&mut schema);
+        assert_eq!(
+            schema,
+            json!({
+                "anyOf": [
+                    {
+                        "description": "The type-level doc.",
+                        "default": "open",
+                        "type": "string",
+                        "enum": ["open", "closed"]
+                    },
+                    { "type": "null" }
+                ]
             })
         );
     }
