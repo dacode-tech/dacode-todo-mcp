@@ -3878,7 +3878,7 @@ Oldest first. One line per delivery, with the commit hash once committed.
    rebuilt and re-copied; the live smoke shows the flat schemas on
    the wire through `~/.local/bin/todo-mcp`. The field test is the
    adopted repos' next sessions. f122 (the t86/t87 index-backfill
-   miss, caught and regen'd) and f123 (the pin's non-array-enum
+   miss, caught and regen'd) and f124 (the pin's non-array-enum
    escape, a low riding the pin's next owner) recorded. Landed as
    this commit.
 
@@ -5039,7 +5039,7 @@ on schemars 1.2.2's Option handling; the landed form is
 The release binary re-copied; **the field test is the adopted repos'
 next sessions** — if the unquoted-enum failures survive the flat
 schemas, the model binding is the remaining lever. f122 (the
-t86/t87 index-backfill miss, caught at t88 and regen'd) and f123 (the
+t86/t87 index-backfill miss, caught at t88 and regen'd) and f124 (the
 pin's non-array-enum escape, a low) recorded.
 
 **Handover.** Workspace: main, clean after this commit; three crates
