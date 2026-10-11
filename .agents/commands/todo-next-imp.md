@@ -2,19 +2,15 @@ Find the next thing to do on dacode-todo-mcp, and stop for agreement
 before doing it.
 
 **Load the `todo-next-imp` skill now** and follow its procedure. The live
-state is already injected below, so do not re-run these four commands.
+state is already injected below, so do not re-run these commands.
 
-## Attention gate
+## Store state (the tracker of record)
 
-!`tools/attention.py 2>&1 | tail -60`
+!`todo-mcp --root ~/.local/share/dacode-todo progress --json 2>&1 | head -c 6000`
 
-## Committed board
+## Handover (the live epic's, most recent first)
 
-@docs/implementation/TODO.md
-
-## Session tracker (gitignored, branch-keyed)
-
-!`tools/tasks.py show -v 2>&1; echo '--- check ---'; tools/tasks.py check 2>&1`
+!`ls -t docs/implementation/handover/*.md 2>/dev/null | head -5; echo '--- the live epic handover (most recent) ---'; F=$(ls -t docs/implementation/handover/*.md 2>/dev/null | head -1); if [ -n "$F" ]; then head -120 "$F"; else echo '<no handover files — the cutover flip (t92) has not landed; the board + tools/tasks.py are still the trackers of record, and docs/implementation/TODO.md is still live>'; fi`
 
 ## Workspace and harness state
 
@@ -30,29 +26,29 @@ whatever detail the proposed step needs:
 ```
 Phase:            <pre-M0 | M0 | M1 | …>
 Workspace:        <crates that exist, toolchain, dirty state>
-Gate:             <attention.py --check: N items at P0, M hygiene failures>
-Blocking now:     <decision ids, each with what it gates and its action type>
-Ready to start:   <candidate next steps, milestone-ordered>
+Gate:             <the harness checks, plus the store's open items and any decision waiting on the user>
+Blocking now:     <open nodes needing the user or a decision, each with what it gates>
+Ready to start:   <candidate next steps, dependency-ordered>
 Proposed next:    <one step, with its verification method>
 Deferred/blocked: <what you are deliberately not doing and why>
-Tracker:          <tasks.py check result — clean, or the items it flagged>
+Tracker:          <the store's open nodes and the sweep result — what is unfinished, what lacks evidence>
 ```
 
 Rules for this report specifically:
 
-- **Prefer unfinished work over new work.** An `active` or `blocked`
-  tracker item, a `done` item with no evidence, or a board item whose
-  change landed without the board moving all come before anything new. A
-  half-finished unit of work is the most expensive thing in the
+- **Prefer unfinished work over new work.** An open store node, a node
+  closed on evidence that does not name a command, a handover whose
+  "landed" claim has no commit behind it — all come before anything
+  new. A half-finished unit of work is the most expensive thing in the
   repository.
 - **Propose exactly one step**, with its verification method decided. If
   the method is not obvious, say so and ask rather than inventing one.
 - **Do not start work.** Report, then wait — unless the user named the
   step in this session already, or passed it as an argument above.
 - **Never propose a step that sits past an unsigned decision.** Name the
-  decision instead. `attention.py` above says which are open and whether
-  each needs a vote, a measurement, or a session.
-- Cite the decisions and board ids; do not restate their contents.
+  decision instead. The store's open nodes and `decisions.md` say which
+  are waiting on the user.
+- Cite the node ids and decision ids; do not restate their contents.
 - In the design phase (no workspace, §12 open), the honest proposals are
   decision-shaped: settle D-items, deepen a spec section that is not
   gated, or do the measurement a D-item asks for. Code proposals come

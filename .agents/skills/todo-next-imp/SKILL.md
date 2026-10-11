@@ -1,6 +1,6 @@
 ---
 name: todo-next-imp
-description: "Resume dacode-todo-mcp work from a cold start. Runs the attention gate, reads docs/implementation/TODO.md and decisions.md, reports what is blocked on what, proposes the single next actionable step, and enforces the exit gate (both trackers updated, checks green) before work counts as delivered. Use at the start of a session, or any time you need to know what to work on next in this repo."
+description: "Resume dacode-todo-mcp work from a cold start. Reads the store (the tracker of record) and the live epic's handover, reports what is blocked on what, proposes the single next actionable step, and enforces the exit gate (nodes closed with evidence, the sweep run, the handover moved, checks green) before work counts as delivered. Use at the start of a session, or any time you need to know what to work on next in this repo."
 ---
 
 # todo-next-imp — find, start and *close* the next step
@@ -13,10 +13,10 @@ skipped:
 1. **What is the next thing to do, and is anything blocking it?**
 2. **What must be true before that work counts as delivered?**
 
-It exists because the project state is spread across a spec, a decision
-record, a committed board and a gitignored session tracker, and a cold
-session should not have to rediscover how they relate — or quietly finish
-work without updating any of them.
+It exists because the project state is spread across a store, a
+handover file, a decision record and a spec, and a cold session should
+not have to rediscover how they relate — or quietly finish work
+without updating any of them.
 
 It is a **read-and-report** skill first. Do not start implementing until
 step 5 has produced an agreed next step.
@@ -34,58 +34,67 @@ reads in steps 1–3 arrive already done:
 The commands are generated from `.agents/commands/*.md`; when invoked
 directly rather than through them, run steps 1–3 yourself.
 
-**Prefer unfinished work over new work.** An `active` or `blocked`
-tracker item, a `done` item with no evidence, a board item whose change
-landed without the board moving — all of those come before anything new.
-A half-finished unit of work is the most expensive thing in the
-repository, and the reason this skill reads the tracker before the
-board.
+> **Transitional — until the cutover flip (t92) lands:** the markdown
+> board and `tools/tasks.py` are still the trackers of record. If
+> `docs/implementation/handover/` is empty, the flip has not happened:
+> read the board's §6 and the tracker, and follow the older conventions
+> wherever the sections below name the store.
+
+**Prefer unfinished work over new work.** An open store node, a node
+closed on evidence that does not name a command, a handover whose
+"landed" claim has no commit behind it — all of those come before
+anything new. A half-finished unit of work is the most expensive thing
+in the repository, and the reason this skill reads the store before
+anything else.
 
 ## Procedure
 
 Run these in order. Steps 1–3 are reads and can be batched.
 
-### 1. Run the gate
+### 1. Read the store (the tracker of record)
+
+This repo's nodes live in the server's own store, under the
+`dacode-todo-mcp` slug in the durable root. Query it; do not parse
+anything:
 
 ```
-tools/attention.py                # prints the table, refreshes .agents/cache/ATTENTION.md
-tools/attention.py --check        # exit 1 if anything is P0 or any hygiene check fails
+todo-mcp --root ~/.local/share/dacode-todo progress --json
 ```
 
-This is the only view spanning all four sources, and the only thing that
-catches a §12 open decision with no matching `D` entry, a dangling `§`
-cross-reference, or a strikethrough that disagrees with a `Status`
-column. Read it before anything else: it tells you which docs are
-currently inconsistent.
+That document carries the totals, the open items, the decision count
+and the per-epic roll-up. For the live detail, use the wired
+`todo-mcp_*` MCP tools (this role's allow covers them):
 
-`--check` exiting non-zero while decisions are open is expected in the
-design phase and is not a failure to fix — it means the user has
-something to decide. Once implementation is under way it should be green,
-and a red run means the docs have drifted from the code.
+- `status_summary` — the open/closed roll-up per epic
+- `next_task` — the dependency-correct answer to "what now"
+- `task_list` / `task_show` — the open nodes, their `verify` and their
+  evidence
 
-### 2. Read the board
+Beside them, the harness checks:
 
 ```
-docs/implementation/TODO.md
-```
-
-§1 is the current state and what is blocked on the user. §2 is the
-milestone state. §3 is what has actually landed. §4 is unowned
-follow-ups with stable `U` ids. §5 is debt. §6 is the session log —
-**read the last entry**, which is usually a more honest account of where
-things stand than the milestone table.
-
-### 3. Check the gates and the tracker
-
-```
-tools/tasks.py show -v
-tools/tasks.py check
 tools/agents-sync.py --check
 tools/check-links.py --quiet
 ```
 
-An empty tracker at the start of a session is normal; a tracker with
-`done` items lacking evidence is not.
+### 2. Read the live epic's handover
+
+`docs/implementation/handover/E<n>.md` — one file per epic, keyed by
+the epic's number. Sessions are epic-scoped (the work-stream rule), so
+the file a cold session reads first is its own epic's; the most
+recently modified file is the live arc's. It carries the handover
+shape — workspace, landed, next step, blocked on the user, unverified —
+and is usually a more honest account of where things stand than any
+roll-up.
+
+### 3. Check the working tree
+
+```bash
+git status --short | head
+```
+
+A clean tree with open nodes means recorded work not yet committed, or
+committed work the nodes do not know about — say which.
 
 ### 4. Determine the phase
 
@@ -100,11 +109,10 @@ An empty tracker at the start of a session is normal; a tracker with
   (fmt/check/test/clippy/doc) apply to everything, and golden files exist to
   break.
 
-Check which by looking at the repo itself, not at the board:
+Check which by looking at the repo itself, not at any doc:
 
 ```bash
 ls Cargo.toml crates 2>/dev/null
-git status --short | head
 ```
 
 If there is no `Cargo.toml`, say so in the report — it means every code
@@ -122,45 +130,48 @@ session.
 ```
 Phase:            <pre-M0 | M0 | M1 | …>
 Workspace:        <crates that exist, toolchain, dirty state>
-Gate:             <attention.py --check: N items at P0, M hygiene failures>
-Blocking now:     <decision ids, each with what it gates and its action type>
-Ready to start:   <candidate next steps, milestone-ordered>
+Gate:             <the harness checks, plus the store's open items and any decision waiting on the user>
+Blocking now:     <open nodes needing the user or a decision, each with what it gates>
+Ready to start:   <candidate next steps, dependency-ordered>
 Proposed next:    <one step, with its verification method>
 Deferred/blocked: <what you are deliberately not doing and why>
-Tracker:          <tasks.py check result — clean, or the items it flagged>
+Tracker:          <the store's open nodes and the sweep result — what is unfinished, what lacks evidence>
 ```
 
 Seven or eight lines plus whatever detail the proposed step needs. Cite
-the decisions; do not restate them.
+the node ids and decision ids; do not restate their contents.
 
 ## The exit gate — work is not delivered until this passes
 
-This is the half that gets skipped, and the reason this skill exists
-alongside `attention.py`. A change that lands code without landing its
-state is a change the next session will redo or contradict.
+This is the half that gets skipped, and the reason this skill exists.
+A change that lands code without landing its state is a change the
+next session will redo or contradict.
 
 Before reporting any unit of work as done, in this order:
 
-1. **`tools/tasks.py set <id> --status done --evidence "<what you
-   actually ran>"`.** Evidence is a command and its result, not a
-   restatement of the title. An item whose `verify:` is still `TBD`
-   cannot be closed — decide the verification when the item is *created*,
-   and if it is not obvious, ask rather than inventing one.
-2. **`tools/tasks.py check`** exits 0. If it does not, say so in the same
-   message and name what it flagged. Never report success over a failing
-   gate. **`check` is not the sweep**: it flags a `done` item with no
-   evidence and a `blocked` item with no reason, and is blind to a
-   `pending` item whose work already landed or a `blocked` item whose
-   blocker is gone. So read the open list against `git log` and disposition
-   what you find — `done` with evidence, `wontfix` with a note, or a `U` id
-   on the board where the deferral must outlive this branch. Every delivery
-   sweeps the items it consumed; a milestone gate sweeps the whole open
-   list, which is the sweep M1 closed without.
-3. **`docs/implementation/TODO.md` updated in the same change.** A status
-   change is a one-line edit; new debt, findings and newly-discovered
-   follow-ups get new `U` ids in §4/§5 (next unused number, never a
-   renumber); the session narrative goes in §6. Reasoning does **not** go
-   here — it goes in `decisions.md` or the spec.
+1. **Close the store nodes with real evidence.** Every unit of work
+   this session finished is `task_update` → `status: closed` with
+   `evidence` naming the command that was run and what it printed.
+   The domain refuses a close without evidence, so the discipline is
+   enforced at the write. A node whose `verify` was never set cannot
+   close honestly — decide the verification when the node is *created*
+   (`task_add` carries `verify`), and if it is not obvious, ask rather
+   than inventing one.
+2. **Run the sweep.** `status_summary` + `next_task` over the repo,
+   read against what this session actually delivered. The store cannot
+   see `git log` — your delivery knowledge is the cross-check.
+   Disposition every open node you touched: closed with evidence,
+   blocked with a note (the domain requires it), or left open with its
+   consumer named. A node pending since before the session that
+   nothing delivered against is either work still owed or a record
+   gone stale — say which, and never report success over an
+   undispositioned node.
+3. **The epic's handover moved.** `docs/implementation/handover/
+   E<n>.md` gains this session's entry in the handover shape. New
+   findings and debt become store nodes (`task_add` with
+   `kind: finding` / `kind: debt`), not prose — the handover is state,
+   not a ledger. Reasoning does not go there either: it goes in
+   `decisions.md` or the spec.
 4. **If a decision was signed off:** strike its row in `decisions.md`'s
    sign-off summary, set its `Status`, record the outcome in its detail
    entry — and **execute its `On sign-off:` line**, which is a literal
@@ -171,8 +182,7 @@ Before reporting any unit of work as done, in this order:
    numbered sections**, not only into a commit message. That is the
    expensive part of the design phase and it must survive the session.
 6. **`tools/check-links.py`** passes (mandatory after adding, removing or
-   renaming a doc) and **`tools/attention.py --check`** reports no *new*
-   hygiene failure.
+   renaming a doc) and the harness checks report no *new* failure.
 7. **Code gates, if and only if code was written**: `cargo fmt --check` →
    `cargo check --workspace --all-targets` → `cargo test -p <touched
    crate>` → `cargo clippy --workspace --all-targets` → `cargo doc
@@ -185,23 +195,23 @@ Before reporting any unit of work as done, in this order:
    commits carry both role `Reviewed-by:` trailers (only after a real
    dual review), report the hash.
 9. **Hand over** — write the next session's starting point, in the shape
-   below, both in chat and as a `§6` entry. This is the last step, not
-   an optional courtesy.
+   below, both in chat and appended to the epic's handover file. This
+   is the last step, not an optional courtesy.
 
 If a step could not be run, report it as `skipped` and say why. Never
 imply a check passed that you did not run.
 
 ## Handover — the last thing a session produces
 
-Every session ends with a handover, in chat *and* committed as the final
-`docs/implementation/TODO.md` §6 entry. The two are the same content;
-the chat copy is for the user, the committed copy is for whoever opens
-this repository next — possibly on another machine, certainly without
-this context window.
+Every session ends with a handover, in chat *and* appended to the epic's
+handover file. The two are the same content; the chat copy is for the
+user, the file copy is for whoever opens this repository next —
+possibly on another machine, certainly without this context window.
 
-It is not a summary of what you did. §3 and the narrative already record
-that. It is **the state a cold session needs before it can act**, and it
-is written for a reader who knows the project and not the session.
+It is not a summary of what you did. The store and the commit log
+already record that. It is **the state a cold session needs before it
+can act**, and it is written for a reader who knows the project and not
+the session.
 
 ```
 Workspace:    branch, clean or dirty, which crates exist, toolchain
@@ -230,62 +240,65 @@ Three rules that make it worth reading:
 
 ## Hard rules
 
-1. **Never write code past an unsigned gate.** If D1 is open, no store
-   crate gets written — the engine it would be written against is not
-   chosen. Surface the gate instead of guessing.
+1. **Never write code past an unsigned gate.** If a decision is open,
+   the code that presumes its outcome does not get written. Surface
+   the gate instead of guessing.
 2. **Never deepen a spec section whose decision is still open** in a way
    that presumes the outcome. Options may be sharpened; the choice may
    not be pre-empted.
-3. **`tools/tasks.py` is mandatory**, not a judgement call. Open or
-   refresh it whenever the work has more than three steps, spans more
-   than one file, spawns a subagent, records a finding, or takes on debt.
-4. **`TODO.md` is an exit gate on every delivery.** A change is not
-   delivered until the board reflects it — including debt and findings
-   discovered mid-work, tasks that had to be split, and steps found
-   during implementation.
+3. **The store is the tracker of record — tracking is mandatory**, not
+   a judgement call. Open a node (`task_add` with `verify`) whenever
+   the work has more than three steps, spans more than one file,
+   spawns a subagent, records a finding, or takes on debt. Arcs are
+   epics (`epic_add`); work units, findings and debt are tasks with
+   the right `kind`.
+4. **The handover is an exit gate on every delivery.** A change is not
+   delivered until the epic's handover reflects it — including debt and
+   findings discovered mid-work, tasks that had to be split, and steps
+   found during implementation.
 5. **Evidence over inference.** A performance claim, a compatibility
    claim or a "the client accepts it" claim is backed by a command that
    was run and cited, or it is marked as inference.
 6. **The spec moves only by user decision.** §12 is never settled by an
-   agent; a signed decision executes its `On sign-off:` work order in the
-   same change.
+   agent; a signed decision executes its `On sign-off:` work order in
+   the same change.
 7. **No AI attribution, no forged review trailers.** Not in a commit
    message, a comment, or a doc. The two role trailers only after a real
    dual review of this exact diff.
 8. **Adding an external crate, changing the wire/tool surface, or
    settling a §12 decision all require asking first.**
-9. **Never dogfood an unsigned design.** Until this server's own §12
-   decisions are signed and it works, the markdown board + `tasks.py`
-   remain the trackers of record for this repo.
+9. **Dogfood the design you shipped.** The server's own decisions are
+   signed, the roadmap is delivered, and this repo cut over to its own
+   server as the tracker of record (the user's 2026-10-09 sign). The
+   store is not a demo — it is this repo's tracking surface, and its
+   determinism guarantees are the ones your session records depend on.
 
-## The two trackers — do not conflate them
+## The record homes — do not conflate them
 
-| | `tools/tasks.py` | `docs/implementation/TODO.md` |
+| | the store (this repo's nodes) | `decisions.md` + the spec |
 |---|---|---|
-| Lives at | `.agents/cache/tasks/<branch>.yaml` | `docs/implementation/TODO.md` |
-| Committed | no (gitignored) | yes |
-| Scope | this branch's work units, findings, debt, gates | the project's progress across sessions |
-| Updated by | whoever is orchestrating | whoever delivers a change |
-| Survives | branch switch | everything |
-| Answers | "what am I doing now, and how will I know it worked" | "what has this project done, and what is blocking it" |
+| Lives at | the durable root, per-repo | this repo, committed |
+| Scope | arcs, work units, findings, debt | signed decisions, the normative design |
+| Updated by | `task_add` / `task_update` through the wired tools | whoever delivers the decision's work order |
+| Survives | everything (the durable root) | everything (git) |
+| Answers | "what is open, what is verified, what is next" | "what was decided, and why" |
 
-An instruction to "update the TODO" is ambiguous between them. If context
-does not settle it, **ask** — updating the wrong one silently loses work.
-Both are part of the exit gate; neither substitutes for the other,
-because a reviewer cannot see a gitignored cache.
+The handover file is the narrative surface — state, not reasoning.
+An instruction to "record it" is ambiguous between the store and the
+decision record: if context does not settle it, **ask** — recording in
+the wrong home silently loses work.
 
 ## Where things live
 
 | Need | Path |
 |---|---|
 | The spec (model, storage, surface) | `docs/todo-mcp-design.md` |
-| Progress board (committed state) | `docs/implementation/TODO.md` |
+| The tracker of record (this repo's nodes) | the store — `todo-mcp --root ~/.local/share/dacode-todo progress --json`, or the wired `todo-mcp_*` tools |
+| The live epic's handover | `docs/implementation/handover/E<n>.md` |
 | Open decisions + recommendations | `docs/implementation/decisions.md` |
-| Prioritized "what needs you" view | `tools/attention.py` → `.agents/cache/ATTENTION.md` |
-| Session work tree + verification | `tools/tasks.py` → `.agents/cache/tasks/<branch>.yaml` |
 | Domain knowledge | `.agents/skills/dacode-todo-mcp/SKILL.md` |
 | Coding conventions | `.agents/roles/_rust.md` |
-| The three trackers and their conventions | `.agents/knowledge/workflows/task-tracking.md` |
+| The tracking conventions | `.agents/knowledge/workflows/task-tracking.md` |
 | Search policy | `.agents/roles/_search.md` |
 | Repo-wide agent instructions | `AGENTS.md` |
 

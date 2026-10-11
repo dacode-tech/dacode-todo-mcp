@@ -3,84 +3,89 @@
 ## When to Use
 
 Always, once work has more than three steps. This article defines the
-convention concretely, so nobody has to infer it from the tool's help
-text.
+convention concretely, so nobody has to infer it from the tool surface.
 
-## Three trackers, three different jobs
+> **Transitional — until the cutover flip (t92) lands:** the markdown
+> board and `tools/tasks.py` are still the trackers of record. If
+> `docs/implementation/handover/` is empty, the flip has not happened;
+> follow the older board-and-tracker conventions.
 
-They are not interchangeable and substituting one for another loses
-work.
+## The record homes
 
-| | Harness todo tool | `tools/tasks.py` | `docs/implementation/TODO.md` |
+The store is the tracker of record (the full-switch cutover, the user's
+2026-10-09 sign). This repo's nodes live in the server's own store,
+under the `dacode-todo-mcp` slug in the durable root, and session work
+is tracked through the wired `todo-mcp_*` tools. The native todo tool
+stays denied for the orchestrator (U16b) — the MCP server is that
+role's wired todo surface; the live view is the messages plus the
+store.
+
+| | the store | the handover file | `decisions.md` + the spec |
 |---|---|---|---|
-| Lives | in the session | `.agents/cache/tasks/<branch>.yaml` | `docs/implementation/TODO.md` |
-| Committed | no | **no** (gitignored) | **yes** |
-| Survives | nothing | a session; dies on branch switch | everything |
-| Renders | in the TUI, live | `tasks.py show -v` | a diff a reviewer reads |
-| Scope | this turn's steps | this branch's work units, gates, findings, debt | the project's progress |
-| Answers | "what is happening right now" | "what am I doing, and how will I know it worked" | "what has this project done, and what blocks it" |
+| Lives at | the durable root, per-repo | `docs/implementation/handover/E<n>.md` | this repo, committed |
+| Scope | arcs, work units, findings, debt | the epic's session state | signed decisions, the normative design |
+| Updated by | `task_add` / `task_update` | every session working that epic | the decision's work order |
+| Answers | "what is open, what is verified, what is next" | "where did this epic stand" | "what was decided, and why" |
 
-**Use all three.** The todo tool is how the user watches progress without
-asking. `tasks.py` is how the *next* session knows what was half-done.
-The board is the only one a reviewer can see, because the other two are
-session-local or gitignored. One per-role exception since t39/U16b: the
-orchestrator's todo tool is denied (the todo-mcp server is that role's
-wired todo surface), so for that role the live view is the messages
-plus `tasks.py` — the other roles keep all three.
+Reasoning never goes in the store or the handover — it goes in
+`decisions.md` or the spec. The store and the handover are state.
 
-An instruction to "update the TODO" is ambiguous between the last two.
-If context does not settle it, **ask**.
+## The node mapping
 
-The irony is deliberate and temporary: this project *builds* a
-deterministic task tracker, and until its own §12 decisions are signed
-and it works, the markdown board is the tracker of record. Never dogfood
-an unsigned design.
+The old tracker's kinds map onto the store's node kinds:
 
-## `tools/tasks.py` — the convention
+| Old tracker kind | Store shape |
+|---|---|
+| `goal` (an arc) | an epic — `epic_add` at arc start, closed when its tasks close |
+| `task` | a task — `task_add`, **one reviewable commit** |
+| `gate` | a task with `kind: gate` |
+| `finding` | a task with `kind: finding` |
+| `debt` | a task with `kind: debt` |
 
-### Node kinds
+The id vocabulary: the store's own numbering. Pre-cutover nodes carry
+`board:<id>` in `references` (the cutover playbook's rule); new work
+takes the next server id.
 
-| Kind | Id | Use for |
-|---|---|---|
-| `goal` | `g1` | What the user actually asked for. The thing to check the result against |
-| `task` | `t1` | One unit of work — for this project, **one reviewable commit** |
-| `gate` | `gN` … | A checkpoint that must pass: the cargo gates, dual review, a golden-file review |
-| `finding` | `f1` | Something discovered that was not the point of the task |
-| `debt` | `d1` | A deliberate shortcut, recorded rather than forgotten |
+## The session-tracking convention
 
-Ids are assigned by the tool from the kind's first letter. Note `goal`
-and `gate` share the `g` prefix, so read the `[kind]` column, not the id.
+- **`task_add` with `verify` decided up front.** The domain does not
+  enforce verify-at-creation — the sweep catches a close whose verify
+  was never set, and the convention is to decide the method when the
+  node is created, not when it is closed. If the method is not
+  obvious, ask; do not write a placeholder and move on.
+- **`task_update` → `status: closed` with `evidence`** — the domain
+  refuses the close without it. Evidence names the command that was
+  run and what it printed, never a restatement of the title.
+- **`task_update` → `status: blocked` with `note`** — the domain
+  requires the note. An unexplained block is indistinguishable from an
+  abandoned node.
+- Findings and debt are recorded **as they appear**, mid-session: a
+  shortcut written down is a decision; one that is not is a defect
+  waiting to be rediscovered.
 
-**An f-id is for what survives the branch.** A finding earns its own
-node only when it changes behaviour, lands a fix, or names something a
-future session must find (a stale claim in a committed file, an
-unpinned invariant, a flake). A divergence between a task spec's
-prediction and the measured result — a kill set, a count, a line
-number — folds into the task's `evidence` line instead, stated as
-"the spec said X, the run showed Y". Task specs are gitignored
-scratch: their claims die with the branch, and numbering every one
-that failed to reproduce made the open list grow faster than the
-work (the M3 pattern: ~24 of 33 findings were scratch-spec
-divergences). The measurement itself is still recorded — in the
-evidence, where the task's verification already lives — it just does
-not get an id, a status, and a line in the open list.
+## The sweep — what `tasks.py check` used to do
 
-### Statuses
+The domain now enforces at the write what `check` used to flag after
+the fact: a close without evidence and a block without a note are
+impossible. What the domain cannot see, the sweep must:
 
-`pending` · `active` · `blocked` · `done` · `wontfix` · `standing`
+At session end, run `status_summary` and `next_task` over the repo and
+read the open nodes **against what this session actually delivered**.
+The store cannot see `git log` — the session's delivery knowledge is
+the cross-check. Disposition every open node you touched:
 
-- `blocked` **requires** `--note` saying what it is blocked on. An
-  unexplained block is indistinguishable from an abandoned item.
-- `standing` is for a `goal` that is *meant* to stay open — the whole
-  server, for instance. It requires `--note`, and the tool refuses it on
-  anything that is not a goal, because otherwise it would be a way to
-  turn the gate green by relabelling.
-- `done` **requires** `--evidence` and a `verify:` that is not `TBD`.
+- work finished → closed with evidence
+- work stopped → blocked with a note naming what it is blocked on
+- work still owed → left open, with the consumer named
+- a record gone stale (the work landed in git but the node never
+  moved) → closed with the evidence, or marked `wontfix` with a note
 
-### Every item needs a `verify:` when it is created
+**Never report work complete over an undispositioned node.** Reporting
+success over a gap spends the user's trust to hide one.
 
-Not when it is closed. `tasks.py check` refuses to sign off a `done`
-item that never had one, and deciding it late means deciding it to fit
+## Every node needs a `verify` when it is created
+
+Not when it is closed. Deciding it late means deciding it to fit
 whatever happened.
 
 Acceptable verification methods on this project:
@@ -92,115 +97,51 @@ Acceptable verification methods on this project:
 | A lint gate | `cargo clippy --workspace --all-targets` clean |
 | A golden review | "regenerated `tests/fixtures/store_v1.json`, diff read and explained in the commit" |
 | A smoke run | `cargo run -p todo-mcp -- --stdio` answers `initialize` + one tool call |
-| A harness check | `tools/attention.py --check`, `tools/agents-sync.py --check`, `tools/check-links.py` |
+| A harness check | `tools/agents-sync.py --check`, `tools/check-links.py` |
+| A store query | `todo-mcp progress --json` shows the node closed, the totals moved |
 | A doc assertion | "spec §4 names the engine and §12 item 1 is deleted" |
 | `manual:` | `manual: user confirms the tool list against their client` |
 
-`verify: TBD` is not acceptable: either decide, or ask the user.
-
-### Commands
-
-```bash
-tools/tasks.py show -v
-tools/tasks.py add -  goal "build the store crate"       --verify "..."
-tools/tasks.py add g1 task "todo-store: JSONL event log" --verify "cargo test -p todo-store event_log"
-tools/tasks.py add g1 gate "dual review"                 --verify "both reviewers status: ok"
-tools/tasks.py set  t1 --status active
-tools/tasks.py set  t1 --status blocked --note "needs D1 signed first"
-tools/tasks.py set  t1 --status done --evidence "cargo test -p todo-store: 14 passed; clippy clean"
-tools/tasks.py check          # what blocks a defensible sign-off
-tools/tasks.py budget         # context window and work budget
-```
-
-### When opening a tracker is mandatory
-
-Not a judgement call. Any one of these:
-
-- the work has more than three steps, or spans more than one file
-- you are about to spawn a subagent
-- you record a finding or take on debt
-- the user asks a question you cannot fully answer this session
-
-If unsure, open it. A tracker nobody needed costs one file write.
-
-### `check` is the gate, not a formality
-
-It exits non-zero on a `done` item with no evidence, a `done` item whose
-`verify` was never decided, an unclosed goal, an unexplained block, or a
-`standing` item with no reason.
-
-**Never report work complete while `check` exits non-zero** without
-saying so in the same message and naming what it flagged. Reporting
-success over a failing gate spends the user's trust to hide a gap.
-
-What `check` **cannot** see is the failure that actually happened at M1's
-gate: a `pending` item whose work is already in git history, a `blocked`
-item whose blocker was resolved days earlier, a finding whose consumer
-shipped. Each reads as "still to do" and hides the truth, which is that
-nothing is. So the open list needs a sweep against `git log` — every
-delivery disposes of the items it consumed, a milestone gate disposes of
-all of them. An item that is deliberately never going to be fixed is
-`wontfix` with a note, not `pending` forever, and a deferral that must
-outlive the branch gets a `U` id on the board, because this tracker is
-gitignored and branch-keyed.
-
-## `docs/implementation/TODO.md` — the convention
-
-- **§4 is unowned follow-ups. §5 is debt.** Those two are the only
-  sections `tools/attention.py` reads as action items.
-- An item is `- [ ] **UN · Title** — description`, and the `U` number is
-  **permanent**. Take the next unused one; never renumber, never reuse.
-  Gaps mean an item was resolved, which is information.
-- §1 mirrors the open decisions, §2 the milestone state, §3 what landed,
-  §6 the session narrative — newest first, one short paragraph, written
-  for someone who was not here.
-- **Reasoning does not go on the board.** It goes in
-  `docs/implementation/decisions.md` or in the spec. The board is status.
-- A delivery that does not move the board is a review finding, not a
-  follow-up.
-
-## How they connect
+## How a session flows
 
 ```
 user asks something
-  → harness todo (live, this turn)
-  → tasks.py goal + tasks + gates (durable, this branch)
-      each task = one reviewable commit, each with its verify decided up front
+  → epic_add (if a new arc) / task_add with verify (one reviewable commit each)
   → work happens; findings and debt recorded as they appear
-  → tasks.py check exits 0
-  → TODO.md moves: §3 gains a line, §4/§5 gain new U ids, §6 gains a paragraph
+  → task_update → closed with evidence (the domain enforces it)
+  → the sweep: status_summary + next_task read against the deliveries
+  → the epic's handover gains the session entry
   → a hard-won fact goes into the spec's numbered sections
-  → a signed decision executes its `On sign-off:` order
+  → a signed decision executes its On sign-off: order
   → commit
 ```
 
-`/todo-next-imp` reads the first three and the spec, and proposes one
+`/todo-next-imp` reads the store and the handover, and proposes one
 step. `/todo-close` runs the exit gate over all of it.
 
 ## Pitfalls
 
-- **The `tasks.py` tracker is keyed by branch and gitignored.** Switching
-  branches switches trackers, and none of it survives a fresh clone.
-  Anything that must outlive the branch goes on the board.
-- **An unborn branch keys the tracker as `HEAD`.** Before the first
-  commit, git reports no branch name, so the file is
-  `.agents/cache/tasks/HEAD.yaml`; the first commit re-keys to the branch
-  and orphans it. Move `HEAD.yaml` to `<branch>.yaml` right after the
-  initial commit.
-- **`.agents/cache/` is gitignored on purpose.** It is a rendering of
-  committed state, never a source of it. Never commit it, and if it
-  disagrees with the docs, the docs win.
-- **Closing an item with its own title as evidence proves nothing.**
+- **Closing a node with its own title as evidence proves nothing.**
   "Implemented the event log" is a restatement. "cargo test -p
   todo-store: 14 passed; golden round-trip byte-identical" is evidence.
-- **`standing` is not a way to close a goal.** The tool demands a reason
-  and `check` still reports it every run.
 - **Two tasks must never write the same file.** That is a decomposition
-  rule, and the tracker is where it becomes visible.
+  rule, and the store is where it becomes visible.
+- **The store is outside the repo.** Its durability is the durable
+  root's, not git's — the board backup beside the store at cutover is
+  the pre-cutover record's insurance. Anything that must be
+  reproducible from a fresh clone (goldens, fixtures, the spec) stays
+  in git; the store holds the tracking state.
+- **A render is not a record.** `progress --json` and the page are
+  renderings of the store, never sources of it. If a rendering
+  disagrees with the store, the store wins.
+- **Read-your-writes.** A lock-free read (a render, a fresh server's
+  read tool) sees only committed appends — after a mutation, answer
+  from the same session's tools, not from a second process spawned
+  before the write landed.
 
 ## References
 
 - `.agents/skills/todo-next-imp/SKILL.md` — the procedure and the exit gate
-- `.agents/roles/orchestrator.md` — when to open a tracker, how to size work
-- `docs/implementation/TODO.md` — the board itself, with its rules at the top
-- `.agents/config/agent-rules.yaml` → `session.tasks` — the declared config
+- `.agents/roles/orchestrator.md` — when to open a node, how to size work
+- `docs/implementation/decisions.md` — the decision record
+- `README.md` — the cutover playbook (the per-epic HANDOVER convention)

@@ -153,8 +153,9 @@ When creating or updating an area `AGENTS.md`:
 2. If the document records a fact that is not yet in the spec, **put it
    in the spec too** (its numbered section). The spec is what survives;
    an area doc is a working note.
-3. If it records new debt or a follow-up, add it to
-   `docs/implementation/TODO.md` with the next unused `U` id.
+3. If it records new debt or a follow-up, record it as a store node
+   (`task_add` with `kind: debt` / `kind: finding`) — the store is the
+   tracker of record.
 4. Re-run `tools/agents-index.py` so `.agents/knowledge/INDEX.md` stays
    current, and `tools/check-links.py` after adding or renaming a file.
 

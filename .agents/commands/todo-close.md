@@ -4,9 +4,9 @@ what is missing, and do not claim delivery over a failing check.
 **Load the `todo-next-imp` skill now** and follow its "exit gate" section.
 The live state is injected below.
 
-## Session tracker
+## Store state (the tracker of record)
 
-!`tools/tasks.py show -v 2>&1; echo '--- check ---'; tools/tasks.py check 2>&1; echo "(exit $?)"`
+!`todo-mcp --root ~/.local/share/dacode-todo progress --json 2>&1 | head -c 6000`
 
 ## Working tree state
 
@@ -14,7 +14,7 @@ The live state is injected below.
 
 ## Harness self-checks
 
-!`echo '--- attention (hygiene) ---'; tools/attention.py 2>&1 | sed -n '/^## Hygiene/,$p' | head -20; echo '--- links ---'; tools/check-links.py --quiet 2>&1 | tail -3; echo '--- adapters ---'; tools/agents-sync.py --check 2>&1 | tail -3; echo '--- doc index ---'; tools/agents-index.py --check 2>&1 | tail -3`
+!`echo '--- links ---'; tools/check-links.py --quiet 2>&1 | tail -3; echo '--- adapters ---'; tools/agents-sync.py --check 2>&1 | tail -3; echo '--- doc index ---'; tools/agents-index.py --check 2>&1 | tail -3`
 
 ## Code gates, if a workspace exists
 
@@ -24,16 +24,21 @@ $ARGUMENTS
 
 ## What to check, in this order
 
-1. **Tracker closed with real evidence.** Every item this unit of work
-   finishes is `done` with `--evidence` naming the command that was run
-   and what it printed. "Should pass" is not evidence. An item whose
-   `verify:` is still `TBD` cannot be closed.
-2. **`tools/tasks.py check` exits 0**, or you name exactly what it
-   flagged in the same message. Never report success over a failing gate.
-3. **`docs/implementation/TODO.md` moved.** A status change is a one-line
-   edit. New debt, findings and follow-ups take the next unused `U` id in
-   §4/§5 — never a renumber, because gaps are meaningful. The session
-   narrative goes in §6.
+1. **Store nodes closed with real evidence.** Every unit of work this
+   session finishes is `task_update` → `status: closed` with `evidence`
+   naming the command that was run and what it printed. "Should pass"
+   is not evidence — and the domain refuses the close without it. A
+   node whose `verify` was never set cannot close honestly.
+2. **The sweep ran.** `status_summary` + `next_task` read against what
+   this session actually delivered — the store cannot see `git log`,
+   so the delivery knowledge is the cross-check. Every open node you
+   touched is dispositioned: closed with evidence, blocked with a
+   note, or left open with its consumer named. Never report success
+   over an undispositioned node.
+3. **The epic's handover moved.** `docs/implementation/handover/
+   E<n>.md` gains this session's entry in the handover shape. New
+   findings and debt became store nodes (`kind: finding` / `kind:
+   debt`), not prose.
 4. **A signed-off decision executed its `On sign-off:` line.** Strike the
    row in `decisions.md`, set its `Status`, record the outcome in the
    detail entry, and do the work order — most of which say "delete §12
@@ -54,7 +59,7 @@ $ARGUMENTS
    - subject ≤72 chars, imperative, no trailing period, no "This patch"
    - code commits: both `Reviewed-by:` role trailers present **and** both
      reviews actually happened on this exact diff
-   - review-exempt commits (docs, `.agents/`, tracker, generated): no
+   - review-exempt commits (docs, `.agents/`, generated): no
      trailer
    - **no** mention of an LLM, an AI assistant, a model, or that anything
      was generated or assisted — anywhere, including comments added in
@@ -65,8 +70,8 @@ $ARGUMENTS
 9. **A handover exists**, in the skill's shape — workspace state, what
    landed, the one next step and why it beats the alternative, what is
    blocked on the user, and what is asserted but unverified. It goes in
-   chat *and* as the final `docs/implementation/TODO.md` §6 entry, so a
-   cold session on another machine starts where this one stopped.
+   chat *and* appended to the epic's handover file, so a cold session
+   on another machine starts where this one stopped.
 
 ## Output
 

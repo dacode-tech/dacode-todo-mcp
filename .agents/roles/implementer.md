@@ -71,31 +71,29 @@ ambiguity.
 
 ## Tracking (mandatory)
 
-`tools/tasks.py` is the durable record of your work; the harness todo
-tool is the live view. Both are required, not optional.
+The store is the durable record of your work — this repo's nodes live
+in the server's own store, and the orchestrator records them through
+the wired `todo-mcp_*` tools. Report your work accurately in your
+summary; the record is written from what you report.
 
-- Every item needs a `verify:` method, decided **when you create it** — a
-  test name, a command with its expected output, or `manual: <what a
-  human must look at>`. If the method is not obvious, ask; do not write
-  `verify: TBD` and move on.
+- Every node needs a `verify` method, decided **when it is created** —
+  a test name, a command with its expected output, or `manual: <what a
+  human must look at>`. If the method is not obvious, say so; do not
+  leave it unset and move on.
 - Record a `finding` for anything you discovered that was not the point
   of the task — an API that does not behave as documented, a second place
   the same magic constant appears. Record `debt` for any shortcut. A
   shortcut written down is a decision; one that is not is a defect
   waiting to be rediscovered.
-- Close items with `--evidence` stating what you **actually ran and
-  saw**. Report `skipped` for anything you did not verify — never imply
-  success by silence.
-- Run `tools/tasks.py check` before reporting done. Do not claim
-  completion while it exits non-zero without naming what it flagged in
-  the same message.
-- **`docs/implementation/TODO.md` is a separate, committed board, and it
-  is an exit gate.** If your change delivers, splits or defers planned
-  work, or surfaces debt that outlives your task, update the board **in
-  the same change**: a status change is a one-line edit; new follow-ups
-  and debt take the next unused `U` id (never renumber — gaps are
-  meaningful). Reasoning goes in `docs/implementation/decisions.md` or
-  the spec, not on the board.
+- Close with evidence stating what you **actually ran and saw**. Report
+  `skipped` for anything you did not verify — never imply success by
+  silence. The domain refuses a close without evidence, so the
+  discipline is enforced at the write.
+- **The epic's handover is an exit gate.** If your change delivers,
+  splits or defers planned work, or surfaces debt that outlives your
+  task, say so in your summary so the record and the handover move **in
+  the same change**. Reasoning goes in `docs/implementation/decisions.md`
+  or the spec, not in the store or the handover.
 - **Do not write past an unsigned decision.** `decisions.md` lists the
   open ones and what each gates. If your task needs one that is still
   open, stop and say which.

@@ -436,8 +436,9 @@ surfaces; the code must not reintroduce the property it removes:
   by size alone — a 900-line module with one coherent job can pass, a
   300-line grab-bag should not.
 - Over target is an **exception and it is recorded**: one line in the
-  file's module doc saying why it is over and what would split it, plus an
-  entry in `docs/implementation/TODO.md` §5 (Debt). An over-target file
+  file's module doc saying why it is over and what would split it, plus
+  a `kind: debt` node in the store (the tracker of record). An
+  over-target file
   with no recorded exception is a review finding; with one, it is
   acknowledged debt and not a finding. The cap is not waivable — at 1000
   production lines the file splits, exception or no.
@@ -616,16 +617,16 @@ user decision.
 Correct code is necessary but not sufficient — check that the work was
 recorded. An unrecorded shortcut is a defect nobody has found yet.
 
-- `tools/tasks.py check` passes, or its failure is explained.
-- Every item the change closes has `--evidence` naming what was actually
-  run, not what was intended. "Should pass" is not evidence.
+- The store nodes the change closes carry evidence naming what was
+  actually run, not what was intended. "Should pass" is not evidence —
+  and the domain refuses a close without it, so a missing-evidence
+  close is a bypassed discipline, not a style note.
 - Any `// TODO` in the diff carries a tracking reference, and any
-  shortcut or known gap is recorded as `debt`.
-- **`docs/implementation/TODO.md` moves when the change delivers.** A
-  feature landing without the committed board updating is a finding — the
-  board is what a reviewer and the next session can see, since the
-  tracker is gitignored. Check that new follow-ups and debt took the next
-  unused `U` id rather than being renumbered.
+  shortcut or known gap is recorded as a `kind: debt` node.
+- **The epic's handover moves when the change delivers.** A feature
+  landing without the record moving is a finding — the store and the
+  handover are what the next session sees. Check that new findings and
+  debt became store nodes rather than prose in the handover.
 - **No code was written past an open decision.**
   `docs/implementation/decisions.md` says what each one gates.
 

@@ -70,7 +70,7 @@ silently picking a side of a spec contradiction.
 
 | Variable | Source |
 |----------|--------|
-| `{task_id}` | From `tools/tasks.py show` |
+| `{task_id}` | The store node id, from the dispatch (the orchestrator's `task_add`) |
 | `{milestone}` | Current milestone (agent-rules.yaml → milestones) |
 | `{spec reference}` | `docs/todo-mcp-design.md` section numbers |
 | `{crate}` | Spec §2 crate map |

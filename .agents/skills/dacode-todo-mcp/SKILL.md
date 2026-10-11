@@ -135,7 +135,7 @@ has two verification shapes of its own:
 The workspace exists (M0, 2026-09-25), so the code gates run on
 every delivery — `cargo doc` twice, plain and with
 `--document-private-items` — with the harness self-checks
-(`attention.py --check`, `check-links.py`, `agents-sync.py --check`,
+(`check-links.py`, `agents-sync.py --check`,
 `agents-index.py --check`) alongside them; on docs-only changes the
 harness self-checks carry the weight alone.
 
@@ -144,10 +144,11 @@ harness self-checks carry the weight alone.
 | Need | Path |
 |---|---|
 | The spec (model, storage, surface, roadmap) | `docs/todo-mcp-design.md` |
-| Progress board (committed state) | `docs/implementation/TODO.md` |
-| Decision record (D1–D11 signed) + dossiers | `docs/implementation/decisions.md` |
+| The tracker of record (this repo's nodes) | the store — `todo-mcp --root ~/.local/share/dacode-todo progress --json`, or the wired `todo-mcp_*` tools |
+| The live epic's handover | `docs/implementation/handover/E<n>.md` |
+| Decision record + dossiers | `docs/implementation/decisions.md` |
 | Rust conventions, architecture rules | `.agents/roles/_rust.md` |
 | Search policy | `.agents/roles/_search.md` |
 | Build gates on this host | `.agents/knowledge/workflows/build-and-test.md` |
-| The three trackers | `.agents/knowledge/workflows/task-tracking.md` |
+| The tracking conventions | `.agents/knowledge/workflows/task-tracking.md` |
 | Cold start / exit gate | `.agents/skills/todo-next-imp/SKILL.md` |

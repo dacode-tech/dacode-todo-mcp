@@ -170,21 +170,27 @@ harness status) into the prompt, so neither costs a round of exploration.
 ## Quick Reference
 
 ```bash
-# What needs the user's attention, and whether the docs are consistent
-tools/attention.py
-tools/attention.py --check
+# The tracker of record: this repo's nodes live in the server's own
+# store (the full-switch cutover). Session tracking runs through the
+# wired todo-mcp_* MCP tools (task_add / task_update / status_summary /
+# next_task); the state document:
+todo-mcp --root ~/.local/share/dacode-todo progress --json     # totals, open items, decisions
 
 # Total progress: the dependency graph, the totals, the open items
 # (the todo-mcp subcommands, D20; --root required, the repo resolves
 #  --repo over the cwd match, the render reads the store lock-free)
 todo-mcp --root ~/.local/share/dacode-todo progress            # writes the rendered repo's .agents/cache/progress.{html,json}
 todo-mcp --root ~/.local/share/dacode-todo progress --open     # ...and opens the page in a browser
-todo-mcp --root ~/.local/share/dacode-todo progress --json     # machine-readable, for other tools
-todo-mcp --root ~/.local/share/dacode-todo refresh             # re-register + re-import this repo's board (the store is a derived cache)
+todo-mcp --root ~/.local/share/dacode-todo refresh             # re-register + re-import this repo's board (refuses once cut over — the store is primary)
 todo-mcp --root ~/.local/share/dacode-todo serve               # the live page on 127.0.0.1 (per-root listener, <root>/serve.port; every session's server ensures it); serve --open attaches or binds it and opens the page — the live view's discovery
 
-# Session task tree (gitignored, branch-keyed).
-# Convention: .agents/knowledge/workflows/task-tracking.md
+# Transitional — until the cutover flip (t92) lands, the board and the
+# session tracker below are still the trackers of record.
+tools/attention.py
+tools/attention.py --check
+
+# Session task tree (gitignored, branch-keyed) — transitional, retires
+# at the flip. Convention: .agents/knowledge/workflows/task-tracking.md
 tools/tasks.py show -v
 tools/tasks.py add - goal "..." --verify "..."
 tools/tasks.py add g1 task "one commit" --verify "cargo test -p <crate> <name>"
@@ -353,18 +359,19 @@ One convention, one repo:
 
 ### Starting a session
 
-Run `/todo-next-imp`. It runs every gate, reads the board and the
-decision record, reports what is blocked on what, and proposes one next
-step — then stops for agreement. It prefers **unfinished** work to new
-work, because a half-done unit is the most expensive thing in the
-repository.
+Run `/todo-next-imp`. It reads the store (the tracker of record), the
+live epic's handover and the decision record, runs the harness checks,
+reports what is blocked on what, and proposes one next step — then
+stops for agreement. It prefers **unfinished** work to new work, because
+a half-done unit is the most expensive thing in the repository.
 
 ### Finishing a unit of work
 
-Run `/todo-close`. Work is not delivered until the tracker is closed with
-real evidence, `tools/tasks.py check` exits 0, the board has moved, any
-hard-won fact has landed in the spec, and the gates have run or been
-reported `skipped` with a reason.
+Run `/todo-close`. Work is not delivered until the store nodes are
+closed with real evidence, the sweep has run (`status_summary` +
+`next_task` read against what the session delivered), the epic's
+handover has moved, any hard-won fact has landed in the spec, and the
+gates have run or been reported `skipped` with a reason.
 
 ### Implementing a piece of the server
 

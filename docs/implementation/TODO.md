@@ -5071,13 +5071,34 @@ sidebar verified after the reset — `serve` on the real root answered
 200 with six project blocks, 43 epic rows with per-epic counts, no
 unreadable markers, the listener cleaning up on SIGINT.
 
+**t91 — the conventions rewrite — landed**: the post-flip tracking
+conventions written into every home that prescribes them — the
+todo-next-imp skill (the procedure reads the store + the live epic's
+handover; the exit gate's first steps are now close-with-evidence, the
+sweep, the handover move), `task-tracking.md` (the node mapping: arcs →
+epics, work units → tasks, findings/debt → kind-tagged tasks; the sweep
+replacing `tasks.py check`), both slash commands (the injection
+switched: the store state via `progress --json` plus the most-recent
+handover file, replacing the attention table, the board and the
+tracker), the orchestrator/implementer/reviewer roles, `_rust.md`'s
+debt-ledger line, the implement-file template, the dacode/md-writer
+skills, AGENTS.md's workflows + Quick Reference, and the README
+playbook's step 6 (U40's per-epic HANDOVER convention: per-epic files
+keyed by the epic's number, pure playbook convention, the retrofit
+shape). `agent-rules.yaml` version.custom 14→15, all four agents + both
+commands regenerated, adapters up to date. The transitional marks —
+"until the cutover flip (t92) lands", five sites — keep the window
+honest: the board + `tasks.py` remain the trackers of record until t92
+removes them (its sweep: `rg 'cutover flip'` → zero). No Rust moved.
+
 **Handover.** Workspace: main, clean at this commit; the stable
-binary current. Landed: the g21 decomposition (this commit). Next
-step: t91, the conventions rewrite — the session-tracking convention,
-the exit-gate sweep over status_summary + next_task, U40's per-epic
-HANDOVER convention into the README playbook, the AGENTS/skill/
-command rewrites, agent-rules re-sync — then t92 the flip in the
-same session. Blocked on you: the top switcher's retention (a taste
+binary current. Landed: the g21 decomposition (`154f118`) and t91, the
+conventions rewrite (this commit). Next step: **t92, the cutover
+flip** — the final refresh at the commit (f113), the board backup
+beside the store, the open items migrated to store nodes, the board
+archived + git-rm'd, `tasks.py` + `attention.py` retired, the
+transitional marks removed, the live epic's first HANDOVER written,
+the flip smoke. Blocked on you: the top switcher's retention (a taste
 call, default keep) and the ikvm wait. Unverified: the flatten's
 field test (t88) remains the adopted repos' sessions.
 

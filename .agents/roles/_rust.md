@@ -200,8 +200,9 @@ surfaces; the code must not reintroduce the property it removes:
   by size alone — a 900-line module with one coherent job can pass, a
   300-line grab-bag should not.
 - Over target is an **exception and it is recorded**: one line in the
-  file's module doc saying why it is over and what would split it, plus an
-  entry in `docs/implementation/TODO.md` §5 (Debt). An over-target file
+  file's module doc saying why it is over and what would split it, plus
+  a `kind: debt` node in the store (the tracker of record). An
+  over-target file
   with no recorded exception is a review finding; with one, it is
   acknowledged debt and not a finding. The cap is not waivable — at 1000
   production lines the file splits, exception or no.

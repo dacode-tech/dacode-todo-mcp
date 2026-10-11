@@ -99,113 +99,100 @@ never write the same file.
 
 ## Tracking multi-step work
 
-Three trackers, and they are not interchangeable.
+> **Transitional — until the cutover flip (t92) lands:** the markdown
+> board and `tools/tasks.py` are still the trackers of record. If
+> `docs/implementation/handover/` is empty, the flip has not happened;
+> follow the board and the tracker, and treat the conventions below as
+> the shape being armed.
 
-**The live view is your messages plus `tools/tasks.py`.** The native
-todo tool is denied for this role (U16b): the todo-mcp MCP server is
-this repo's wired todo surface, and a role holding both would mix
+The tracker of record is **the server's own store** (the full-switch
+cutover, the user's 2026-10-09 sign): this repo's nodes live in the
+durable root under the `dacode-todo-mcp` slug, and session work is
+tracked as store nodes through the wired `todo-mcp_*` tools. The native
+todo tool stays denied for this role (U16b) — the todo-mcp MCP server
+is this role's wired todo surface, and a role holding both would mix
 them. Report progress as you go — the user watches the conversation,
-not a todo pane. The server itself is for real work tracking **only
-once dogfooding is decided**; until then this repo's tracking stays
-on the board + `tasks.py` below (spec §9's bar), and the server is
-exercised by its own test suites and smoke runs, not by this repo's
-sessions.
+not a todo pane.
 
-**`tools/tasks.py` is the durable session record**, at
-`.agents/cache/tasks/<branch>.yaml` — gitignored, branch-keyed, nests,
-and stores how each item is verified. Session todos die with the session;
-this does not.
+**The store is the durable session record.** Arcs are epics
+(`epic_add` at arc start, closed when their tasks close); work units
+are tasks (`task_add`, one reviewable commit each); findings and debt
+are tasks with the right `kind`. Every node carries its `verify` at
+creation — the method, decided up front. Closing requires `evidence`
+and blocking requires a `note`; the domain enforces both at the write,
+which is what `tasks.py check`'s node-level flags used to catch after
+the fact.
 
-**`docs/implementation/TODO.md` is the committed project board** — what a
-reviewer sees and what survives to the next session on a different
-machine. The gitignored tracker answers "what am I doing now and how will
-I know it worked"; the board answers "what has this project done and what
-is blocking it". Both must move when work lands, in the same change. An
-instruction to "update the TODO" is ambiguous between them — if context
-does not settle it, ask, because updating the wrong one silently loses
-work. There is a third irony to respect: this project *builds* a
-deterministic task tracker, and until it exists the markdown board is
-the tracker of record. Do not dogfood an unsigned design.
+**The epic's handover is the narrative record.**
+`docs/implementation/handover/E<n>.md`, one file per epic, rewritten at
+the end of every session working that epic — the handover shape
+(workspace, landed, next step, blocked on the user, unverified).
+State, not reasoning: reasoning goes in `decisions.md` or the spec.
 
-**`tools/attention.py` renders all of it plus the spec.** Run it before
-answering "what should we do next" — it merges §12's open decisions,
-`decisions.md`, the board and the tracker into one prioritized table, and
-its hygiene checks catch drift between them. It holds no state; if it
-disagrees with the docs, the docs win and the script is wrong. Its
-`--check` exits non-zero while decisions are waiting on the user, which
-in the design phase is the expected state, not a failure. The
-`todo-next-imp` skill wraps this into the next-step report and the
-delivery exit gate.
+**The sweep is the gate.** At session end: `status_summary` +
+`next_task` over the repo, read against what this session actually
+delivered — the store cannot see `git log`, so your delivery knowledge
+is the cross-check. Disposition every open node you touched; a node
+pending since before the session that nothing delivered against is
+either work still owed or a record gone stale — say which.
 
-### When tasks.py is mandatory
+### When a store node is mandatory
 
-Not a judgement call. Open a tracker whenever **any** of these is true:
+Not a judgement call. Open a node whenever **any** of these is true:
 
 - the work has more than three steps, or spans more than one file
 - you are about to spawn a subagent
 - you record a finding or take on debt
 - the user asks a question you cannot fully answer this session
 
-If you are unsure, open it; a tracker nobody needed costs one file write.
+If you are unsure, open it; a node nobody needed costs one tool call.
 
-```
-tools/tasks.py show -v
-tools/tasks.py add - goal "what the user asked for" --verify "..."
-tools/tasks.py add g1 task "one commit" --verify "cargo test -p todo-domain graph"
-tools/tasks.py set t1 --status blocked --note "why"   # a block needs a reason
-tools/tasks.py set t1 --status done --evidence "what you actually ran"
-tools/tasks.py check                         # what blocks sign-off
-```
-
-**One `task` is one reviewable commit.** That is the decomposition rule
-this project runs on: a tracker item that does not correspond to a commit
-is either a `gate`, a `finding` or badly scoped. The full convention —
-node kinds, which statuses demand a `--note`, what counts as a `verify:`
+**One task is one reviewable commit.** That is the decomposition rule
+this project runs on: a task that does not correspond to a commit is
+either a gate-kind task, a finding or badly scoped. The full
+convention — the node mapping, the sweep, what counts as a `verify`
 method here — is `.agents/knowledge/workflows/task-tracking.md`.
 
-### Run `tasks.py check` before you claim done
+### Run the sweep before you claim done
 
-It is the gate, not a formality. It exits non-zero on a `done` item with
-no verification method, an unclosed goal, or untriaged debt.
+It is the gate, not a formality. The domain already refuses a close
+without evidence and a block without a note; the sweep's job is what
+the domain cannot see — the node pending forever, the record gone
+stale, the delivery the store never learned about.
 
-**Never report work complete while `check` exits non-zero** without
-saying so in the same message and naming what it flagged. Reporting
-success over a failing gate is worse than reporting a gap, because it
-spends the user's trust to hide one.
+**Never report work complete over an undispositioned node** without
+saying so in the same message and naming it. Reporting success over a
+gap is worse than reporting the gap, because it spends the user's
+trust to hide one.
 
-If the tracker is empty because the work was genuinely trivial, say
-that. Silence is what let it rot.
+If no node was opened because the work was genuinely trivial, say
+that. Silence is what let the old tracker rot.
 
-Node kinds are `goal`, `task`, `gate`, `finding`, `debt`. Findings and
-debt are worth recording even mid-session: a shortcut written down is a
-decision, one that is not is a defect waiting to be rediscovered. A
-long-lived goal (the whole server) may be marked `--status standing
---note "..."` so the gate stays meaningful.
+### Every node needs a verification method
 
-### Every item needs a verification method
+`verify` says how the node will be shown to be done, and the sweep
+refuses to sign off on a close whose verify was never set.
 
-`verify:` says how the item will be shown to be done, and
-`tools/tasks.py check` refuses to sign off on a `done` item that never
-had one.
-
-Decide it when you create the task, not when you close it. If it is not
-obvious, **ask the user rather than inventing one** — a wrong
-verification is worse than an admitted gap, because it manufactures false
-confidence. Reasonable answers here:
+Decide it when you create the node, not when you close it. If it is
+not obvious, **ask the user rather than inventing one** — a wrong
+verification is worse than an admitted gap, because it manufactures
+false confidence. Reasonable answers here:
 
 - a unit or property test: `cargo test -p <crate> -- <name>`
 - an existing gate: `cargo fmt --check`, `cargo clippy`, the golden-file
   suite
 - a run: name the command (`cargo run -p todo-mcp -- --stdio` + the
   request), the input, and the expected observation
-- a harness check: `tools/attention.py --check`,
-  `tools/agents-sync.py --check`, `tools/check-links.py`
+- a harness check: `tools/agents-sync.py --check`,
+  `tools/check-links.py`
+- a store query: `todo-mcp progress --json` shows the node closed and
+  the totals moved
 - **a script that does not exist yet** — if the check is complex enough
   to need one, that is itself a task in the tree, planned up front, not
   improvised at the end
 - `manual: <what a human must look at>` when nothing else fits
 
-Do not write `verify: TBD` and move on. Either decide, or ask.
+Do not leave `verify` unset and move on. Either decide, or ask.
 
 ## Sizing work for a subagent
 

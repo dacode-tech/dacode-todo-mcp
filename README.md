@@ -192,16 +192,31 @@ switch, the playbook (executed for dacode 2026-10-09 and ipmi-collector
    global mcp entry, so no project entry (it would shadow the global
    one).
 5. **Rewrite the instructions** — AGENTS.md's tracking sections, the
-   agent prompts, the knowledge files: the cold start becomes
-   `HANDOVER.md` → `decision_list` / `next_task` / `status_summary`;
-   the exit gate becomes the store moving with evidence. Retire the
-   board-reading commands and skill with the board.
-6. **Write `docs/implementation/HANDOVER.md`** — the one prose record
-   a cold session reads before asking the server, rewritten at the end
-   of every session. Record the id vocabulary: the store's task ids
-   are the server's own numbering (a gapped board register cannot be
-   reproduced), pre-cutover nodes carry `board:<id>` in `references`,
-   and new work takes the next server id.
+   agent prompts, the knowledge files: the cold start becomes the
+   epic's handover file → `decision_list` / `next_task` /
+   `status_summary`; the exit gate becomes the store moving with
+   evidence. Retire the board-reading commands and skill with the
+   board.
+6. **Write the per-epic HANDOVER files** —
+   `docs/implementation/handover/E<n>.md`, one per epic, keyed by the
+   epic's number: sessions are epic-scoped (the work-stream rule), so
+   the handover a cold session reads first is its own epic's. The
+   per-epic file carries the work-stream state in the handover shape
+   (workspace, landed, next step, blocked on the user, unverified),
+   rewritten at the end of every session working that epic. A
+   repo-level `HANDOVER.md`, where one exists, reduces to the stable
+   onboarding — the wiring, the tool surface, the id vocabulary — and
+   points at the per-epic files; a repo adopting fresh writes the
+   per-epic files directly, and a repo with an existing repo-wide
+   HANDOVER retrofits it — the epic-scoped state carves out into the
+   per-epic files (dacode and ipmi-collector, 2026-10-12). Pure
+   playbook convention: the store never cites them (no doc nodes, no
+   `references`) — the convention is carried by the base instructions
+   and the repo's AGENTS.md. The id vocabulary lives in the onboarding
+   layer: the store's task ids are the server's own numbering (a
+   gapped board register cannot be reproduced), pre-cutover nodes
+   carry `board:<id>` in `references`, and new work takes the next
+   server id.
 7. **Smoke** — a real opencode session in that repo driving the cold
    start end to end: HANDOVER read, the server queried, the quick
    gates run, `next_task` answering the current work, every
