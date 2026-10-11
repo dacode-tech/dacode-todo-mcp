@@ -214,7 +214,7 @@ shell, which is M3's business.
 
 | Blocking | What | Action |
 |---|---|---|
-| — | nothing blocks: the roadmap is delivered, the dacode and ipmi-collector repos cut over, the D20 arc complete | g20 closed 2026-10-10 (t83, their repo's `6e04025`). **t71 landed 2026-10-10** (the `serve` subcommand: the live view + the WS push channel, the page.v1 golden moved for the script block — the compatibility event called out in the session log). **t72 landed 2026-10-10** (the todo-cli absorption: `dump`/`verify`/`repair` as subcommands, the crate retired, the golden moved byte-identical as `dump.v1`, U38's split — main.rs 422, args.rs 476 production lines). **t88 (the schema flatten) landed 2026-10-10** — every advertised enum field now presents its values inline and quoted; the field test passed (the user confirmed the failures stopped). **t85 (D13's default-server live view) landed 2026-10-10, closing g22** — every session's server ensures the per-root listener (`<root>/serve.port` is the port's discovery; the page is up while ≥1 session lives). **t73 landed 2026-10-11 — g19 closed with it**: the Python retirement (`tools/progress.py` and the two drivers deleted, their checks Rust pins since t70/t71; every live row — README, AGENTS, the skill, agent-rules — moved to the subcommands; the release rebuilt + re-copied, the live refresh/progress/serve smoke green, the workspace suite + golden ritual re-run for the exit lines). Next: t84 (the activity panel) and g21 (this repo's own full-switch cutover, the user's sign); the ikvm-html refresh+cutover waits for its live session to settle (U36 rides that revisit) — see §6's handover |
+| — | nothing blocks: the roadmap is delivered, the dacode and ipmi-collector repos cut over, the D20 arc complete | g20 closed 2026-10-10 (t83, their repo's `6e04025`). **t71 landed 2026-10-10** (the `serve` subcommand: the live view + the WS push channel, the page.v1 golden moved for the script block — the compatibility event called out in the session log). **t72 landed 2026-10-10** (the todo-cli absorption: `dump`/`verify`/`repair` as subcommands, the crate retired, the golden moved byte-identical as `dump.v1`, U38's split — main.rs 422, args.rs 476 production lines). **t88 (the schema flatten) landed 2026-10-10** — every advertised enum field now presents its values inline and quoted; the field test passed (the user confirmed the failures stopped). **t85 (D13's default-server live view) landed 2026-10-10, closing g22** — every session's server ensures the per-root listener (`<root>/serve.port` is the port's discovery; the page is up while ≥1 session lives). **t73 landed 2026-10-11 — g19 closed with it**: the Python retirement (`tools/progress.py` and the two drivers deleted, their checks Rust pins since t70/t71; every live row — README, AGENTS, the skill, agent-rules — moved to the subcommands; the release rebuilt + re-copied, the live refresh/progress/serve smoke green, the workspace suite + golden ritual re-run for the exit lines). Next: t84 (the page rework — the activity panel plus the user's 2026-10-11 asks: the registered projects listed with their epics in a left sidebar, the `serve --open` discovery named in the doc rows) and g21 (this repo's own full-switch cutover, the user's sign; U40's per-epic-handover shape rides its conventions rewrite); the ikvm-html refresh+cutover waits for its live session to settle (U36 rides that revisit) — see §6's handover |
 
 (The user's calls 2026-10-10: **the `--epic` default tier resolved
 (a)** — the param convention carried by the base instructions, t76's
@@ -4740,6 +4740,17 @@ Unowned work. Take the next unused `U` id; never renumber, never reuse.
       same set-equality blind-spot class U33 named. Rides the next
       ikvm touch: hoist the seen-map the same way, or record why the
       footer register stays duplicate-tolerant.
+- [ ] **U40 · Per-epic HANDOVER files — the cutover playbook's handover
+      is repo-wide.** The user's 2026-10-11 side note: ipmi-collector
+      (and dacode) carry one `docs/implementation/HANDOVER.md`, tied
+      to no epic — but sessions are epic-scoped (the work-stream
+      rule), so the handover a cold session reads first should be its
+      own epic's. Shape to settle before landing: one file with
+      per-epic sections vs per-epic files; whether the server ties
+      them (a doc node cited from the epic's references) or it stays
+      pure playbook convention; and what happens to the two existing
+      repo-wide HANDOVERs. Rides g21's conventions rewrite or the
+      next adoption.
 
 ## 5. Debt
 
