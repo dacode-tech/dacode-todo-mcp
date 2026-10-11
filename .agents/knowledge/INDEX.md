@@ -12,8 +12,8 @@
 
 | Doc | Covers | rev | lag | open |
 |---|---|---|---|---|
-| [`(repo root)`](../../AGENTS.md) | Repository-wide instructions. opencode appends this to every agent's | `56e962d` | — | — |
-| [`(repo root)`](../../README.md) | a deterministic task-graph MCP server — markdown TODO | `56e962d` | — | — |
+| [`(repo root)`](../../AGENTS.md) | Repository-wide instructions. opencode appends this to every agent's | `39942e8` | — | — |
+| [`(repo root)`](../../README.md) | a deterministic task-graph MCP server — markdown TODO | `39942e8` | — | — |
 
 ## Topics
 
@@ -28,6 +28,6 @@
 
 <!-- hashes drive --check -->
 ```
-eebec5c0  56e962d       414L  AGENTS.md
-aee8b7a7  56e962d       265L  README.md
+9030a104  39942e8       414L  AGENTS.md
+fbc250bc  39942e8       267L  README.md
 ```
