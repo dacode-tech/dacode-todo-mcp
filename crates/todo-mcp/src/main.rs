@@ -15,12 +15,16 @@
 //! say otherwise; `refresh` (t70's slice) re-imports a repo's board —
 //! the registry surgery, the re-register, the census; `serve` (t71's
 //! slice) is the live listener: the fresh-render page over HTTP, the
-//! WebSocket push channel, the port published per-user so a second
+//! WebSocket push channel, the port published per-root so a second
 //! invocation attaches; and the inspector the `todo-cli` crate
-//! carried is absorbed (t72, D20): `dump`/`verify`/`repair` — the
-//! lib's [`inspect`] module, dispatched below with the repo resolved
+//! carried is absorbed (t72, D20): `dump`/`verify`/`repair` —
+//! the lib's [`inspect`] module, dispatched below with the repo resolved
 //! through the same flag-over-cwd tier as every subcommand. The
-//! globals are shared: `--root <DIR>`
+//! no-subcommand server itself ensures the root's live view (D13,
+//! t85): one detached std thread beside the runtime whose first tick
+//! attaches to or starts the listener and whose loop takes over when
+//! the owner dies — a side effect of startup, never a gate on the
+//! wire. The globals are shared: `--root <DIR>`
 //! names the store location on every path — nothing reads the
 //! environment, a home directory or the cwd to find one — and
 //! `--repo <SLUG>`, validated at the parse, is the server's default slug
@@ -82,7 +86,14 @@ async fn main() -> ExitCode {
             // read fails — a deleted cwd — and the lib derives no
             // default from an absent cwd.
             let cwd = std::env::current_dir().ok();
-            serve_stdio(DataRoot::new(root), default_repo, cwd).await
+            let root = DataRoot::new(root);
+            // D13: the live view is a side effect of startup, never a
+            // gate — one detached std thread beside the runtime, whose
+            // first tick ensures the root's listener and whose loop
+            // watches it. The spawn returns immediately; the MCP
+            // handshake cannot wait on a listener.
+            todo_mcp::serve::spawn_live_view(&root, cwd.as_deref());
+            serve_stdio(root, default_repo, cwd).await
         }
         Ok(Command::Refresh { root, repo }) => run_refresh(root, repo),
         Ok(Command::Progress {
@@ -153,10 +164,10 @@ async fn serve_stdio(
 }
 
 /// The `serve` subcommand (t71, D20): the live listener. The default
-/// port-file path is the one environment touch this path makes — the
-/// binary reads the home directory (D8: the lib stays env-free), and a
-/// home that cannot be found is an environment fault naming the
-/// `--port-file` remedy. The serving line prints before the await:
+/// port-file path is the per-root publication (D13, D1) —
+/// `<root>/serve.port`, the same file the no-subcommand server's
+/// watchdog ensures, one discipline for both paths; `--port-file`
+/// stays the override. The serving line prints before the await:
 /// stdout is line-buffered, so a piped consumer sees the URL before
 /// the listener blocks on the interrupt. SIGINT is the clean shutdown
 /// (the lib's `Listener::shutdown` removes the publication if it is
@@ -168,13 +179,7 @@ async fn run_serve(root: OsString, port_file: Option<OsString>, open: bool) -> E
     let root = DataRoot::new(root);
     let port_file = match port_file {
         Some(path) => PathBuf::from(path),
-        None => match default_port_file() {
-            Ok(path) => path,
-            Err(message) => {
-                eprintln!("todo-mcp: {message}");
-                return ExitCode::from(EXIT_RENDER);
-            }
-        },
+        None => todo_mcp::serve::port_file(&root),
     };
     let cwd = std::env::current_dir().ok();
     match todo_mcp::serve::serve(&root, &port_file, cwd.as_deref(), POLL_INTERVAL) {
@@ -210,20 +215,6 @@ async fn run_serve(root: OsString, port_file: Option<OsString>, open: bool) -> E
             }
         }
     }
-}
-
-/// The default port-file path (D1): the per-user runtime location, the
-/// Python tool's exact path so `tools/progress.py --serve` and the
-/// subcommand interoperate until t73 retires the Python.
-fn default_port_file() -> Result<PathBuf, String> {
-    std::env::home_dir()
-        .map(|home| {
-            home.join(".local")
-                .join("state")
-                .join("dacode-todo-mcp")
-                .join("serve.port")
-        })
-        .ok_or_else(|| "the home directory could not be read — pass --port-file <PATH>".to_owned())
 }
 
 /// The `progress` subcommand (D20): resolve the repo — the flag wins,

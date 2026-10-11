@@ -92,16 +92,21 @@
 //! every classification and byte offset the store's; the crate
 //! retired with the move.
 //!
-//! # The live listener (D20, t71)
+//! # The live listener (D20, t71; D13, t85)
 //!
 //! `serve` ([`serve::serve`]) is the live view: a listener over
 //! hand-rolled HTTP/1.1 on 127.0.0.1 — every route a fresh render,
 //! the repo a URL parameter — plus the WebSocket push channel, the
-//! port published to a per-user runtime file so a second invocation
-//! attaches instead of starting a second listener. The module is
-//! parameterized and env-free like the rest of the lib: the binary
-//! computes the default port-file path from the home directory, reads
-//! the cwd once, and owns the SIGINT shutdown.
+//! port published per-root (`<root>/serve.port`) so a second
+//! invocation attaches instead of starting a second listener. The
+//! no-subcommand server ensures the same listener (D13):
+//! [`serve::spawn_live_view`] runs one detached std thread beside the
+//! runtime whose first tick attaches to or starts it and whose loop
+//! takes over when the owner dies — a side effect of startup, never a
+//! gate on the wire. The module stays parameterized and env-free: the
+//! default port-file path derives from the root, and only the `serve`
+//! subcommand owns a SIGINT shutdown — a session server dies with its
+//! process and the survivors take over.
 //!
 //! # The error carrier (D15)
 //!

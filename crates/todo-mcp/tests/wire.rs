@@ -81,7 +81,9 @@ struct Rapid {
     /// The tool responses, one line each, in arrival order — which is
     /// not necessarily the request order.
     responses: Vec<String>,
-    /// The server's stderr — empty on every green path.
+    /// The server's stderr — empty on every green path except the
+    /// live-view line the default server's first tick prints (the
+    /// URL, or the one unavailable line, D13).
     stderr: String,
     /// The exit status — a completed handshake ends 0.
     status: ExitStatus,

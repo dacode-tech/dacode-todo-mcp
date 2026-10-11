@@ -1,12 +1,15 @@
-//! The `serve` subcommand's listener (t71, D20's third slice): the live
-//! progress view — every route a fresh render, the port published to a
-//! per-user runtime file so a second invocation attaches instead of
-//! starting a second listener (U18 shape A, the Python tool's `--serve`
-//! mechanics ported), plus the WebSocket push channel: one poller per
-//! connection stat-watching the repo's store files, one text frame per
-//! change, the page's script reloading on arrival.
+//! The live view's listener (t71, D20's third slice; D13, t85): the
+//! `serve` subcommand's foreground listener and the no-subcommand
+//! server's background ensure of the same one — every route a fresh
+//! render, the port published per-root (`<root>/serve.port`) so a
+//! second invocation or session attaches instead of starting a second
+//! listener (U18 shape A, the Python tool's `--serve` mechanics
+//! ported; the per-root keying is D13's flip of the Python's per-user
+//! slot), plus the WebSocket push channel: one poller per connection
+//! stat-watching the repo's store files, one text frame per change,
+//! the page's script reloading on arrival.
 //!
-//! The module is four files split by responsibility — the spec's D8
+//! The module is five files split by responsibility — the spec's D8
 //! names one file, and the split is the house pattern once the
 //! listener, the HTTP layer, the WS codec and the poller together
 //! cross the 600-line target: this file owns the listener (the attach
@@ -14,7 +17,9 @@
 //! connection dispatch, the default-repo tier), `http` the
 //! hand-rolled HTTP/1.1 parser and response writer (D4), `ws` the
 //! RFC 6455 handshake, frame codec and connection loop (D5), `poll`
-//! the stat-polling change detection.
+//! the stat-polling change detection, and `watchdog` the D13
+//! ensure-listener thread the default server spawns beside its
+//! runtime.
 //!
 //! Thread-per-connection (D4): concurrent tabs render concurrently —
 //! safe because renders are lock-free (D19), which is why the Python
@@ -26,14 +31,19 @@
 //!
 //! The module is parameterized and env-free (D8): the root, the
 //! port-file path, the startup-read cwd and the poll interval arrive
-//! as values — the binary computes the default port-file path from
-//! the home directory and reads the cwd once (the t68 `resolve_by_cwd`
-//! precedent). No clock is read: the poller's `mtime` is file data,
-//! not wall time, and no response carries a date.
+//! as values — the default port-file path derives from the root
+//! ([`port_file`], no environment read since D13 retired the
+//! per-user home-dir default) and the binary reads the cwd once (the
+//! t68 `resolve_by_cwd` precedent). No clock is read except the D6
+//! deadline's `Instant::now`, which bounds the health probe so a hung
+//! port cannot stall a tick: the poller's `mtime` is file data, not
+//! wall time, and no response carries a date.
 //!
-//! The multi-root rule is the Python's, ported: the listener serves
-//! the root it was started with; to serve a different root, stop it
-//! first (`--port-file` exists for isolation).
+//! The multi-root rule is D13's: the publication is per-root, so
+//! listeners for different roots coexist by construction — each
+//! serves the root it was started with, keyed by its own
+//! `<root>/serve.port` (`--port-file` remains the override for
+//! isolation).
 
 use std::fs;
 use std::io::{BufReader, ErrorKind, Read, Write};
@@ -42,9 +52,9 @@ use std::path::{Path, PathBuf};
 use std::process;
 use std::str::FromStr;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::thread::{self, JoinHandle};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use todo_domain::RepoSlug;
 use todo_store::{DataRoot, Registry};
@@ -53,7 +63,10 @@ use crate::render;
 
 mod http;
 mod poll;
+mod watchdog;
 mod ws;
+
+pub use self::watchdog::spawn_live_view;
 
 use self::http::{Request, Route};
 
@@ -80,6 +93,10 @@ const ACCEPT_POLL: Duration = Duration::from_millis(50);
 
 /// How long the attach probe waits to connect and read (the Python's
 /// own bound): a foreign or wedged server reads as dead within it.
+/// One deadline bounds the whole exchange — connect, write and read
+/// — so a server that dribbles bytes slower than any single read
+/// timeout still reads as dead at the deadline (D6, measured: a
+/// per-read timeout alone lets `read_to_end` stretch forever).
 const PROBE_TIMEOUT: Duration = Duration::from_secs(2);
 
 /// How long a connection waits for the request head — a client that
@@ -144,12 +161,13 @@ impl Listener {
 /// where both pass leaves one orphaned listener on an unadvertised
 /// port — benign for a personal tool, recorded in the spec).
 ///
-/// The publication is per-user (U18 shape A's signed wording, the
-/// Python tool's path — the two interoperate until t73 retires it),
-/// so the listener serves the root it was started with and a
-/// different root means stopping first; the root-scoped alternative
-/// (`<root>/serve.port`) would give multi-root coexistence and
-/// hermetic tests by construction — a flip, not a defect.
+/// The publication is per-root (D13's flip of the Python tool's
+/// per-user slot — the flip this module's own doc once named): the
+/// listener serves the root it was started with, keyed by
+/// `<root>/serve.port`, so different roots' listeners coexist by
+/// construction. The Python tools still publish to the per-user path
+/// until t73 retires them — a brief non-interop window, recorded with
+/// D13.
 ///
 /// The startup check is the registry, not a render: the listener
 /// serves the root, so a root whose registry will not load or holds no
@@ -410,6 +428,15 @@ fn default_repo(root: &DataRoot, cwd: Option<&Path>) -> Result<RepoSlug, String>
         .ok_or_else(|| "the registry holds no repositories".to_owned())
 }
 
+/// The root's publication path (D13, D1): `<root>/serve.port`. The
+/// publication is per-root — two roots key two listeners, and the
+/// file is the port's discovery, a machine-readable path per root.
+/// The `serve` subcommand's default and the no-subcommand server's
+/// watchdog both derive it here; `--port-file` stays the override.
+pub fn port_file(root: &DataRoot) -> PathBuf {
+    root.root().join("serve.port")
+}
+
 /// Reads the published port (D3): digits only — anything else
 /// (absent, empty, foreign bytes, a number too large for a port)
 /// reads as not published, which is the takeover path.
@@ -422,8 +449,18 @@ fn read_published_port(path: &Path) -> Option<u16> {
     text.parse().ok()
 }
 
+/// The publish's per-call ticket: concurrent publishers in one
+/// process — the double-bind race, which the watchdog's takeover arm
+/// and the tests both drive in-process — must not share a temp name.
+/// The pid alone keys one publisher per process; the first rename
+/// would consume the shared name out from under the second (measured:
+/// the loser's rename fails with `ENOENT`). A ticket from this
+/// process-wide counter makes every temp name unique; the name is
+/// never persisted, so the counter's only job is uniqueness.
+static PUBLISH_TICKET: AtomicU64 = AtomicU64::new(0);
+
 /// Publishes the port with the store's own write discipline (D3): a
-/// pid-suffixed temporary in the same directory, fsync, then the
+/// ticket-suffixed temporary in the same directory, fsync, then the
 /// atomic rename — a torn publish is a stale file the next probe
 /// takes over, never a wrong port.
 fn publish_port(path: &Path, port: u16) -> Result<(), String> {
@@ -435,7 +472,13 @@ fn publish_port(path: &Path, port: u16) -> Result<(), String> {
     let name = path
         .file_name()
         .ok_or_else(|| "the port file has no file name".to_owned())?;
-    let temporary = directory.join(format!("{}.{}.tmp", name.to_string_lossy(), process::id()));
+    let ticket = PUBLISH_TICKET.fetch_add(1, Ordering::Relaxed);
+    let temporary = directory.join(format!(
+        "{}.{}.{}.tmp",
+        name.to_string_lossy(),
+        process::id(),
+        ticket
+    ));
     let mut file =
         fs::File::create(&temporary).map_err(|error| format!("create the port file: {error}"))?;
     writeln!(file, "{port}").map_err(|error| format!("write the port file: {error}"))?;
@@ -449,19 +492,40 @@ fn publish_port(path: &Path, port: u16) -> Result<(), String> {
 /// marker. Anything else — refused, timed out, unparseable, foreign —
 /// reads as dead; a foreign server is never killed, only replaced in
 /// the publication.
+///
+/// The whole exchange is bounded by one deadline (D6): the watchdog
+/// calls this every tick, so a port that accepts and dribbles — or
+/// accepts and never answers — must resolve within the probe timeout,
+/// never hang the tick.
 fn listener_answers(port: u16) -> bool {
     let address = SocketAddr::from(([127, 0, 0, 1], port));
     let Ok(mut stream) = TcpStream::connect_timeout(&address, PROBE_TIMEOUT) else {
         return false;
     };
-    let _ = stream.set_read_timeout(Some(PROBE_TIMEOUT));
+    let _ = stream.set_write_timeout(Some(PROBE_TIMEOUT));
     let request = "GET /health HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n";
     if stream.write_all(request.as_bytes()).is_err() {
         return false;
     }
+    let deadline = Instant::now() + PROBE_TIMEOUT;
     let mut response = Vec::new();
-    if stream.read_to_end(&mut response).is_err() {
-        return false;
+    let mut chunk = [0u8; 512];
+    loop {
+        let remaining = deadline.saturating_duration_since(Instant::now());
+        if remaining.is_zero() {
+            return false;
+        }
+        if stream.set_read_timeout(Some(remaining)).is_err() {
+            return false;
+        }
+        match stream.read(&mut chunk) {
+            Ok(0) => break,
+            // `read` is at most the chunk's length by `Read`'s
+            // contract, so the `get` cannot miss; the default arm is
+            // the unreachable no-op, never a panic.
+            Ok(read) => response.extend_from_slice(chunk.get(..read).unwrap_or_default()),
+            Err(_) => return false,
+        }
     }
     let text = String::from_utf8_lossy(&response);
     // The Python listener answers HTTP/1.0 (http.server's default
@@ -488,6 +552,74 @@ mod tests {
         assert_eq!(read_published_port(&path), None);
         std::fs::write(&path, "99999\n").expect("the out-of-range port lands");
         assert_eq!(read_published_port(&path), None);
+    }
+
+    /// D6, measured: a port that accepts but never answers must read
+    /// as dead within the probe's bound — the connect succeeds (the
+    /// backlog takes it), the request writes, and the read must time
+    /// out rather than block. The bound asserted is the probe timeout
+    /// plus slack, not the timeout itself, so a slow host does not
+    /// flake.
+    #[test]
+    fn the_probe_is_bounded_against_a_silent_server() {
+        let silent =
+            std::net::TcpListener::bind(("127.0.0.1", 0)).expect("the silent server binds");
+        let port = silent.local_addr().expect("the port").port();
+        std::thread::spawn(move || {
+            for stream in silent.incoming() {
+                // Accept and hold the connection open, never answering.
+                drop(stream);
+            }
+        });
+        let started = std::time::Instant::now();
+        assert!(!listener_answers(port), "the silent server reads as dead");
+        assert!(
+            started.elapsed() < PROBE_TIMEOUT + std::time::Duration::from_secs(2),
+            "the probe returned in {:?}, not the bound",
+            started.elapsed()
+        );
+    }
+
+    /// D6, measured: a server that dribbles one byte per interval
+    /// shorter than the read timeout would stretch a per-read-bounded
+    /// `read_to_end` forever — each read succeeds, the end never
+    /// comes. The probe runs on a worker thread observed through a
+    /// bounded channel, so a hang is a failing assertion, not a hung
+    /// suite.
+    #[test]
+    fn the_probe_is_bounded_against_a_dribbling_server() {
+        let dribbler = std::net::TcpListener::bind(("127.0.0.1", 0)).expect("the dribbler binds");
+        let port = dribbler.local_addr().expect("the port").port();
+        std::thread::spawn(move || {
+            for mut stream in dribbler.incoming().flatten() {
+                std::thread::spawn(move || {
+                    let byte = *b"x";
+                    loop {
+                        std::thread::sleep(PROBE_TIMEOUT / 2);
+                        if stream.write_all(&byte).is_err() {
+                            return;
+                        }
+                    }
+                });
+            }
+        });
+        let (sender, receiver) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let _ = sender.send(listener_answers(port));
+        });
+        let started = std::time::Instant::now();
+        let outcome = receiver.recv_timeout(PROBE_TIMEOUT + std::time::Duration::from_secs(3));
+        assert!(
+            outcome.is_ok(),
+            "the probe did not return within {:?} — the dribbler stretched it past the bound",
+            started.elapsed()
+        );
+        assert_eq!(outcome, Ok(false), "the dribbling server reads as dead");
+        assert!(
+            started.elapsed() < PROBE_TIMEOUT + std::time::Duration::from_secs(2),
+            "the probe returned in {:?}, not the bound",
+            started.elapsed()
+        );
     }
 
     /// The default tier's fallback (judgment call (f)): no cwd to

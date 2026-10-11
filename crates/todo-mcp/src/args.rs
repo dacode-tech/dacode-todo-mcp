@@ -38,7 +38,8 @@ pub const USAGE: &str = "\
 todo-mcp — the dacode-todo MCP server and tool CLI (spec §13).
 
 Usage:
-  todo-mcp --root <DIR> [--repo <SLUG>]                    the MCP server on stdio
+  todo-mcp --root <DIR> [--repo <SLUG>]                    the MCP server on stdio, ensuring
+                                                            the root's live view (D13)
   todo-mcp --root <DIR> [--repo <SLUG>] progress [flags]   the total-progress render
   todo-mcp --root <DIR> [--repo <SLUG>] refresh            re-import the repo's board
   todo-mcp --root <DIR> serve [--port-file <PATH>] [--open]
@@ -72,8 +73,9 @@ Options:
                       browser; with `serve`: open the served page
       --port-file <PATH>
                       With `serve`: where the listener's port is
-                      published (default ~/.local/state/dacode-todo-mcp/
-                      serve.port) — a second invocation attaches to a
+                      published (default <root>/serve.port, the same
+                      publication the no-subcommand server's live view
+                      ensures) — a second invocation attaches to a
                       live listener instead of starting another
       --dry-run       With `repair`: classify and report, write nothing
       --yes           With `repair`: truncate without prompting
@@ -97,8 +99,7 @@ Exit codes:
       the listener shut down cleanly on the interrupt (or another
       invocation attached to it), or the subcommand succeeded
   1  the serve loop failed, the listener did not start (a root with no
-      registry, or a home directory that cannot be found without
-      --port-file), the render failed (a repo that does not resolve,
+      registry), the render failed (a repo that does not resolve,
       or a store that will not read), the page did not write,
       or the refresh refused (the board is gone or broken, a live
       session holds the store, or the import failed); verify found a
@@ -152,14 +153,14 @@ pub enum Command {
     },
     /// `serve`: the live progress listener (t71's slice of D20's tool
     /// CLI) — the fresh-render page over HTTP, the WebSocket push
-    /// channel, the per-user port publication with attach / takeover
-    /// / SIGINT-cleanup.
+    /// channel, the per-root port publication (D13) with attach /
+    /// takeover / SIGINT-cleanup.
     Serve {
         /// The data root (§7/§13/D4) — the listener serves every repo
         /// in it; the repo is a URL parameter.
         root: OsString,
-        /// Where the port is published — `None` is the per-user
-        /// default (D1).
+        /// Where the port is published — `None` is the per-root
+        /// default (`<root>/serve.port`, D13).
         port_file: Option<OsString>,
         /// Whether to open the served page in a browser.
         open: bool,
@@ -858,6 +859,11 @@ mod tests {
         assert!(USAGE.contains("--port-file <PATH>"));
         assert!(USAGE.contains("the listener shut down cleanly on the interrupt"));
         assert!(USAGE.contains("the listener did not start"));
+        // D13/D7: the no-subcommand line names the live view, and the
+        // port-file default is the per-root publication.
+        assert!(USAGE.contains("the MCP server on stdio, ensuring"));
+        assert!(USAGE.contains("the root's live view (D13)"));
+        assert!(USAGE.contains("(default <root>/serve.port"));
     }
 
     // =================================================================

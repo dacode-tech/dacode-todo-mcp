@@ -748,7 +748,9 @@ const INITIALIZED: &str = r#"{"jsonrpc":"2.0","method":"notifications/initialize
 pub(crate) struct Driven {
     /// The tool responses, one line each, in request order.
     pub responses: Vec<String>,
-    /// The server's stderr — empty on every green path.
+    /// The server's stderr — empty on every green path except the
+    /// live-view line the default server's first tick prints (the
+    /// URL, or the one unavailable line, D13).
     pub stderr: String,
     /// The exit status — a completed handshake ends 0.
     pub status: ExitStatus,

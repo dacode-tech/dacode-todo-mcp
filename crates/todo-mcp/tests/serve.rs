@@ -1,29 +1,40 @@
-//! The serve subcommand's suite (t71, D20's third slice): the live
-//! listener driven through the real binary — spawned via
-//! `CARGO_BIN_EXE_todo-mcp` against a temp root with `--port-file`
-//! (the hermetic seam; the per-user default is never touched) — the
-//! integration pins of the task spec, mirroring the Python
-//! driver `tools/progress-serve-check.py` whose checks they inherit:
-//! the static invocation publishes no port; `serve` publishes and
-//! answers every route; a second invocation attaches; a stale
-//! publication is taken over (SIGTERM via `/bin/kill`, unix-gated —
-//! `Child::kill` sends SIGKILL, so the signals need the real tool);
-//! SIGINT is the clean shutdown (the t55 driver's note: the pin runs
-//! from the test's child, which gets the default disposition); the WS
-//! push channel end-to-end (the RFC 6455 example key, a store write
+//! The serve subcommand's suite (t71, D20's third slice) and the D13
+//! default-server live view (t85): the listener driven through the
+//! real binary — spawned via `CARGO_BIN_EXE_todo-mcp` against a temp
+//! root, the per-root default publication (`<root>/serve.port`,
+//! D13's flip) making every spawn hermetic by construction;
+//! `--port-file` remains the override, pinned by its own test — the
+//! integration pins of the task spec, mirroring the Python driver
+//! `tools/progress-serve-check.py` whose checks they inherit: the
+//! static invocation publishes no port; `serve` publishes and answers
+//! every route; a second invocation attaches; a stale publication is
+//! taken over (SIGTERM via `/bin/kill`, unix-gated — `Child::kill`
+//! sends SIGKILL, so the signals need the real tool); SIGINT is the
+//! clean shutdown (the t55 driver's note: the pin runs from the
+//! test's child, which gets the default disposition); the WS push
+//! channel end-to-end (the RFC 6455 example key, a store write
 //! through the `Store` trait, the push frame within a bounded wait);
 //! the WS control frames (a masked ping answered with a pong, a
 //! masked close echoed and the connection ended); and a corrupt-store
-//! root where `/health` stays 200 while `/`
-//! answers 500 and the listener stays up.
+//! root where `/health` stays 200 while `/` answers 500 and the
+//! listener stays up.
+//!
+//! The D13 pins: two roots key two listeners (the per-root keying);
+//! the no-subcommand server — the shape every opencode session spawns
+//! through the global config — ensures the listener while its stdio
+//! protocol stays pure (stdout carries only protocol bytes, the URL
+//! line is stderr's), a second spawn attaches to the same port, and
+//! the survivor's watchdog takes over when the owner dies (bounded
+//! waits, the t62 precedent — no flaky sleeps).
 //!
 //! The unit pins (SHA-1's vectors, the frame codec, the handshake
-//! accept, the poller, the HTTP parser) live in-file in the serve
-//! module per the house style; the dispatch rows live in main.rs's
-//! tests. The fixture is minimal — one epic and one task per repo,
-//! two repos so the `?repo=` parameter and the first-slug fallback
-//! both have a real choice — and every store handle is dropped before
-//! the binary spawns (the advisory lock is per process).
+//! accept, the poller, the HTTP parser, the watchdog tick) live
+//! in-file in the serve module per the house style; the dispatch rows
+//! live in main.rs's tests. The fixture is minimal — one epic and one
+//! task per repo, two repos so the `?repo=` parameter and the
+//! first-slug fallback both have a real choice — and every store
+//! handle is dropped before the binary spawns (the advisory lock is
+//! per process).
 
 #![cfg_attr(
     test,
@@ -41,7 +52,7 @@ mod serve {
     use std::io::{BufRead, BufReader, Read, Write};
     use std::net::TcpStream;
     use std::path::Path;
-    use std::process::{Child, Command, Stdio};
+    use std::process::{Child, ChildStdout, Command, Stdio};
     use std::str::FromStr;
     use std::time::{Duration, Instant};
 
@@ -126,19 +137,125 @@ mod serve {
         root
     }
 
-    /// Spawns the binary serving `root` with the port published to
-    /// `port_file` — stdout piped so the serving line can be read.
-    fn spawn_serve(root: &Path, port_file: &Path) -> Child {
+    /// Spawns the binary serving `root`, the port published to the
+    /// per-root default (`<root>/serve.port`) — stdout piped so the
+    /// serving line can be read.
+    fn spawn_serve(root: &Path) -> Child {
         Command::new(env!("CARGO_BIN_EXE_todo-mcp"))
             .arg("--root")
             .arg(root)
             .arg("serve")
-            .arg("--port-file")
-            .arg(port_file)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()
             .expect("the listener spawns")
+    }
+
+    /// Spawns the binary as the MCP server (no subcommand) over
+    /// `root` — the shape every opencode session spawns through the
+    /// global config, and the shape D13's ensure-listener rides.
+    fn spawn_server(root: &Path) -> Child {
+        Command::new(env!("CARGO_BIN_EXE_todo-mcp"))
+            .arg("--root")
+            .arg(root)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .expect("the server spawns")
+    }
+
+    /// The initialize request and its completion notification — the
+    /// handshake every server spawn is driven through.
+    const INITIALIZE: &str = r#"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"t85","version":"0"}}}"#;
+    const INITIALIZED: &str = r#"{"jsonrpc":"2.0","method":"notifications/initialized"}"#;
+
+    /// Writes the handshake to a server child's stdin and puts the
+    /// handle back — dropping it would close the pipe, which is a
+    /// stdio server's natural end; the test closes it deliberately
+    /// when its assertions are done.
+    fn handshake(child: &mut Child) {
+        let mut stdin = child.stdin.take().expect("the piped stdin");
+        stdin
+            .write_all(format!("{INITIALIZE}\n{INITIALIZED}\n").as_bytes())
+            .expect("the handshake is sent");
+        child.stdin = Some(stdin);
+    }
+
+    /// Closes a server child's stdin — the stdio server's natural end;
+    /// the child is expected to exit 0 after a completed handshake.
+    fn end_session(child: &mut Child) {
+        drop(child.stdin.take());
+        let deadline = Instant::now() + Duration::from_secs(10);
+        loop {
+            if let Some(status) = child.try_wait().expect("the child is waitable") {
+                assert_eq!(status.code(), Some(0), "a completed handshake ends 0");
+                return;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "the server exits after the close"
+            );
+            std::thread::sleep(Duration::from_millis(50));
+        }
+    }
+
+    /// Reads one line from a reader with a bound (the t62 precedent:
+    /// a missing line fails the assertion instead of hanging the
+    /// suite). The reader is consumed — one line per stream per test.
+    fn read_line_bounded<R: Read + Send + 'static>(reader: R, timeout: Duration) -> Option<String> {
+        let (sender, receiver) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let mut reader = BufReader::new(reader);
+            let mut line = String::new();
+            let read = reader.read_line(&mut line);
+            let _ = sender.send(if read.unwrap_or(0) > 0 {
+                Some(line)
+            } else {
+                None
+            });
+        });
+        receiver.recv_timeout(timeout).ok().flatten()
+    }
+
+    /// Watches a server child's stdout for bytes beyond the first
+    /// response line: stdout is the JSON-RPC channel and must carry
+    /// nothing else (D3's purity — the URL line is stderr's). The
+    /// first line is read byte-at-a-time (no read-ahead), then any
+    /// further byte within the window is a purity failure.
+    fn stdout_watch(
+        stdout: ChildStdout,
+    ) -> (
+        std::sync::mpsc::Receiver<String>,
+        std::sync::mpsc::Receiver<usize>,
+    ) {
+        let (line_sender, line_receiver) = std::sync::mpsc::channel();
+        let (extra_sender, extra_receiver) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let mut stdout = stdout;
+            let mut line = Vec::new();
+            let mut byte = [0u8; 1];
+            loop {
+                match stdout.read(&mut byte) {
+                    Ok(0) => break,
+                    Ok(_) => {
+                        line.push(byte[0]);
+                        if byte[0] == b'\n' {
+                            break;
+                        }
+                    }
+                    Err(_) => break,
+                }
+            }
+            let _ = line_sender.send(String::from_utf8_lossy(&line).into_owned());
+            // Any byte after the first line — the purity watch. EOF
+            // reads 0 and is reported as such (a live server's stdout
+            // must not close either).
+            let mut probe = [0u8; 256];
+            let seen = stdout.read(&mut probe).unwrap_or(0);
+            let _ = extra_sender.send(seen);
+        });
+        (line_receiver, extra_receiver)
     }
 
     /// Reads the published port: digits only, else `None`.
@@ -251,7 +368,7 @@ mod serve {
     fn serve_publishes_and_answers() {
         let root = serve_fixture();
         let port_file = root.path().join("serve.port");
-        let mut child = spawn_serve(root.path(), &port_file);
+        let mut child = spawn_serve(root.path());
         let port =
             wait_for_listener(&port_file, &mut child).expect("the listener publishes and answers");
 
@@ -304,15 +421,13 @@ mod serve {
     fn a_second_invocation_attaches() {
         let root = serve_fixture();
         let port_file = root.path().join("serve.port");
-        let mut first = spawn_serve(root.path(), &port_file);
+        let mut first = spawn_serve(root.path());
         let port = wait_for_listener(&port_file, &mut first).expect("the first listener answers");
 
         let mut second = Command::new(env!("CARGO_BIN_EXE_todo-mcp"))
             .arg("--root")
             .arg(root.path())
             .arg("serve")
-            .arg("--port-file")
-            .arg(&port_file)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()
@@ -361,7 +476,7 @@ mod serve {
     fn a_stale_publication_is_taken_over() {
         let root = serve_fixture();
         let port_file = root.path().join("serve.port");
-        let mut first = spawn_serve(root.path(), &port_file);
+        let mut first = spawn_serve(root.path());
         let _port = wait_for_listener(&port_file, &mut first).expect("the first listener answers");
 
         // SIGTERM: the process dies, the publication survives as stale.
@@ -375,7 +490,7 @@ mod serve {
         assert!(port_file.exists(), "SIGTERM leaves the stale publication");
 
         // The next invocation takes over: its own port, answering.
-        let mut third = spawn_serve(root.path(), &port_file);
+        let mut third = spawn_serve(root.path());
         let new_port = wait_for_listener(&port_file, &mut third).expect("the takeover binds");
         let (status, body) = http_get(new_port, "/health");
         assert_eq!(status, Some(200));
@@ -393,7 +508,7 @@ mod serve {
     fn sigint_is_the_clean_shutdown() {
         let root = serve_fixture();
         let port_file = root.path().join("serve.port");
-        let mut child = spawn_serve(root.path(), &port_file);
+        let mut child = spawn_serve(root.path());
         let _port = wait_for_listener(&port_file, &mut child).expect("the listener answers");
 
         let signal = Command::new("/bin/kill")
@@ -496,7 +611,7 @@ mod serve {
     fn the_ws_push_channel_delivers_on_change() {
         let root = serve_fixture();
         let port_file = root.path().join("serve.port");
-        let mut child = spawn_serve(root.path(), &port_file);
+        let mut child = spawn_serve(root.path());
         let port = wait_for_listener(&port_file, &mut child).expect("the listener answers");
 
         // The handshake: the known key computes the published accept.
@@ -585,7 +700,7 @@ mod serve {
     fn the_ws_control_frames_are_served() {
         let root = serve_fixture();
         let port_file = root.path().join("serve.port");
-        let mut child = spawn_serve(root.path(), &port_file);
+        let mut child = spawn_serve(root.path());
         let port = wait_for_listener(&port_file, &mut child).expect("the listener answers");
 
         let mut stream = TcpStream::connect(("127.0.0.1", port)).expect("the WS socket connects");
@@ -653,7 +768,7 @@ mod serve {
         .expect("the store is corrupted");
 
         let port_file = root.path().join("serve.port");
-        let mut child = spawn_serve(root.path(), &port_file);
+        let mut child = spawn_serve(root.path());
         let port = wait_for_listener(&port_file, &mut child).expect("the listener starts");
 
         let (status, body) = http_get(port, "/health");
@@ -667,5 +782,221 @@ mod serve {
         assert!(body.contains(HEALTH_MARKER));
 
         shutdown(&mut child);
+    }
+
+    /// 8. The `--port-file` override (D1): an explicit path wins over
+    ///    the per-root default — the publication lands there, and the
+    ///    default path is never touched.
+    #[test]
+    fn the_port_file_override_publishes_there() {
+        let root = serve_fixture();
+        let default = root.path().join("serve.port");
+        let override_path = root.path().join("elsewhere.port");
+        let mut child = Command::new(env!("CARGO_BIN_EXE_todo-mcp"))
+            .arg("--root")
+            .arg(root.path())
+            .arg("serve")
+            .arg("--port-file")
+            .arg(&override_path)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .expect("the listener spawns");
+        let port = wait_for_listener(&override_path, &mut child).expect("the override publishes");
+        assert!(
+            !default.exists(),
+            "the per-root default is not touched when the override is given"
+        );
+        let (status, body) = http_get(port, "/health");
+        assert_eq!(status, Some(200));
+        assert!(body.contains(HEALTH_MARKER));
+
+        shutdown(&mut child);
+    }
+
+    /// 9. The per-root keying (D13, test group 1): two roots, two
+    ///    listeners, two port files — the default publication keys by
+    ///    root, so the roots coexist by construction.
+    #[test]
+    fn two_roots_get_two_listeners() {
+        let first = serve_fixture();
+        let second = serve_fixture();
+        let first_port_file = first.path().join("serve.port");
+        let second_port_file = second.path().join("serve.port");
+        let mut first_child = spawn_serve(first.path());
+        let mut second_child = spawn_serve(second.path());
+        let first_port = wait_for_listener(&first_port_file, &mut first_child)
+            .expect("the first root's listener answers");
+        let second_port = wait_for_listener(&second_port_file, &mut second_child)
+            .expect("the second root's listener answers");
+        assert_ne!(first_port, second_port, "two live listeners hold two ports");
+        for port in [first_port, second_port] {
+            let (status, body) = http_get(port, "/health");
+            assert_eq!(status, Some(200));
+            assert!(body.contains(HEALTH_MARKER));
+        }
+
+        shutdown(&mut first_child);
+        shutdown(&mut second_child);
+        assert!(
+            !first_port_file.exists(),
+            "the first root's publication is removed"
+        );
+        assert!(
+            !second_port_file.exists(),
+            "the second root's publication is removed"
+        );
+    }
+
+    /// 10. The MCP-path integration (D13, test group 4 — the
+    ///     load-bearing test): the no-subcommand server — the shape
+    ///     every opencode session spawns — ensures the root's live
+    ///     view while its stdio protocol stays pure. The initialize
+    ///     response is the only stdout bytes (the URL line is
+    ///     stderr's, D3), the port file appears, `/health` answers,
+    ///     the stderr carries the URL line, and a second spawn
+    ///     attaches — the same port, no second listener.
+    #[test]
+    fn the_default_server_ensures_the_live_view() {
+        let root = serve_fixture();
+        let port_file = root.path().join("serve.port");
+
+        let mut first = spawn_server(root.path());
+        handshake(&mut first);
+        let (line_receiver, extra_receiver) =
+            stdout_watch(first.stdout.take().expect("the piped stdout"));
+        let response = line_receiver
+            .recv_timeout(Duration::from_secs(10))
+            .expect("the initialize response arrives");
+        assert!(
+            response.starts_with(r#"{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"#),
+            "the initialize response: {response}"
+        );
+        assert!(
+            response.contains(r#""serverInfo":{"name":"todo-mcp""#),
+            "the initialize response: {response}"
+        );
+        let port =
+            wait_for_listener(&port_file, &mut first).expect("the server's listener answers");
+        // The purity watch: after the listener is up (the first tick
+        // resolved — any misdirected URL line has landed by now),
+        // stdout must carry nothing beyond the response line.
+        match extra_receiver.recv_timeout(Duration::from_secs(1)) {
+            Err(_) => {}
+            Ok(0) => panic!("the server closed its stdout while alive"),
+            Ok(seen) => panic!("stdout carries bytes beyond the protocol: {seen} bytes"),
+        }
+        let stderr_line = read_line_bounded(
+            first.stderr.take().expect("the piped stderr"),
+            Duration::from_secs(10),
+        )
+        .expect("the URL line arrives");
+        assert_eq!(
+            stderr_line,
+            format!("todo-mcp: live view at http://127.0.0.1:{port}/\n"),
+            "the URL line is stderr's, exactly D3's format"
+        );
+
+        // The second spawn attaches: the same port, no second listener.
+        let mut second = spawn_server(root.path());
+        handshake(&mut second);
+        let (second_line, second_extra) =
+            stdout_watch(second.stdout.take().expect("the piped stdout"));
+        let response = second_line
+            .recv_timeout(Duration::from_secs(10))
+            .expect("the second initialize response arrives");
+        assert!(
+            response.starts_with(r#"{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"#),
+            "the second initialize response: {response}"
+        );
+        let stderr_line = read_line_bounded(
+            second.stderr.take().expect("the piped stderr"),
+            Duration::from_secs(10),
+        )
+        .expect("the second URL line arrives");
+        assert_eq!(
+            stderr_line,
+            format!("todo-mcp: live view at http://127.0.0.1:{port}/\n"),
+            "the second spawn attaches to the same port"
+        );
+        assert_eq!(
+            read_port(&port_file),
+            Some(port),
+            "the publication is unchanged — no second listener"
+        );
+        let (status, body) = http_get(port, "/health");
+        assert_eq!(status, Some(200));
+        assert!(body.contains(HEALTH_MARKER));
+        drop(second_extra);
+
+        end_session(&mut first);
+        end_session(&mut second);
+    }
+
+    /// 11. The watchdog end-to-end (D13, test group 5, the t62
+    ///     bounded-wait precedent): two spawned servers over one
+    ///     root; the owner dies (SIGKILL — no cleanup, D5's stale
+    ///     publication); the survivor's watchdog takes over within a
+    ///     generous bounded window — the view is back up.
+    #[test]
+    fn the_survivor_takes_over_after_the_owner_dies() {
+        let root = serve_fixture();
+        let port_file = root.path().join("serve.port");
+
+        let mut owner = spawn_server(root.path());
+        handshake(&mut owner);
+        let port = wait_for_listener(&port_file, &mut owner).expect("the owner's listener answers");
+        // The owner's stderr URL line is drained so the pipe cannot
+        // fill; its content is test 10's pin.
+        drop(read_line_bounded(
+            owner.stderr.take().expect("the piped stderr"),
+            Duration::from_secs(10),
+        ));
+
+        let mut survivor = spawn_server(root.path());
+        handshake(&mut survivor);
+        let survivor_line = read_line_bounded(
+            survivor.stderr.take().expect("the piped stderr"),
+            Duration::from_secs(10),
+        )
+        .expect("the survivor's URL line arrives");
+        assert_eq!(
+            survivor_line,
+            format!("todo-mcp: live view at http://127.0.0.1:{port}/\n"),
+            "the survivor attached to the owner's listener"
+        );
+
+        // The owner dies with its process — SIGKILL, no cleanup: the
+        // publication goes stale (D5's norm).
+        owner.kill().expect("the owner dies");
+        owner.wait().expect("the owner is reaped");
+
+        // The survivor's watchdog takes over within the window: the
+        // publication names a port that answers again.
+        let deadline = Instant::now() + Duration::from_secs(10);
+        let revived = loop {
+            if let Some(revived) = read_port(&port_file)
+                && let (Some(status), body) = http_get(revived, "/health")
+                && status == 200
+                && body.contains(HEALTH_MARKER)
+            {
+                break revived;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "the survivor took over within the window"
+            );
+            std::thread::sleep(Duration::from_millis(100));
+        };
+        assert!(
+            survivor
+                .try_wait()
+                .expect("the survivor is waitable")
+                .is_none(),
+            "the survivor is still serving"
+        );
+        let _ = revived;
+
+        end_session(&mut survivor);
     }
 }

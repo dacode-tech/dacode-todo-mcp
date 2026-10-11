@@ -214,7 +214,7 @@ shell, which is M3's business.
 
 | Blocking | What | Action |
 |---|---|---|
-| — | nothing blocks: the roadmap is delivered, the dacode and ipmi-collector repos cut over, the D20 arc under way | g20 closed 2026-10-10 (t83, their repo's `6e04025`). **t71 landed 2026-10-10** (the `serve` subcommand: the live view + the WS push channel, the page.v1 golden moved for the script block — the compatibility event called out in the session log). **t72 landed 2026-10-10** (the todo-cli absorption: `dump`/`verify`/`repair` as subcommands, the crate retired, the golden moved byte-identical as `dump.v1`, U38's split — main.rs 422, args.rs 476 production lines). **t88 (the schema flatten) landed 2026-10-10** — every advertised enum field now presents its values inline and quoted; the field test is the adopted repos' next sessions (if the unquoted-enum failures survive it, the model binding is the remaining lever, f121 (a)). Next: g19's remainder — t73 (the Python retirement + doc moves; the README/AGENTS/skill rows naming `todo-cli` ride it, and the release binary needs the rebuild) — then t85 (D13's default-server live view, the user's sign (a) 2026-10-10, under g22), t84 (the activity panel) and g21 (this repo's own full-switch cutover, the user's sign); the ikvm-html refresh+cutover waits for its live session to settle (U36 rides that revisit) — see §6's handover |
+| — | nothing blocks: the roadmap is delivered, the dacode and ipmi-collector repos cut over, the D20 arc under way | g20 closed 2026-10-10 (t83, their repo's `6e04025`). **t71 landed 2026-10-10** (the `serve` subcommand: the live view + the WS push channel, the page.v1 golden moved for the script block — the compatibility event called out in the session log). **t72 landed 2026-10-10** (the todo-cli absorption: `dump`/`verify`/`repair` as subcommands, the crate retired, the golden moved byte-identical as `dump.v1`, U38's split — main.rs 422, args.rs 476 production lines). **t88 (the schema flatten) landed 2026-10-10** — every advertised enum field now presents its values inline and quoted; the field test passed (the user confirmed the failures stopped). **t85 (D13's default-server live view) landed 2026-10-10, closing g22** — every session's server ensures the per-root listener (`<root>/serve.port` is the port's discovery; the page is up while ≥1 session lives). Next: g19's remainder — t73 (the Python retirement + doc moves; the README/AGENTS/skill rows naming `todo-cli` ride it) — then t84 (the activity panel) and g21 (this repo's own full-switch cutover, the user's sign); the ikvm-html refresh+cutover waits for its live session to settle (U36 rides that revisit) — see §6's handover |
 
 (The user's calls 2026-10-10: **the `--epic` default tier resolved
 (a)** — the param convention carried by the base instructions, t76's
@@ -3881,6 +3881,30 @@ Oldest first. One line per delivery, with the commit hash once committed.
    miss, caught and regen'd) and f124 (the pin's non-array-enum
    escape, a low riding the pin's next owner) recorded. Landed as
    this commit.
+ - 2026-10-10 — **t85: D13's default-server live view** (the user's
+   sign (a), g22 closed with it): the no-subcommand server — what
+   every opencode session spawns through the global entry — now
+   ensures the per-root live-view listener. One background std
+   thread: the first tick probes `<root>/serve.port` and attaches to
+   a live listener or binds `127.0.0.1:0` + publishes + runs the
+   accept thread (the existing serve machinery, reused); the loop
+   re-probes at `POLL_INTERVAL` and takes over when the owner session
+   dies. The `serve` subcommand's default flips to the same per-root
+   file (the per-user state file retires); the MCP wire is untouched —
+   stdout stays pure protocol (the protocol suite unchanged-green is
+   the pin), the URL line goes to stderr. The D6 measurement found a
+   real bug on the way (the health probe was unbounded against a port
+   that dribbles bytes — now deadline-bounded), and f125 (pid-only
+   temp names colliding in-process) was found and fixed. 741 tests
+   (the baseline 728 + the watchdog unit pins + the serve integration
+   pins); no golden moved. Dual review over two rounds (round 1's
+   findings were five one-line doc fixes — the f55 class — applied by
+   the orchestrator and re-bound). The live smoke through the
+   re-copied stable binary, the global entry's exact shape: session 1
+   publishes and serves the page, session 2 attaches on the same
+   port, the owner's death is taken over by the survivor within the
+   interval (a new port, published — the port file is the discovery).
+   Landed as this commit.
 
 
 
@@ -5040,21 +5064,36 @@ The release binary re-copied; **the field test is the adopted repos'
 next sessions** — if the unquoted-enum failures survive the flat
 schemas, the model binding is the remaining lever. f122 (the
 t86/t87 index-backfill miss, caught at t88 and regen'd) and f124 (the
-pin's non-array-enum escape, a low) recorded.
+pin's non-array-enum escape, a low) recorded. **The field test
+passed** (the user confirmed the failures stopped) — f121 closed.
+
+**D13's implementation landed** (t85, pulled forward per the user's
+ask, g22 closed): the default server ensures the per-root
+live-view listener — one background thread (first tick = probe →
+attach or bind+publish; loop = the watchdog takeover at
+`POLL_INTERVAL`), the publication `<root>/serve.port`, the serve
+subcommand flipped to the same file, stdout pure protocol, the URL
+line on stderr. The D6 measurement bounded the health probe (a real
+unbounded-read bug) and f125 (in-process temp-name collisions) was
+fixed on the way. The live smoke through the re-copied stable
+binary, the global entry's exact shape: session 1 publishes and
+serves, session 2 attaches on the same port, the owner's death is
+taken over by the survivor (a new port, published — the port file is
+the discovery). The user's next real session is the field test.
 
 **Handover.** Workspace: main, clean after this commit; three crates
 (todo-domain, todo-store, todo-mcp — the four-member map is history);
 rustc 1.98.1. Landed this session: t72, the D13 recording, the
-f119/f120 triage + the instructions fix (t86). Next step:
+f119/f120 triage + the instructions fix (t86) + its refinement (t87),
+t88 (the schema flatten — the field test passed), t85 (D13's live
+view, g22 closed). Next step:
 **t73** — the Python retirement + the doc moves (`tools/progress.py`
 and the two drivers deleted, the README/AGENTS/skill rows moved to the
 subcommands, the release rebuild + the re-copy to `~/.local/bin` + the
-live smoke) — then t85 (D13's default-server live view, signed (a),
-under g22), t84 (the activity panel) and g21 (the own
-full-switch cutover). Blocked on you: nothing — D13 signed (a)
-2026-10-10. Unverified: nothing new — every gate ran on the final
-tree; the standing caveats unchanged (the release binary is current —
-t86 rebuilt and re-copied it; t73's rebuild re-verifies).
+live smoke) — then t84 (the activity panel) and g21 (the own
+full-switch cutover). Blocked on you: nothing. Unverified: nothing
+new — every gate ran on the final tree; the release binary is
+current (t85 rebuilt and re-copied it; t73's rebuild re-verifies).
 
 ### 2026-10-10 — t71: the serve subcommand — the live view + the WS push channel
 
