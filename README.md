@@ -24,9 +24,11 @@ culture becomes the API's contract.
 Determinism is the product property: the same store state answers
 byte-identically across runs, every returned list carries a documented
 total order, and the on-disk format is pinned by golden files. One
-binary, four crates — `todo-domain` (the pure graph, no I/O),
-`todo-store` (the JSONL engine behind a single `Store` trait),
-`todo-mcp` (the server binary), `todo-cli` (a no-client inspector).
+binary, three crates — `todo-domain` (the pure graph, no I/O),
+`todo-store` (the JSONL engine behind a single `Store` trait), and
+`todo-mcp` (the server binary, which also carries the tool CLI as
+subcommands: `progress`, `refresh`, `serve`, and the
+`dump`/`verify`/`repair` inspector).
 
 ## Wiring it into opencode
 
@@ -83,12 +85,13 @@ append-only `event-log.jsonl` and its covering snapshot. Local,
 non-relational, no cross-project shared database; cross-repo queries
 iterate the registry and open per-repo stores.
 
-Inspect a store without any MCP client:
+Inspect a store without any MCP client (the installed binary; the repo
+resolves `--repo` over the working-directory match):
 
 ```sh
-cargo run -p todo-cli -- dump   --root ~/.local/share/dacode-todo --slug dacode
-cargo run -p todo-cli -- verify --root ~/.local/share/dacode-todo --slug dacode
-cargo run -p todo-cli -- repair --root ~/.local/share/dacode-todo --slug dacode --dry-run
+todo-mcp dump   --root ~/.local/share/dacode-todo --repo dacode
+todo-mcp verify --root ~/.local/share/dacode-todo --repo dacode
+todo-mcp repair --root ~/.local/share/dacode-todo --repo dacode --dry-run
 ```
 
 ## The tool surface
@@ -159,11 +162,12 @@ After an import is verified against its board, the server is that
 repo's query surface and the markdown keeps the narrative — session
 logs stay files. There is no live two-way sync: re-run `import_md`
 after the board moves (the importer refuses a non-empty graph; the
-refresh is a re-register plus re-import — `todo-mcp refresh --repo
-<slug>`).
+   refresh is a re-register plus re-import — `todo-mcp refresh --root
+   <root> --repo <slug>`).
 
-Four repositories are tracked for real on this machine — dacode,
-camera, ikvm-html, ipmi-collector — plus this repo itself.
+Five repositories are tracked for real on this machine — dacode,
+camera, ikvm-html, ipmi-collector, infra-hostrail-server — plus this
+repo itself.
 
 ### The cutover: making the server the tracker of record
 
@@ -173,8 +177,9 @@ switch, the playbook (executed for dacode 2026-10-09 and ipmi-collector
 
 1. **Refresh before archiving** — the store must match the board's
    final state by construction, not by inference: `todo-mcp refresh
-   --repo <slug>` (a re-register plus re-import; it refuses once the
-   board files are gone). Verify with `todo-cli verify`.
+   --root <root> --repo <slug>` (a re-register plus re-import; it
+   refuses once the board files are gone). Verify with `todo-mcp
+   verify --root <root> --repo <slug>`.
 2. **Back the board up beside the store** —
    `~/.local/share/dacode-todo/board-backup/<slug>/<date>/`, the board
    files copied byte-identical. The pre-cutover state now survives
@@ -212,13 +217,17 @@ children).
 
 ## The progress page
 
-`tools/progress.py` renders the tracked graph to a page and a JSON
-twin: the static invocation writes `.agents/cache/progress.{html,json}`,
-`--json` prints the document, `--refresh` re-imports this repo's board
-first (the store is a derived cache of the board), and `--serve` serves
-the page live on 127.0.0.1 — a fresh render per request, the port
-published to a per-user runtime file so a second invocation attaches
-instead of starting a second listener.
+`todo-mcp progress` renders the tracked graph to a page and a JSON
+twin: the static invocation writes the rendered repo's
+`.agents/cache/progress.{html,json}`, `--json` prints the document,
+`--repo` renders another registered repo, and the render reads the
+store lock-free (D19) — it works while a live session server holds
+the write lock. `todo-mcp refresh` re-imports a board after it moves
+(the store is a derived cache of the board until that repo cuts
+over). The page is served live on 127.0.0.1 by `todo-mcp serve` — a
+fresh render per request, the port published to `<root>/serve.port` —
+and every session's server ensures that listener itself (D13), so the
+page is up while at least one session (or a manual `serve`) is alive.
 
 ## Verifying the wiring
 
@@ -227,22 +236,20 @@ server:
 
 ```sh
 cargo build --release -p todo-mcp
-cargo run -p todo-cli -- verify --root ~/.local/share/dacode-todo --slug dacode
-python3 tools/progress.py --no-write
+todo-mcp verify --root ~/.local/share/dacode-todo --repo dacode
+todo-mcp progress --root ~/.local/share/dacode-todo --no-write
 ```
 
-The last command is the end-to-end probe: it spawns the release binary
-over stdio, drives the MCP handshake exactly like a client, asks one
-`graph_show`, and prints the summary — a missing or stale binary fails
-the probe by name. Green looks like `verify` exiting 0 with
-`status ok` and the probe printing the totals. One live failure mode is
-expected, not broken wiring: while an opencode session's server has the
-stores open (it caches handles for its process lifetime — the
-single-writer lock discipline), `verify` and the probe answer
-`store is locked`; re-run once that session has ended. From inside
-opencode, the equivalent is asking the agent for `repo_list` — the
-tracked repos with their checkout paths (dacode, camera, ikvm-html,
-and this one).
+Green looks like `verify` exiting 0 with `status ok` and the render
+printing the totals. One live failure mode is expected, not broken
+wiring: while an opencode session's server holds a store's write
+handle (armed by a write tool call — the single-writer lock
+discipline), `verify` answers `store is locked`; the render reads
+lock-free and works regardless. Re-run `verify` once that session has
+ended. From inside opencode, the equivalent is asking the agent for
+`repo_list` — the tracked repos with their checkout paths (dacode,
+camera, ikvm-html, ipmi-collector, infra-hostrail-server, and this
+one).
 
 ## Reading more
 

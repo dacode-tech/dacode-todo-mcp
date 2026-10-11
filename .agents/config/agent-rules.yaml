@@ -10,7 +10,7 @@
 # ─── Template Versioning ───────────────────────────────────────────────
 version:
   template: "0.1"          # Inherited from the dacode agent-rules layout
-  custom: 13               # Local adjustment counter
+  custom: 14               # Local adjustment counter
 
 # ─── Project Identity ──────────────────────────────────────────────────
 project:
@@ -24,7 +24,7 @@ project:
 paths:
   project_root: "."
   docs_dir: "docs"                   # docs/todo-mcp-design.md is the spec
-  tools_dir: "tools"                 # agents-sync.py, tasks.py, agents-index.py, check-links.py, attention.py, progress.py
+  tools_dir: "tools"                 # agents-sync.py, tasks.py, agents-index.py, check-links.py, attention.py
   tmp_dir: "tmp"                     # Scratch directory (gitignored)
   crates_dir: "crates"               # Cargo workspace members (created at M0)
 
@@ -56,7 +56,7 @@ build_commands:
   links_check: "tools/check-links.py"
   index_check: "tools/agents-index.py --check"
   attention: "tools/attention.py"
-  progress: "tools/progress.py       # renders the graph + totals to .agents/cache/progress.{html,json}"
+  progress: "todo-mcp --root ~/.local/share/dacode-todo progress   # the render + totals (D20's subcommand), writing the rendered repo's .agents/cache/progress.{html,json}"
 
 # Verification steps run after each task (ordered).
 verification:

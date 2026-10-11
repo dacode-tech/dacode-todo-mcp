@@ -175,13 +175,13 @@ tools/attention.py
 tools/attention.py --check
 
 # Total progress: the dependency graph, the totals, the open items
-tools/progress.py            # writes .agents/cache/progress.{html,json}
-tools/progress.py --open     # ...and opens the page in a browser
-tools/progress.py --json     # machine-readable, for other tools
-tools/progress.py --refresh  # re-register + re-import this repo's board (the store is a derived cache)
-tools/progress.py --serve    # serve the page live on 127.0.0.1 (one listener per user; a second invocation attaches)
-tools/progress-refresh-check.py  # the refresh crash-order pin (temp root only)
-tools/progress-serve-check.py    # the serve-mode pin (temp root + temp port file only)
+# (the todo-mcp subcommands, D20; --root required, the repo resolves
+#  --repo over the cwd match, the render reads the store lock-free)
+todo-mcp --root ~/.local/share/dacode-todo progress            # writes the rendered repo's .agents/cache/progress.{html,json}
+todo-mcp --root ~/.local/share/dacode-todo progress --open     # ...and opens the page in a browser
+todo-mcp --root ~/.local/share/dacode-todo progress --json     # machine-readable, for other tools
+todo-mcp --root ~/.local/share/dacode-todo refresh             # re-register + re-import this repo's board (the store is a derived cache)
+todo-mcp --root ~/.local/share/dacode-todo serve               # the live page on 127.0.0.1 (per-root listener, <root>/serve.port; every session's server ensures it)
 
 # Session task tree (gitignored, branch-keyed).
 # Convention: .agents/knowledge/workflows/task-tracking.md
@@ -252,7 +252,7 @@ spec moves only by user decision.
 │       ├── README.md               # plan index: which file holds Truth / Reasoning / State
 │       ├── TODO.md                 # the committed board
 │       └── decisions.md            # sign-off record for §12
-├── tools/                          # agents-sync, tasks, agents-index, check-links, attention, progress
+├── tools/                          # agents-sync, tasks, agents-index, check-links, attention
 ├── crates/                         # the Cargo workspace — created at M0, not before
 └── tmp/                            # scratch, gitignored
 ```
@@ -403,7 +403,7 @@ session**; a fix does not take effect mid-session.
 | What has landed and what is next | `docs/implementation/TODO.md` |
 | Sign-off record for open decisions | `docs/implementation/decisions.md` |
 | Prioritized "what needs you" | `tools/attention.py` → `.agents/cache/ATTENTION.md` |
-| Total progress: graph, totals, open items | `tools/progress.py` → `.agents/cache/progress.{html,json}` |
+| Total progress: graph, totals, open items | `todo-mcp progress` → `.agents/cache/progress.{html,json}` |
 | Roles, models, commands, gates, prohibitions | `.agents/config/agent-rules.yaml` |
 | The three trackers and their conventions | `.agents/knowledge/workflows/task-tracking.md` |
 | Rust conventions, architecture rules, determinism | `.agents/roles/_rust.md` |

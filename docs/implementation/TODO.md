@@ -214,7 +214,7 @@ shell, which is M3's business.
 
 | Blocking | What | Action |
 |---|---|---|
-| — | nothing blocks: the roadmap is delivered, the dacode and ipmi-collector repos cut over, the D20 arc under way | g20 closed 2026-10-10 (t83, their repo's `6e04025`). **t71 landed 2026-10-10** (the `serve` subcommand: the live view + the WS push channel, the page.v1 golden moved for the script block — the compatibility event called out in the session log). **t72 landed 2026-10-10** (the todo-cli absorption: `dump`/`verify`/`repair` as subcommands, the crate retired, the golden moved byte-identical as `dump.v1`, U38's split — main.rs 422, args.rs 476 production lines). **t88 (the schema flatten) landed 2026-10-10** — every advertised enum field now presents its values inline and quoted; the field test passed (the user confirmed the failures stopped). **t85 (D13's default-server live view) landed 2026-10-10, closing g22** — every session's server ensures the per-root listener (`<root>/serve.port` is the port's discovery; the page is up while ≥1 session lives). Next: g19's remainder — t73 (the Python retirement + doc moves; the README/AGENTS/skill rows naming `todo-cli` ride it) — then t84 (the activity panel) and g21 (this repo's own full-switch cutover, the user's sign); the ikvm-html refresh+cutover waits for its live session to settle (U36 rides that revisit) — see §6's handover |
+| — | nothing blocks: the roadmap is delivered, the dacode and ipmi-collector repos cut over, the D20 arc complete | g20 closed 2026-10-10 (t83, their repo's `6e04025`). **t71 landed 2026-10-10** (the `serve` subcommand: the live view + the WS push channel, the page.v1 golden moved for the script block — the compatibility event called out in the session log). **t72 landed 2026-10-10** (the todo-cli absorption: `dump`/`verify`/`repair` as subcommands, the crate retired, the golden moved byte-identical as `dump.v1`, U38's split — main.rs 422, args.rs 476 production lines). **t88 (the schema flatten) landed 2026-10-10** — every advertised enum field now presents its values inline and quoted; the field test passed (the user confirmed the failures stopped). **t85 (D13's default-server live view) landed 2026-10-10, closing g22** — every session's server ensures the per-root listener (`<root>/serve.port` is the port's discovery; the page is up while ≥1 session lives). **t73 landed 2026-10-11 — g19 closed with it**: the Python retirement (`tools/progress.py` and the two drivers deleted, their checks Rust pins since t70/t71; every live row — README, AGENTS, the skill, agent-rules — moved to the subcommands; the release rebuilt + re-copied, the live refresh/progress/serve smoke green, the workspace suite + golden ritual re-run for the exit lines). Next: t84 (the activity panel) and g21 (this repo's own full-switch cutover, the user's sign); the ikvm-html refresh+cutover waits for its live session to settle (U36 rides that revisit) — see §6's handover |
 
 (The user's calls 2026-10-10: **the `--epic` default tier resolved
 (a)** — the param convention carried by the base instructions, t76's
@@ -3905,6 +3905,51 @@ Oldest first. One line per delivery, with the commit hash once committed.
    port, the owner's death is taken over by the survivor within the
    interval (a new port, published — the port file is the discovery).
    Landed as this commit.
+ - 2026-10-11 — **t73: the Python retirement — g19 closed, the D20
+   arc complete**: `tools/progress.py` and the two committed drivers
+   (`progress-refresh-check.py`, `progress-serve-check.py`) deleted —
+   their checks have been Rust pins since t70/t71, so nothing is
+   lost — and every live instruction row moved to the subcommands:
+   the README's rows (the four-crates sentence → three + the tool
+   CLI, the inspector commands `--slug` → `--repo`, the cutover
+   playbook's refresh/verify spellings gaining the required `--root`,
+   the progress-page section, and the verifying-the-wiring probe —
+   whose stale lock claim is corrected with it: the render reads
+   lock-free per D19, only `verify`, which opens through
+   `DataRoot::open`, can answer `store is locked`, and only while a
+   session holds a write handle), AGENTS.md's Quick Reference /
+   structure tree / Key Files row, the domain skill's D5 line and
+   crate-map row, and agent-rules.yaml's tools_dir comment +
+   build_commands.progress (version.custom 13→14, re-synced, adapters
+   up to date). The rg sweeps: `progress.py` and `todo-cli` now
+   appear only in historical records (board §3/§6, decisions.md,
+   pitfalls, the golden world's own task data — dump.v1's verify
+   strings — and f117's known e2e.rs sites, which ride their named
+   owner). The release binary rebuilt and the stable copy re-copied
+   (the fresh-inode update); the live smoke through the subcommands:
+   refresh re-importing this repo's board clean (8 epics, 20
+   decisions, 0 docs, 39 tasks, 17 blocks), progress twice-run
+   byte-identical over the durable root (sha256: html `fe02a6e9…`,
+   json `9f6985da…`, deterministic across out-dirs and consecutive
+   runs — the import instant the only variable input) with `--repo
+   camera` rendering camera, serve attaching to the live listener
+   (the port file's port answering /health and the page, exit 0),
+   and verify green on this repo's and camera's stores while
+   dacode's answers locked — a live session holds that write handle,
+   the README's documented mode. No Rust moved — clippy and cargo
+   doc skipped by construction, the empty diff over
+   `*.rs`/`Cargo.*` the proof; fmt, check, the workspace suite (741
+   passed 0 failed 1 ignored) and the golden ritual (mcp 419 + store
+   139, all goldens byte-identical) re-run green for g19's exit
+   lines. Dual review over two rounds (round 1 both
+   changes_requested — the shared med: the README's tracked-repos
+   list undercounted, the registry holding six with
+   infra-hostrail-server missing, found independently by both
+   reviewers; the primary's med: the quoted render shas predated the
+   recording-commit refresh; the lows: a drive-by re-indent of t85's
+   §3 tail, the new entry's list form, the playbook's refresh
+   spellings missing `--root` — all fixed in the fix round; round 2
+   both ok). Landed as this commit.
 
 
 
@@ -4956,6 +5001,67 @@ Deliberate shortcuts, acknowledged rather than fixed. Same id rules as §4.
 Newest first. One entry per session, written for someone who was not
 here. The final entry of a session is the handover
 (`.agents/skills/todo-next-imp/SKILL.md` defines the shape).
+
+### 2026-10-11 — t73: the Python retirement; g19 closed
+
+**Workspace**: main, clean at `f9dec0b` at start; the tree left dirty
+through the edits and both review rounds, committed with this entry.
+
+**t73 landed** (the user's "let's continue: t73 next" over the
+handover's proposal): the last g19 slice — `tools/progress.py` and the
+two committed drivers deleted (their checks Rust pins since t70/t71),
+every live row moved to the subcommands (the README's rows — incl.
+the tracked-repos list completed to the registry's six,
+infra-hostrail-server included; AGENTS.md's Quick Reference /
+structure tree / Key Files; the domain skill's D5 line + crate-map
+row; agent-rules.yaml's tools_dir comment + build_commands.progress,
+version.custom 13→14 re-synced), the release rebuilt + the stable
+copy re-copied, and the live smoke green: refresh (8 epics / 20
+decisions / 0 docs / 39 tasks / 17 blocks, exit 0), progress
+twice-run byte-identical (sha256 html `fe02a6e9…`, json
+`9f6985da…` — deterministic across out-dirs and consecutive runs,
+the import instant the only variable input) with `--repo camera`
+rendering camera, serve attaching to the live listener (/health +
+the page answering, exit 0), verify green on this repo's and
+camera's stores and locked on dacode's — a live session holds that
+write handle, the README's documented mode met in the wild. Dual
+review over two rounds: round 1 both changes_requested — the shared
+med (the tracked-repos list undercounted, both reviewers finding the
+registry's sixth repo independently), the primary's med (the quoted
+render shas predated the recording-commit refresh; the re-run
+rendered the same bytes, its values sha1 where the entry's were
+sha256), and three lows (a drive-by re-indent of t85's §3 tail, the
+new entry's list form, the playbook's refresh spellings missing the
+required `--root`) — the fix round landed all five, round 2 both ok.
+**g19
+closed with it** — the D20 arc (t68–t73) is complete: one binary, the
+MCP server on stdio plus the tool CLI, the Python tools gone. The
+exit lines re-run: fmt / check / test (741 passed 0 failed 1 ignored)
+/ the golden ritual (mcp 419 + store 139, byte-identical); clippy and
+cargo doc skipped by construction (no Rust moved — the empty diff
+over `*.rs`/`Cargo.*` is the proof).
+
+**Handover.** Workspace: main, clean at this commit; three crates
+(todo-domain, todo-store, todo-mcp), rustc 1.98.1, the stable binary
+`~/.local/bin/todo-mcp` current with the tree. Landed: t73 + g19's
+closure (this commit). Next step: **t84** — the activity panel
+(store-derived live statistics on the page: events by kind, activity
+over time, per-epic counts, last activity — render-side over the
+existing model, riding t71's WS live-ness; the raw call-counts stay
+parked as U39 behind a sidecar design). Then **g21** — this repo's
+own full-switch cutover (the user's 2026-10-09 sign: the store becomes
+the tracker of record, session tracking moves to todo-mcp tool calls,
+the markdown board archived, the harness conventions rewritten; the
+decomposition questions are named in g21's note — what replaces
+check's session-end audit, where the in-flight tracker state migrates,
+the board backup beside the store). The order is the user's to flip;
+t84 first keeps the page work off the cutover's critical path, and g21
+then runs on the new tracker as its first shakedown. Blocked on you:
+nothing — U36 rides the ikvm-html revisit (its live session), U39 is
+parked behind t84's sidecar question. Unverified: nothing this
+session — every gate ran or was skipped by construction with the
+proof named; the flatten's field test (t88) remains the adopted
+repos' next sessions, unchanged by this commit.
 
 ### 2026-10-10 — t72: the todo-cli absorption; U38's split
 

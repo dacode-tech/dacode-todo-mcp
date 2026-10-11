@@ -97,8 +97,10 @@ requirements (§4), whatever happens:
 
 ## MCP surface — settled and pending
 
-Settled (D5): the §6 tool list is the v1 surface and `todo-cli` ships;
-the list includes `next_items` (D11) and the decision/doc tools (D10).
+Settled (D5): the §6 tool list is the v1 surface; the list includes
+`next_items` (D11) and the decision/doc tools (D10). The inspector
+`todo-cli` carried lives as `todo-mcp`'s `dump`/`verify`/`repair`
+subcommands (D20, t72) — that crate retired with the absorption.
 JSON schemas firm up against rmcp's macros in M3. Fixed (§6's frame): tools are thin
 translations over domain operations; every tool takes a repo parameter
 (an absent one resolves param > flag > cwd — the cwd tier armed at
@@ -117,8 +119,7 @@ clients here use.
 |---|---|---|
 | `todo-domain` | nodes, edges, graph invariants, selection, **no I/O, no async** | nothing |
 | `todo-store` | persistence behind one `Store` trait; engine (D1) sealed inside | todo-domain |
-| `todo-mcp` | the server binary: rmcp wire surface, translates, never decides | both |
-| `todo-cli` (ships, D5) | inspect/debug the store without a client | domain + store |
+| `todo-mcp` | the server binary: rmcp wire surface, translates, never decides; the tool CLI (`progress`/`refresh`/`serve` + the inspector) rides as subcommands (D20) | both |
 
 ## Verification for this domain
 
