@@ -197,9 +197,11 @@ const INSTRUCTIONS: &str = "You are connected to a deterministic task-graph serv
     enum spellings exactly as the schema lists them. If a call fails, read \
     the error text — argument faults carry no code, and the text is the \
     remedy: it names the missing or unknown field, and a misspelled \
-    value's expected variants; correct the arguments and retry once. The \
-    same failure twice means stop and tell the user, quoting the tool, the \
-    arguments and the error verbatim — never work around a failing \
+    value's expected variants; a JSON parse error means the arguments you \
+    emitted were not valid JSON — an unquoted value, the value itself \
+    usually right — so quote it. Correct the arguments and retry once. \
+    The same failure twice means stop and tell the user, quoting the tool, \
+    the arguments and the error verbatim — never work around a failing \
     tracker by editing files or guessing state. Tasks carry an agent-set \
     `priority` (high, medium, low) — set \
     it when triaging, prefer higher priority when choosing among \

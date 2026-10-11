@@ -119,9 +119,11 @@ Tool arguments are strict JSON — every string value quoted, enum
 spellings exactly as the schema lists them (`high`/`medium`/`low`,
 `in_work`, …). A failed call's error text is the remedy: argument
 faults name the missing or unknown field, a misspelled value's
-expected variants. Correct the arguments and retry once; the same
-failure twice means stop and tell the user — never work around the
-tracker by editing files or guessing state.
+expected variants; a JSON parse error from the client means the
+arguments were not valid JSON — an unquoted value, the value itself
+usually right — so quote it. Correct the arguments and retry once;
+the same failure twice means stop and tell the user — never work
+around the tracker by editing files or guessing state.
 
 The authoritative table — every tool, its parameters, the error code
 list — is [docs/todo-mcp-design.md](docs/todo-mcp-design.md) §6. The

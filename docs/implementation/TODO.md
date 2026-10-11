@@ -3830,6 +3830,25 @@ Oldest first. One line per delivery, with the commit hash once committed.
    with the no-code carve-out named). The release binary rebuilt and
    re-copied (the fresh-inode update), the live initialize smoke
    carrying the new text. Landed as this commit.
+ - 2026-10-10 — **t87: the recovery rule's parse-error clause** (t86's
+   refinement, the user's standing instructions-ask): the field
+   evidence — the f120/f121 class recurred across every adopted repo
+   (dacode, ikvm-html, ipmi-collector, infra-hostrail-server), reads
+   and writes alike, always the same shape (enum values bare, plain
+   strings quoted) — and the agents' reaction exposed the gap: they
+   *investigated a pipeline defect* ("the enum-valued argument is
+   arriving unquoted… let me isolate whether it's enum-wide or
+   write-only") instead of fixing their own quoting, because the rule
+   named the server's argument faults but not the client's parse-error
+   shape. The instructions now carry it: "a JSON parse error means the
+   arguments you emitted were not valid JSON — an unquoted value, the
+   value itself usually right — so quote it." The frozen pin moved
+   (the t76 precedent), the README paragraph matches, the release
+   binary rebuilt and re-copied with the live smoke carrying the
+   clause. f121's note carries the systemic picture and the remaining
+   levers (the model binding — the certain fix; the schema flatten —
+   the server-side bet, awaiting the user's word). Landed as this
+   commit.
 
 
 
@@ -4965,7 +4984,17 @@ the tracker. The frozen pin moved (the t76 precedent), the README and
 the skill carry the companion rows, and the release binary was
 rebuilt and re-copied so the adopted repos' next sessions receive it
 (a live session keeps its old instructions until it restarts). Dual
-review over two rounds.
+review over two rounds. **The refinement (t87) landed after the field
+evidence**: the class recurred across every adopted repo (reads and
+writes alike, enum values bare, strings quoted), and the agents
+investigated a "pipeline defect" instead of fixing their quoting —
+the rule now names the client's parse-error shape too ("a JSON parse
+error means the arguments you emitted were not valid JSON — an
+unquoted value, the value itself usually right — so quote it"), the
+release binary re-copied again. The remaining levers are the model
+binding (the certain fix — the failure is the model's JSON
+discipline, not the server's) and the schema flatten (the server-side
+bet, f121's lever (c), awaiting the user's word).
 
 **Handover.** Workspace: main, clean after this commit; three crates
 (todo-domain, todo-store, todo-mcp — the four-member map is history);
