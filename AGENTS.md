@@ -181,7 +181,7 @@ todo-mcp --root ~/.local/share/dacode-todo progress            # writes the rend
 todo-mcp --root ~/.local/share/dacode-todo progress --open     # ...and opens the page in a browser
 todo-mcp --root ~/.local/share/dacode-todo progress --json     # machine-readable, for other tools
 todo-mcp --root ~/.local/share/dacode-todo refresh             # re-register + re-import this repo's board (the store is a derived cache)
-todo-mcp --root ~/.local/share/dacode-todo serve               # the live page on 127.0.0.1 (per-root listener, <root>/serve.port; every session's server ensures it)
+todo-mcp --root ~/.local/share/dacode-todo serve               # the live page on 127.0.0.1 (per-root listener, <root>/serve.port; every session's server ensures it); serve --open attaches or binds it and opens the page — the live view's discovery
 
 # Session task tree (gitignored, branch-keyed).
 # Convention: .agents/knowledge/workflows/task-tracking.md

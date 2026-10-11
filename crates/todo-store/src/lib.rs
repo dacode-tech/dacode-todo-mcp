@@ -84,6 +84,7 @@ pub use event::{
 pub use layout::DataRoot;
 pub use lock::RegistryLock;
 pub use log::JsonlStore;
+pub use reader::EventCensus;
 pub use registry::{Registry, RegistryEntry};
 pub use repair::{RepairOutcome, TornTail};
 pub use store::{Compaction, Store};

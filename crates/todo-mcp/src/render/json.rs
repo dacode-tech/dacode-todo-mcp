@@ -10,15 +10,15 @@
 use serde::Serialize;
 
 use todo_domain::{DecisionStatus, RepoSlug};
-use todo_store::DataRoot;
+use todo_store::{DataRoot, EventCensus};
 
-use super::{Model, build, resolve};
+use super::{Model, build, gather};
 
 /// The `progress --json` document: the golden-pinned v1 JSON, one
 /// trailing newline — exactly the bytes the subcommand prints.
 pub fn json(root: &DataRoot, repo: &RepoSlug) -> Result<String, String> {
-    let graph = resolve(root, repo).map_err(|error| error.message)?;
-    let model = build(&graph).map_err(|error| error.message)?;
+    let (graph, census, sidebar) = gather(root, repo)?;
+    let model = build(&graph, &census, &sidebar).map_err(|error| error.message)?;
     json_text(&model)
 }
 
@@ -51,6 +51,9 @@ struct ProgressJson {
     decisions: Vec<DecisionDto>,
     /// The graph: one node per placed task or decision, the edges.
     graph: GraphDto,
+    /// The store-derived activity summary — the census verbatim (t84's
+    /// D6), the page's activity panel's machine-readable twin.
+    activity: EventCensus,
 }
 
 /// The totals block.
@@ -254,5 +257,6 @@ fn document(model: &Model) -> ProgressJson {
         open_items,
         decisions,
         graph: GraphDto { nodes, edges },
+        activity: model.activity.clone(),
     }
 }

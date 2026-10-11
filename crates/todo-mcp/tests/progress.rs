@@ -185,9 +185,21 @@ mod progress {
             )
             .expect("D4 lands");
 
-        // The add instant of task number `n`: 08:10:00 plus `n` seconds —
-        // fixed, caller-passed, distinct per task.
-        let at = |n: u64| ts(&format!("2026-10-02T08:10:{n:02}Z"));
+        // The add instant of task number `n`, spread across days so the
+        // census and the day histogram have a real shape — including
+        // the zero-event day 2026-10-04 the continuous timeline renders
+        // as a zero-height bar: U1–U2 on the 2nd, U3–U5 on the 3rd,
+        // U6–U8 on the 5th, U9–U10 on the 6th; the edges land on the
+        // 7th. Fixed, caller-passed, distinct per task.
+        let at = |n: u64| {
+            let day: u64 = match n {
+                1 | 2 => 2,
+                3..=5 => 3,
+                6..=8 => 5,
+                _ => 6,
+            };
+            ts(&format!("2026-10-{day:02}T08:10:{n:02}Z"))
+        };
         let draft =
             |epic: &todo_domain::EpicId, title: &str, kind: TaskKind, status: Status| TaskDraft {
                 epic: epic.clone(),
@@ -292,7 +304,7 @@ mod progress {
                     from: d1.id.clone(),
                     to: m1.id.clone(),
                 },
-                ts("2026-10-02T08:20:01Z"),
+                ts("2026-10-07T08:20:01Z"),
             )
             .expect("D1 gates E2");
         store
@@ -301,7 +313,7 @@ mod progress {
                     from: d2.id.clone(),
                     to: u3.id.clone(),
                 },
-                ts("2026-10-02T08:20:02Z"),
+                ts("2026-10-07T08:20:02Z"),
             )
             .expect("D2 gates U3");
         store
@@ -310,7 +322,7 @@ mod progress {
                     from: d3.id.clone(),
                     to: u8.id.clone(),
                 },
-                ts("2026-10-02T08:20:03Z"),
+                ts("2026-10-07T08:20:03Z"),
             )
             .expect("D3 gates U8");
         store
@@ -319,7 +331,7 @@ mod progress {
                     from: u1.id.clone(),
                     to: u3.id.clone(),
                 },
-                ts("2026-10-02T08:20:04Z"),
+                ts("2026-10-07T08:20:04Z"),
             )
             .expect("U1 blocks U3");
         store
@@ -328,7 +340,7 @@ mod progress {
                     from: u8.id.clone(),
                     to: u10.id.clone(),
                 },
-                ts("2026-10-02T08:20:05Z"),
+                ts("2026-10-07T08:20:05Z"),
             )
             .expect("U8 blocks U10");
     }
@@ -725,10 +737,12 @@ mod progress {
     }
 
     /// The switcher is a registry nav, not a render: a registered repo
-    /// whose store will not read still appears — the page never pays
-    /// one lock-free read per slug to render a nav, and clicking the
-    /// slug under `serve` answers the read error (the spec's
-    /// veto-able reading (iii), pinned).
+    /// whose store will not read still appears — the switcher itself
+    /// pays no per-repo read (it renders from the sidebar's registry
+    /// walk), and clicking the slug under `serve` answers the read
+    /// error (the spec's veto-able reading (iii), pinned). The
+    /// sidebar's per-repo reads (D3) do pay it, and report the same
+    /// repo with the unreadable marker — the test below this one.
     #[test]
     fn the_switcher_lists_slugs_whose_stores_will_not_read() {
         let root = switcher_fixture();
@@ -742,6 +756,195 @@ mod progress {
         assert!(
             page.contains(r#"<a href="?repo=alpha">alpha</a>"#),
             "the unreadable repo still appears in the nav"
+        );
+    }
+
+    /// The sidebar (t84's D3/D4): every registered repo present with
+    /// its epics — ascending epic id, the model's lane order — the
+    /// rendered repo marked as the non-link, the other repo's name
+    /// linking to `?repo=<slug>`, the epic entries linking to the lane
+    /// anchors (same-page for the rendered repo, repo+anchor for the
+    /// others) and carrying their done/total task counts.
+    #[test]
+    fn the_sidebar_lists_every_repo_with_its_epics() {
+        let root = switcher_fixture();
+        let page = fixture_page(&root);
+        // The rendered repo: the marked non-link, its three epics
+        // ascending with their counts.
+        assert!(
+            page.contains(r#"<span class="sname scur">Fixture</span>"#),
+            "the rendered repo is the marked non-link"
+        );
+        let e1 = page
+            .find(r##"<a href="#lane-1">E1 · Milestone zero</a><span>2/2</span>"##)
+            .expect("E1's row with its count");
+        let e2 = page
+            .find(r##"<a href="#lane-2">E2 · Milestone one</a><span>0/5</span>"##)
+            .expect("E2's row with its count");
+        let e3 = page
+            .find(r##"<a href="#lane-3">E3 · Follow-ups</a><span>1/3</span>"##)
+            .expect("E3's row with its count");
+        assert!(
+            e1 < e2 && e2 < e3,
+            "the epics are ascending epic id (the lane order)"
+        );
+        // The other repo: its name links, its epic links carry the
+        // repo, and the SVG lanes carry the anchors the links target.
+        assert!(
+            page.contains(r#"<a class="sname" href="?repo=alpha">Alpha</a>"#),
+            "the other repo's name links to its render"
+        );
+        assert!(
+            page.contains(r#"<a href="?repo=alpha#lane-1">E1 · Alpha work</a><span>0/1</span>"#),
+            "the other repo's epic links to its lane anchor"
+        );
+        assert!(
+            page.contains(r##"<text id="lane-1" class="lane""##),
+            "the SVG lane labels carry the lane anchors"
+        );
+    }
+
+    /// The sidebar's anti-silent-omission rule (D3): a repo whose graph
+    /// will not read — a corrupted log, or a store holding another
+    /// repo's graph under the slug (the resolve cross-check one level
+    /// out) — is reported with the unreadable marker and no epics,
+    /// never dropped from the nav.
+    #[test]
+    fn an_unreadable_repo_is_reported_never_dropped() {
+        let root = switcher_fixture();
+        let alpha_log = root
+            .path()
+            .join("repos")
+            .join(ALPHA)
+            .join("event-log.jsonl");
+        std::fs::write(&alpha_log, "not a log\n").expect("alpha's store is corrupted");
+        let page = fixture_page(&root);
+        assert!(
+            page.contains(r#"<a class="sname" href="?repo=alpha">alpha</a>"#),
+            "the unreadable repo's row is present, its name fallen back to the slug"
+        );
+        assert!(
+            page.contains(r#"<span class="unread">unreadable</span>"#),
+            "the unreadable marker is visible"
+        );
+        assert!(
+            !page.contains("?repo=alpha#lane-"),
+            "an unreadable repo shows no epic rows"
+        );
+
+        // The copied store: alpha's directory holding fixture's graph
+        // under alpha's slug — the marker, never the foreign epics.
+        let root = switcher_fixture();
+        let alpha_log = root
+            .path()
+            .join("repos")
+            .join(ALPHA)
+            .join("event-log.jsonl");
+        let fixture_log = root
+            .path()
+            .join("repos")
+            .join(FIXTURE)
+            .join("event-log.jsonl");
+        fs::copy(&fixture_log, &alpha_log).expect("the store directory is copied");
+        let page = fixture_page(&root);
+        assert!(
+            page.contains(r#"<span class="unread">unreadable</span>"#),
+            "the foreign graph under the slug reads as unreadable"
+        );
+        assert!(
+            !page.contains("?repo=alpha#lane-"),
+            "the foreign epics are never displayed under the wrong slug"
+        );
+    }
+
+    /// The activity panel (t84's D5): the census rendered — the header
+    /// with the total and the first event's instant, the by-kind chips
+    /// (alphabetical), the day histogram with one bar per day from
+    /// first to last (the zero-event 2026-10-04 as a zero-height bar —
+    /// a continuous timeline), and the last-activity line.
+    #[test]
+    fn the_activity_panel_renders_the_census() {
+        let root = switcher_fixture();
+        let page = fixture_page(&root);
+        assert!(
+            page.contains("<h2>Activity — 23 events since 2026-10-02T08:00:00.000000000Z</h2>"),
+            "the header carries the total and the seed's instant"
+        );
+        assert!(
+            page.contains(
+                "<span class=\"chip\">blocks_link <b>5</b></span><span class=\"chip\">\
+                 decision_add <b>4</b></span><span class=\"chip\">epic_add <b>3</b></span>\
+                 <span class=\"chip\">repo_register <b>1</b></span><span class=\"chip\">\
+                 task_add <b>10</b></span>"
+            ),
+            "the by-kind chips are alphabetical with their counts"
+        );
+        assert!(
+            page.contains(
+                "<div class=\"hday\" title=\"2026-10-02: 10 events\">\
+                 <span class=\"hnum\">10</span>\
+                 <span class=\"hbar\" style=\"height:64px\"></span>\
+                 <span class=\"hdate\">2026-10-02</span></div>"
+            ),
+            "the busiest day is the capped max bar"
+        );
+        assert!(
+            page.contains(
+                "<div class=\"hday\" title=\"2026-10-04: 0 events\">\
+                 <span class=\"hnum\">0</span>\
+                 <span class=\"hbar\" style=\"height:0px\"></span>\
+                 <span class=\"hdate\">2026-10-04</span></div>"
+            ),
+            "the zero-event day is a zero-height bar, not a gap"
+        );
+        assert_eq!(
+            page.matches("class=\"hday\"").count(),
+            6,
+            "one bar per day from first to last"
+        );
+        assert!(
+            page.contains(
+                "<div class=\"lastact\">Last activity: 2026-10-07T08:20:05.000000000Z</div>"
+            ),
+            "the last-activity line carries the last event's instant"
+        );
+    }
+
+    /// The JSON's `activity` object (t84's D6): the census verbatim —
+    /// the page's activity panel's machine-readable twin.
+    #[test]
+    fn the_json_document_carries_the_activity_twin() {
+        let root = switcher_fixture();
+        let document = fixture_document(&root);
+        let value: Value = serde_json::from_str(&document).expect("the document is JSON");
+        assert_eq!(value["activity"]["total"], json!(23));
+        assert_eq!(
+            value["activity"]["by_kind"],
+            json!({
+                "blocks_link": 5,
+                "decision_add": 4,
+                "epic_add": 3,
+                "repo_register": 1,
+                "task_add": 10
+            })
+        );
+        assert_eq!(
+            value["activity"]["by_day"],
+            json!({
+                "2026-10-02": 10,
+                "2026-10-03": 3,
+                "2026-10-05": 3,
+                "2026-10-06": 2,
+                "2026-10-07": 5
+            })
+        );
+        assert_eq!(
+            value["activity"]["first_ts"],
+            json!("2026-10-02T08:00:00.000000000Z")
+        );
+        assert_eq!(
+            value["activity"]["last_ts"],
+            json!("2026-10-07T08:20:05.000000000Z")
         );
     }
 
@@ -1008,5 +1211,81 @@ mod progress {
                 )
                 .expect("the hostile task lands");
         }
+    }
+
+    /// **Why this test is `#[ignore]`d**: it is a measurement, not a
+    /// property (the `cold_repo_list_open_cost` precedent) — it asserts
+    /// structure only and prints numbers, never a wall-clock threshold,
+    /// which would be flaky on a loaded host. The root is injected
+    /// through `TODO_MCP_MEASURE_ROOT` so the harness never reads a
+    /// home directory on its own; absent the variable it returns before
+    /// touching anything. Run it with:
+    ///
+    /// ```text
+    /// TODO_MCP_MEASURE_ROOT=~/.local/share/dacode-todo \
+    ///   cargo test -p todo-mcp --test progress -- --ignored --nocapture
+    /// ```
+    ///
+    /// It prints, over the named root: the registered repo count, and
+    /// for the registry's first slug the mean cost of one lock-free
+    /// graph read, one census read (the second log walk, t84's judgment
+    /// call (a)) and one full page render — the render walking the
+    /// current log twice plus one graph read per other registered repo.
+    /// Those numbers belong in this run's output and the task's report,
+    /// never in a source comment.
+    ///
+    /// `std::time::Instant` appears in this file alone: §8 bars clocks
+    /// below the binary layer as a *determinism* rule, and a
+    /// measurement harness produces no bytes, touches no golden and
+    /// asserts no duration.
+    #[test]
+    #[ignore = "a measurement, not a property; run with --ignored --nocapture"]
+    fn the_render_cost_over_a_named_root() {
+        use std::time::Instant;
+
+        let Some(root_path) = std::env::var_os("TODO_MCP_MEASURE_ROOT") else {
+            println!("TODO_MCP_MEASURE_ROOT is unset — nothing to measure");
+            return;
+        };
+        const RUNS: usize = 20;
+        let root = DataRoot::new(root_path);
+        let registry = todo_store::Registry::load(&root).expect("the registry loads");
+        let slugs: Vec<RepoSlug> = registry.slugs().into_iter().cloned().collect();
+        drop(registry);
+        assert!(!slugs.is_empty(), "the named root holds repositories");
+        let slug = slugs.first().expect("a first slug").clone();
+        let log_bytes = fs::metadata(root.log_path(&slug))
+            .expect("the log exists")
+            .len();
+
+        fn mean<R: FnMut()>(label: &str, mut run: R) {
+            let mut total = std::time::Duration::ZERO;
+            for _ in 0..RUNS {
+                let started = Instant::now();
+                run();
+                total += started.elapsed();
+            }
+            println!(
+                "{label:>28}: {:>9.1} µs (mean of {RUNS})",
+                total.as_micros() as f64 / RUNS as f64
+            );
+        }
+
+        println!(
+            "the render cost over {} — {} registered repos, rendering {} ({} log bytes)",
+            root.root().display(),
+            slugs.len(),
+            slug,
+            log_bytes
+        );
+        mean("one graph read (read_repo)", || {
+            drop(root.read_repo(&slug).expect("the graph reads"));
+        });
+        mean("one census read (the 2nd walk)", || {
+            drop(root.read_repo_census(&slug).expect("the census reads"));
+        });
+        mean("one full page render", || {
+            drop(render::page(&root, &slug).expect("the page renders"));
+        });
     }
 }

@@ -56,7 +56,8 @@ pub(super) fn render_svg(model: &Model) -> String {
             None => short(&lane.epic.title, 24),
         };
         out.push_str(&format!(
-            "<text class=\"lane\" x=\"{x}\" y=\"{}\">{}</text>",
+            "<text id=\"lane-{}\" class=\"lane\" x=\"{x}\" y=\"{}\">{}</text>",
+            lane.epic.id.number(),
             PAD - 8,
             esc(&header)
         ));

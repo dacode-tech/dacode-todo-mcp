@@ -214,7 +214,7 @@ shell, which is M3's business.
 
 | Blocking | What | Action |
 |---|---|---|
-| — | nothing blocks: the roadmap is delivered, the dacode and ipmi-collector repos cut over, the D20 arc complete | g20 closed 2026-10-10 (t83, their repo's `6e04025`). **t71 landed 2026-10-10** (the `serve` subcommand: the live view + the WS push channel, the page.v1 golden moved for the script block — the compatibility event called out in the session log). **t72 landed 2026-10-10** (the todo-cli absorption: `dump`/`verify`/`repair` as subcommands, the crate retired, the golden moved byte-identical as `dump.v1`, U38's split — main.rs 422, args.rs 476 production lines). **t88 (the schema flatten) landed 2026-10-10** — every advertised enum field now presents its values inline and quoted; the field test passed (the user confirmed the failures stopped). **t85 (D13's default-server live view) landed 2026-10-10, closing g22** — every session's server ensures the per-root listener (`<root>/serve.port` is the port's discovery; the page is up while ≥1 session lives). **t73 landed 2026-10-11 — g19 closed with it**: the Python retirement (`tools/progress.py` and the two drivers deleted, their checks Rust pins since t70/t71; every live row — README, AGENTS, the skill, agent-rules — moved to the subcommands; the release rebuilt + re-copied, the live refresh/progress/serve smoke green, the workspace suite + golden ritual re-run for the exit lines). Next: t84 (the page rework — the activity panel plus the user's 2026-10-11 asks: the registered projects listed with their epics in a left sidebar, the `serve --open` discovery named in the doc rows) and g21 (this repo's own full-switch cutover, the user's sign; U40's per-epic-handover shape rides its conventions rewrite); the ikvm-html refresh+cutover waits for its live session to settle (U36 rides that revisit) — see §6's handover |
+| — | nothing blocks: the roadmap is delivered, the dacode and ipmi-collector repos cut over, the D20 arc complete | g20 closed 2026-10-10 (t83, their repo's `6e04025`). **t71 landed 2026-10-10** (the `serve` subcommand: the live view + the WS push channel, the page.v1 golden moved for the script block — the compatibility event called out in the session log). **t72 landed 2026-10-10** (the todo-cli absorption: `dump`/`verify`/`repair` as subcommands, the crate retired, the golden moved byte-identical as `dump.v1`, U38's split — main.rs 422, args.rs 476 production lines). **t88 (the schema flatten) landed 2026-10-10** — every advertised enum field now presents its values inline and quoted; the field test passed (the user confirmed the failures stopped). **t85 (D13's default-server live view) landed 2026-10-10, closing g22** — every session's server ensures the per-root listener (`<root>/serve.port` is the port's discovery; the page is up while ≥1 session lives). **t73 landed 2026-10-11 — g19 closed with it**: the Python retirement (`tools/progress.py` and the two drivers deleted, their checks Rust pins since t70/t71; every live row — README, AGENTS, the skill, agent-rules — moved to the subcommands; the release rebuilt + re-copied, the live refresh/progress/serve smoke green, the workspace suite + golden ritual re-run for the exit lines). **t84 landed 2026-10-11** (the page rework: the left sidebar — every registered project with its epics — and the activity panel over a new lock-free event-census read, both page goldens moved as called-out compatibility events, U39 resolved with it). Next: the ikvm-html refresh+cutover (its live session settled — the t258 closure is the signal; the t83 playbook, U36's footer hoist riding it) and g21 (this repo's own full-switch cutover, the user's sign; U40's per-epic-handover shape rides its conventions rewrite) — see §6's handover |
 
 (The user's calls 2026-10-10: **the `--epic` default tier resolved
 (a)** — the param convention carried by the base instructions, t76's
@@ -3950,6 +3950,36 @@ Oldest first. One line per delivery, with the commit hash once committed.
    §3 tail, the new entry's list form, the playbook's refresh
    spellings missing `--root` — all fixed in the fix round; round 2
    both ok). Landed as this commit.
+ - 2026-10-11 — **t84: the page rework — the sidebar and the activity
+   panel**: the user's two asks over the live view. The left sidebar
+   (`<nav class="sidebar">`): every registered project with its epics
+   nested under it — one lock-free read per repo per render (the
+   current repo's reused, never double-read), a repo whose graph
+   will not read carrying a visible unreadable marker (reported,
+   never dropped), each epic row showing `E<n> · title` and its
+   done/total, the entries linking to the repo's SVG lane anchors
+   (same-page for the current repo, `?repo=<slug>#lane-<n>` for the
+   others); the top switcher stays as the compact registry hop, fed
+   from the sidebar's walk. The activity panel (U39's clean subset):
+   a new lock-free census read in todo-store —
+   `DataRoot::read_repo_census`, the committed-prefix machinery
+   reused (the header skipped, the seed counted, BTreeMap
+   determinism, the torn-tail discipline) — feeding "N events since
+   <first>", the by-kind chips, the day histogram and the
+   last-activity line; the JSON twin gains the `activity` object
+   (both page goldens moved as called-out compatibility events,
+   +41/+19). The doc rows name `serve --open` as the live-view
+   discovery. Dual review over two rounds (round 1 both ok with one
+   shared low — the histogram's range walked the first/last line's
+   timestamp, silently dropping counted days on a non-monotonic log;
+   the fix round: the range from the by-day map's bounds, the pin
+   failing on the old code, the goldens byte-neutral; round 2 both
+   ok bound to the final bytes). The measured cost: the second log
+   walk ~8.5 ms over the real root's six repos, the full render
+   ~52 ms. The real-root smoke through the re-copied stable binary:
+   the panel ("Activity — 85 events since …"), the sidebar with
+   every project's epics, the JSON twin's activity (camera: 206
+   events, 5 kinds, 4 days). Landed as this commit.
 
 
 
@@ -4993,7 +5023,7 @@ Deliberate shortcuts, acknowledged rather than fixed. Same id rules as §4.
       dispatch and the split absorbed the growth; the module docs
       rewritten where the split falsified them (f118's sentence among
       them, fixed in the review round).
-- [ ] **U39 · Live tool-call statistics on the web page — the
+- [x] **U39 · Live tool-call statistics on the web page — the
       cross-instance question** (the user's 2026-10-10 wish, parked):
       raw tool-call counts including reads are per-process and
       volatile — every opencode session spawns its own server, and
@@ -5005,13 +5035,59 @@ Deliberate shortcuts, acknowledged rather than fixed. Same id rules as §4.
       activity panel (every write is an event line — centralized by
       construction, durable, accumulated since registration), tracked
       as t84. Revisit the call-counts only with a deliberate sidecar
-      design; until then this stays parked.
+      design; until then this stays parked. **Resolved 2026-10-11**:
+      the store-derived activity panel landed as t84 (the clean
+      subset this entry named); the raw call-counts stay parked — a
+      sidecar design is a new ask if ever wanted.
 
 ## 6. Session log
 
 Newest first. One entry per session, written for someone who was not
 here. The final entry of a session is the handover
 (`.agents/skills/todo-next-imp/SKILL.md` defines the shape).
+
+### 2026-10-11 — t84: the sidebar and the activity panel
+
+**Workspace**: main, clean at `c3738d4` at start; the tree left dirty
+through the implementer round and both review rounds, committed with
+this entry.
+
+**t84 landed** (the user's "ok, let's do t84" over the reshaped
+scope): the page rework — the left sidebar (every registered project
+with its epics, the per-repo lock-free reads, the unreadable marker,
+the lane anchors) and the activity panel (the census read in
+todo-store, the chips, the day histogram, the JSON twin's `activity`
+object; both page goldens moved as called-out compatibility events).
+U39 resolved with it (the panel is its clean subset; the raw
+call-counts stay parked). Dual review over two rounds — round 1 both
+ok with one shared low (the histogram's line-order range dropping
+counted days on a non-monotonic log), the fix round landing the
+by-day-bounds remedy with a failing-on-the-old-code pin, round 2 both
+ok bound to the final bytes. Every gate green on the final tree: fmt,
+check, the workspace suite (750 passed 0 failed 2 ignored), clippy,
+cargo doc under both invocations, the golden ritual (the two moved
+goldens regenerate byte-identical; every other golden untouched). The
+real-root smoke through the re-copied stable binary: the panel, the
+sidebar, the JSON twin. The measured cost: the second log walk
+~8.5 ms, the full render ~52 ms over the six repos.
+
+**Handover.** Workspace: main, clean at this commit; three crates,
+rustc 1.98.1, the stable binary re-copied (the fresh-inode update).
+Landed: t84 (this commit). Next step: **the ikvm-html refresh +
+cutover** — the user's signal (its live session settled with t258's
+closure; the Python tools are still its trackers of record there by
+the recorded deferral). The t83 playbook: refresh before archiving
+(the board moved since the t47 import), backup beside the store,
+archive + git rm the board in their repo, harness rewire
+(`todo-mcp*: allow` + `todowrite: deny`), the skill/instructions
+rewrite, `HANDOVER.md`, the smoke — with **U36** (the ikvm footer's
+duplicate-D gap) riding it as this repo's code half. Then **g21**
+(this repo's own full-switch cutover, the user's sign; U40's
+per-epic-handover shape rides its conventions rewrite). Blocked on
+you: nothing — U36 rides the ikvm revisit, U40's shape is yours
+whenever. Unverified: nothing — every gate ran; the one taste call
+open is the top switcher's retention (the sidebar covers navigation;
+say the word and it goes).
 
 ### 2026-10-11 — t73: the Python retirement; g19 closed
 

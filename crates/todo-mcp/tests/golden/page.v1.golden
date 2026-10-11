@@ -54,19 +54,56 @@ th { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: #
 .sw { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 4px; }
 footer { margin-top: 34px; color: #6b7280; font-size: 11.5px; border-top: 1px solid #eee;
          padding-top: 10px; }
+.cols { display: flex; gap: 26px; align-items: flex-start; }
+.sidebar { width: 252px; flex: 0 0 252px; position: sticky; top: 20px;
+           max-height: calc(100vh - 40px); overflow-y: auto; }
+main { flex: 1 1 auto; min-width: 0; }
+@media (max-width: 880px) { .cols { display: block; }
+  .sidebar { position: static; width: auto; max-height: none; } }
+.srepo { margin-bottom: 12px; }
+.sname { display: block; font-weight: 600; font-size: 13px; color: #3f444c;
+         text-decoration: none; margin-bottom: 3px; }
+a.sname:hover { text-decoration: underline; }
+.scur { color: #1f6f43; }
+.sepic { display: flex; justify-content: space-between; gap: 6px; font-size: 12px;
+         padding: 1px 0 1px 10px; }
+.sepic a { color: #3f444c; text-decoration: none; }
+.sepic a:hover { text-decoration: underline; }
+.sepic span { color: #6b7280; font-variant-numeric: tabular-nums; font-size: 11px; }
+.unread { color: #9b1c1c; font-size: 11px; font-weight: 700; margin-left: 6px; }
+.act { background: #fff; border: 1px solid #e3e3e0;
+      border-radius: 10px; padding: 12px 14px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.chip { border: 1px solid #e3e3e0; border-radius: 12px; padding: 2px 10px; font-size: 11.5px;
+        background: #fbfbfa; color: #3f444c; }
+.chip b { color: #2f6f4f; font-variant-numeric: tabular-nums; }
+.hist { display: flex; align-items: flex-end; gap: 5px; flex-wrap: wrap; }
+.hday { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.hnum { font-size: 10.5px; color: #6b7280; font-variant-numeric: tabular-nums; }
+.hbar { width: 24px; background: #2f6f4f; border-radius: 3px 3px 0 0; }
+.hdate { font-size: 9.5px; color: #6b7280;
+         font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.lastact { margin-top: 10px; font-size: 11.5px; color: #6b7280; }
 </style></head><body>
 <nav class="switch"><a href="?repo=alpha">alpha</a><span class="cur">fixture</span></nav>
+<div class="cols">
+<nav class="sidebar"><div class="srepo"><a class="sname" href="?repo=alpha">Alpha</a><div class="sepic"><a href="?repo=alpha#lane-1">E1 · Alpha work</a><span>0/1</span></div></div><div class="srepo"><span class="sname scur">Fixture</span><div class="sepic"><a href="#lane-1">E1 · Milestone zero</a><span>2/2</span></div><div class="sepic"><a href="#lane-2">E2 · Milestone one</a><span>0/5</span></div><div class="sepic"><a href="#lane-3">E3 · Follow-ups</a><span>1/3</span></div></div></nav><main>
+
 <h1>fixture — total progress</h1>
 <div class="sub">Rendered by <span class="mono">todo-mcp progress</span> from <span class="mono">fixture</span>'s imported board — imported <span class="mono">2026-10-02T08:00:00.000000000Z</span> (the repo node's registered_at — the staleness signal: the page renders the last import, not the board as it is). The markdown board remains the tracker of record; if this page disagrees with it, the board wins. Machine-readable twin: <span class="mono">progress.json</span>.</div>
 
 <h2>Totals</h2>
 <div class="cards"><div class="card"><i>Milestones</i><span class="p">50%</span><b>1/2</b><small>the board&#x27;s milestone table via the server&#x27;s epics — the roadmap measure</small></div><div class="card"><i>Tasks</i><span class="p">33%</span><b>2/6</b><small>the board&#x27;s §4 follow-ups, one unit each</small></div><div class="card"><i>Gates</i><span class="p">50%</span><b>1/2</b><small>milestone exit gates</small></div><div class="card"><i>Findings</i><span class="p">0%</span><b>0/1</b><small>an open finding is a fact written down, not a defect</small></div><div class="card"><i>Debt</i><span class="p">0%</span><b>0/1 closed</b><small>the board&#x27;s §5, acknowledged deferrals</small></div><div class="card"><i>Decisions</i><span class="p">25%</span><b>1/4 signed</b><small>the decisions file&#x27;s dossiers; an open one gates work</small></div><div class="card"><i>Blocked</i><span class="p">—</span><b>1</b><small>tasks whose status is blocked</small></div></div>
 
+<h2>Activity — 23 events since 2026-10-02T08:00:00.000000000Z</h2>
+<div class="act"><div class="chips"><span class="chip">blocks_link <b>5</b></span><span class="chip">decision_add <b>4</b></span><span class="chip">epic_add <b>3</b></span><span class="chip">repo_register <b>1</b></span><span class="chip">task_add <b>10</b></span></div><div class="hist"><div class="hday" title="2026-10-02: 10 events"><span class="hnum">10</span><span class="hbar" style="height:64px"></span><span class="hdate">2026-10-02</span></div><div class="hday" title="2026-10-03: 3 events"><span class="hnum">3</span><span class="hbar" style="height:19px"></span><span class="hdate">2026-10-03</span></div><div class="hday" title="2026-10-04: 0 events"><span class="hnum">0</span><span class="hbar" style="height:0px"></span><span class="hdate">2026-10-04</span></div><div class="hday" title="2026-10-05: 3 events"><span class="hnum">3</span><span class="hbar" style="height:19px"></span><span class="hdate">2026-10-05</span></div><div class="hday" title="2026-10-06: 2 events"><span class="hnum">2</span><span class="hbar" style="height:13px"></span><span class="hdate">2026-10-06</span></div><div class="hday" title="2026-10-07: 5 events"><span class="hnum">5</span><span class="hbar" style="height:32px"></span><span class="hdate">2026-10-07</span></div></div><div class="lastact">Last activity: 2026-10-07T08:20:05.000000000Z</div>
+</div>
+
 <h2>Milestones (the board's roadmap via the server's epics)</h2>
 <div class="msrow"><div class="ms msdone" title="Milestone zero — closed"><b>M0</b><span>done</span></div><div class="ms" title="Milestone one — open"><b>M1</b><span>open</span></div></div>
 
 <h2>Dependency graph — 13 nodes, 5 edges</h2>
-<div class="scroll"><svg id="graph" viewBox="0 0 750 422" width="750" height="422" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="task dependency graph"><defs><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#8a8f98"/></marker><marker id="arrg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#2f6f4f"/></marker></defs><text class="lane" x="54" y="46">M0 · Milestone zero</text><line class="laneline" x1="44" y1="58" x2="44" y2="402"/><text class="lane" x="268" y="46">M1 · Milestone one</text><line class="laneline" x1="258" y1="58" x2="258" y2="402"/><text class="lane" x="482" y="46">Follow-ups</text><line class="laneline" x1="472" y1="58" x2="472" y2="402"/><path class="edge" d="M454,367 C361,367 361,103 268,103" marker-end="url(#arrg)"><title>D2 gates U3</title></path><path class="edge" d="M668,235 C575,235 575,103 482,103" marker-end="url(#arrg)"><title>D3 gates U8</title></path><path class="edge" d="M240,103 C254,103 254,103 268,103" marker-end="url(#arrg)"><title>U1 gates U3</title></path><path class="edge" d="M668,103 C575,103 575,191 482,191" marker-end="url(#arrg)"><title>U8 gates U10</title></path><g class="node" data-id="fixture:U1" transform="translate(54,88)"><rect rx="7" width="186" height="30" fill="#e6f4ec" stroke="#1f6f43" stroke-width="1.6"/><title>U1 · task · closed
+<div class="scroll"><svg id="graph" viewBox="0 0 750 422" width="750" height="422" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="task dependency graph"><defs><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#8a8f98"/></marker><marker id="arrg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#2f6f4f"/></marker></defs><text id="lane-1" class="lane" x="54" y="46">M0 · Milestone zero</text><line class="laneline" x1="44" y1="58" x2="44" y2="402"/><text id="lane-2" class="lane" x="268" y="46">M1 · Milestone one</text><line class="laneline" x1="258" y1="58" x2="258" y2="402"/><text id="lane-3" class="lane" x="482" y="46">Follow-ups</text><line class="laneline" x1="472" y1="58" x2="472" y2="402"/><path class="edge" d="M454,367 C361,367 361,103 268,103" marker-end="url(#arrg)"><title>D2 gates U3</title></path><path class="edge" d="M668,235 C575,235 575,103 482,103" marker-end="url(#arrg)"><title>D3 gates U8</title></path><path class="edge" d="M240,103 C254,103 254,103 268,103" marker-end="url(#arrg)"><title>U1 gates U3</title></path><path class="edge" d="M668,103 C575,103 575,191 482,191" marker-end="url(#arrg)"><title>U8 gates U10</title></path><g class="node" data-id="fixture:U1" transform="translate(54,88)"><rect rx="7" width="186" height="30" fill="#e6f4ec" stroke="#1f6f43" stroke-width="1.6"/><title>U1 · task · closed
 Close the first milestone</title><text class="nid" x="8" y="19" fill="#1f6f43">▢ U1</text><text class="nlabel" x="46" y="19">Close the first miles…</text><circle class="dot" cx="176" cy="8" r="4" fill="#1f6f43"/></g><g class="node" data-id="fixture:U2" transform="translate(54,132)"><rect rx="7" width="186" height="30" fill="#e6f4ec" stroke="#1f6f43" stroke-width="1.6"/><title>U2 · gate · closed
 The zero gate</title><text class="nid" x="8" y="19" fill="#1f6f43">▣ U2</text><text class="nlabel" x="46" y="19">The zero gate</text><circle class="dot" cx="176" cy="8" r="4" fill="#1f6f43"/></g><g class="node" data-id="fixture:U3" transform="translate(268,88)"><rect rx="7" width="186" height="30" fill="#fdf3e0" stroke="#8a5a00" stroke-width="1.6"/><title>U3 · task · open
 Wire the sensor</title><text class="nid" x="8" y="19" fill="#8a5a00">▢ U3</text><text class="nlabel" x="46" y="19">Wire the sensor</text><circle class="dot" cx="176" cy="8" r="4" fill="#8a5a00"/></g><g class="node" data-id="fixture:U4" transform="translate(268,132)"><rect rx="7" width="186" height="30" fill="#fdf3e0" stroke="#8a5a00" stroke-width="1.6"/><title>U4 · task · in_work
@@ -105,6 +142,8 @@ work decomposed so far, which is <em>not</em> the whole project. <b>Findings</b>
 <b>debt</b> are records rather than deliverables. The import instant above is the staleness
 signal: the page renders the last import, not the board as it is now.
 </footer>
+</main>
+</div>
 <script>
 const DATA = {"nodes":{"fixture:D1":{"id":"fixture:D1","kind":"decision","status":"open","title":"Gate milestone one","verify":null,"evidence":null,"note":null,"resolution":null},"fixture:D2":{"id":"fixture:D2","kind":"decision","status":"open","title":"Gate the wiring task","verify":null,"evidence":null,"note":null,"resolution":null},"fixture:D3":{"id":"fixture:D3","kind":"decision","status":"signed","title":"The encoder profile","verify":null,"evidence":null,"note":null,"resolution":"signed (a) 2026-10-02"},"fixture:U1":{"id":"fixture:U1","kind":"task","status":"closed","title":"Close the first milestone","verify":"cargo test -p fixture","evidence":"the milestone closed green","note":null,"resolution":null},"fixture:U10":{"id":"fixture:U10","kind":"gate","status":"open","title":"The next gate","verify":"cargo test -p fixture","evidence":null,"note":null,"resolution":null},"fixture:U2":{"id":"fixture:U2","kind":"gate","status":"closed","title":"The zero gate","verify":"cargo test -p fixture","evidence":"the gate ran green","note":null,"resolution":null},"fixture:U3":{"id":"fixture:U3","kind":"task","status":"open","title":"Wire the sensor","verify":"cargo test -p fixture","evidence":null,"note":null,"resolution":null},"fixture:U4":{"id":"fixture:U4","kind":"task","status":"in_work","title":"Calibrate","verify":"cargo test -p fixture","evidence":null,"note":null,"resolution":null},"fixture:U5":{"id":"fixture:U5","kind":"finding","status":"open","title":"A finding","verify":"cargo test -p fixture","evidence":null,"note":null,"resolution":null},"fixture:U6":{"id":"fixture:U6","kind":"debt","status":"deferred","title":"Known debt","verify":"cargo test -p fixture","evidence":null,"note":"after milestone zero","resolution":null},"fixture:U7":{"id":"fixture:U7","kind":"task","status":"blocked","title":"The blocked one","verify":"cargo test -p fixture","evidence":null,"note":"needs D2","resolution":null},"fixture:U8":{"id":"fixture:U8","kind":"task","status":"open","title":"A follow-up","verify":"cargo test -p fixture","evidence":null,"note":null,"resolution":null},"fixture:U9":{"id":"fixture:U9","kind":"task","status":"wontfix","title":"Declined","verify":"cargo test -p fixture","evidence":null,"note":null,"resolution":null}},"edges":[{"from":"fixture:D1","to":"fixture:E2"},{"from":"fixture:D2","to":"fixture:U3"},{"from":"fixture:D3","to":"fixture:U8"},{"from":"fixture:U1","to":"fixture:U3"},{"from":"fixture:U8","to":"fixture:U10"}]};
 document.querySelectorAll('.node').forEach(n => n.addEventListener('click', () => {

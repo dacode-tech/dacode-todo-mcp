@@ -227,7 +227,9 @@ the write lock. `todo-mcp refresh` re-imports a board after it moves
 over). The page is served live on 127.0.0.1 by `todo-mcp serve` — a
 fresh render per request, the port published to `<root>/serve.port` —
 and every session's server ensures that listener itself (D13), so the
-page is up while at least one session (or a manual `serve`) is alive.
+page is up while at least one session (or a manual `serve`) is alive;
+`serve --open` is the live view's discovery — it attaches to the
+listener (or binds it) and opens the page.
 
 ## Verifying the wiring
 

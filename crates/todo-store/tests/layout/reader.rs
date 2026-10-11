@@ -10,10 +10,11 @@
 //! fixtures no writer can produce — the foreign-version header and the
 //! committed garbage line.
 
+use std::collections::BTreeMap;
 use std::fs;
 
 use tempfile::TempDir;
-use todo_domain::{EpicId, Graph, References, Status, TaskDraft, TaskKind};
+use todo_domain::{BlocksEdge, EpicId, Graph, References, Status, TaskDraft, TaskKind};
 use todo_store::{DataRoot, FORMAT_VERSION, JsonlStore, Store, StoreError};
 
 use super::fixtures::{
@@ -396,4 +397,130 @@ fn two_lock_free_reads_agree() {
     let second = root.read_repo(&camera_slug).unwrap();
     assert_eq!(first, second);
     assert_eq!(&first, &clean);
+}
+
+// =================================================================
+// The event census (t84's required tests 1–2): the second lock-free
+// read, folded into counts instead of a graph.
+// =================================================================
+
+/// The census fixture: camera with five events spread across three
+/// days — the by-day fold needs a real spread to pin. The seed and the
+/// epic land on the 25th, one task on the 26th, the second task and the
+/// edge on the 27th.
+fn census_world(root: &DataRoot) -> Graph {
+    let mut store = root.register(camera()).unwrap();
+    let epic = store
+        .add_epic(
+            epic_draft("Ship the sensor pipeline"),
+            at("2026-09-25T08:05:00Z"),
+        )
+        .unwrap();
+    let first = store
+        .add_task(
+            task_draft(&epic.id, "Bring up the sensor"),
+            at("2026-09-26T09:00:00Z"),
+        )
+        .unwrap();
+    let second = store
+        .add_task(
+            task_draft(&epic.id, "Harden the encoder"),
+            at("2026-09-27T10:00:00Z"),
+        )
+        .unwrap();
+    store
+        .link_blocks(
+            BlocksEdge::TaskToTask {
+                from: first.id.clone(),
+                to: second.id.clone(),
+            },
+            at("2026-09-27T11:00:00Z"),
+        )
+        .unwrap();
+    let graph = store.graph().clone();
+    drop(store);
+    graph
+}
+
+/// The census over the committed log (required test 1): every kind and
+/// day counted, the header line skipped (total is 5, not 6), the seed
+/// counted as an event, first/last ts canonical — and two reads over
+/// unchanged bytes agree.
+#[test]
+fn the_census_counts_kinds_days_and_bounds() {
+    let dir = TempDir::new().unwrap();
+    let root = data_root(&dir);
+    let camera_slug = slug("camera");
+    let _ = census_world(&root);
+
+    let census = root.read_repo_census(&camera_slug).unwrap();
+    assert_eq!(census.total, 5, "the header line is not an event");
+    assert_eq!(
+        census.by_kind,
+        BTreeMap::from([
+            ("blocks_link".to_owned(), 1),
+            ("epic_add".to_owned(), 1),
+            ("repo_register".to_owned(), 1),
+            ("task_add".to_owned(), 2),
+        ]),
+        "the seed is counted; the kinds are alphabetical"
+    );
+    assert_eq!(
+        census.by_day,
+        BTreeMap::from([
+            ("2026-09-25".to_owned(), 2),
+            ("2026-09-26".to_owned(), 1),
+            ("2026-09-27".to_owned(), 2),
+        ])
+    );
+    assert_eq!(
+        census.first_ts.as_deref(),
+        Some("2026-09-25T08:00:00.000000000Z")
+    );
+    assert_eq!(
+        census.last_ts.as_deref(),
+        Some("2026-09-27T11:00:00.000000000Z")
+    );
+    // Determinism: two reads over unchanged bytes agree.
+    assert_eq!(root.read_repo_census(&camera_slug).unwrap(), census);
+}
+
+/// The census's torn-tail discipline (required test 2, the reader's
+/// own): an unterminated final line is an append in flight — the census
+/// answers the committed prefix without it — and a terminated but
+/// unparseable line is the same positioned `corrupt_store` the graph
+/// read reports, byte for byte.
+#[test]
+fn the_census_reads_the_committed_prefix_and_reports_damage() {
+    let dir = TempDir::new().unwrap();
+    let root = data_root(&dir);
+    let camera_slug = slug("camera");
+    let _ = census_world(&root);
+    let log = root.log_path(&camera_slug);
+    let valid = fs::read(&log).unwrap();
+
+    // The torn tail: the fragment is an append in flight, not an event.
+    fs::write(&log, tear_append(&valid)).unwrap();
+    let torn = root.read_repo_census(&camera_slug).unwrap();
+    assert_eq!(torn.total, 5, "the in-flight fragment is not counted");
+
+    // The committed garbage line: corrupt_store, byte-identical to the
+    // graph read's report on the same bytes.
+    let mut damaged = valid.clone();
+    damaged.extend_from_slice(GARBAGE_LINE);
+    fs::write(&log, &damaged).unwrap();
+    let error = root.read_repo_census(&camera_slug).unwrap_err();
+    assert_eq!(error.code(), "corrupt_store");
+    assert_eq!(root.read_repo(&camera_slug).unwrap_err(), error);
+
+    // A torn seed — the header's own LF cut, so no LF anywhere — is the
+    // empty prefix: the census counts zero committed events (the graph
+    // read refuses it; the census counts what the log holds, which is
+    // nothing committed).
+    let first_lf = valid.iter().position(|byte| *byte == b'\n').unwrap();
+    fs::write(&log, &valid[..first_lf]).unwrap();
+    let empty = root.read_repo_census(&camera_slug).unwrap();
+    assert_eq!(empty.total, 0);
+    assert_eq!(empty.first_ts, None);
+    assert_eq!(empty.last_ts, None);
 }

@@ -1,38 +1,38 @@
 //! The `progress` HTML page (D20's second slice): the Python tool's
 //! template ported to hand-built strings — the totals cards, the
-//! milestone bar, the SVG dependency graph, the open-items and
-//! decisions tables, the click-detail script, the project
-//! switcher the registry drives, and the live-update script t71's
-//! `serve` answers (the WebSocket reload; inert on a static page,
-//! which is honest — the static page is one repo's snapshot). Like
-//! the JSON document it is a pure
-//! function of `(root, repo)` — the Python page's `date.today()`,
-//! `head_sha()` and session-tracker overlay are deliberately absent
-//! (none can golden-pin; D20's no-new-dependencies consequence forbids
-//! the yaml read; post-g21 the store's open nodes are the live
-//! picture) — so the page is golden-pinned as `tests/golden/page.v1`
-//! and two runs over unchanged state are byte-identical by
-//! construction.
+//! activity panel, the milestone bar, the SVG dependency graph, the
+//! open-items and decisions tables, the click-detail script, the
+//! project switcher the registry drives, the left sidebar with the
+//! registered projects and their epics (t84's D4), and the live-update
+//! script t71's `serve` answers (the WebSocket reload; inert on a
+//! static page, which is honest — the static page is one repo's
+//! snapshot). Like the JSON document it is a pure function of
+//! `(root, repo)` — the Python page's `date.today()`, `head_sha()` and
+//! session-tracker overlay are deliberately absent (none can
+//! golden-pin; D20's no-new-dependencies consequence forbids the yaml
+//! read; post-g21 the store's open nodes are the live picture) — so
+//! the page is golden-pinned as `tests/golden/page.v1` and two runs
+//! over unchanged state are byte-identical by construction.
 //!
 //! The switcher (the user's 2026-10-09 fold): one entry per registered
 //! slug, the rendered repo marked current, every other slug linking to
 //! `?repo=<slug>` — the URL shape the `serve` subcommand (t71) answers
 //! with a fresh per-repo render. In the static file the links are
 //! inert, which is honest: the static page is one repo's snapshot.
-//! A registry read failure fails the render — the switcher is part of
-//! the page, never silently omitted.
+//! The switcher renders from the sidebar's registry walk — the page
+//! pays the per-repo reads for the sidebar (D3), and the switcher
+//! itself stays a registry nav. A registry read failure fails the
+//! render — the switcher is part of the page, never silently omitted.
 
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 use serde::Serialize;
 use todo_domain::{DecisionStatus, RepoSlug, Status};
-use todo_store::{DataRoot, Registry};
-
-use crate::ToolError;
+use todo_store::DataRoot;
 
 use super::svg::render_svg;
-use super::{Model, build, esc, resolve, short, short_id};
+use super::{Model, build, esc, gather, short, short_id};
 
 /// Every surface from one render — see [`super::outputs`].
 pub struct Outputs {
@@ -50,27 +50,18 @@ pub struct Outputs {
 }
 
 /// The `progress` HTML page: the Python template ported to hand-built
-/// strings, with the project switcher. A pure function of
-/// `(root, repo)` — golden-pinned as `tests/golden/page.v1`.
+/// strings, with the project switcher and the left sidebar. A pure
+/// function of `(root, repo)` — golden-pinned as `tests/golden/page.v1`.
 pub fn page(root: &DataRoot, repo: &RepoSlug) -> Result<String, String> {
-    let graph = resolve(root, repo).map_err(|error| error.message)?;
-    let model = build(&graph).map_err(|error| error.message)?;
-    let slugs = switcher_slugs(root)?;
-    page_text(&model, &slugs)
+    let (graph, census, sidebar) = gather(root, repo)?;
+    let model = build(&graph, &census, &sidebar).map_err(|error| error.message)?;
+    page_text(&model)
 }
 
-/// The registered slugs for the switcher, the registry's own order
-/// (ascending) — a registry read failure fails the render: the
-/// switcher is part of the page, never silently omitted.
-pub(super) fn switcher_slugs(root: &DataRoot) -> Result<Vec<RepoSlug>, String> {
-    let registry = Registry::load(root).map_err(|error| ToolError::from(error).message)?;
-    Ok(registry.slugs().into_iter().cloned().collect())
-}
-
-/// The page from one model and the switcher's slugs — the shared half
-/// of [`page`] and [`super::outputs`], so a written page and a served
-/// page can never disagree in shape.
-pub(super) fn page_text(model: &Model, slugs: &[RepoSlug]) -> Result<String, String> {
+/// The page from one model — the shared half of [`page`] and
+/// [`super::outputs`], so a written page and a served page can never
+/// disagree in shape.
+pub(super) fn page_text(model: &Model) -> Result<String, String> {
     let slug = model.repo.slug.as_str();
     let slug_esc = esc(slug);
     let instant_esc = esc(model.repo.registered_at.as_str());
@@ -88,8 +79,16 @@ pub(super) fn page_text(model: &Model, slugs: &[RepoSlug]) -> Result<String, Str
     let mut page = String::with_capacity(12 * 1024);
     page.push_str("<!doctype html>\n<html lang=\"en\"><head><meta charset=\"utf-8\">\n");
     page.push_str(&format!("<title>{slug_esc} · progress</title>\n"));
-    page.push_str(&format!("<style>{CSS}</style></head><body>\n"));
-    page.push_str(&switcher_html(slugs, &model.repo.slug));
+    page.push_str(&format!(
+        "<style>{}{}{}</style></head><body>\n",
+        CSS,
+        super::sidebar::SIDEBAR_CSS,
+        super::panel::PANEL_CSS
+    ));
+    page.push_str(&switcher_html(model.sidebar, &model.repo.slug));
+    page.push_str("\n<div class=\"cols\">\n");
+    page.push_str(&super::sidebar::sidebar_html(model.sidebar));
+    page.push_str("<main>\n");
     page.push_str(&format!("\n<h1>{slug_esc} — total progress</h1>\n"));
     page.push_str(&format!(
         "<div class=\"sub\">Rendered by <span class=\"mono\">todo-mcp progress</span> from \
@@ -102,6 +101,7 @@ pub(super) fn page_text(model: &Model, slugs: &[RepoSlug]) -> Result<String, Str
     page.push_str(&format!(
         "\n<h2>Totals</h2>\n<div class=\"cards\">{card_html}</div>\n"
     ));
+    page.push_str(&super::panel::panel_html(model.activity));
     page.push_str(&format!(
         "\n<h2>Milestones (the board's roadmap via the server's epics)</h2>\n\
          <div class=\"msrow\">{ms_bar}</div>\n"
@@ -133,6 +133,7 @@ pub(super) fn page_text(model: &Model, slugs: &[RepoSlug]) -> Result<String, Str
         model.decisions.len()
     ));
     page.push_str(FOOTER);
+    page.push_str("</main>\n</div>\n");
     let data = detail_data(model)?;
     page.push_str(&format!("<script>\nconst DATA = {data};\n"));
     page.push_str(SCRIPT);
@@ -158,12 +159,14 @@ fn live_script(slug: &str) -> String {
 /// The switcher: one entry per registered slug, the rendered repo as
 /// the marked non-link (a self-link is a no-op dressed as navigation),
 /// every other slug linking to `?repo=<slug>` — the URL shape the
-/// `serve` subcommand answers.
-fn switcher_html(slugs: &[RepoSlug], current: &RepoSlug) -> String {
+/// `serve` subcommand answers. Renders from the sidebar's registry
+/// walk, so the switcher and the sidebar can never disagree about
+/// membership or order.
+fn switcher_html(repos: &[super::sidebar::SidebarRepo], current: &RepoSlug) -> String {
     let mut out = String::from("<nav class=\"switch\">");
-    for slug in slugs {
-        let name = esc(slug.as_str());
-        if slug == current {
+    for repo in repos {
+        let name = esc(repo.slug.as_str());
+        if repo.slug == *current {
             out.push_str(&format!("<span class=\"cur\">{name}</span>"));
         } else {
             out.push_str(&format!("<a href=\"?repo={name}\">{name}</a>"));

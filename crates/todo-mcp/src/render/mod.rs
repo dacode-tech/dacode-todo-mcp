@@ -9,23 +9,26 @@
 //! (§8): the golden-pinned bytes, and two runs over unchanged state,
 //! are byte-identical by construction.
 //!
-//! The module is four files, split at U37's named point and one seam
-//! beyond it: this one holds the model, the resolution and the shared
-//! text helpers, [`json()`] the golden-pinned JSON document, [`page()`]
-//! the HTML page with the project switcher, and `svg` the
-//! dependency-graph SVG (extracted from the page when the page half
-//! crossed the 600-line target — the split the spec's D1 named, plus
-//! the seam it forced). The public surface is four functions over one
-//! internal model — [`json()`] and [`summary`] (one surface each),
-//! [`page()`] (the HTML), and [`outputs`] (one resolve + one build, all
-//! three surfaces plus the repo's registered checkout, for the
-//! subcommand's default write location) — plus [`resolve_by_cwd`],
-//! the subcommand's repo tier: the `--repo` flag wins (the binary
-//! owns that check), else the working directory's deterministic
-//! longest-ancestor match against the registered checkouts (§7, the
-//! same rule the server's default tier applies). The binary reads the
-//! cwd once and passes it in; this crate never touches the
-//! environment.
+//! The module is six files, split at U37's named point and the seams
+//! t84's page rework forced: this one holds the model, the resolution,
+//! the gather orchestration and the shared text helpers, [`json()`]
+//! the golden-pinned JSON document, [`page()`] the HTML page's
+//! skeleton with the project switcher, `svg` the dependency-graph SVG
+//! (extracted from the page when the page half crossed the 600-line
+//! target — the split the spec's D1 named, plus the seam it forced),
+//! `sidebar` the left nav with the registered projects and their epics
+//! (the per-repo reads and the nav tree), and `panel` the activity
+//! section over the event census. The public surface is four functions
+//! over one internal model — [`json()`] and [`summary`] (one surface
+//! each), [`page()`] (the HTML), and [`outputs`] (one resolve + one
+//! census + one build, all three surfaces plus the repo's registered
+//! checkout, for the subcommand's default write location) — plus
+//! [`resolve_by_cwd`], the subcommand's repo tier: the `--repo` flag
+//! wins (the binary owns that check), else the working directory's
+//! deterministic longest-ancestor match against the registered
+//! checkouts (§7, the same rule the server's default tier applies).
+//! The binary reads the cwd once and passes it in; this crate never
+//! touches the environment.
 //!
 //! The resolution mirrors `ServerState::resolve_read`'s discipline
 //! exactly (the t64 hand-off): the registry consult first —
@@ -35,7 +38,10 @@
 //! read, then the slug cross-check: a store directory holding another
 //! repo's graph under the asked slug is the same `corrupt_store`
 //! refusal the locked open produces, never the copied graph served as
-//! the named repo.
+//! the named repo. The census read joins the resolve in `gather`
+//! (t84's D8): after it, over the same slug, so an unregistered slug
+//! is refused before it — and a census failure fails the render, the
+//! panel being part of the page, never silently omitted.
 //!
 //! Two rules port verbatim from the Python tool, both because a
 //! renderer that quietly shows less than everything is worse than no
@@ -47,6 +53,8 @@
 
 mod json;
 mod page;
+mod panel;
+mod sidebar;
 mod svg;
 
 pub use self::json::json;
@@ -59,10 +67,12 @@ use todo_domain::{
     BlockEnd, Decision, DecisionId, DecisionStatus, DomainError, Epic, EpicId, Graph, Repo,
     RepoSlug, Status, Task, TaskId, TaskKind,
 };
-use todo_store::{DataRoot, Registry, StoreError};
+use todo_store::{DataRoot, EventCensus, Registry, StoreError};
 
 use crate::ToolError;
 use crate::cwd::{MatchOutcome, match_slug};
+
+use self::sidebar::{SidebarRepo, sidebar_repos};
 
 /// Per-kind counts over the four task kinds (the Python tool's
 /// `kind_state`, the same fixed key order) — a model type the JSON
@@ -118,6 +128,12 @@ struct Model<'a> {
     kind_state: KindState,
     /// Every task, all kinds.
     task_count: usize,
+    /// The event census — the activity panel's and the JSON twin's
+    /// source (t84's D8).
+    activity: &'a EventCensus,
+    /// The sidebar's per-repo reads: every registered repo with its
+    /// epics, the rendered repo marked, an unreadable one reported.
+    sidebar: &'a [SidebarRepo],
 }
 
 /// One lane: an epic, its tasks in id order, and the decisions
@@ -138,26 +154,44 @@ struct Lane<'a> {
 /// the git sha and the date — narration, not a pinned surface, but
 /// derived from the same model so it can never disagree with the JSON.
 pub fn summary(root: &DataRoot, repo: &RepoSlug) -> Result<String, String> {
-    let graph = resolve(root, repo).map_err(|error| error.message)?;
-    let model = build(&graph).map_err(|error| error.message)?;
+    let (graph, census, sidebar) = gather(root, repo)?;
+    let model = build(&graph, &census, &sidebar).map_err(|error| error.message)?;
     Ok(summary_text(&model))
 }
 
-/// Every surface from one resolve + one build — the subcommand's
-/// default path, so the page, the JSON twin and the summary can never
-/// disagree with each other (they are one model), and the binary
-/// derives its default output directory from the repo's registered
-/// checkout without a second read.
+/// Every surface from one resolve + one census + one build — the
+/// subcommand's default path, so the page, the JSON twin and the
+/// summary can never disagree with each other (they are one model), and
+/// the binary derives its default output directory from the repo's
+/// registered checkout without a second read.
 pub fn outputs(root: &DataRoot, repo: &RepoSlug) -> Result<Outputs, String> {
-    let graph = resolve(root, repo).map_err(|error| error.message)?;
-    let model = build(&graph).map_err(|error| error.message)?;
-    let slugs = page::switcher_slugs(root)?;
+    let (graph, census, sidebar) = gather(root, repo)?;
+    let model = build(&graph, &census, &sidebar).map_err(|error| error.message)?;
     Ok(Outputs {
-        page: page::page_text(&model, &slugs)?,
+        page: page::page_text(&model)?,
         json: json::json_text(&model)?,
         summary: summary_text(&model),
         checkout: PathBuf::from(graph.repo().path.clone()),
     })
+}
+
+/// One resolve, one census read and the sidebar's per-repo reads — the
+/// shared orchestration of every surface (t84's D8). The census happens
+/// after the resolve, over the same slug, so an unregistered slug is
+/// refused before it; a census failure fails the render (the panel is
+/// part of the page, never silently omitted); the sidebar reads every
+/// registered repo lock-free, reporting an unreadable repo rather than
+/// dropping it (D3).
+fn gather(
+    root: &DataRoot,
+    slug: &RepoSlug,
+) -> Result<(Graph, EventCensus, Vec<SidebarRepo>), String> {
+    let graph = resolve(root, slug).map_err(|error| error.message)?;
+    let census = root
+        .read_repo_census(slug)
+        .map_err(|error| ToolError::from(error).message)?;
+    let sidebar = sidebar_repos(root, slug, &graph)?;
+    Ok((graph, census, sidebar))
 }
 
 /// The subcommand's repo tier (§7): the working directory's
@@ -216,9 +250,14 @@ pub(crate) fn resolve(root: &DataRoot, slug: &RepoSlug) -> Result<Graph, ToolErr
     Ok(graph)
 }
 
-/// The model over one graph — the Python tool's `build()` ported onto
-/// the domain types.
-fn build(graph: &Graph) -> Result<Model<'_>, ToolError> {
+/// The model over one graph, its census and the sidebar's reads — the
+/// Python tool's `build()` ported onto the domain types, grown by
+/// t84's D8.
+fn build<'a>(
+    graph: &'a Graph,
+    census: &'a EventCensus,
+    sidebar: &'a [SidebarRepo],
+) -> Result<Model<'a>, ToolError> {
     let epics: Vec<&Epic> = graph.epics().collect();
     if epics.is_empty() {
         return Err(ToolError::invalid(
@@ -385,6 +424,8 @@ fn build(graph: &Graph) -> Result<Model<'_>, ToolError> {
         not_placed,
         kind_state,
         task_count: all_tasks.len(),
+        activity: census,
+        sidebar,
     })
 }
 
