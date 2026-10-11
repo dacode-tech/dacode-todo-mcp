@@ -214,7 +214,7 @@ shell, which is M3's business.
 
 | Blocking | What | Action |
 |---|---|---|
-| — | nothing blocks: the roadmap is delivered, the dacode and ipmi-collector repos cut over, the D20 arc complete | g20 closed 2026-10-10 (t83, their repo's `6e04025`). **t71 landed 2026-10-10** (the `serve` subcommand: the live view + the WS push channel, the page.v1 golden moved for the script block — the compatibility event called out in the session log). **t72 landed 2026-10-10** (the todo-cli absorption: `dump`/`verify`/`repair` as subcommands, the crate retired, the golden moved byte-identical as `dump.v1`, U38's split — main.rs 422, args.rs 476 production lines). **t88 (the schema flatten) landed 2026-10-10** — every advertised enum field now presents its values inline and quoted; the field test passed (the user confirmed the failures stopped). **t85 (D13's default-server live view) landed 2026-10-10, closing g22** — every session's server ensures the per-root listener (`<root>/serve.port` is the port's discovery; the page is up while ≥1 session lives). **t73 landed 2026-10-11 — g19 closed with it**: the Python retirement (`tools/progress.py` and the two drivers deleted, their checks Rust pins since t70/t71; every live row — README, AGENTS, the skill, agent-rules — moved to the subcommands; the release rebuilt + re-copied, the live refresh/progress/serve smoke green, the workspace suite + golden ritual re-run for the exit lines). **t84 landed 2026-10-11** (the page rework: the left sidebar — every registered project with its epics — and the activity panel over a new lock-free event-census read, both page goldens moved as called-out compatibility events, U39 resolved with it). Next: g21 (this repo's own full-switch cutover, the user's sign; U40's per-epic-handover shape opens it — the convention g21 itself lives under) — the ikvm-html refresh+cutover waits again (its session is actively working, the user's word; the t83 playbook, U36's footer hoist riding it, when it settles) — see §6's handover |
+| — | nothing blocks: the roadmap is delivered, the dacode and ipmi-collector repos cut over, the D20 arc complete | g20 closed 2026-10-10 (t83, their repo's `6e04025`). **t71 landed 2026-10-10** (the `serve` subcommand: the live view + the WS push channel, the page.v1 golden moved for the script block — the compatibility event called out in the session log). **t72 landed 2026-10-10** (the todo-cli absorption: `dump`/`verify`/`repair` as subcommands, the crate retired, the golden moved byte-identical as `dump.v1`, U38's split — main.rs 422, args.rs 476 production lines). **t88 (the schema flatten) landed 2026-10-10** — every advertised enum field now presents its values inline and quoted; the field test passed (the user confirmed the failures stopped). **t85 (D13's default-server live view) landed 2026-10-10, closing g22** — every session's server ensures the per-root listener (`<root>/serve.port` is the port's discovery; the page is up while ≥1 session lives). **t73 landed 2026-10-11 — g19 closed with it**: the Python retirement (`tools/progress.py` and the two drivers deleted, their checks Rust pins since t70/t71; every live row — README, AGENTS, the skill, agent-rules — moved to the subcommands; the release rebuilt + re-copied, the live refresh/progress/serve smoke green, the workspace suite + golden ritual re-run for the exit lines). **t84 landed 2026-10-11** (the page rework: the left sidebar — every registered project with its epics — and the activity panel over a new lock-free event-census read, both page goldens moved as called-out compatibility events, U39 resolved with it). Next: **g21 decomposed 2026-10-12 (t90)** — this repo's own full-switch cutover, the tree t91 the conventions rewrite → t92 the cutover flip → t93/t94 the dacode and ipmi-collector HANDOVER retrofits (U40 signed 2026-10-12: per-epic files, playbook convention, retrofit; t93 doubles as the first store-tracked unit, the goal's smoke) — the ikvm-html refresh+cutover waits again (its session is actively working, the user's word; the t83 playbook, U36's footer hoist riding it, when it settles) — see §6's handover |
 
 (The user's calls 2026-10-10: **the `--epic` default tier resolved
 (a)** — the param convention carried by the base instructions, t76's
@@ -4770,17 +4770,19 @@ Unowned work. Take the next unused `U` id; never renumber, never reuse.
       same set-equality blind-spot class U33 named. Rides the next
       ikvm touch: hoist the seen-map the same way, or record why the
       footer register stays duplicate-tolerant.
-- [ ] **U40 · Per-epic HANDOVER files — the cutover playbook's handover
-      is repo-wide.** The user's 2026-10-11 side note: ipmi-collector
-      (and dacode) carry one `docs/implementation/HANDOVER.md`, tied
-      to no epic — but sessions are epic-scoped (the work-stream
-      rule), so the handover a cold session reads first should be its
-      own epic's. Shape to settle before landing: one file with
-      per-epic sections vs per-epic files; whether the server ties
-      them (a doc node cited from the epic's references) or it stays
-      pure playbook convention; and what happens to the two existing
-      repo-wide HANDOVERs. Rides g21's conventions rewrite or the
-      next adoption.
+- [x] **U40 · Per-epic HANDOVER files — the cutover playbook's handover
+      is repo-wide.** Resolved 2026-10-12, the user's three calls
+      in-thread: **per-epic files** (not one file with sections); a
+      **pure playbook convention** — no doc nodes, no store citations,
+      the convention carried by the base instructions and each repo's
+      AGENTS.md, as the t67/t83 playbooks already do; and the two
+      existing repo-wide HANDOVERs (dacode, ipmi-collector)
+      **retrofitted** into the per-epic shape. The convention lands
+      with g21's conventions rewrite (t91); the retrofits are t93/t94,
+      t93 doubling as the first store-tracked unit. The shape question
+      came from the user's 2026-10-11 side note: sessions are
+      epic-scoped (the work-stream rule), so the handover a cold
+      session reads first should be its own epic's.
 
 ## 5. Debt
 
@@ -5045,6 +5047,39 @@ Deliberate shortcuts, acknowledged rather than fixed. Same id rules as §4.
 Newest first. One entry per session, written for someone who was not
 here. The final entry of a session is the handover
 (`.agents/skills/todo-next-imp/SKILL.md` defines the shape).
+
+### 2026-10-12 — U40 signed; g21 decomposed
+
+**Workspace**: main, clean at `67f480e` at start; three crates,
+rustc 1.98.1, the stable binary current.
+
+**U40 signed** (the user's three calls in-thread): per-epic HANDOVER
+files; pure playbook convention (no doc nodes, no store citations);
+the two existing repo-wide HANDOVERs retrofitted. **g21 decomposed
+(t90)**: the tree t91 the conventions rewrite (pre-flip, landing in
+the same session as the flip) → t92 the cutover flip (the final
+refresh at the commit per f113, the board backup beside the store,
+the open items migrated to store nodes, the board archived +
+git-rm'd, tasks.py + attention.py retired, the live epic's first
+HANDOVER) → t93/t94 the dacode and ipmi-collector retrofits, t93
+doubling as the first store-tracked unit — the goal's smoke line.
+The node mapping and the exit-gate sweep convention are settled in
+the tracker's g21 note. **f115 closed** with its verify line run
+(the serve suite 12/12, `set_nonblocking` at the accept-loop site).
+The prior handover's unverified item closed: the served page's
+sidebar verified after the reset — `serve` on the real root answered
+200 with six project blocks, 43 epic rows with per-epic counts, no
+unreadable markers, the listener cleaning up on SIGINT.
+
+**Handover.** Workspace: main, clean at this commit; the stable
+binary current. Landed: the g21 decomposition (this commit). Next
+step: t91, the conventions rewrite — the session-tracking convention,
+the exit-gate sweep over status_summary + next_task, U40's per-epic
+HANDOVER convention into the README playbook, the AGENTS/skill/
+command rewrites, agent-rules re-sync — then t92 the flip in the
+same session. Blocked on you: the top switcher's retention (a taste
+call, default keep) and the ikvm wait. Unverified: the flatten's
+field test (t88) remains the adopted repos' sessions.
 
 ### 2026-10-12 — the session close: the sequencing flip, the listener reset
 
