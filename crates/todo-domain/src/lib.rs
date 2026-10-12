@@ -69,6 +69,7 @@ mod graph;
 mod id;
 mod node;
 mod reference;
+mod reward;
 mod status;
 mod time;
 
@@ -81,6 +82,10 @@ pub use graph::{
 pub use id::{DecisionId, DocId, EpicId, MAX_SLUG_LEN, RepoSlug, TaskId};
 pub use node::{Confidence, Decision, Doc, Epic, Repo, Task};
 pub use reference::{Reference, ReferenceKind, References};
+pub use reward::{
+    BaseCosts, KindMultipliers, PriorityMultipliers, Reward, RewardInput, RewardsConfig, Size,
+    reward,
+};
 pub use status::{DecisionStatus, Priority, Status, TaskKind};
 pub use time::{Date, Timestamp};
 
