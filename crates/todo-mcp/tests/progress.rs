@@ -1,9 +1,10 @@
 //! The progress subcommand's suite (spec §13, D20, t68 + t69): the
 //! render model over the domain graph, the JSON document and the HTML
-//! page golden-pinned (`progress.v1`, `page.v1`), the resolution
-//! discipline (the registry consult, the lock-free read, the slug
-//! cross-check, the cwd tier), the page's switcher and script-guard
-//! invariants, the binary's dispatch and write behavior — driven
+//! pages golden-pinned (`progress.v1`, `page.v1`, `epic_page.v1`), the
+//! resolution discipline (the registry consult, the lock-free read, the
+//! slug cross-check, the cwd tier), the page's switcher and script-guard
+//! invariants, the epic page's current-epic marker and error paths, the
+//! binary's dispatch and write behavior — driven
 //! in-process where the surface is a library function and through the
 //! real binary where the surface is the process (the cwd tier, the
 //! exit codes and the writes, the tests/cwd.rs pattern).
@@ -855,6 +856,75 @@ mod progress {
             !page.contains("?repo=alpha#lane-"),
             "the foreign epics are never displayed under the wrong slug"
         );
+    }
+
+    /// The fixture's E2 epic page, rendered in-process.
+    fn fixture_epic_page(root: &TempDir, epic: u64) -> String {
+        render::epic_page(&DataRoot::new(root.path()), &fixture_slug(), epic)
+            .expect("the render succeeds")
+    }
+
+    /// The epic page golden: E2's page (the richest lane — gated by
+    /// the open D1, holding every kind and a blocked task), with alpha
+    /// registered so the switcher carries two entries, byte-identical
+    /// to `tests/golden/epic_page.v1.golden`.
+    #[test]
+    fn the_epic_page_is_golden_pinned() {
+        let root = switcher_fixture();
+        assert_golden("epic_page.v1", fixture_epic_page(&root, 2).as_bytes());
+    }
+
+    /// Two epic-page renders over unchanged state are byte-identical
+    /// (§8) — the in-process twin of the golden's regeneration ritual.
+    #[test]
+    fn two_epic_page_renders_are_byte_identical() {
+        let root = switcher_fixture();
+        assert_eq!(fixture_epic_page(&root, 2), fixture_epic_page(&root, 2));
+    }
+
+    /// The epic page's sidebar marks the requested epic current (the
+    /// marked non-link) while the switcher still marks the rendered
+    /// repo, and the non-current epics keep their lane-anchor links.
+    #[test]
+    fn the_epic_page_marks_the_epic_current_in_the_sidebar() {
+        let root = switcher_fixture();
+        let page = fixture_epic_page(&root, 2);
+        assert!(
+            page.contains(r#"<span class="cur">fixture</span>"#),
+            "the switcher still marks the rendered repo"
+        );
+        assert!(
+            page.contains(r#"<span class="scur">E2 · Milestone one</span>"#),
+            "the requested epic is the marked non-link"
+        );
+        assert!(
+            page.contains(r##"<a href="#lane-1">E1 · Milestone zero</a><span>2/2</span>"##),
+            "the non-current epics keep their lane-anchor links"
+        );
+    }
+
+    /// An epic number the repo's graph does not hold is a named error,
+    /// never an empty page.
+    #[test]
+    fn an_unknown_epic_number_is_refused() {
+        let root = switcher_fixture();
+        let message = render::epic_page(&DataRoot::new(root.path()), &fixture_slug(), 99)
+            .expect_err("the missing epic is refused");
+        assert_eq!(
+            message,
+            "the repo fixture holds no epic number 99 — refusing to render an empty epic page"
+        );
+    }
+
+    /// An unknown repo fails through the same resolve discipline as
+    /// the repo page: the registry consult's `unknown_id` message.
+    #[test]
+    fn an_unregistered_repo_is_refused_on_the_epic_page() {
+        let root = switcher_fixture();
+        let slug = RepoSlug::from_str("elsewhere").expect("a valid slug");
+        let message = render::epic_page(&DataRoot::new(root.path()), &slug, 1)
+            .expect_err("the unregistered slug is refused");
+        assert_eq!(message, "unknown id: elsewhere");
     }
 
     /// The activity panel (t84's D5): the census rendered — the header

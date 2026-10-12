@@ -9,7 +9,9 @@
 //! anchors (`svg.rs`'s `id="lane-<number>"`), same-page for the
 //! rendered repo, `?repo=<slug>#lane-<number>` for the others: in the
 //! static file the cross-repo links are inert, which is honest — the
-//! static page is one repo's snapshot.
+//! static page is one repo's snapshot. The epic page marks its scoped
+//! epic's row the same way the switcher marks the current repo: the
+//! marked non-link, never a self-link.
 
 use todo_domain::{Graph, RepoSlug};
 use todo_store::{DataRoot, Registry, StoreError};
@@ -36,8 +38,8 @@ pub(super) struct SidebarRepo {
     pub(super) epics: Vec<SidebarEpic>,
 }
 
-/// One epic row: the number (the lane anchor's key), the title, and
-/// the done/total task counts under the epic.
+/// One epic row: the number (the lane anchor's key), the title, the
+/// done/total task counts under the epic, and the current marker.
 pub(super) struct SidebarEpic {
     /// The epic id's number — the `lane-<number>` anchor's key.
     pub(super) number: u64,
@@ -47,6 +49,9 @@ pub(super) struct SidebarEpic {
     pub(super) done: usize,
     /// Every task under the epic.
     pub(super) total: usize,
+    /// Whether this is the epic the render is scoped to — the marked
+    /// non-link, carried only by the rendered repo's rows.
+    pub(super) current: bool,
 }
 
 /// The sidebar's per-repo reads (D3): every registered slug in the
@@ -55,11 +60,15 @@ pub(super) struct SidebarEpic {
 /// double-read. A repo whose graph will not read — or whose store
 /// holds another repo's graph under the slug, the resolve cross-check
 /// one level out — is reported with the unreadable marker, never
-/// dropped; a registry read failure fails the render.
+/// dropped; a registry read failure fails the render. The
+/// `current_epic` number marks that epic's row under the rendered
+/// repo (the epic page's scope); `None` marks nothing, which is every
+/// repo-scoped surface.
 pub(super) fn sidebar_repos(
     root: &DataRoot,
     current: &RepoSlug,
     current_graph: &Graph,
+    current_epic: Option<u64>,
 ) -> Result<Vec<SidebarRepo>, String> {
     let registry = Registry::load(root).map_err(|error| ToolError::from(error).message)?;
     let mut repos: Vec<SidebarRepo> = Vec::with_capacity(registry.slugs().len());
@@ -70,7 +79,7 @@ pub(super) fn sidebar_repos(
                 name: current_graph.repo().name.clone(),
                 current: true,
                 unreadable: false,
-                epics: epic_rows(current_graph),
+                epics: epic_rows(current_graph, current_epic),
             });
             continue;
         }
@@ -94,7 +103,7 @@ pub(super) fn sidebar_repos(
                 name: graph.repo().name.clone(),
                 current: false,
                 unreadable: false,
-                epics: epic_rows(&graph),
+                epics: epic_rows(&graph, None),
             }),
             Err(_) => repos.push(SidebarRepo {
                 slug: slug.clone(),
@@ -109,8 +118,9 @@ pub(super) fn sidebar_repos(
 }
 
 /// One repo's epic rows: ascending epic id (the model's lane order),
-/// each with its done/total task counts.
-fn epic_rows(graph: &Graph) -> Vec<SidebarEpic> {
+/// each with its done/total task counts; the row matching
+/// `current_epic` (the rendered repo's rows only) is marked.
+fn epic_rows(graph: &Graph, current_epic: Option<u64>) -> Vec<SidebarEpic> {
     graph
         .epics()
         .map(|epic| {
@@ -121,6 +131,7 @@ fn epic_rows(graph: &Graph) -> Vec<SidebarEpic> {
                 title: epic.title.clone(),
                 done,
                 total: tasks.len(),
+                current: current_epic == Some(epic.id.number()),
             }
         })
         .collect()
@@ -149,6 +160,16 @@ pub(super) fn sidebar_html(repos: &[SidebarRepo]) -> String {
         }
         for epic in &repo.epics {
             let label = esc(&short(&epic.title, 28));
+            if epic.current {
+                out.push_str(&format!(
+                    "<div class=\"sepic\"><span class=\"scur\">E{} · {label}</span>\
+                     <span>{}/{}</span></div>",
+                    epic.number, epic.done, epic.total
+                ));
+                continue;
+            }
+            // The lane anchors stay the repo page's href shapes — U54
+            // owns turning the epic rows into epic-page URLs.
             let href = if repo.current {
                 format!("#lane-{}", epic.number)
             } else {

@@ -17,7 +17,7 @@ use super::{Model, build, gather};
 /// The `progress --json` document: the golden-pinned v1 JSON, one
 /// trailing newline — exactly the bytes the subcommand prints.
 pub fn json(root: &DataRoot, repo: &RepoSlug) -> Result<String, String> {
-    let (graph, census, sidebar) = gather(root, repo)?;
+    let (graph, census, sidebar) = gather(root, repo, None)?;
     let model = build(&graph, &census, &sidebar).map_err(|error| error.message)?;
     json_text(&model)
 }

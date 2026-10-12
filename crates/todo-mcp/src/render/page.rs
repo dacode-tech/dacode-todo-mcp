@@ -53,7 +53,7 @@ pub struct Outputs {
 /// strings, with the project switcher and the left sidebar. A pure
 /// function of `(root, repo)` — golden-pinned as `tests/golden/page.v1`.
 pub fn page(root: &DataRoot, repo: &RepoSlug) -> Result<String, String> {
-    let (graph, census, sidebar) = gather(root, repo)?;
+    let (graph, census, sidebar) = gather(root, repo, None)?;
     let model = build(&graph, &census, &sidebar).map_err(|error| error.message)?;
     page_text(&model)
 }
@@ -146,10 +146,10 @@ pub(super) fn page_text(model: &Model) -> Result<String, String> {
 /// `location.host` and the page's repo; `onmessage` reloads. The
 /// try/catch degrades silently on a static `file://` page — an empty
 /// `location.host` makes the URL invalid, the constructor throws, the
-/// catch swallows it. The script rides every render: a static page
-/// simply never receives a push. The slug's charset needs no JS
-/// string escaping.
-fn live_script(slug: &str) -> String {
+/// catch swallows it. The script rides every render — the repo page's
+/// and the epic page's alike: a static page simply never receives a
+/// push. The slug's charset needs no JS string escaping.
+pub(super) fn live_script(slug: &str) -> String {
     format!(
         "\ntry {{\n  const ws = new WebSocket('ws://' + location.host + '/ws?repo={slug}');\n  \
          ws.onmessage = () => location.reload();\n}} catch (e) {{}}"
@@ -161,8 +161,9 @@ fn live_script(slug: &str) -> String {
 /// every other slug linking to `?repo=<slug>` — the URL shape the
 /// `serve` subcommand answers. Renders from the sidebar's registry
 /// walk, so the switcher and the sidebar can never disagree about
-/// membership or order.
-fn switcher_html(repos: &[super::sidebar::SidebarRepo], current: &RepoSlug) -> String {
+/// membership or order. The epic page reuses it unchanged: the
+/// switcher marks the current repo, never the current epic.
+pub(super) fn switcher_html(repos: &[super::sidebar::SidebarRepo], current: &RepoSlug) -> String {
     let mut out = String::from("<nav class=\"switch\">");
     for repo in repos {
         let name = esc(repo.slug.as_str());
@@ -423,7 +424,7 @@ struct DetailData {
 /// round-half-up — no floating point in a rendered percentage (the
 /// Python tool's `round()` is banker's rounding; a recorded
 /// divergence, 1/8 shows 13% here and 12% there).
-fn pct(a: usize, b: usize) -> String {
+pub(super) fn pct(a: usize, b: usize) -> String {
     let Some(value) = (100 * a + b / 2).checked_div(b) else {
         return "—".to_owned();
     };
@@ -431,8 +432,9 @@ fn pct(a: usize, b: usize) -> String {
 }
 
 /// The page's stylesheet — the Python tool's CSS ported verbatim plus
-/// the switcher's rules.
-const CSS: &str = r#":root { color-scheme: light dark; }
+/// the switcher's rules; the epic page reuses it unchanged (the
+/// shared house style, so the two pages cannot drift apart).
+pub(super) const CSS: &str = r#":root { color-scheme: light dark; }
 body { font: 14px/1.5 -apple-system, "Segoe UI", Roboto, sans-serif; margin: 0;
        padding: 24px 28px 60px; color: #16181d; background: #fbfbfa; }
 h1 { font-size: 20px; margin: 0 0 4px; }

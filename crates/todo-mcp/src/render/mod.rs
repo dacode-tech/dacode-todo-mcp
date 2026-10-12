@@ -9,26 +9,32 @@
 //! (§8): the golden-pinned bytes, and two runs over unchanged state,
 //! are byte-identical by construction.
 //!
-//! The module is six files, split at U37's named point and the seams
+//! The module is seven files, split at U37's named point and the seams
 //! t84's page rework forced: this one holds the model, the resolution,
 //! the gather orchestration and the shared text helpers, [`json()`]
 //! the golden-pinned JSON document, [`page()`] the HTML page's
-//! skeleton with the project switcher, `svg` the dependency-graph SVG
-//! (extracted from the page when the page half crossed the 600-line
-//! target — the split the spec's D1 named, plus the seam it forced),
-//! `sidebar` the left nav with the registered projects and their epics
-//! (the per-repo reads and the nav tree), and `panel` the activity
-//! section over the event census. The public surface is four functions
-//! over one internal model — [`json()`] and [`summary`] (one surface
-//! each), [`page()`] (the HTML), and [`outputs`] (one resolve + one
-//! census + one build, all three surfaces plus the repo's registered
-//! checkout, for the subcommand's default write location) — plus
-//! [`resolve_by_cwd`], the subcommand's repo tier: the `--repo` flag
-//! wins (the binary owns that check), else the working directory's
-//! deterministic longest-ancestor match against the registered
-//! checkouts (§7, the same rule the server's default tier applies).
-//! The binary reads the cwd once and passes it in; this crate never
-//! touches the environment.
+//! skeleton with the project switcher, `epic` the epic-scoped page
+//! (one epic's lane as a page, the sidebar marking that epic current —
+//! E12's per-epic surface), `svg` the dependency-graph SVG (extracted
+//! from the page when the page half crossed the 600-line target — the
+//! split the spec's D1 named, plus the seam it forced), `sidebar` the
+//! left nav with the registered projects and their epics (the
+//! per-repo reads and the nav tree), and `panel` the activity section
+//! over the event census. The public surface is five functions over
+//! one internal model — [`json()`] and [`summary`] (one surface
+//! each), [`page()`] (the HTML), [`epic_page()`] (the epic-scoped
+//! HTML — serve-scoped, a pure function of `(root, repo, epic)` like
+//! [`page()`] is of `(root, repo)`, and never one of [`outputs`]'s
+//! written surfaces: the static progress output stays one snapshot),
+//! and [`outputs`] (one resolve + one census + one build, all three
+//! surfaces plus the repo's registered checkout, for the subcommand's
+//! default write location) — plus [`resolve_by_cwd`], the
+//! subcommand's repo tier: the `--repo` flag wins (the binary owns
+//! that check), else the working directory's deterministic
+//! longest-ancestor match against the registered checkouts (§7, the
+//! same rule the server's default tier applies). The binary reads
+//! the cwd once and passes it in; this crate never touches the
+//! environment.
 //!
 //! The resolution mirrors `ServerState::resolve_read`'s discipline
 //! exactly (the t64 hand-off): the registry consult first —
@@ -51,12 +57,14 @@
 //! cannot place, and every edge with an endpoint it cannot place, are
 //! reported in `not_placed`, never dropped).
 
+mod epic;
 mod json;
 mod page;
 mod panel;
 mod sidebar;
 mod svg;
 
+pub use self::epic::epic_page;
 pub use self::json::json;
 pub use self::page::{Outputs, page};
 
@@ -154,7 +162,7 @@ struct Lane<'a> {
 /// the git sha and the date — narration, not a pinned surface, but
 /// derived from the same model so it can never disagree with the JSON.
 pub fn summary(root: &DataRoot, repo: &RepoSlug) -> Result<String, String> {
-    let (graph, census, sidebar) = gather(root, repo)?;
+    let (graph, census, sidebar) = gather(root, repo, None)?;
     let model = build(&graph, &census, &sidebar).map_err(|error| error.message)?;
     Ok(summary_text(&model))
 }
@@ -165,7 +173,7 @@ pub fn summary(root: &DataRoot, repo: &RepoSlug) -> Result<String, String> {
 /// the binary derives its default output directory from the repo's
 /// registered checkout without a second read.
 pub fn outputs(root: &DataRoot, repo: &RepoSlug) -> Result<Outputs, String> {
-    let (graph, census, sidebar) = gather(root, repo)?;
+    let (graph, census, sidebar) = gather(root, repo, None)?;
     let model = build(&graph, &census, &sidebar).map_err(|error| error.message)?;
     Ok(Outputs {
         page: page::page_text(&model)?,
@@ -181,16 +189,19 @@ pub fn outputs(root: &DataRoot, repo: &RepoSlug) -> Result<Outputs, String> {
 /// refused before it; a census failure fails the render (the panel is
 /// part of the page, never silently omitted); the sidebar reads every
 /// registered repo lock-free, reporting an unreadable repo rather than
-/// dropping it (D3).
+/// dropping it (D3). The `current_epic` number is the sidebar's
+/// current-epic marker — `None` on every repo-scoped surface, the
+/// epic page's scoped number.
 fn gather(
     root: &DataRoot,
     slug: &RepoSlug,
+    current_epic: Option<u64>,
 ) -> Result<(Graph, EventCensus, Vec<SidebarRepo>), String> {
     let graph = resolve(root, slug).map_err(|error| error.message)?;
     let census = root
         .read_repo_census(slug)
         .map_err(|error| ToolError::from(error).message)?;
-    let sidebar = sidebar_repos(root, slug, &graph)?;
+    let sidebar = sidebar_repos(root, slug, &graph, current_epic)?;
     Ok((graph, census, sidebar))
 }
 
