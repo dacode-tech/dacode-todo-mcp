@@ -530,6 +530,31 @@ fn a_duplicate_register_id_across_the_sections_is_a_named_error() {
     );
 }
 
+/// A duplicate D id in the resolved footer is a named error naming
+/// both lines — the composition's set-equality cross-check dedupes
+/// and the banner-date check reads only the first row per id, so a
+/// duplicate row passes silently and the footer's
+/// one-row-per-resolved-decision invariant goes unenforced (a
+/// divergent duplicate date escapes the pin). The summary and
+/// dossier registers carry the same check; this closes the set.
+#[test]
+fn a_duplicate_footer_id_is_a_named_error() {
+    let corpus = DECISIONS_MD.replace(
+        "| **D3** | 2026-09-20 | held as recommended | Spec §4 |",
+        "| **D3** | 2026-09-20 | held as recommended | Spec §4 |\n| **D3** | 2026-09-25 | held as recommended | Spec §4 |",
+    );
+    let first = line_of(&corpus, "| **D3** | 2026-09-20");
+    let second = line_of(&corpus, "| **D3** | 2026-09-25");
+    assert_eq!(
+        parse_decisions(&corpus),
+        Err(IkvmError::DuplicateId {
+            id: "D3".to_owned(),
+            first,
+            second,
+        })
+    );
+}
+
 /// A suffixed id is a named error, not an oddball: the register is
 /// measured oddball-free, so `U<digits>` exactly is the honest shape.
 #[test]

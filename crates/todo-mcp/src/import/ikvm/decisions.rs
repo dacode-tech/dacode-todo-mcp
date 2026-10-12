@@ -313,9 +313,10 @@ fn parse_dossiers(lines: &[(&str, usize)], file: &mut IkvmDecisions) -> Result<(
             }
             let dossier = parse_dossier_header(text, number)?;
             // A duplicated D id is a named error naming both lines: the
-            // composition's id cross-check compares sets (which dedupe),
-            // so a silent duplicate would pass it and shift the mapping's
-            // decision id range past the board's numbering.
+            // composition's id cross-check compares sets (which
+            // dedupe) and the map's resolution lookup reads the first
+            // dossier per id, so a silent duplicate would pass and the
+            // second dossier's banner would be ignored.
             if let Some(first) = seen.get(&dossier.id) {
                 return Err(IkvmError::DuplicateId {
                     id: dossier.id,
@@ -508,6 +509,7 @@ fn parse_footer_table(
         });
     };
     let (rows, _) = collect_rows(lines, header_idx, is_register_construct);
+    let mut seen: BTreeMap<String, usize> = BTreeMap::new();
     for (text, number) in rows {
         let row_cells = cells(&text);
         let [id_cell, date_cell, outcome_cell, applied_cell] = row_cells.as_slice() else {
@@ -525,6 +527,20 @@ fn parse_footer_table(
                 detail: "not a D id".to_owned(),
             });
         }
+        // A duplicated D id is a named error naming both lines: the
+        // composition's cross-checks compare sets (which dedupe) and
+        // the banner-date check reads only the first row per id, so a
+        // duplicate row passes silently — the footer's
+        // one-row-per-resolved-decision invariant goes unenforced and
+        // a divergent duplicate date escapes the pin.
+        if let Some(first) = seen.get(&id) {
+            return Err(IkvmError::DuplicateId {
+                id,
+                first: *first,
+                second: number,
+            });
+        }
+        seen.insert(id.clone(), number);
         if !is_day_date(date_cell) {
             return Err(IkvmError::BadStatus {
                 line: number,

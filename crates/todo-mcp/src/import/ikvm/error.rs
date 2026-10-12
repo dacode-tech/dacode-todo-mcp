@@ -81,8 +81,9 @@ pub enum IkvmError {
         detail: String,
     },
     /// A duplicate register id — the board's ids are unique. Covers
-    /// the U register (one namespace across §4 and §5) and §2's
-    /// milestone ids.
+    /// the U register (one namespace across §4 and §5), §2's
+    /// milestone ids, and the decisions file's D ids — the summary
+    /// table, the dossiers and the resolved footer.
     DuplicateId {
         /// The duplicated id.
         id: String,
