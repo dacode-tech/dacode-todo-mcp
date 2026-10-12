@@ -42,9 +42,9 @@ and the meta block below; keep the shapes it parses.
 | ~~**D19**~~ | The lock-free read path and §4.3's torn-tail reading | (a) a read-only open: no lock, committed prefix, unterminated tail = append in flight | medium | — | resolved (a) 2026-10-08 — user decision, in-thread at drafting; the implementation lands as two tasks |
 | ~~**D20**~~ | The all-in-one binary: the MCP server gains the tool CLI | (a) one binary — no subcommand stays the server; progress/refresh/serve + the todo-cli absorption as subcommands | high | — | resolved (a) 2026-10-09 — user decision, in-thread at drafting; the implementation lands as the g19 arc (t68–t73) |
 | ~~**D21**~~ | The output schemas' error union (amends D15) | (a) every declared outputSchema becomes anyOf of the success payload and D15's carrier | high | — | resolved (a) 2026-10-12 — user decision, in-thread; the implementation lands as U51's fix the same day |
-| **D22** | The reward model: sizes, arithmetic, triggers, opt-in | (a) two size buckets (planned at creation, actual at closure), server-computed integer rewards, per-root config, milestone + accumulation triggers, strictly opt-in | high | E13 | open — drafted 2026-10-13 from the user's in-thread steering |
-| **D23** | The storage move: the reward events and FORMAT_VERSION 2 | (a) two new event kinds plus the estimate on creation events; FORMAT_VERSION 1→2, in-place header migration, v1 replaying identically | high | E13 | open — drafted 2026-10-13 |
-| **D24** | The wire move: the surface extension | (a) the optional estimate on task_add, the optional actual size on closure, the reward line and reflection question on the closure response, one new tool (reward_reflect), the base-instructions rule | high | E13 | open — drafted 2026-10-13 |
+| ~~**D22**~~ | The reward model: sizes, arithmetic, triggers, opt-in | (a) two size buckets (planned at creation, actual at closure), server-computed integer rewards, per-root config, milestone + accumulation triggers, strictly opt-in | high | E13 | resolved (a) 2026-10-13 — user decision, in-thread ("I sign all three"); the implementation lands as E13's units |
+| ~~**D23**~~ | The storage move: the reward events and FORMAT_VERSION 2 | (a) two new event kinds plus the estimate on creation events; FORMAT_VERSION 1→2, in-place header migration, v1 replaying identically | high | E13 | resolved (a) 2026-10-13 — user decision, in-thread; the implementation lands as E13's store unit |
+| ~~**D24**~~ | The wire move: the surface extension | (a) the optional estimate on task_add, the optional actual size on closure, the reward line and reflection question on the closure response, one new tool (reward_reflect), the base-instructions rule | high | E13 | resolved (a) 2026-10-13 — user decision, in-thread; the implementation lands as E13's surface unit |
 
 ---
 
@@ -1367,8 +1367,12 @@ The user signed (a) in-thread 2026-10-12 ("ok, let's fix outputSchema").
 
 ### D22 — The reward model: sizes, arithmetic, triggers, opt-in
 
-**Status: open — drafted 2026-10-13 from the user's in-thread
-steering; awaiting signature.**
+**Resolved 2026-10-13 — option (a), signed by the user ("I sign all
+three").** The steering was the user's own in-thread answer to the
+drafted open questions, so the recommendation and the outcome are one.
+Work order executed in the same change: §12 item D22 deleted, §15's
+model paragraphs normative, the domain unit's task opened (the reward
+types and the pure computation, property-tested).
 
 **Gates** — E13 · **Drafted** 2026-10-13 · **Confidence: high** (the
 user steered every open point in-thread)
@@ -1409,7 +1413,13 @@ default-bucket fallbacks).
 
 ### D23 — The storage move: the reward events and FORMAT_VERSION 2
 
-**Status: open — drafted 2026-10-13; awaiting signature.**
+**Resolved 2026-10-13 — option (a), signed by the user ("I sign all
+three").** The version gate's existing semantics carry the migration:
+v2 is a strict superset, v1 logs replay identically, the header
+migrates in place on first write, and an older binary refuses a v2
+store through `version_mismatch`. Work order executed in the same
+change: §12 item D23 deleted, §4 amended (the config document, the v2
+vocabulary, the header migration), the store unit's task opened.
 
 **Gates** — E13 · **Drafted** 2026-10-13 · **Confidence: high**
 
@@ -1449,7 +1459,13 @@ kinds, the bump, the derived per-root totals).
 
 ### D24 — The wire move: the surface extension
 
-**Status: open — drafted 2026-10-13; awaiting signature.**
+**Resolved 2026-10-13 — option (a), signed by the user ("I sign all
+three").** The minimal surface: two optional parameters, the response
+lines, one tool, one base-instructions rule — disabled roots answer
+byte-identically to the pre-E13 surface. Work order executed in the
+same change: §12 item D24 deleted, §6's tool table amended (the
+parameters, the response lines, `reward_reflect`), the surface unit's
+task opened.
 
 **Gates** — E13 · **Drafted** 2026-10-13 · **Confidence: high**
 

@@ -181,6 +181,14 @@ Requirements — these bind the chosen engine (D1: JSONL event log):
   trail the markdown boards held; a format a human can read in an editor
   keeps that property.
 
+The root owns one further document (§15, D23, signed 2026-10-13):
+`<root>/config.json`, the per-root config — versioned, canonical and
+golden-pinned like the registry. The event vocabulary is versioned with
+it: **FORMAT_VERSION 2** adds the reward and reflection events and the
+`estimate` on task-creation events — a strict superset, so v1 logs
+replay identically and the header migrates in place the first time a
+v2 binary opens a v1 log for writing.
+
 ### 4.1 Candidate engines
 
 - **(a) Append-only JSONL event log + in-memory graph.** Every mutation
@@ -364,8 +372,8 @@ Sketch (names are the proposal; rmcp's tool macros will shape schemas):
 | `repo_register` / `repo_list` / `repo_show` | registry CRUD (§7) |
 | `repo_set_path` | a checkout moved; update the path attribute |
 | `epic_add` / `epic_list` / `epic_update` | top-level grouping per repo |
-| `task_add` / `task_show` / `task_list` | task CRUD; `task_list` filters by repo, epic, status, kind, and — for deferred items — until-satisfied (`ready`); rows carry each task's `blocked_by` ids with every blocker's status (D16) and each task's `priority` (D17) |
-| `task_update` | status + fields, with the closure discipline above |
+| `task_add` / `task_show` / `task_list` | task CRUD (`task_add` gains the optional `estimate`, §15 D24); `task_list` filters by repo, epic, status, kind, and — for deferred items — until-satisfied (`ready`); rows carry each task's `blocked_by` ids with every blocker's status (D16) and each task's `priority` (D17) |
+| `task_update` | status + fields, with the closure discipline above; the closure call gains the optional actual size and — when the root's rewards are enabled — the response carries the reward line and, on a trigger, the reflection question (§15, D24) |
 | `task_link` / `task_unlink` | `blocks` / `relates` edges (task and decision sources); cycle-checked |
 | `next_task` | **the question the system exists for** (§5.2); the answer carries the task's `priority` (D17) |
 | `next_items` | ranked actionable batch — repo/epic-scoped, or task-scoped (its dependents) — with blocked-by/blocks annotations, derived weight, each row's `priority` (D17) and the deferred summary (§5.2, D11 amended) |
@@ -374,6 +382,7 @@ Sketch (names are the proposal; rmcp's tool macros will shape schemas):
 | `doc_register` / `doc_list` / `doc_set_path` / `doc_update` | registered-document records for stable citation (D10); `doc_set_path` is audited like `repo_set_path` |
 | `graph_show` | the complete graph (all repos) or one repo/epic subgraph, as an LLM-consumable handover dump (§6.2, D11 amended) |
 | `import_md` | one-shot importer from the sibling markdown boards (§9; D7 as amended by D12: the dacode dialect first, and the only one with a checked-in fixture) |
+| `reward_reflect` | the rewards easter egg's answer log (§15, D24): the closing agent's verbatim reflection, logged as an event and displayed as-is |
 
 **What `status_summary` counts (D16, signed 2026-10-03 — the arithmetic
 is signed text, not an implementation's opinion).** For the queried
@@ -850,29 +859,12 @@ deferred (a shared per-user server instance against the signed D5
 stdio), was signed (a) 2026-10-10 out of the user's in-thread ask —
 the default server ensuring a per-root live-view listener with
 watchdog takeover, the stdio wire unchanged — no §12 item sat open
-(the in-thread precedent, D19's).
+(the in-thread precedent, D19's), and D22/D23/D24 on 2026-10-13, the
+rewards arc's three moves — the reward model, the storage version
+bump, the surface extension — drafted and signed in one exchange out
+of the user's in-thread steering, §15 the design they settled.
 
-**D22 — The reward model: sizes, arithmetic, triggers, opt-in.** Two
-optional size buckets on tasks (the planned estimate at creation, the
-actual at closure, `-` when unestimable), server-computed integer
-rewards at closure, a per-root config document, milestone and
-accumulation reflection triggers, strictly opt-in. Drafted 2026-10-13
-from the user's in-thread steering; §15's model paragraphs are the
-shape. Mirrored by D22 in `decisions.md`.
-
-**D23 — The storage move: the reward events and FORMAT_VERSION 2.**
-Two new event kinds (reward granted, reflection logged) plus the
-estimate on task-creation events; the version bump 1→2 with in-place
-header migration, v1 replaying identically. Drafted 2026-10-13;
-§15's storage paragraph is the shape. Mirrored by D23 in
-`decisions.md`.
-
-**D24 — The wire move: the surface extension.** The optional
-`estimate` on `task_add`, the optional actual size on the closure
-call, the reward line and reflection question on the closure response,
-one new tool (`reward_reflect`), and the base-instructions rule.
-Drafted 2026-10-13; §15's wire paragraph is the shape. Mirrored by
-D24 in `decisions.md`.
+None — the list is closed.
 
 ## 13. Packaging and Distribution
 
