@@ -64,7 +64,12 @@ machine runs — substitute your own root path:
 Updating it is the same commands. No restart is needed: each opencode
 session spawns its own server process, so the next session picks up
 the new binary, and the rename leaves a running session's server on
-its old inode, undisturbed. The staleness tradeoff is deliberate and
+its old inode, undisturbed. One surface lags a step further: the
+live view's listener runs inside one session's server process and
+serves that process's inode — it moves to the new binary only when
+the old sessions exit and a new session's watchdog re-ensures the
+listener, so restart the opencode sessions to move the live view.
+The staleness tradeoff is deliberate and
 documented in the entry's comment in the live config: the installed
 copy goes stale after pulls until re-copied, and the store-format
 version gate (`version_mismatch`) makes a too-old binary refuse a

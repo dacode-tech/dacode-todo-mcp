@@ -75,7 +75,7 @@ cites `P-LIVE-007`/`P-LIVE-008`. Where they now live:
 | `P-LIVE-008` (whoever writes a contract sentence cannot falsify it) | pitfalls.md 5.8 |
 | `P-LIVE-009` (non-ASCII in inline `git commit -m` gets mangled) | pitfalls.md 4.7 |
 
-The next entry is `P-LIVE-014`. Do not reuse a promoted id.
+The next entry is `P-LIVE-015`. Do not reuse a promoted id.
 
 ---
 
@@ -140,6 +140,32 @@ with EAGAIN on a silent socket is this entry's signature.
   bytes, never with Value equality
 - **Obsoleted by**: nothing — this is serde_json's semantics, not a
   version quirk; promotion into `_rust.md` if map surgery recurs
+- **Source**: struggle
+
+---
+
+### P-LIVE-014: an install without a rebuild serves yesterday's pages, silently
+- **Scope**: the stable binary at `~/.local/bin/todo-mcp` (the README's
+  install ritual; every opencode session's server and the live view's
+  listener)
+- **Discovered**: U54's delivery window, 2026-10-12
+- **Symptom**: hours after the per-epic-pages arc landed, the browser
+  still showed the old sidebar (`#lane-<n>` anchors) and the epic
+  routes 404'd — even though an install at 19:33 had followed the
+  cp-to-temp-then-mv mechanics perfectly
+- **Root cause**: the install copied a stale `target/release/todo-mcp`
+  (built before the change landed); the ritual's first line —
+  `cargo build --release` — was skipped, and nothing in the mechanics
+  catches it: the cp+mv succeeds, codesign passes, `--version` runs,
+  and the old code serves
+- **Workaround**: the ritual in full, build first. When the browser
+  disagrees with the tests, compare `target/release/todo-mcp`'s mtime
+  against `git log -1` before blaming the code — and remember the
+  live view lags one more step: the listener serves its owning
+  session's inode, so the new pages arrive only after the old
+  sessions exit and a new-binary watchdog re-ensures the listener
+- **Obsoleted by**: nothing — process discipline; the README's
+  install section names the live-view lag
 - **Source**: struggle
 
 ---
