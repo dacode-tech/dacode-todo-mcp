@@ -75,7 +75,7 @@ cites `P-LIVE-007`/`P-LIVE-008`. Where they now live:
 | `P-LIVE-008` (whoever writes a contract sentence cannot falsify it) | pitfalls.md 5.8 |
 | `P-LIVE-009` (non-ASCII in inline `git commit -m` gets mangled) | pitfalls.md 4.7 |
 
-The next entry is `P-LIVE-012`. Do not reuse a promoted id.
+The next entry is `P-LIVE-013`. Do not reuse a promoted id.
 
 ---
 
@@ -113,6 +113,33 @@ with EAGAIN on a silent socket is this entry's signature.
   item, grep for the census and move it in the same commit
 - **Obsoleted by**: promotion into `_rust.md`'s comment rules if the
   class keeps recurring
+- **Source**: struggle
+
+---
+
+### P-LIVE-012: `Map::remove` is a swap-remove under `preserve_order`
+- **Scope**: any code mutating `serde_json::Map` whose key order reaches
+  the wire or a golden (schema.rs's advertisement pipeline; D14's
+  byte-stable order everywhere)
+- **Discovered**: U51, 2026-10-12
+- **Symptom**: the error-union wrap's first draft removed `$schema`,
+  `title`, `description` and `$defs` with four `Map::remove` calls —
+  the success arm's remaining keys serialized REVERSED
+  (`[type, properties, required]` became `[required, properties, type]`),
+  and only the order-pinning unit test caught it (Value equality is
+  order-insensitive, so every `assert_eq!` on parsed JSON passes
+  through a shuffle)
+- **Root cause**: serde_json's `Map::remove` under `preserve_order`
+  delegates to IndexMap's `swap_remove` — the LAST entry backfills the
+  removed slot, so any mid-map removal shuffles the survivors. The
+  pre-existing strip/flatten removes never surfaced it only because
+  their targets sit last-or-second-to-last in schemars' shapes
+- **Workaround**: rebuild in one ordered pass (iterate
+  `std::mem::take(map)`, route each key to its destination) instead of
+  removing in place; pin order with string-contains on the serialized
+  bytes, never with Value equality
+- **Obsoleted by**: nothing — this is serde_json's semantics, not a
+  version quirk; promotion into `_rust.md` if map surgery recurs
 - **Source**: struggle
 
 ---
