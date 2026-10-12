@@ -75,7 +75,7 @@ cites `P-LIVE-007`/`P-LIVE-008`. Where they now live:
 | `P-LIVE-008` (whoever writes a contract sentence cannot falsify it) | pitfalls.md 5.8 |
 | `P-LIVE-009` (non-ASCII in inline `git commit -m` gets mangled) | pitfalls.md 4.7 |
 
-The next entry is `P-LIVE-010`. Do not reuse a promoted id.
+The next entry is `P-LIVE-012`. Do not reuse a promoted id.
 
 ---
 
@@ -94,5 +94,25 @@ successful handshake. The fix is one line in the accept loop:
 where the platform already hands over a blocking socket). Any future
 listener in this tree carries it; a read that "should block" erroring
 with EAGAIN on a silent socket is this entry's signature.
+
+---
+
+### P-LIVE-011: a census comment is a tree-wide claim one commit elsewhere falsifies
+- **Scope**: test-file module docs across `crates/*/tests/` (the
+  `std::time::Instant` censuses are the confirmed instances)
+- **Discovered**: U43/U49, 2026-10-12
+- **Symptom**: two censuses claiming "`Instant` appears in this file
+  alone" were both false — repos.rs's since t62's lock.rs pin,
+  progress.rs's since t85's serve.rs deadline loops — each falsified by
+  a commit in another file that never touched the census
+- **Root cause**: a scoping claim in a comment has no mechanical
+  enforcement; the grep that would catch it runs only when someone
+  thinks to run it
+- **Workaround**: grep before trusting a census
+  (`rg -n "<item>" crates/`), and when adding a new use of a censused
+  item, grep for the census and move it in the same commit
+- **Obsoleted by**: promotion into `_rust.md`'s comment rules if the
+  class keeps recurring
+- **Source**: struggle
 
 ---
