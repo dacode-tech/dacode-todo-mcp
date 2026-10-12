@@ -722,9 +722,12 @@ const MEASURED_RUNS: usize = 7;
 /// floor. These numbers are therefore the **optimistic** case for opening every
 /// store, which is the direction the registry decision turns on.
 ///
-/// `std::time::Instant` appears in this file alone: §8 bars clocks below the
-/// binary layer as a *determinism* rule, and a measurement harness
-/// produces no bytes, touches no golden and asserts no duration.
+/// `std::time::Instant` appears in this file and in `layout/lock.rs`'s
+/// window pin, and nowhere else below the binary layer: §8 bars clocks
+/// there as a *determinism* rule, and both uses are safe by
+/// construction — the harness produces no bytes, touches no golden and
+/// asserts no duration, and the pin asserts only a lower bound (`sleep`
+/// is at-least, so the bound holds under any scheduler).
 #[test]
 #[ignore = "a measurement, not a property; run with --ignored --nocapture"]
 fn cold_repo_list_open_cost() {
