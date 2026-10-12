@@ -179,7 +179,11 @@ mod protocol {
     /// frozen bytes t33 pinned as a whole one-tool response, unwrapped
     /// from that response's shell: the router now composes across
     /// cluster files (t34's `ToolRouter::merge`), so the list holds
-    /// every landed tool while this entry stays byte-identical.
+    /// every landed tool while this entry stays byte-identical. The
+    /// outputSchema half was re-frozen at U51 — the error union: the
+    /// success payload sits inside `anyOf[0]` in its generated order,
+    /// D15's carrier answers as `anyOf[1]`, and the document-level
+    /// keys (`$schema`, `title`) stay at the union's root.
     const REPO_REGISTER_ENTRY: &str = concat!(
         r#"{"name":"repo_register","#,
         r#""description":"Register a repository under its stable slug key: the store is created under the data root, the registry lists it, and the response is the new state.","#,
@@ -189,12 +193,17 @@ mod protocol {
         r#""name":{"description":"The repository's display name — a mutable attribute, unlike the slug.","type":"string"},"#,
         r#""path":{"description":"The filesystem path of the checkout (§7) — an attribute, not the key; `repo_set_path` moves it when a checkout moves.","type":"string"}}},"#,
         r#""outputSchema":{"$schema":"https://json-schema.org/draft/2020-12/schema","title":"RepoRegistered","#,
-        r#""description":"`repo_register`'s success payload: the new state (§6 — writes return the new state), the repo node in declaration order (D14).","#,
+        r#""description":"The tool's answer: the success payload, or D15's error carrier (code and message) when the call fails.","#,
+        r#""anyOf":[{"description":"`repo_register`'s success payload: the new state (§6 — writes return the new state), the repo node in declaration order (D14).","#,
         r#""type":"object","properties":{"slug":{"description":"The repository's stable slug key.","type":"string"},"#,
         r#""name":{"description":"The repository's display name.","type":"string"},"#,
         r#""path":{"description":"The filesystem path of the checkout.","type":"string"},"#,
         r#""registered_at":{"description":"When the server registered the repository — RFC 3339 UTC with the nine-digit fraction, the one clock-stamped field.","type":"string"}},"#,
-        r#""required":["slug","name","path","registered_at"]}}"#,
+        r#""required":["slug","name","path","registered_at"]},"#,
+        r#"{"description":"D15's error carrier: the §6.1 code a client branches on and its message — the shape every tool failure answers.","#,
+        r#""type":"object","properties":{"code":{"description":"The §6.1 code a client branches on.","type":"string"},"#,
+        r#""message":{"description":"The failure's message — the remedy text.","type":"string"}},"#,
+        r#""required":["code","message"]}]}}"#,
     );
 
     /// `tools/list` advertises every landed tool, sorted by name (§6.3:

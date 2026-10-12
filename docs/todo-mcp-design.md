@@ -410,13 +410,19 @@ must not retry `invalid`. Both are wire identities — the store's `Io`
 already answers `"io"` from `code()`, and `invalid` is M3's mapping for
 `ValueError`, so nothing implements them until the MCP surface lands.
 
-**The carrier is part of the contract** (**D15**, signed 2026-09-30). A
+**The carrier is part of the contract** (**D15**, signed 2026-09-30;
+the declaration's shape amended by **D21**, 2026-10-12). A
 code travels as `structuredContent.code` on a *tool-level* error result:
 `isError: true`, with the same JSON mirrored into a text block, so a
 client branches on the code and a model still reads the message. Every
-tool declares its `outputSchema` explicitly, and **an error payload is not
-required to conform to it** — the schema describes a success, and rmcp
-does not validate that field (§6.3). Protocol-level JSON-RPC errors are
+tool declares its `outputSchema` explicitly as the **union of its
+success payload and the carrier** — `anyOf` of the two arms — so an
+error payload *does* conform to the declaration: a strict client that
+validates any response against the schema, error results included,
+accepts both arms instead of masking the code and message as an opaque
+schema mismatch (U51's finding: a failing call rejected as -32602, the
+remedy text never delivered). rmcp itself does not validate that field
+(§6.3). Protocol-level JSON-RPC errors are
 reserved for what the protocol itself rejects, an unknown tool or a
 malformed request, because clients render those opaquely and the model
 never sees the code; a §6.1 code placed there would be a code no caller
@@ -518,13 +524,17 @@ to internal error*) — the caller does **not** see your message"
 (`model.rs:4100-4105`). A §6.1 code the model never sees is not a code a
 client can act on, so the carrier must be tool-level. Which tool-level
 carrier is **D15**, signed 2026-09-30 as option (a): `structuredContent.code`
-alongside an explicitly declared `outputSchema`, which puts a payload in
-that field that does *not* conform to the schema (rmcp does not validate —
+alongside an explicitly declared `outputSchema`. D15's original shape let
+the error payload not conform to that schema (rmcp does not validate —
 "since rust is a strong type language, we don't need to do json schema
-validation here", `model.rs:4201-4204` — but a strict client might), where
-the conforming alternative, a tagged-union output type, comes back with
-`"isError":false`, which is the flag clients actually read. §6.1 now names
-the carrier and the conformance exemption.
+validation here", `model.rs:4201-4204` — but a strict client might, and
+one did: U51's finding, a failing call's carrier rejected as an opaque
+-32602 with the code and message masked). **D21** (2026-10-12) amended
+the declaration instead of relying on the exemption: the outputSchema is
+the `anyOf` union of the success payload and the carrier, so both arms
+conform — the tagged-union *type* alternative stays rejected because it
+returns `"isError":false`, which is the flag clients actually read. §6.1
+names the carrier and the union.
 
 **Argument faults are rmcp's, not ours.** A wrong type or a missing
 required field never reaches the tool body: `Parameters<P>`'s extractor

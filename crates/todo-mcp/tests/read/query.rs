@@ -476,6 +476,116 @@ fn tools_list_advertises_enum_values_in_the_flat_idiom() {
     );
 }
 
+/// Every advertised output schema is the error union (U51): `anyOf` of
+/// the success arm and D15's carrier, with `$schema`/`title`/`$defs`
+/// hoisted to the union's root — a strict client validating any
+/// response against the declaration, error results included, accepts
+/// both arms instead of masking a tool failure as an opaque schema
+/// mismatch. The carrier arm is asserted exactly; the success arm's
+/// contents are the flat-enum walk's and the protocol pin's business.
+#[test]
+fn every_advertised_output_schema_is_the_error_union() {
+    let root = fixture();
+    let request = r#"{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}"#.to_owned();
+    let driven = drive(root.path(), &[request]);
+    assert!(
+        driven.status.success(),
+        "a completed handshake ends 0; stderr: {}",
+        driven.stderr
+    );
+    let value: Value = serde_json::from_str(&driven.responses[0]).expect("tools/list answers JSON");
+    let tools = value["result"]["tools"].as_array().expect("the tool list");
+    for tool in tools {
+        let name = tool["name"].as_str().expect("a tool name");
+        let schema = tool
+            .get("outputSchema")
+            .unwrap_or_else(|| panic!("{name} advertises an outputSchema"));
+        let arms = schema["anyOf"]
+            .as_array()
+            .unwrap_or_else(|| panic!("{name}.outputSchema is the anyOf union"));
+        assert_eq!(arms.len(), 2, "{name}.outputSchema.anyOf");
+        assert_eq!(
+            arms[1],
+            json!({
+                "description": "D15's error carrier: the §6.1 code a client branches on and its message — the shape every tool failure answers.",
+                "type": "object",
+                "properties": {
+                    "code": {
+                        "description": "The §6.1 code a client branches on.",
+                        "type": "string"
+                    },
+                    "message": {
+                        "description": "The failure's message — the remedy text.",
+                        "type": "string"
+                    }
+                },
+                "required": ["code", "message"]
+            }),
+            "{name}.outputSchema.anyOf[1]"
+        );
+        // The document-level keys sit at the union's root, never
+        // inside an arm: a `$defs` behind `anyOf[0]` would strand every
+        // `$ref` the arms carry.
+        assert_eq!(arms[0]["type"], json!("object"), "{name}'s success arm");
+        let success = arms[0].as_object().unwrap();
+        assert!(!success.contains_key("$defs"), "{name}'s arm carries $defs");
+        assert!(
+            !success.contains_key("$schema"),
+            "{name}'s arm carries $schema"
+        );
+    }
+}
+
+/// A failing call's carrier satisfies the advertised error arm (U51):
+/// the response a strict client validates against the declaration is
+/// the arm the declaration promises. Both the advertisement and the
+/// failure are driven over the wire — the satisfaction check is by
+/// construction: every required key present with the declared type,
+/// every present key a declared property of that type.
+#[test]
+fn a_failing_call_satisfies_the_advertised_error_arm() {
+    let root = fixture();
+    let requests = vec![
+        r#"{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}"#.to_owned(),
+        call(
+            3,
+            "task_show",
+            r#"{"repo":"fixture","task":"fixture:U999"}"#,
+        ),
+    ];
+    let driven = drive(root.path(), &requests);
+    assert!(
+        driven.status.success(),
+        "a completed handshake ends 0; stderr: {}",
+        driven.stderr
+    );
+    let tools: Value = serde_json::from_str(&driven.responses[0]).expect("tools/list answers JSON");
+    let schema = &tools["result"]["tools"]
+        .as_array()
+        .expect("the tool list")
+        .iter()
+        .find(|tool| tool["name"] == "task_show")
+        .expect("task_show is advertised")["outputSchema"];
+    let arm = &schema["anyOf"][1];
+    let answer = structured(&driven.responses[1]);
+    assert_eq!(answer["code"], json!("unknown_id"));
+    for key in arm["required"].as_array().expect("the arm's required") {
+        let key = key.as_str().expect("a required key");
+        assert!(
+            answer.get(key).is_some_and(Value::is_string),
+            "the carrier's {key} is a present string"
+        );
+    }
+    for (key, value) in answer.as_object().expect("the carrier") {
+        assert_eq!(
+            arm["properties"][key]["type"],
+            json!("string"),
+            "the carrier's {key} is a declared string property"
+        );
+        assert!(value.is_string(), "the carrier's {key} is a string");
+    }
+}
+
 /// The walk behind the flat-enum pin: collects every offense against
 /// the flat idiom, with its path, so a failure names the offender
 /// instead of counting — a oneOf-of-consts anywhere (inline or behind
@@ -490,6 +600,15 @@ fn collect_flat_enum_offenses(
     offenders: &mut Vec<String>,
 ) {
     let Value::Object(map) = value else {
+        // Arrays are walked item-by-item: the error union puts every
+        // success schema behind `anyOf[0]`, and a walk that stopped at
+        // arrays would go vacuous over exactly the schemas the union
+        // wraps.
+        if let Value::Array(items) = value {
+            for (index, item) in items.iter().enumerate() {
+                collect_flat_enum_offenses(item, defs, &format!("{path}[{index}]"), offenders);
+            }
+        }
         return;
     };
     if let Some(Value::Array(arms)) = map.get("oneOf")
@@ -578,6 +697,32 @@ fn the_flat_enum_walk_pins_its_own_clause() {
         &mut offenders,
     );
     assert!(offenders.is_empty(), "a well-formed enum offends nothing");
+}
+
+/// The walk descends into arrays: a oneOf-of-consts nested inside an
+/// `anyOf` arm — the pre-flatten nullable-enum shape, and the shape
+/// the error union puts every success schema behind — is an offense,
+/// not a shape the walk walks around. Red-first against the walk that
+/// stopped at arrays.
+#[test]
+fn the_flat_enum_walk_descends_into_arrays() {
+    let schema = json!({
+        "anyOf": [
+            {
+                "oneOf": [
+                    { "type": "string", "const": "open" },
+                    { "type": "string", "const": "closed" }
+                ]
+            },
+            { "type": "null" }
+        ]
+    });
+    let mut offenders = Vec::new();
+    collect_flat_enum_offenses(&schema, &Value::Null, "synthetic", &mut offenders);
+    assert_eq!(
+        offenders,
+        vec!["synthetic.anyOf[0] (a oneOf-of-consts survived the flatten)".to_owned()]
+    );
 }
 
 // =================================================================

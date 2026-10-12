@@ -41,6 +41,7 @@ and the meta block below; keep the shapes it parses.
 | ~~**D18**~~ | The dacode-dialect mapping (amends §9) | (a) A-deltas → tasks under a synthetic epic; sub-steps → gate tasks; docs → doc nodes; ids reproduced by import order | medium | M4 | resolved (a) 2026-10-05 — user decision, "let's do option (a)" |
 | ~~**D19**~~ | The lock-free read path and §4.3's torn-tail reading | (a) a read-only open: no lock, committed prefix, unterminated tail = append in flight | medium | — | resolved (a) 2026-10-08 — user decision, in-thread at drafting; the implementation lands as two tasks |
 | ~~**D20**~~ | The all-in-one binary: the MCP server gains the tool CLI | (a) one binary — no subcommand stays the server; progress/refresh/serve + the todo-cli absorption as subcommands | high | — | resolved (a) 2026-10-09 — user decision, in-thread at drafting; the implementation lands as the g19 arc (t68–t73) |
+| ~~**D21**~~ | The output schemas' error union (amends D15) | (a) every declared outputSchema becomes anyOf of the success payload and D15's carrier | high | — | resolved (a) 2026-10-12 — user decision, in-thread; the implementation lands as U51's fix the same day |
 
 ---
 
@@ -1311,3 +1312,52 @@ strike this row; TODO.md §1/§6. The implementation is one task (t85
 under g22): the per-root publication, the startup ensure-listener,
 the watchdog, and the pins — probe/attach/bind, per-root keying,
 takeover after owner death.
+
+---
+
+### D21 — The output schemas' error union (amends D15)
+
+**Resolved 2026-10-12 — option (a), signed by the user.** Every tool's
+declared `outputSchema` becomes the `anyOf` union of its success payload
+and D15's error carrier, so a strict client that validates any response
+against the declaration — error results included — accepts both arms.
+D15's conformance exemption ("an error payload is not required to
+conform") is retired: the ipmi-collector session's failing `task_add`
+(U51) proved the exemption's cost — the client rejected the carrier as
+an opaque -32602 and the code and message never arrived. Work order
+executed in the same change: §6.1's carrier paragraph and §6.3's D15
+finding reworded to the union, the advertisement re-pinned
+(protocol.rs's REPO_REGISTER_ENTRY re-frozen; the flat-enum walk gains
+array descent so its coverage stays non-vacuous behind `anyOf[0]`).
+
+**Gates** — · **Resolved** 2026-10-12 · drafted from U51's finding (the
+ipmi session's -32602 transcript) · **Confidence: high**
+
+**Current (before this decision).** D15's signed shape: each tool
+declares its outputSchema explicitly, and an error payload is not
+required to conform to it — the schema describes a success. rmcp does
+not validate the field, so the server's own tests never caught a client
+that does.
+
+**What the incident measured.** The ipmi-collector session's first
+`task_add` failed underneath; the server answered D15's carrier
+(`{code, message}`); the calling client validated the carrier against
+the declared success-only schema and rejected the whole response as
+-32602 "Structured content does not match the tool's output schema",
+listing the success DTO's required fields. The session never saw the
+real error and retried blind (the user's report). The write suites pin
+the server's carrier emission through the real binary — the defect was
+the declaration, not the emission.
+
+**Options.**
+
+- **(a) The union declaration.** Every outputSchema becomes
+  `anyOf: [success payload, carrier]`, with `$schema`/`title`/`$defs`
+  hoisted to the union's root so `$ref` pointers resolve from the
+  document root. Both arms validate under any client; the schema
+  pinning stays. Cost: the `tools/list` advertisement changes — a wire
+  surface move, hence this decision.
+- **(b) Drop the outputSchema declarations.** Also a wire change, and
+  it loses the schema pinning D15 committed to.
+
+The user signed (a) in-thread 2026-10-12 ("ok, let's fix outputSchema").
