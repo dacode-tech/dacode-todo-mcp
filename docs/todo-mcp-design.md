@@ -852,7 +852,27 @@ the default server ensuring a per-root live-view listener with
 watchdog takeover, the stdio wire unchanged — no §12 item sat open
 (the in-thread precedent, D19's).
 
-None — the list is closed.
+**D22 — The reward model: sizes, arithmetic, triggers, opt-in.** Two
+optional size buckets on tasks (the planned estimate at creation, the
+actual at closure, `-` when unestimable), server-computed integer
+rewards at closure, a per-root config document, milestone and
+accumulation reflection triggers, strictly opt-in. Drafted 2026-10-13
+from the user's in-thread steering; §15's model paragraphs are the
+shape. Mirrored by D22 in `decisions.md`.
+
+**D23 — The storage move: the reward events and FORMAT_VERSION 2.**
+Two new event kinds (reward granted, reflection logged) plus the
+estimate on task-creation events; the version bump 1→2 with in-place
+header migration, v1 replaying identically. Drafted 2026-10-13;
+§15's storage paragraph is the shape. Mirrored by D23 in
+`decisions.md`.
+
+**D24 — The wire move: the surface extension.** The optional
+`estimate` on `task_add`, the optional actual size on the closure
+call, the reward line and reflection question on the closure response,
+one new tool (`reward_reflect`), and the base-instructions rule.
+Drafted 2026-10-13; §15's wire paragraph is the shape. Mirrored by
+D24 in `decisions.md`.
 
 ## 13. Packaging and Distribution
 
@@ -913,3 +933,75 @@ gates (`tools/attention.py`).
   repos tracked for real.
 - **M5** — packaging, docs, cross-repo ergonomics if D8 arms them,
   polish.
+
+## 15. The Rewards Easter Egg (E13, D22–D24)
+
+A per-root, strictly opt-in gamification layer — a quiet experiment on
+the agents working the tracker, visible in the progress surfaces. The
+opt-in is the whole design's safety: a root with no rewards config is
+byte-identical to a root that never heard of the feature — no events,
+no prompts, no display section, no wire bytes that differ on any
+response. The existing goldens must not move when the feature lands.
+
+**The sizes.** Tasks carry two optional size buckets: the `estimate`
+(the planned size, set at creation by the creating agent — the
+pre-flight guess; absent is legitimate and displays `-`), and the
+actual size, reported at the closure call (absent falls to the
+config's default bucket). The pair is the honesty anchor: the guess is
+recorded before the work and the actual after it, so the delta is
+displayable and an agent grading its own work upward is visible in the
+data. Tasks created before E13 migrate with neither — the `-` column —
+and close against the default bucket.
+
+**The reward.** Granted by the server at task closure (status `closed`
+with evidence; `wontfix` grants nothing — declined work is not
+rewarded work), computed deterministically from the config and the
+task's fields — the agent never picks its own amount:
+
+```
+amount = round_half_up(base[actual size] × priority_pct × kind_pct / 10000)
+```
+
+All-integer arithmetic (§8: no floating point in persisted state); a
+task with no priority multiplies by 100. The currency is a free-text
+label from the config. The closure response carries the reward plainly
+— `reward: 25 coffee (M × high). root total: 1234 coffee.` — and the
+per-root total is derived by summing reward events across the root's
+repos (§2's iterate-the-registry pattern; totals are never stored).
+
+**The reflections.** Two triggers: a milestone epic's closure, and the
+root's accumulated total crossing a configurable threshold
+(`reflect_every`). The trigger rides the closure response as a
+question; the closing agent answers through one tool, `reward_reflect`,
+and the verbatim answer is logged as an event and displayed as-is. The
+server never interprets an answer — the answers are the experiment's
+data, not the server's. The base instructions (the server's
+agent-facing contract) carry the rule: answer honestly, once, through
+the tool.
+
+**The config.** `<root>/config.json` — the first per-root config
+document the store owns: versioned, canonical bytes, golden-pinned
+(§4's discipline), holding the rewards block — `enabled`, the currency
+label, the per-bucket base costs, the default bucket, the priority and
+kind multipliers (integer percents), and `reflect_every`. An absent
+file or `enabled: false` leaves the root inert.
+
+**The storage.** Two new event kinds — a reward granted (the task, the
+amount, the size and multipliers applied) and a reflection logged (the
+verbatim answer, the trigger, the totals at the moment) — plus the
+`estimate` field riding task-creation events. `FORMAT_VERSION` bumps
+1→2: v2 is a strict superset (v1 logs replay identically), opening a
+v1 log for writing migrates the header in place, and an older binary
+refuses a v2 store through the existing version gate (§13). The store
+goldens regenerate under the version-tracking convention.
+
+**The wire.** `task_add` gains the optional `estimate`; the closure
+call gains the optional actual size; the closure response gains the
+reward line and, on a trigger, the reflection question; one new tool,
+`reward_reflect`, its schema under D21's union discipline. The base
+instructions gain the reflection rule.
+
+**The display.** The progress page, the JSON twin and the live view
+gain a rewards section when enabled: the per-root and per-repo totals,
+the recent rewards, and the reflections verbatim. Disabled roots render
+byte-identically to today.

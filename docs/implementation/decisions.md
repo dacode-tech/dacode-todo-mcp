@@ -42,6 +42,9 @@ and the meta block below; keep the shapes it parses.
 | ~~**D19**~~ | The lock-free read path and §4.3's torn-tail reading | (a) a read-only open: no lock, committed prefix, unterminated tail = append in flight | medium | — | resolved (a) 2026-10-08 — user decision, in-thread at drafting; the implementation lands as two tasks |
 | ~~**D20**~~ | The all-in-one binary: the MCP server gains the tool CLI | (a) one binary — no subcommand stays the server; progress/refresh/serve + the todo-cli absorption as subcommands | high | — | resolved (a) 2026-10-09 — user decision, in-thread at drafting; the implementation lands as the g19 arc (t68–t73) |
 | ~~**D21**~~ | The output schemas' error union (amends D15) | (a) every declared outputSchema becomes anyOf of the success payload and D15's carrier | high | — | resolved (a) 2026-10-12 — user decision, in-thread; the implementation lands as U51's fix the same day |
+| **D22** | The reward model: sizes, arithmetic, triggers, opt-in | (a) two size buckets (planned at creation, actual at closure), server-computed integer rewards, per-root config, milestone + accumulation triggers, strictly opt-in | high | E13 | open — drafted 2026-10-13 from the user's in-thread steering |
+| **D23** | The storage move: the reward events and FORMAT_VERSION 2 | (a) two new event kinds plus the estimate on creation events; FORMAT_VERSION 1→2, in-place header migration, v1 replaying identically | high | E13 | open — drafted 2026-10-13 |
+| **D24** | The wire move: the surface extension | (a) the optional estimate on task_add, the optional actual size on closure, the reward line and reflection question on the closure response, one new tool (reward_reflect), the base-instructions rule | high | E13 | open — drafted 2026-10-13 |
 
 ---
 
@@ -1361,3 +1364,120 @@ the declaration, not the emission.
   it loses the schema pinning D15 committed to.
 
 The user signed (a) in-thread 2026-10-12 ("ok, let's fix outputSchema").
+
+### D22 — The reward model: sizes, arithmetic, triggers, opt-in
+
+**Status: open — drafted 2026-10-13 from the user's in-thread
+steering; awaiting signature.**
+
+**Gates** — E13 · **Drafted** 2026-10-13 · **Confidence: high** (the
+user steered every open point in-thread)
+
+**Current (before this decision).** Tasks carry priority (display-only,
+D11/D17) and kind; no size or effort estimate exists anywhere — the
+"rough estimation" the feature needs is absent. No per-root config
+document exists; the root holds the registry and the repos only.
+
+**The user's steering (2026-10-13, in-thread).** Two size buckets —
+the planned size at creation ("pre-flight") and the actual size after
+implementation ("final"); existing tasks default to `-` (no estimate)
+rather than retroactive guesses. Reflection triggers: milestone
+closure plus the accumulated amount. Existing data migrates with zero
+estimations and zero totals.
+
+**Options.**
+
+- **(a) The two-bucket model, server-computed rewards, per-root
+  config, strictly opt-in.** §15's model paragraphs are the shape: the
+  estimate at creation, the actual at closure, the integer arithmetic
+  (`round_half_up(base × priority_pct × kind_pct / 10000)`), the
+  currency label, the milestone and `reflect_every` triggers, the
+  inert-by-default root. The agent never picks its own amount; the
+  planned/actual pair is the honesty anchor.
+- **(b) A single creation-time estimate.** A smaller surface, but the
+  actual-work axis — the feature's honest measure — is lost, and the
+  planned/actual delta (the estimation-accuracy data) with it.
+- **(c) Priority-only rewards.** No new task fields at all; the volume
+  axis the user asked for is absent.
+
+**Recommendation: (a)** — it is the steering, written down.
+
+**On sign-off:** delete §12 item D22; make §15's model paragraphs
+normative; open the domain unit's task (the reward types and the pure
+computation, property-tested on the integer arithmetic and the
+default-bucket fallbacks).
+
+### D23 — The storage move: the reward events and FORMAT_VERSION 2
+
+**Status: open — drafted 2026-10-13; awaiting signature.**
+
+**Gates** — E13 · **Drafted** 2026-10-13 · **Confidence: high**
+
+**Current (before this decision).** The event vocabulary is v1's:
+nodes, edges, patches — no reward or reflection events, no size fields
+on creation events. `FORMAT_VERSION` is 1; the version gate
+(`version_mismatch`, §6.1/§13) makes an older binary refuse a newer
+store rather than guessing.
+
+**Options.**
+
+- **(a) The version bump with in-place header migration.** Two new
+  event kinds (a reward granted: the task, the amount, the size and
+  multipliers applied; a reflection logged: the verbatim answer, the
+  trigger, the totals at the moment) plus the `estimate` riding
+  task-creation events. v2 is a strict superset — v1 logs replay
+  identically, so the migration is the header line alone, rewritten in
+  place the first time a v2 binary opens a v1 log for writing.
+  Existing roots migrate with zero estimations and zero totals (the
+  user's steering: no retroactive rewards). The store goldens
+  regenerate under the version-tracking convention (a format bump
+  renames the golden).
+- **(b) A sidecar rewards log per repo.** No version bump, but a
+  second file per repo with its own discipline — and the reflection
+  answers are store data; they belong in the log the inspector and the
+  repair surface already own. More moving parts, no cross-binary gate
+  on the new vocabulary.
+- **(c) No persistence.** Rewards computed on the fly from closures —
+  no totals history, no reflections, the feature forgets itself.
+
+**Recommendation: (a).**
+
+**On sign-off:** delete §12 item D23; amend §4 (the v2 event
+vocabulary, the config document, the header migration); open the store
+unit's task (the config document load/save with its golden, the event
+kinds, the bump, the derived per-root totals).
+
+### D24 — The wire move: the surface extension
+
+**Status: open — drafted 2026-10-13; awaiting signature.**
+
+**Gates** — E13 · **Drafted** 2026-10-13 · **Confidence: high**
+
+**Current (before this decision).** The §6 tool list is D5's signed
+v1 surface plus the D10–D17 amendments; the base instructions carry
+the tool-failure recovery rule (U16a) but nothing about rewards —
+nothing exists to instruct about.
+
+**Options.**
+
+- **(a) The minimal surface.** `task_add` gains the optional
+  `estimate`; the closure call gains the optional actual size; the
+  closure response gains the reward line and, on a trigger, the
+  reflection question; one new tool, `reward_reflect` (the repo, the
+  verbatim answer), its schema under D21's union discipline; the base
+  instructions gain the rule — answer reflection prompts honestly,
+  once, through the tool. Disabled roots answer byte-identically to
+  today (the existing wire goldens must not move).
+- **(b) A rewards tool family.** `reward_status`, `reward_history`
+  and friends — more surface, and the progress surfaces already
+  answer those questions; the wire stays minimal instead.
+- **(c) No wire changes.** Rewards visible only through the CLI and
+  the progress render — the agent never sees them, and "clearly
+  prompted to the model" (the user's words) dies.
+
+**Recommendation: (a).**
+
+**On sign-off:** delete §12 item D24; amend §6's tool table (the two
+optional parameters, the response lines, the new tool); open the
+surface unit's task (protocol-level tests, the schema advertisement,
+the base-instructions rule, disabled-root byte-identity).
