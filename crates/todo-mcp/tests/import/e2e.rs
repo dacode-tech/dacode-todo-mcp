@@ -19,27 +19,26 @@
 //!
 //! The doc register's file mapping is derived once and consumed twice
 //! — the golden's `doc_paths` and the wire tree's stub files — so the
-//! map and the tree cannot drift apart. The dump DTO is a test-local
-//! mirror of the cli's `dump` document, field-for-field: a
-//! cross-crate test dependency on `todo-cli` is barred, so the shape
-//! is copied (the `common/mod.rs` verbatim-copy discipline) and a
-//! shape fix propagates to both. The fixture's identity is pinned by
-//! SHA-1, computed in-test — no checksum dependency may be added and
-//! a host tool would make the pin host-dependent — with the
-//! implementation checked against the published `abc` vector first.
+//! map and the tree cannot drift apart. The golden is the lib's own
+//! `inspect::dump::Dump` document — the same type the `dump`
+//! subcommand writes — so the pinned bytes are the inspector's, not a
+//! mirror's. The fixture's identity is pinned by SHA-1, computed
+//! in-test — no checksum dependency may be added and a host tool
+//! would make the pin host-dependent — with the implementation
+//! checked against the published `abc` vector first.
 
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
-use serde::Serialize;
 use serde_json::{Value, json};
 use tempfile::TempDir;
-use todo_domain::{Decision, Doc, Epic, Graph, Repo, RepoSlug, Task, TaskId, Timestamp};
+use todo_domain::{Repo, RepoSlug, Timestamp};
 use todo_mcp::import::dacode::{DacodeBoard, map_board, parse_board};
 use todo_mcp::import::plan::{ImportOptions, apply_plan};
-use todo_store::{BlocksEdgeDto, DataRoot, Store, to_bytes};
+use todo_mcp::inspect::dump::Dump;
+use todo_store::{DataRoot, Store};
 
 use crate::common::{assert_golden, call, drive, structured};
 
@@ -143,76 +142,6 @@ fn fresh_store() -> (TempDir, todo_store::JsonlStore) {
 }
 
 // =================================================================
-// The dump DTO — the cli's shape, mirrored field-for-field
-// =================================================================
-
-/// The dump document: the imported graph as one canonical JSON value,
-/// mirroring the cli's `dump` document field-for-field — the same
-/// field order, the same node and edge spellings, the same counters
-/// mirror — so the golden pins the bytes the inspector would write.
-/// The mirror is a copy, not a dependency: a cross-crate test
-/// dependency on `todo-cli` is barred, and a shape fix propagates to
-/// both (the `common/mod.rs` verbatim-copy discipline).
-#[derive(Serialize)]
-struct Dump {
-    /// The repo node, as registered by the fixture.
-    repo: Repo,
-    /// The allocation counters: the highest number issued per kind.
-    counters: CountersDto,
-    /// Every epic, ascending by id.
-    epics: Vec<Epic>,
-    /// Every task, ascending by id.
-    tasks: Vec<Task>,
-    /// Every decision, ascending by id.
-    decisions: Vec<Decision>,
-    /// Every doc, ascending by id.
-    docs: Vec<Doc>,
-    /// Every blocks edge, in the graph's documented total order.
-    blocks: Vec<BlocksEdgeDto>,
-    /// Every relates annotation, ascending canonical order, as the
-    /// format's one positional shape.
-    relates: Vec<(TaskId, TaskId)>,
-}
-
-/// The counters as four named fields — the mirror of the domain's
-/// serde-free `Counters`, shaped like the store's own snapshot DTO.
-#[derive(Serialize)]
-struct CountersDto {
-    /// The highest epic number issued.
-    epic: u64,
-    /// The highest task number issued.
-    task: u64,
-    /// The highest decision number issued.
-    decision: u64,
-    /// The highest doc number issued.
-    doc: u64,
-}
-
-impl Dump {
-    /// The document describing `graph`, built from the read accessors
-    /// whose orders the graph documents — deterministic by
-    /// construction, whatever mutation order produced the state.
-    fn from_graph(graph: &Graph) -> Self {
-        let counters = graph.counters();
-        Self {
-            repo: graph.repo().clone(),
-            counters: CountersDto {
-                epic: counters.epic(),
-                task: counters.task(),
-                decision: counters.decision(),
-                doc: counters.doc(),
-            },
-            epics: graph.epics().cloned().collect(),
-            tasks: graph.tasks().cloned().collect(),
-            decisions: graph.decisions().cloned().collect(),
-            docs: graph.docs().cloned().collect(),
-            blocks: graph.blocks_edges().into_iter().map(Into::into).collect(),
-            relates: graph.relates_pairs(),
-        }
-    }
-}
-
-// =================================================================
 // 1. The golden: the composed pipeline over the real board.
 // =================================================================
 
@@ -220,8 +149,7 @@ impl Dump {
 /// with the fixed stamp and the derived doc paths, apply into a fresh
 /// store, dump, pin. The id reproduction, the status mapping, the
 /// edges, the counters and the doc paths of the real board are all
-/// pinned byte-for-byte in the golden — the canonical bytes plus one
-/// trailing LF, the cli dump's own line discipline.
+/// pinned byte-for-byte in the golden.
 #[test]
 fn the_real_board_dumps_to_the_expected_graph() {
     let board = parse_fixture();
@@ -237,8 +165,7 @@ fn the_real_board_dumps_to_the_expected_graph() {
     let (_dir, mut store) = fresh_store();
     apply_plan(&plan, &mut store).unwrap();
     let dump = Dump::from_graph(store.graph());
-    let mut bytes = to_bytes(&dump).unwrap();
-    bytes.push(b'\n');
+    let bytes = dump.to_line().unwrap();
     assert_golden("dacode_dump.v1", &bytes);
 }
 
