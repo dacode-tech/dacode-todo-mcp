@@ -75,7 +75,7 @@ cites `P-LIVE-007`/`P-LIVE-008`. Where they now live:
 | `P-LIVE-008` (whoever writes a contract sentence cannot falsify it) | pitfalls.md 5.8 |
 | `P-LIVE-009` (non-ASCII in inline `git commit -m` gets mangled) | pitfalls.md 4.7 |
 
-The next entry is `P-LIVE-013`. Do not reuse a promoted id.
+The next entry is `P-LIVE-014`. Do not reuse a promoted id.
 
 ---
 
@@ -140,6 +140,34 @@ with EAGAIN on a silent socket is this entry's signature.
   bytes, never with Value equality
 - **Obsoleted by**: nothing — this is serde_json's semantics, not a
   version quirk; promotion into `_rust.md` if map surgery recurs
+- **Source**: struggle
+
+---
+
+### P-LIVE-013: the stable-binary install ritual is load-bearing — cp in place SIGKILLs the path
+- **Scope**: the stable binary at `~/.local/bin/todo-mcp` (README's
+  install section and the config entry's comment both prescribe the
+  same ritual)
+- **Discovered**: the U51 install, 2026-10-12
+- **Symptom**: minutes after `cp target/release/todo-mcp
+  ~/.local/bin/todo-mcp` over a path a session's server was executing,
+  opencode showed "MCP error: -32000: Connection closed" (the running
+  servers died as the cp rewrote their executing inode), and every NEW
+  spawn died at exec: exit 137 (SIGKILL), zero stdout, zero stderr —
+  while `codesign` said "valid on disk" and the content was
+  byte-identical to the build. The kill persisted across invocations
+- **Root cause**: the ritual was documented in two places and skipped
+  anyway — a plain cp modifies the executing file's inode in place;
+  macOS's kernel keeps a per-vnode code-signature cache that the
+  modification invalidates, and exec of that vnode is SIGKILL'd until
+  the file is replaced by a FRESH inode
+- **Workaround**: the README's ritual, exactly: cp to a temp name,
+  then mv over the target (the rename swaps the directory entry to a
+  new inode; running servers keep their old one, undisturbed). The
+  exit-137-with-no-output signature means the ritual was skipped —
+  redo the install; do not debug the binary
+- **Obsoleted by**: nothing — macOS semantics; the README documents it
+  permanently
 - **Source**: struggle
 
 ---
