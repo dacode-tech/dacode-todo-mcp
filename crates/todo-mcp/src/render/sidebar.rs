@@ -5,13 +5,18 @@
 //! graph will not read is reported with the unreadable marker, never
 //! dropped (the anti-silent-omission rule). The epic rows carry the
 //! model's per-lane done/total task counts — not census-derived,
-//! because events are node-scoped (D5) — and link to the SVG lane
-//! anchors (`svg.rs`'s `id="lane-<number>"`), same-page for the
-//! rendered repo, `?repo=<slug>#lane-<number>` for the others: in the
-//! static file the cross-repo links are inert, which is honest — the
-//! static page is one repo's snapshot. The epic page marks its scoped
-//! epic's row the same way the switcher marks the current repo: the
-//! marked non-link, never a self-link.
+//! because events are node-scoped (D5) — and link to the epic pages
+//! (U54): `/repo/<slug>/epic/<number>`, the serve route U53 answers,
+//! one path shape for the rendered repo and the others alike — the
+//! slug distinguishes them — so the page's lazy navigation can fetch
+//! and swap either without a full reload. The repo-name rows keep
+//! `?repo=<slug>` — a repo click is a deliberate full page load (it
+//! resets the page's script assembly with a fresh document). On a
+//! static `file://` page the epic links answer the browser's own
+//! error page, which is honest — the routes live under `serve`, and
+//! the static page is one repo's snapshot. The epic page marks its
+//! scoped epic's row the same way the switcher marks the current repo:
+//! the marked non-link, never a self-link.
 
 use todo_domain::{Graph, RepoSlug};
 use todo_store::{DataRoot, Registry, StoreError};
@@ -38,10 +43,10 @@ pub(super) struct SidebarRepo {
     pub(super) epics: Vec<SidebarEpic>,
 }
 
-/// One epic row: the number (the lane anchor's key), the title, the
+/// One epic row: the number (the epic-page URL's key), the title, the
 /// done/total task counts under the epic, and the current marker.
 pub(super) struct SidebarEpic {
-    /// The epic id's number — the `lane-<number>` anchor's key.
+    /// The epic id's number — the epic-page URL's path segment.
     pub(super) number: u64,
     /// The epic's title, shortened at render.
     pub(super) title: String,
@@ -140,7 +145,9 @@ fn epic_rows(graph: &Graph, current_epic: Option<u64>) -> Vec<SidebarEpic> {
 /// The sidebar's nav tree (D4): one block per repo — the name linking
 /// to `?repo=<slug>` for other repos, a marked non-link for the
 /// rendered one (a self-link is a no-op dressed as navigation) — with
-/// the epic rows under it, each linking to its lane anchor.
+/// the epic rows under it, each linking to its epic page (U54: one
+/// `/repo/<slug>/epic/<number>` path shape for every repo, the slug
+/// distinguishing them).
 pub(super) fn sidebar_html(repos: &[SidebarRepo]) -> String {
     let mut out = String::from("<nav class=\"sidebar\">");
     for repo in repos {
@@ -168,13 +175,7 @@ pub(super) fn sidebar_html(repos: &[SidebarRepo]) -> String {
                 ));
                 continue;
             }
-            // The lane anchors stay the repo page's href shapes — U54
-            // owns turning the epic rows into epic-page URLs.
-            let href = if repo.current {
-                format!("#lane-{}", epic.number)
-            } else {
-                format!("?repo={}#lane-{}", esc(repo.slug.as_str()), epic.number)
-            };
+            let href = format!("/repo/{}/epic/{}", esc(repo.slug.as_str()), epic.number);
             out.push_str(&format!(
                 "<div class=\"sepic\"><a href=\"{href}\">E{} · {label}</a>\
                  <span>{}/{}</span></div>",

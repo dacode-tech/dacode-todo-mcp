@@ -11,17 +11,24 @@
 //! a named error, never an empty page. The sidebar marks the requested
 //! epic current (the switcher precedent: the marked non-link) while
 //! the switcher stays the repo page's, unchanged; the live-update
-//! script rides every render for the same reason it rides the repo
-//! page's. No click-detail block: the tables are plain, and simplicity
-//! wins. No not_placed report either: a decision the model cannot
+//! script and the lazy navigation script (U54) ride every render for
+//! the same reason they ride the repo page's — each page is served
+//! standalone and must carry them. No click-detail block: the tables
+//! are plain, and simplicity wins — a repo page's resident
+//! click-detail handler, when the lazy navigation lands here, finds
+//! no `.node` elements and no data element and stays inert. No
+//! not_placed report either: a decision the model cannot
 //! place gates nothing, so it sits in no epic's lane — the repo page's
 //! report is its one home.
 
 use todo_domain::{DecisionStatus, RepoSlug, Status, TaskKind};
 use todo_store::DataRoot;
 
-use super::page::{CSS, live_script, pct, switcher_html};
-use super::{Lane, Model, build, counts_for, esc, gather, is_done, short, short_id};
+use super::page::{CSS, LAZY_SCRIPT, live_script, pct, switcher_html};
+use super::{
+    Lane, Model, build, card_html, counts_for, decision_row_html, esc, gather, is_done, short,
+    task_row_html,
+};
 
 /// The epic-scoped HTML page (E12's per-epic surface): one epic's
 /// lane — the epic's header, its counts, its tasks with statuses and
@@ -115,6 +122,7 @@ fn epic_page_text(model: &Model, lane: &Lane) -> String {
     page.push_str("</main>\n</div>\n");
     page.push_str("<script>");
     page.push_str(&live_script(slug));
+    page.push_str(LAZY_SCRIPT);
     page.push_str("\n</script>\n</body></html>\n");
     page
 }
@@ -138,7 +146,8 @@ fn meta_line(lane: &Lane) -> String {
 /// The epic's counts as cards — the repo page's card shape, scoped to
 /// the lane: every task under the epic (all four kinds), the blocked
 /// count, and the decisions gating the epic or one of its tasks (an
-/// open one gates work — the waits column's source).
+/// open one gates work — the waits column's source). The card item
+/// itself is the shared shape (U55's hoist).
 fn cards_html(lane: &Lane) -> String {
     let total = lane.tasks.len();
     let done = lane
@@ -183,16 +192,7 @@ fn cards_html(lane: &Lane) -> String {
     ];
     cards
         .iter()
-        .map(|(title, value, percent, note)| {
-            format!(
-                "<div class=\"card\"><i>{}</i><span class=\"p\">{}</span><b>{}</b>\
-                 <small>{}</small></div>",
-                esc(title),
-                esc(percent),
-                esc(value),
-                esc(note)
-            )
-        })
+        .map(|(title, value, percent, note)| card_html(title, value, percent, note))
         .collect()
 }
 
@@ -217,50 +217,21 @@ fn kind_line(lane: &Lane) -> String {
 }
 
 /// The tasks table's rows — every task under the epic, the lane's
-/// ascending-id order, the repo page's open-items row shape with the
+/// ascending-id order, the shared row shape (U55's hoist) with the
 /// waits column from the model.
 fn task_rows(model: &Model, lane: &Lane) -> String {
     lane.tasks
         .iter()
-        .map(|task| {
-            let waits = model.waits.get(&task.id).cloned().unwrap_or_default();
-            format!(
-                "<tr><td class=\"mono\">{}</td><td>{}</td><td class=\"st-{}\">{}</td>\
-                 <td>{}</td><td>{}</td></tr>",
-                esc(&short_id(&task.id.to_string())),
-                esc(task.kind.as_str()),
-                esc(task.status.as_str()),
-                esc(task.status.as_str()),
-                esc(&short(&task.title, 96)),
-                esc(&waits)
-            )
-        })
+        .map(|task| task_row_html(model, task))
         .collect()
 }
 
 /// The decisions table's rows — the lane's decisions, decision id
-/// ascending, the repo page's decision row shape.
+/// ascending, the shared row shape (U55's hoist).
 fn decision_rows(model: &Model, lane: &Lane) -> String {
     lane.decisions
         .iter()
-        .map(|decision| {
-            let gates = model.gates.get(&decision.id).cloned().unwrap_or_default();
-            let gates_text = if gates.is_empty() {
-                "—".to_owned()
-            } else {
-                gates.join(", ")
-            };
-            format!(
-                "<tr><td class=\"mono\">{}</td><td class=\"st-{}\">{}</td><td>{}</td>\
-                 <td class=\"mono\">{}</td><td>{}</td></tr>",
-                esc(&short_id(&decision.id.to_string())),
-                esc(decision.status.as_str()),
-                esc(decision.status.as_str()),
-                esc(&short(&decision.title, 72)),
-                esc(&gates_text),
-                esc(decision.confidence.as_str())
-            )
-        })
+        .map(|decision| decision_row_html(model, decision))
         .collect()
 }
 

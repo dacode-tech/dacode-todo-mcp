@@ -9,8 +9,10 @@
 //! static invocation publishes no port; `serve` publishes and answers
 //! every route — the epic page's `/repo/<slug>/epic/<number>` among
 //! them (E12, U53: the page answered, the named 404s for an unknown
-//! repo or epic, the malformed shapes over the wire); a second
-//! invocation attaches; a stale publication is
+//! repo or epic, the malformed shapes over the wire; U54: the repo
+//! page's epic links are epic-page URLs and both pages carry the lazy
+//! navigation script); a second invocation attaches; a stale
+//! publication is
 //! taken over (SIGTERM via `/bin/kill`, unix-gated — `Child::kill`
 //! sends SIGKILL, so the signals need the real tool); SIGINT is the
 //! clean shutdown (the t55 driver's note: the pin runs from the
@@ -421,7 +423,9 @@ mod serve {
     ///     named 404s; the malformed number shapes 404 with the generic
     ///     unknown-path body (the classifier's full matrix lives in
     ///     http.rs's unit tests — these rows pin that its 404s reach
-    ///     the socket).
+    ///     the socket). U54's rows: the served repo page's epic links
+    ///     are `/repo/<slug>/epic/<n>` URLs (same-repo and cross-repo
+    ///     alike) and both pages carry the lazy navigation script.
     #[test]
     fn the_epic_page_route_answers() {
         let root = serve_fixture();
@@ -430,7 +434,8 @@ mod serve {
         let port = wait_for_listener(&port_file, &mut child).expect("the listener answers");
 
         // The epic page at its path: the title names the epic, the
-        // sidebar's current-epic marker is present.
+        // sidebar's current-epic marker is present, and the lazy
+        // navigation script rides the page.
         let (status, body) = http_get(port, "/repo/fixture/epic/1");
         assert_eq!(status, Some(200));
         assert!(
@@ -442,6 +447,10 @@ mod serve {
             body.contains(r#"<span class="scur">E1 · The fixture epic</span>"#),
             "the sidebar marks the epic current"
         );
+        assert!(
+            body.contains("async function fetchView(url, push)"),
+            "the epic page carries the lazy navigation script"
+        );
         // The second repo's route answers its own page.
         let (status, body) = http_get(port, "/repo/alpha/epic/1");
         assert_eq!(status, Some(200));
@@ -451,6 +460,23 @@ mod serve {
         let (status, body) = http_get(port, "/repo/fixture/epic/1?repo=alpha");
         assert_eq!(status, Some(200));
         assert!(body.contains("<title>fixture · E1 — The fixture epic</title>"));
+        // The repo page's epic links are epic-page URLs — the
+        // same-repo rows and the cross-repo rows alike — and the lazy
+        // navigation script rides the page too.
+        let (status, body) = http_get(port, "/?repo=fixture");
+        assert_eq!(status, Some(200));
+        assert!(
+            body.contains(r#"<a href="/repo/fixture/epic/1">"#),
+            "the same-repo epic row links the epic page"
+        );
+        assert!(
+            body.contains(r#"<a href="/repo/alpha/epic/1">"#),
+            "the cross-repo epic row links the epic page"
+        );
+        assert!(
+            body.contains("async function fetchView(url, push)"),
+            "the repo page carries the lazy navigation script"
+        );
         // An unknown repo is a named 404.
         let (status, body) = http_get(port, "/repo/elsewhere/epic/1");
         assert_eq!(status, Some(404));

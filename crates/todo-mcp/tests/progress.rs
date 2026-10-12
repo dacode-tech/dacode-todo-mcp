@@ -703,7 +703,9 @@ mod progress {
 
     /// The page golden: the fixture's page (with alpha registered, so
     /// the switcher carries two entries), byte-identical to
-    /// `tests/golden/page.v1.golden`.
+    /// `tests/golden/page.v1.golden`. U54's regeneration is the
+    /// compatibility event — the sidebar's epic hrefs, the inert data
+    /// element, and the scripts moved the pinned bytes.
     #[test]
     fn the_page_is_golden_pinned() {
         let root = switcher_fixture();
@@ -760,12 +762,14 @@ mod progress {
         );
     }
 
-    /// The sidebar (t84's D3/D4): every registered repo present with
-    /// its epics — ascending epic id, the model's lane order — the
-    /// rendered repo marked as the non-link, the other repo's name
-    /// linking to `?repo=<slug>`, the epic entries linking to the lane
-    /// anchors (same-page for the rendered repo, repo+anchor for the
-    /// others) and carrying their done/total task counts.
+    /// The sidebar (t84's D3/D4, U54's links): every registered repo
+    /// present with its epics — ascending epic id, the model's lane
+    /// order — the rendered repo marked as the non-link, the other
+    /// repo's name linking to `?repo=<slug>` (a deliberate full page
+    /// load), the epic entries linking to the epic pages
+    /// (`/repo/<slug>/epic/<number>`, one path shape for both repos —
+    /// the slug distinguishes them) and carrying their done/total task
+    /// counts.
     #[test]
     fn the_sidebar_lists_every_repo_with_its_epics() {
         let root = switcher_fixture();
@@ -777,31 +781,27 @@ mod progress {
             "the rendered repo is the marked non-link"
         );
         let e1 = page
-            .find(r##"<a href="#lane-1">E1 · Milestone zero</a><span>2/2</span>"##)
+            .find(r#"<a href="/repo/fixture/epic/1">E1 · Milestone zero</a><span>2/2</span>"#)
             .expect("E1's row with its count");
         let e2 = page
-            .find(r##"<a href="#lane-2">E2 · Milestone one</a><span>0/5</span>"##)
+            .find(r#"<a href="/repo/fixture/epic/2">E2 · Milestone one</a><span>0/5</span>"#)
             .expect("E2's row with its count");
         let e3 = page
-            .find(r##"<a href="#lane-3">E3 · Follow-ups</a><span>1/3</span>"##)
+            .find(r#"<a href="/repo/fixture/epic/3">E3 · Follow-ups</a><span>1/3</span>"#)
             .expect("E3's row with its count");
         assert!(
             e1 < e2 && e2 < e3,
             "the epics are ascending epic id (the lane order)"
         );
-        // The other repo: its name links, its epic links carry the
-        // repo, and the SVG lanes carry the anchors the links target.
+        // The other repo: its name links, its epic rows carry the same
+        // epic-page path shape with their own slug.
         assert!(
             page.contains(r#"<a class="sname" href="?repo=alpha">Alpha</a>"#),
             "the other repo's name links to its render"
         );
         assert!(
-            page.contains(r#"<a href="?repo=alpha#lane-1">E1 · Alpha work</a><span>0/1</span>"#),
-            "the other repo's epic links to its lane anchor"
-        );
-        assert!(
-            page.contains(r##"<text id="lane-1" class="lane""##),
-            "the SVG lane labels carry the lane anchors"
+            page.contains(r#"<a href="/repo/alpha/epic/1">E1 · Alpha work</a><span>0/1</span>"#),
+            "the other repo's epic row links its epic page"
         );
     }
 
@@ -829,7 +829,7 @@ mod progress {
             "the unreadable marker is visible"
         );
         assert!(
-            !page.contains("?repo=alpha#lane-"),
+            !page.contains("/repo/alpha/epic/"),
             "an unreadable repo shows no epic rows"
         );
 
@@ -853,7 +853,7 @@ mod progress {
             "the foreign graph under the slug reads as unreadable"
         );
         assert!(
-            !page.contains("?repo=alpha#lane-"),
+            !page.contains("/repo/alpha/epic/"),
             "the foreign epics are never displayed under the wrong slug"
         );
     }
@@ -867,7 +867,9 @@ mod progress {
     /// The epic page golden: E2's page (the richest lane — gated by
     /// the open D1, holding every kind and a blocked task), with alpha
     /// registered so the switcher carries two entries, byte-identical
-    /// to `tests/golden/epic_page.v1.golden`.
+    /// to `tests/golden/epic_page.v1.golden`. U54's regeneration is
+    /// the compatibility event — the sidebar's epic hrefs and the
+    /// scripts moved the pinned bytes.
     #[test]
     fn the_epic_page_is_golden_pinned() {
         let root = switcher_fixture();
@@ -884,7 +886,8 @@ mod progress {
 
     /// The epic page's sidebar marks the requested epic current (the
     /// marked non-link) while the switcher still marks the rendered
-    /// repo, and the non-current epics keep their lane-anchor links.
+    /// repo, and the non-current epics — same-repo and cross-repo
+    /// alike — keep their epic-page links.
     #[test]
     fn the_epic_page_marks_the_epic_current_in_the_sidebar() {
         let root = switcher_fixture();
@@ -898,8 +901,14 @@ mod progress {
             "the requested epic is the marked non-link"
         );
         assert!(
-            page.contains(r##"<a href="#lane-1">E1 · Milestone zero</a><span>2/2</span>"##),
-            "the non-current epics keep their lane-anchor links"
+            page.contains(
+                r#"<a href="/repo/fixture/epic/1">E1 · Milestone zero</a><span>2/2</span>"#
+            ),
+            "the non-current epics keep their epic-page links"
+        );
+        assert!(
+            page.contains(r#"<a href="/repo/alpha/epic/1">E1 · Alpha work</a><span>0/1</span>"#),
+            "the cross-repo epic row links its epic page"
         );
     }
 
@@ -925,6 +934,118 @@ mod progress {
         let message = render::epic_page(&DataRoot::new(root.path()), &slug, 1)
             .expect_err("the unregistered slug is refused");
         assert_eq!(message, "unknown id: elsewhere");
+    }
+
+    /// The lazy navigation script (U54) rides both pages — each is
+    /// served standalone and must carry it: the interceptor targets
+    /// the sidebar's epic links, the fetch+swap path and the swap
+    /// function are present, the popstate handler re-fetches without
+    /// pushing, a failed fetch falls back to a full navigation, and
+    /// no `location.reload()` remains anywhere — the WS push is
+    /// view-aware, re-fetching the current view through the same
+    /// fetch+swap. The WS subscription follows the view's repo: the
+    /// connection state is initialized server-side, and the follower
+    /// closes the old connection before opening the new one.
+    #[test]
+    fn both_pages_carry_the_lazy_navigation_script() {
+        let root = switcher_fixture();
+        for page in [fixture_page(&root), fixture_epic_page(&root, 2)] {
+            assert!(
+                page.contains(r#"document.querySelectorAll('.sepic a')"#),
+                "the interceptor targets the sidebar's epic links"
+            );
+            assert!(page.contains("function swapView(doc)"), "the swap function");
+            assert!(
+                page.contains("const style = document.querySelector('style');"),
+                "the swap region includes the stylesheet"
+            );
+            assert!(
+                page.contains("async function fetchView(url, push)"),
+                "the fetch path"
+            );
+            assert!(
+                page.contains("const gen = ++fetchGen;"),
+                "concurrent fetches are sequenced by a generation counter"
+            );
+            assert!(
+                page.contains("if (push) history.pushState"),
+                "pushState happens only on intercepted clicks"
+            );
+            assert!(
+                page.contains(
+                    "if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) \
+                     return;"
+                ),
+                "modifier-keyed clicks are left to the browser"
+            );
+            assert!(
+                page.contains(
+                    "window.addEventListener('popstate', () => \
+                     fetchView(location.pathname + location.search, false));"
+                ),
+                "the popstate handler re-fetches the current view without pushing"
+            );
+            assert!(
+                page.contains("location.assign(url)"),
+                "a failed fetch falls back to a full navigation"
+            );
+            assert!(
+                !page.contains("location.reload()"),
+                "the WS push never reloads the page"
+            );
+            assert!(
+                page.contains("let liveWs = null, liveRepo = 'fixture';"),
+                "the connection state is initialized server-side with the page's repo"
+            );
+            assert!(
+                page.contains("connectWs();"),
+                "the initial connection is opened through the shared helper"
+            );
+            assert!(
+                page.contains(
+                    "liveWs.onmessage = () => \
+                     fetchView(location.pathname + location.search, false);"
+                ),
+                "the WS push re-fetches the current view"
+            );
+            assert!(
+                page.contains("function currentRepo()"),
+                "the current view's repo is derived"
+            );
+            assert!(
+                page.contains("function followView()"),
+                "the subscription follower is present"
+            );
+            assert!(
+                page.contains("if (liveWs) liveWs.close();"),
+                "the old connection is closed before the new one opens"
+            );
+        }
+    }
+
+    /// The click-detail data rides an inert JSON element inside the
+    /// swap region (U54's staleness fix): the repo page carries it —
+    /// and no `const DATA` global in the executable script, whose
+    /// re-execution would throw — while the epic page carries neither
+    /// (its tables are plain; a resident click-detail handler is
+    /// inert there).
+    #[test]
+    fn the_detail_data_rides_an_inert_element_inside_the_swap_region() {
+        let root = switcher_fixture();
+        let page = fixture_page(&root);
+        assert!(
+            page.contains(r#"<script type="application/json" id="detail-data">"#),
+            "the inert data element is present on the repo page"
+        );
+        assert!(
+            !page.contains("const DATA"),
+            "the executable script declares no global DATA"
+        );
+        let epic = fixture_epic_page(&root, 2);
+        assert!(
+            !epic.contains(r#"<script type="application/json" id="detail-data">"#),
+            "the epic page carries no data element"
+        );
     }
 
     /// The activity panel (t84's D5): the census rendered — the header
@@ -1215,11 +1336,13 @@ mod progress {
         );
     }
 
-    /// A hostile title cannot break out of the script element: the
+    /// A hostile title cannot break out of either script element: the
     /// `</` guard turns the DATA embed's `</script>` into `<\/script>`
-    /// (a valid JSON escape), so the page's raw `</script>` count is
-    /// exactly one — the element's own closer. The specials title
-    /// renders escaped everywhere it appears.
+    /// (a valid JSON escape the inert element's per-click reader also
+    /// parses back), so the page's raw `</script>` count is exactly
+    /// two — the inert data element's and the executable script's own
+    /// closers. The specials title renders escaped everywhere it
+    /// appears.
     #[test]
     fn a_hostile_title_cannot_break_out_of_the_script_element() {
         let root = TempDir::new().expect("a fresh temp root");
@@ -1227,7 +1350,7 @@ mod progress {
         build_hostile(&data_root);
         let slug = RepoSlug::from_str("hostile").expect("a valid slug");
         let page = render::page(&data_root, &slug).expect("the hostile page renders");
-        assert_eq!(page.matches("</script>").count(), 1);
+        assert_eq!(page.matches("</script>").count(), 2);
         assert!(
             page.contains(r#""title":"<\/script>""#),
             "the DATA embed guards the closing sequence"

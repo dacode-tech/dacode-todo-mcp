@@ -56,6 +56,11 @@
 //! document), and it cannot drop a node silently (a decision the model
 //! cannot place, and every edge with an endpoint it cannot place, are
 //! reported in `not_placed`, never dropped).
+//!
+//! The file runs over the 600-line target because U55's hoist moved
+//! the shared row/card helpers here, beside their `esc`/`short`
+//! siblings; the split point is the model-and-`build` half into its
+//! own file, which the next over-target touch should take.
 
 mod epic;
 mod json;
@@ -566,6 +571,60 @@ fn short_id(full: &str) -> String {
     }
 }
 
+/// One tasks-table row — the row shape both pages render (U55's hoist:
+/// the epic page's task rows and the repo page's open-items rows were
+/// byte-identical format strings, so the shape has one home and cannot
+/// drift): the id, kind, status, title and waits-on columns, the
+/// waits text from the model.
+fn task_row_html(model: &Model, task: &Task) -> String {
+    let waits = model.waits.get(&task.id).cloned().unwrap_or_default();
+    format!(
+        "<tr><td class=\"mono\">{}</td><td>{}</td><td class=\"st-{}\">{}</td>\
+         <td>{}</td><td>{}</td></tr>",
+        esc(&short_id(&task.id.to_string())),
+        esc(task.kind.as_str()),
+        esc(task.status.as_str()),
+        esc(task.status.as_str()),
+        esc(&short(&task.title, 96)),
+        esc(&waits)
+    )
+}
+
+/// One decisions-table row — the shared shape (U55's hoist): the id,
+/// status, title, gates and confidence columns, the gates text from
+/// the model.
+fn decision_row_html(model: &Model, decision: &Decision) -> String {
+    let gates = model.gates.get(&decision.id).cloned().unwrap_or_default();
+    let gates_text = if gates.is_empty() {
+        "—".to_owned()
+    } else {
+        gates.join(", ")
+    };
+    format!(
+        "<tr><td class=\"mono\">{}</td><td class=\"st-{}\">{}</td><td>{}</td>\
+         <td class=\"mono\">{}</td><td>{}</td></tr>",
+        esc(&short_id(&decision.id.to_string())),
+        esc(decision.status.as_str()),
+        esc(decision.status.as_str()),
+        esc(&short(&decision.title, 72)),
+        esc(&gates_text),
+        esc(decision.confidence.as_str())
+    )
+}
+
+/// One totals card — the shared card shape (U55's hoist): the label,
+/// the percentage, the value and the note.
+fn card_html(title: &str, value: &str, percent: &str, note: &str) -> String {
+    format!(
+        "<div class=\"card\"><i>{}</i><span class=\"p\">{}</span><b>{}</b>\
+         <small>{}</small></div>",
+        esc(title),
+        esc(percent),
+        esc(value),
+        esc(note)
+    )
+}
+
 /// Whether a task status is a done state.
 fn is_done(status: Status) -> bool {
     matches!(status, Status::Closed | Status::Wontfix)
@@ -614,6 +673,15 @@ mod tests {
         ] {
             assert_eq!(milestone_of(&epic_with(description)), Some(id.to_owned()));
         }
+    }
+
+    /// The label helper: whitespace collapses, truncation lands on a
+    /// character boundary with the ellipsis.
+    #[test]
+    fn short_collapses_and_truncates_on_char_boundaries() {
+        assert_eq!(short("a  b\t c", 30), "a b c");
+        assert_eq!(short("abcdef", 4), "abc…");
+        assert_eq!(short("日本語のタイトル", 4), "日本語…");
     }
 
     /// The synthetic containers and prose descriptions do not match:

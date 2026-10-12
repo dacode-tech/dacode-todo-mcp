@@ -87,7 +87,7 @@ a.sname:hover { text-decoration: underline; }
 </style></head><body>
 <nav class="switch"><a href="?repo=alpha">alpha</a><span class="cur">fixture</span></nav>
 <div class="cols">
-<nav class="sidebar"><div class="srepo"><a class="sname" href="?repo=alpha">Alpha</a><div class="sepic"><a href="?repo=alpha#lane-1">E1 · Alpha work</a><span>0/1</span></div></div><div class="srepo"><span class="sname scur">Fixture</span><div class="sepic"><a href="#lane-1">E1 · Milestone zero</a><span>2/2</span></div><div class="sepic"><a href="#lane-2">E2 · Milestone one</a><span>0/5</span></div><div class="sepic"><a href="#lane-3">E3 · Follow-ups</a><span>1/3</span></div></div></nav><main>
+<nav class="sidebar"><div class="srepo"><a class="sname" href="?repo=alpha">Alpha</a><div class="sepic"><a href="/repo/alpha/epic/1">E1 · Alpha work</a><span>0/1</span></div></div><div class="srepo"><span class="sname scur">Fixture</span><div class="sepic"><a href="/repo/fixture/epic/1">E1 · Milestone zero</a><span>2/2</span></div><div class="sepic"><a href="/repo/fixture/epic/2">E2 · Milestone one</a><span>0/5</span></div><div class="sepic"><a href="/repo/fixture/epic/3">E3 · Follow-ups</a><span>1/3</span></div></div></nav><main>
 
 <h1>fixture — total progress</h1>
 <div class="sub">Rendered by <span class="mono">todo-mcp progress</span> from <span class="mono">fixture</span>'s imported board — imported <span class="mono">2026-10-02T08:00:00.000000000Z</span> (the repo node's registered_at — the staleness signal: the page renders the last import, not the board as it is). The markdown board remains the tracker of record; if this page disagrees with it, the board wins. Machine-readable twin: <span class="mono">progress.json</span>.</div>
@@ -127,6 +127,7 @@ The encoder profile</title><text class="nid" x="8" y="19" fill="#1f6f43">✦ D3<
 </p>
 <p class="legend"><b>Not placed:</b> D4 (a decision gating nothing) — nodes the renderer cannot place are reported, never dropped.</p>
 <div id="detail"></div>
+<script type="application/json" id="detail-data">{"nodes":{"fixture:D1":{"id":"fixture:D1","kind":"decision","status":"open","title":"Gate milestone one","verify":null,"evidence":null,"note":null,"resolution":null},"fixture:D2":{"id":"fixture:D2","kind":"decision","status":"open","title":"Gate the wiring task","verify":null,"evidence":null,"note":null,"resolution":null},"fixture:D3":{"id":"fixture:D3","kind":"decision","status":"signed","title":"The encoder profile","verify":null,"evidence":null,"note":null,"resolution":"signed (a) 2026-10-02"},"fixture:U1":{"id":"fixture:U1","kind":"task","status":"closed","title":"Close the first milestone","verify":"cargo test -p fixture","evidence":"the milestone closed green","note":null,"resolution":null},"fixture:U10":{"id":"fixture:U10","kind":"gate","status":"open","title":"The next gate","verify":"cargo test -p fixture","evidence":null,"note":null,"resolution":null},"fixture:U2":{"id":"fixture:U2","kind":"gate","status":"closed","title":"The zero gate","verify":"cargo test -p fixture","evidence":"the gate ran green","note":null,"resolution":null},"fixture:U3":{"id":"fixture:U3","kind":"task","status":"open","title":"Wire the sensor","verify":"cargo test -p fixture","evidence":null,"note":null,"resolution":null},"fixture:U4":{"id":"fixture:U4","kind":"task","status":"in_work","title":"Calibrate","verify":"cargo test -p fixture","evidence":null,"note":null,"resolution":null},"fixture:U5":{"id":"fixture:U5","kind":"finding","status":"open","title":"A finding","verify":"cargo test -p fixture","evidence":null,"note":null,"resolution":null},"fixture:U6":{"id":"fixture:U6","kind":"debt","status":"deferred","title":"Known debt","verify":"cargo test -p fixture","evidence":null,"note":"after milestone zero","resolution":null},"fixture:U7":{"id":"fixture:U7","kind":"task","status":"blocked","title":"The blocked one","verify":"cargo test -p fixture","evidence":null,"note":"needs D2","resolution":null},"fixture:U8":{"id":"fixture:U8","kind":"task","status":"open","title":"A follow-up","verify":"cargo test -p fixture","evidence":null,"note":null,"resolution":null},"fixture:U9":{"id":"fixture:U9","kind":"task","status":"wontfix","title":"Declined","verify":"cargo test -p fixture","evidence":null,"note":null,"resolution":null}},"edges":[{"from":"fixture:D1","to":"fixture:E2"},{"from":"fixture:D2","to":"fixture:U3"},{"from":"fixture:D3","to":"fixture:U8"},{"from":"fixture:U1","to":"fixture:U3"},{"from":"fixture:U8","to":"fixture:U10"}]}</script>
 
 <h2>Open items — 7 rows</h2>
 <table><thead><tr><th>id</th><th>kind</th><th>status</th><th>what</th><th>waits on</th></tr></thead>
@@ -145,12 +146,16 @@ signal: the page renders the last import, not the board as it is now.
 </main>
 </div>
 <script>
-const DATA = {"nodes":{"fixture:D1":{"id":"fixture:D1","kind":"decision","status":"open","title":"Gate milestone one","verify":null,"evidence":null,"note":null,"resolution":null},"fixture:D2":{"id":"fixture:D2","kind":"decision","status":"open","title":"Gate the wiring task","verify":null,"evidence":null,"note":null,"resolution":null},"fixture:D3":{"id":"fixture:D3","kind":"decision","status":"signed","title":"The encoder profile","verify":null,"evidence":null,"note":null,"resolution":"signed (a) 2026-10-02"},"fixture:U1":{"id":"fixture:U1","kind":"task","status":"closed","title":"Close the first milestone","verify":"cargo test -p fixture","evidence":"the milestone closed green","note":null,"resolution":null},"fixture:U10":{"id":"fixture:U10","kind":"gate","status":"open","title":"The next gate","verify":"cargo test -p fixture","evidence":null,"note":null,"resolution":null},"fixture:U2":{"id":"fixture:U2","kind":"gate","status":"closed","title":"The zero gate","verify":"cargo test -p fixture","evidence":"the gate ran green","note":null,"resolution":null},"fixture:U3":{"id":"fixture:U3","kind":"task","status":"open","title":"Wire the sensor","verify":"cargo test -p fixture","evidence":null,"note":null,"resolution":null},"fixture:U4":{"id":"fixture:U4","kind":"task","status":"in_work","title":"Calibrate","verify":"cargo test -p fixture","evidence":null,"note":null,"resolution":null},"fixture:U5":{"id":"fixture:U5","kind":"finding","status":"open","title":"A finding","verify":"cargo test -p fixture","evidence":null,"note":null,"resolution":null},"fixture:U6":{"id":"fixture:U6","kind":"debt","status":"deferred","title":"Known debt","verify":"cargo test -p fixture","evidence":null,"note":"after milestone zero","resolution":null},"fixture:U7":{"id":"fixture:U7","kind":"task","status":"blocked","title":"The blocked one","verify":"cargo test -p fixture","evidence":null,"note":"needs D2","resolution":null},"fixture:U8":{"id":"fixture:U8","kind":"task","status":"open","title":"A follow-up","verify":"cargo test -p fixture","evidence":null,"note":null,"resolution":null},"fixture:U9":{"id":"fixture:U9","kind":"task","status":"wontfix","title":"Declined","verify":"cargo test -p fixture","evidence":null,"note":null,"resolution":null}},"edges":[{"from":"fixture:D1","to":"fixture:E2"},{"from":"fixture:D2","to":"fixture:U3"},{"from":"fixture:D3","to":"fixture:U8"},{"from":"fixture:U1","to":"fixture:U3"},{"from":"fixture:U8","to":"fixture:U10"}]};
-document.querySelectorAll('.node').forEach(n => n.addEventListener('click', () => {
-  const id = n.dataset.id, d = DATA.nodes[id];
+document.addEventListener('click', event => {
+  const n = event.target.closest('.node');
+  if (!n) return;
+  const source = document.getElementById('detail-data');
+  if (!source) return;
+  const data = JSON.parse(source.textContent);
+  const id = n.dataset.id, d = data.nodes[id];
   const box = document.getElementById('detail');
   if (!d) return;
-  const rel = DATA.edges.filter(e => e.from === id || e.to === id)
+  const rel = data.edges.filter(e => e.from === id || e.to === id)
     .map(e => `<div>${e.from} ${e.from === id ? '→' : '←'} ${e.to}</div>`).join('');
   box.innerHTML = `<b>${id}</b> · ${d.kind || 'decision'} · ${d.status}<br>`
     + `${d.title || ''}`
@@ -160,10 +165,73 @@ document.querySelectorAll('.node').forEach(n => n.addEventListener('click', () =
     + (d.resolution ? `<br><b>resolution:</b> ${d.resolution}` : '')
     + `<br><br><b>edges</b><br>${rel || 'none drawn'}`;
   box.style.display = 'block';
-}));
-try {
-  const ws = new WebSocket('ws://' + location.host + '/ws?repo=fixture');
-  ws.onmessage = () => location.reload();
-} catch (e) {}
+});
+let liveWs = null, liveRepo = 'fixture';
+connectWs();
+let fetchGen = 0;
+function swapView(doc) {
+  document.title = doc.title;
+  const style = document.querySelector('style');
+  const freshStyle = doc.querySelector('style');
+  if (style && freshStyle) style.replaceWith(freshStyle);
+  const switcher = document.querySelector('nav.switch');
+  const freshSwitcher = doc.querySelector('nav.switch');
+  if (switcher && freshSwitcher) switcher.replaceWith(freshSwitcher);
+  const cols = document.querySelector('.cols');
+  const freshCols = doc.querySelector('.cols');
+  if (cols && freshCols) {
+    cols.replaceWith(freshCols);
+    intercept();
+  }
+}
+async function fetchView(url, push) {
+  // Last-initiated navigation wins: a superseded fetch abandons after every await.
+  const gen = ++fetchGen;
+  try {
+    const response = await fetch(url);
+    if (gen !== fetchGen) return;
+    if (!response.ok) { location.assign(url); return; }
+    const text = await response.text();
+    if (gen !== fetchGen) return;
+    swapView(new DOMParser().parseFromString(text, 'text/html'));
+    if (push) history.pushState(null, '', url);
+    // The URL is the view's own by now (pushState for clicks, popstate
+    // moved it earlier) — the subscription can follow it.
+    followView();
+  } catch (e) {
+    if (gen === fetchGen) location.assign(url);
+  }
+}
+function intercept() {
+  document.querySelectorAll('.sepic a').forEach(a => a.addEventListener('click', event => {
+    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+    fetchView(a.href, true);
+  }));
+}
+function connectWs() {
+  try {
+    liveWs = new WebSocket('ws://' + location.host + '/ws?repo=' + liveRepo);
+    liveWs.onmessage = () => fetchView(location.pathname + location.search, false);
+  } catch (e) {}
+}
+function currentRepo() {
+  const parts = location.pathname.split('/');
+  if (parts[1] === 'repo' && parts[2]) return parts[2];
+  const repo = new URLSearchParams(location.search).get('repo');
+  if (repo) return repo;
+  const cur = document.querySelector('nav.switch .cur');
+  return cur ? cur.textContent : null;
+}
+function followView() {
+  // The subscription follows the view: close the old connection before opening the new.
+  const repo = currentRepo();
+  if (!repo || repo === liveRepo) return;
+  if (liveWs) liveWs.close();
+  liveRepo = repo;
+  connectWs();
+}
+window.addEventListener('popstate', () => fetchView(location.pathname + location.search, false));
+intercept();
 </script>
 </body></html>
