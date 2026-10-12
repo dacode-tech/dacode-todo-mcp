@@ -518,12 +518,16 @@ fn collect_flat_enum_offenses(
             )),
         }
     }
-    if let Some(Value::Array(values)) = map.get("enum")
-        && !(values.is_empty() || values.iter().all(Value::is_string))
-    {
-        offenders.push(format!(
-            "{path} (an enum that is not a non-empty array of strings)"
-        ));
+    if let Some(enum_value) = map.get("enum") {
+        let well_formed = match enum_value {
+            Value::Array(values) => !values.is_empty() && values.iter().all(Value::is_string),
+            _ => false,
+        };
+        if !well_formed {
+            offenders.push(format!(
+                "{path} (an enum that is not a non-empty array of strings)"
+            ));
+        }
     }
     for (key, inner) in map {
         collect_flat_enum_offenses(inner, defs, &format!("{path}.{key}"), offenders);
@@ -542,6 +546,38 @@ fn is_string_const_arm(arm: &Value) -> bool {
         && map
             .keys()
             .all(|key| key == "description" || key == "type" || key == "const")
+}
+
+/// The walk's own semantics, pinned on synthetic schemas: a non-array
+/// `enum` value, an empty array and a non-string member are offenses;
+/// a well-formed enum stays silent. The real flatten only produces
+/// non-empty string arrays, so these shapes never surface through the
+/// live schemas — the walk is the only line of defense for its own
+/// clause, and this pin holds it to the clause's letter.
+#[test]
+fn the_flat_enum_walk_pins_its_own_clause() {
+    let defs = Value::Null;
+    for (schema, label) in [
+        (json!({ "enum": "open" }), "a non-array enum value"),
+        (json!({ "enum": [] }), "an empty enum array"),
+        (json!({ "enum": [1, "two"] }), "a non-string enum member"),
+    ] {
+        let mut offenders = Vec::new();
+        collect_flat_enum_offenses(&schema, &defs, "synthetic", &mut offenders);
+        assert_eq!(
+            offenders,
+            vec!["synthetic (an enum that is not a non-empty array of strings)".to_owned()],
+            "{label}"
+        );
+    }
+    let mut offenders = Vec::new();
+    collect_flat_enum_offenses(
+        &json!({ "enum": ["open", "closed"] }),
+        &defs,
+        "synthetic",
+        &mut offenders,
+    );
+    assert!(offenders.is_empty(), "a well-formed enum offends nothing");
 }
 
 // =================================================================
