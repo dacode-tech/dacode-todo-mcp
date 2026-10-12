@@ -21,6 +21,12 @@
 //! ensure-listener thread the default server spawns beside its
 //! runtime.
 //!
+//! Over the file-size target by recorded exception (`_rust.md`): the
+//! epic route's dispatch handler (U53) joined the connection dispatch
+//! this file owns. The split, when the next route joins, is the render
+//! dispatch — `render_route`, `render_epic_route` and `Surface` —
+//! moving to its own file beside `http`.
+//!
 //! Thread-per-connection (D4): concurrent tabs render concurrently —
 //! safe because renders are lock-free (D19), which is why the Python
 //! tool's single-thread serialization (store-lock contention
@@ -56,7 +62,7 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
-use todo_domain::RepoSlug;
+use todo_domain::{ErrorCode, RepoSlug};
 use todo_store::{DataRoot, Registry};
 
 use crate::render;
@@ -358,6 +364,7 @@ fn handle_connection(stream: TcpStream, state: Arc<ConnState>) {
         }
         Route::Page => render_route(&state, &request, reader.get_mut(), Surface::Page),
         Route::Json => render_route(&state, &request, reader.get_mut(), Surface::Json),
+        Route::Epic { slug, number } => render_epic_route(&state, &slug, number, reader.get_mut()),
         Route::Ws => {
             let _ = reader.get_ref().set_read_timeout(None);
             ws::handle_ws_connection(reader, &state, &request);
@@ -409,6 +416,76 @@ fn repo_for_request(state: &ConnState, request: &Request) -> Result<RepoSlug, St
     match http::repo_param(request) {
         Some(raw) => RepoSlug::from_str(raw).map_err(|error| error.to_string()),
         None => default_repo(&state.root, state.cwd.as_deref()),
+    }
+}
+
+/// The epic page's route (E12, U53): `/repo/<slug>/epic/<number>` —
+/// the path is the repo's only source, `?repo=` ignored entirely. The
+/// pre-checks answer before any render: an unknown repo is a named
+/// 404 — the resolve error's `unknown_id` code, the variant's stable
+/// identity, never a message match — and an epic number the resolved
+/// graph does not hold is a named 404; every other resolve failure —
+/// an unreadable or corrupt store — is a server fault: 500 with the
+/// reason on stderr, the `render_route` discipline. The pre-check
+/// pays resolve plus an epics scan, not the render; the 200 path then
+/// reads the graph a second time inside `epic_page` — the accepted
+/// cost of keeping that function's pure signature.
+fn render_epic_route(state: &ConnState, slug: &RepoSlug, number: u64, stream: &mut TcpStream) {
+    match render::resolve(&state.root, slug) {
+        Ok(graph) => {
+            if !graph.epics().any(|epic| epic.id.number() == number) {
+                let miss = format!("{slug} holds no epic {number}");
+                eprintln!("todo-mcp serve: {miss}");
+                http::write_plain_response(
+                    stream,
+                    404,
+                    "text/plain; charset=utf-8",
+                    format!("{miss}\n").as_bytes(),
+                );
+                return;
+            }
+            match render::epic_page(&state.root, slug, number) {
+                Ok(text) => {
+                    http::write_plain_response(
+                        stream,
+                        200,
+                        "text/html; charset=utf-8",
+                        text.as_bytes(),
+                    );
+                }
+                Err(message) => {
+                    eprintln!("todo-mcp serve: the render failed: {message}");
+                    http::write_plain_response(
+                        stream,
+                        500,
+                        "text/plain; charset=utf-8",
+                        RENDER_FAILED_BODY.as_bytes(),
+                    );
+                }
+            }
+        }
+        Err(error) if error.code == ErrorCode::UnknownId.as_str() => {
+            let miss = format!("no repo {slug} under this root");
+            eprintln!("todo-mcp serve: {miss}");
+            http::write_plain_response(
+                stream,
+                404,
+                "text/plain; charset=utf-8",
+                format!("{miss}\n").as_bytes(),
+            );
+        }
+        Err(error) => {
+            eprintln!(
+                "todo-mcp serve: the epic page's resolve failed: {}",
+                error.message
+            );
+            http::write_plain_response(
+                stream,
+                500,
+                "text/plain; charset=utf-8",
+                RENDER_FAILED_BODY.as_bytes(),
+            );
+        }
     }
 }
 

@@ -8,6 +8,9 @@
 
 use std::io::{BufRead, Write};
 use std::net::TcpStream;
+use std::str::FromStr;
+
+use todo_domain::RepoSlug;
 
 /// How many bytes of request head one connection accepts — the bound
 /// on a hostile or broken client's stream.
@@ -137,9 +140,11 @@ fn parse_head(head: &str) -> Result<Request, String> {
 }
 
 /// D2's routes: `/health` (no render), `/` and `/json` (the render
-/// pair), `/ws` (the upgrade) — anything else 404s BEFORE any render,
-/// so a browser's favicon probe never pays one; a non-GET method is
-/// refused before the render for the same reason.
+/// pair), `/repo/<slug>/epic/<number>` (the epic page — E12's
+/// extension of the route table), `/ws` (the upgrade) — anything else
+/// 404s BEFORE any render, so a browser's favicon probe never pays
+/// one; a non-GET method is refused before the render for the same
+/// reason.
 #[derive(Debug, PartialEq, Eq)]
 pub(super) enum Route {
     /// `/health`: the marker, no render.
@@ -148,6 +153,13 @@ pub(super) enum Route {
     Page,
     /// `/json`: the JSON twin.
     Json,
+    /// `/repo/<slug>/epic/<number>`: the epic-scoped page (E12, U53).
+    Epic {
+        /// The repo slug, parsed and validated off the path.
+        slug: RepoSlug,
+        /// The epic's number, EpicId's own rules.
+        number: u64,
+    },
     /// `/ws`: the WebSocket upgrade.
     Ws,
     /// An unknown path.
@@ -166,8 +178,44 @@ pub(super) fn route(request: &Request) -> Route {
         "/" => Route::Page,
         "/json" => Route::Json,
         "/ws" => Route::Ws,
-        _ => Route::NotFound,
+        path => epic_route(path).unwrap_or(Route::NotFound),
     }
+}
+
+/// The epic page's path shape (E12, U53):
+/// `/repo/<slug>/epic/<number>` — exactly the three segments after
+/// the `/repo/` prefix and nothing more (a trailing slash or a fourth
+/// segment is `None`), the slug parsed through `RepoSlug::from_str`
+/// and the number through EpicId's own rules. Any parse failure is
+/// `None`: the caller answers NotFound, so a path that does not name
+/// a servable route 404s before any read, let alone any render.
+fn epic_route(path: &str) -> Option<Route> {
+    let rest = path.strip_prefix("/repo/")?;
+    let mut segments = rest.split('/');
+    let slug = RepoSlug::from_str(segments.next()?).ok()?;
+    if segments.next()? != "epic" {
+        return None;
+    }
+    let number = parse_epic_number(segments.next()?)?;
+    if segments.next().is_some() {
+        return None;
+    }
+    Some(Route::Epic { slug, number })
+}
+
+/// The epic number segment's parse — EpicId's own FromStr rule for
+/// the number half: ASCII digits only, no leading zeros, non-zero
+/// (`0`, `007`, `abc` and the empty segment all fail), bounded by
+/// `u64`'s range.
+fn parse_epic_number(digits: &str) -> Option<u64> {
+    if digits.is_empty()
+        || (digits.len() > 1 && digits.starts_with('0'))
+        || !digits.bytes().all(|byte| byte.is_ascii_digit())
+    {
+        return None;
+    }
+    let number: u64 = digits.parse().ok()?;
+    (number != 0).then_some(number)
 }
 
 /// The `repo` query parameter's raw value (D2): the first `repo=` pair
@@ -325,5 +373,66 @@ mod tests {
         }
         let request = parse(b"POST / HTTP/1.1\r\n\r\n");
         assert_eq!(route(&request), Route::MethodNotAllowed);
+    }
+
+    /// The epic route's rows: the good path parses the slug and the
+    /// number; every malformed shape — a trailing slash, a fourth
+    /// segment, a missing segment, a slug `RepoSlug` refuses, a
+    /// number EpicId's rules refuse (`0`, `007`, `abc`, empty,
+    /// overflow) — is NotFound; the method check stays first, and the
+    /// query never reaches the classifier.
+    #[test]
+    fn the_epic_route_classifies() {
+        for (path, expected) in [
+            (
+                "/repo/fixture/epic/1",
+                Route::Epic {
+                    slug: RepoSlug::from_str("fixture").expect("a valid slug"),
+                    number: 1,
+                },
+            ),
+            (
+                "/repo/ikvm-html/epic/12",
+                Route::Epic {
+                    slug: RepoSlug::from_str("ikvm-html").expect("a valid slug"),
+                    number: 12,
+                },
+            ),
+            ("/repo/fixture/epic/1/", Route::NotFound),
+            ("/repo/fixture/epic/1/extra", Route::NotFound),
+            ("/repo/fixture/epic", Route::NotFound),
+            ("/repo/fixture/epic/", Route::NotFound),
+            ("/repo/fixture", Route::NotFound),
+            ("/repo/", Route::NotFound),
+            ("/repo", Route::NotFound),
+            ("/repo/Fixture/epic/1", Route::NotFound),
+            ("/repo/fix_ture/epic/1", Route::NotFound),
+            ("/repo/fixture/epic/0", Route::NotFound),
+            ("/repo/fixture/epic/007", Route::NotFound),
+            ("/repo/fixture/epic/abc", Route::NotFound),
+            ("/repo/fixture/epic/1abc", Route::NotFound),
+            ("/repo/fixture/epic/-1", Route::NotFound),
+            (
+                "/repo/fixture/epic/99999999999999999999999999999999",
+                Route::NotFound,
+            ),
+        ] {
+            let request = parse(format!("GET {path} HTTP/1.1\r\n\r\n").as_bytes());
+            assert_eq!(route(&request), expected, "path: {path}");
+        }
+        // The method check stays first: a non-GET on the epic path is
+        // refused, never classified.
+        let request = parse(b"POST /repo/fixture/epic/1 HTTP/1.1\r\n\r\n");
+        assert_eq!(route(&request), Route::MethodNotAllowed);
+        // The query is split off before the classifier: the path
+        // alone routes.
+        let request = parse(b"GET /repo/fixture/epic/1?repo=alpha HTTP/1.1\r\n\r\n");
+        assert_eq!(
+            route(&request),
+            Route::Epic {
+                slug: RepoSlug::from_str("fixture").expect("a valid slug"),
+                number: 1,
+            }
+        );
     }
 }

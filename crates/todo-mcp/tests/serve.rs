@@ -7,7 +7,10 @@
 //! integration pins of the task spec, mirroring the Python driver
 //! `tools/progress-serve-check.py` whose checks they inherit: the
 //! static invocation publishes no port; `serve` publishes and answers
-//! every route; a second invocation attaches; a stale publication is
+//! every route — the epic page's `/repo/<slug>/epic/<number>` among
+//! them (E12, U53: the page answered, the named 404s for an unknown
+//! repo or epic, the malformed shapes over the wire); a second
+//! invocation attaches; a stale publication is
 //! taken over (SIGTERM via `/bin/kill`, unix-gated — `Child::kill`
 //! sends SIGKILL, so the signals need the real tool); SIGINT is the
 //! clean shutdown (the t55 driver's note: the pin runs from the
@@ -16,8 +19,8 @@
 //! through the `Store` trait, the push frame within a bounded wait);
 //! the WS control frames (a masked ping answered with a pong, a
 //! masked close echoed and the connection ended); and a corrupt-store
-//! root where `/health` stays 200 while `/` answers 500 and the
-//! listener stays up.
+//! root where `/health` stays 200 while `/` and the epic route answer
+//! 500 and the listener stays up.
 //!
 //! The D13 pins: two roots key two listeners (the per-root keying);
 //! the no-subcommand server — the shape every opencode session spawns
@@ -411,6 +414,62 @@ mod serve {
         assert_eq!(child.wait().expect("the child is reaped").code(), Some(0));
     }
 
+    /// 2b. The epic page route (E12, U53): `/repo/<slug>/epic/<number>`
+    ///     answers the epic page — the title names the epic, the
+    ///     sidebar marks it current — for both repos; `?repo=` never
+    ///     overrides the path; an unknown repo and an unknown epic are
+    ///     named 404s; the malformed number shapes 404 with the generic
+    ///     unknown-path body (the classifier's full matrix lives in
+    ///     http.rs's unit tests — these rows pin that its 404s reach
+    ///     the socket).
+    #[test]
+    fn the_epic_page_route_answers() {
+        let root = serve_fixture();
+        let port_file = root.path().join("serve.port");
+        let mut child = spawn_serve(root.path());
+        let port = wait_for_listener(&port_file, &mut child).expect("the listener answers");
+
+        // The epic page at its path: the title names the epic, the
+        // sidebar's current-epic marker is present.
+        let (status, body) = http_get(port, "/repo/fixture/epic/1");
+        assert_eq!(status, Some(200));
+        assert!(
+            body.contains("<title>fixture · E1 — The fixture epic</title>"),
+            "the epic page's title: {}",
+            &body[..body.len().min(200)]
+        );
+        assert!(
+            body.contains(r#"<span class="scur">E1 · The fixture epic</span>"#),
+            "the sidebar marks the epic current"
+        );
+        // The second repo's route answers its own page.
+        let (status, body) = http_get(port, "/repo/alpha/epic/1");
+        assert_eq!(status, Some(200));
+        assert!(body.contains("<title>alpha · E1 — The alpha epic</title>"));
+        // The path is the repo's only source: a disagreeing `?repo=`
+        // never overrides it.
+        let (status, body) = http_get(port, "/repo/fixture/epic/1?repo=alpha");
+        assert_eq!(status, Some(200));
+        assert!(body.contains("<title>fixture · E1 — The fixture epic</title>"));
+        // An unknown repo is a named 404.
+        let (status, body) = http_get(port, "/repo/elsewhere/epic/1");
+        assert_eq!(status, Some(404));
+        assert_eq!(body, "no repo elsewhere under this root\n");
+        // An unknown epic is a named 404.
+        let (status, body) = http_get(port, "/repo/fixture/epic/99");
+        assert_eq!(status, Some(404));
+        assert_eq!(body, "fixture holds no epic 99\n");
+        // The malformed number shapes 404 over the wire, with the
+        // generic unknown-path body.
+        for path in ["/repo/fixture/epic/0", "/repo/fixture/epic/abc"] {
+            let (status, body) = http_get(port, path);
+            assert_eq!(status, Some(404), "path: {path}");
+            assert_eq!(body, "not found\n", "the unknown-path body: {path}");
+        }
+
+        shutdown(&mut child);
+    }
+
     /// 3. A second invocation attaches: exit 0, the same URL on
     ///    stdout, the publication unchanged, the first listener still
     ///    answering — never a second listener. The second invocation
@@ -752,7 +811,9 @@ mod serve {
     }
 
     /// 7. A corrupt-store root: `/health` still 200 (no render), `/`
-    ///    answers 500, the listener stays up.
+    ///    and the epic route answer 500 (the resolve fails before any
+    ///    render, the unreadable-store arm of the epic route's
+    ///    decision table), the listener stays up.
     #[test]
     fn a_corrupt_store_root_still_serves_health() {
         let root = TempDir::new().expect("a fresh temp root");
@@ -776,6 +837,12 @@ mod serve {
         assert!(body.contains(HEALTH_MARKER));
         let (status, _) = http_get(port, "/");
         assert_eq!(status, Some(500), "the corrupt store's render fails");
+        let (status, _) = http_get(port, "/repo/fixture/epic/1");
+        assert_eq!(
+            status,
+            Some(500),
+            "the corrupt store's epic route resolve fails"
+        );
         // The listener stays up after the failure.
         let (status, body) = http_get(port, "/health");
         assert_eq!(status, Some(200));
