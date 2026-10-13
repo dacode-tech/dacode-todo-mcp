@@ -45,7 +45,7 @@ and the meta block below; keep the shapes it parses.
 | ~~**D22**~~ | The reward model: sizes, arithmetic, triggers, opt-in | (a) two size buckets (planned at creation, actual at closure), server-computed integer rewards, per-root config, milestone + accumulation triggers, strictly opt-in | high | E13 | resolved (a) 2026-10-13 — user decision, in-thread ("I sign all three"); the implementation lands as E13's units |
 | ~~**D23**~~ | The storage move: the reward events and FORMAT_VERSION 2 | (a) two new event kinds plus the estimate on creation events; FORMAT_VERSION 1→2, in-place header migration, v1 replaying identically | high | E13 | resolved (a) 2026-10-13 — user decision, in-thread; the implementation lands as E13's store unit |
 | ~~**D24**~~ | The wire move: the surface extension | (a) the optional estimate on task_add, the optional actual size on closure, the reward line and reflection question on the closure response, one new tool (reward_reflect), the base-instructions rule | high | E13 | resolved (a) 2026-10-13 — user decision, in-thread; the implementation lands as E13's surface unit |
-| **D25** | The shared server per root: a daemon behind thin stdio shims | (a) the single binary — the no-argument invocation is the shim (ensure the daemon, proxy MCP over a unix socket, fall back in-process), the extra-argument invocation is the daemon | medium | the shared-server arc | open — drafted 2026-10-13 from the user's in-thread ask and refinement |
+| **D25** | The shared server per root: a daemon behind thin stdio shims | (a) the single binary — the no-argument invocation is the shim (connect/spawn the daemon, proxy MCP over a unix socket, retry-then-error with no fallback), the extra-argument invocation is the daemon serving every connected session | medium | the shared-server arc | open — drafted 2026-10-13 from the user's in-thread ask, refinement and correction |
 
 ---
 
@@ -1526,33 +1526,41 @@ todo-mcp instance **per root**; updates kill the shared process
 thin clients reconnect. Refined in-thread the same day: **one
 binary, two modes** — the daemon starts with an extra argument, the
 shim is the no-extra-argument invocation (just the root dir), so the
-existing client configs change nothing.
+existing client configs change nothing. Corrected in-thread the same
+day: **no fallback** — the shim retries the connection for a bounded
+window and then answers the tool execution as a structured error;
+the single point of failure is accepted (the drain timeout bounds
+in-flight work, the freshly installed binary starts, the shims'
+retry window covers the restart gap).
 
 **Options.**
 
 - **(a) The single binary, the shim as the no-argument invocation
-  (the user's refinement).** `todo-mcp --root <dir>` is the shim: it
-  ensures the root's daemon (spawn or attach, the watchdog's
-  pattern, reused) and proxies MCP bytes over a unix socket
-  (`<root>/serve.sock`, D13's keying pattern). `todo-mcp --root
-  <dir> <daemon flag>` is the daemon: one per root, serving one MCP
-  session per socket connection, holding the store handles and
-  owning the live-view listener — the watchdog tangle retires. The
-  existing config entries become shims on their next session — the
-  daemon shape is the default, and the safety that makes that flip
-  low-risk is the shim's **in-process fallback**: a daemon that
-  cannot be connected or spawned degrades the shim to today's
-  per-session stdio serving, one stderr line marking the fallback —
-  the worst case is the current behavior, never a broken tracker.
-  The graceful drain: SIGTERM stops the accept loop, in-flight
-  queries finish, the process exits; the shims reconnect and respawn
-  on their next query (the respawn race resolves as the publish race
-  does). Cost: the shim (~a hundred lines plus the fallback), the
+  (the user's shape, as corrected).** `todo-mcp --root <dir>` is the
+  shim: it connects to the root's daemon over a unix socket
+  (`<root>/serve.sock`, D13's keying pattern), spawning it when
+  absent (the watchdog's ensure pattern, reused). Several opencode
+  sessions over one root each run their own shim, and each shim
+  holds its own connection — its own MCP session (its handshake, its
+  request ids, its D8 default repo) — inside the **one daemon
+  process serving that root**; the daemon serves every connected
+  session concurrently. `todo-mcp --root <dir> <daemon flag>` is the
+  daemon: it holds the store handles and owns the live-view listener
+  — the watchdog tangle retires. No fallback, deliberately: a daemon
+  that cannot be connected or spawned has the shim retry for a
+  bounded window and then answer the tool execution as a structured
+  error (the §6.1 carrier — `io`, the honest existing code, a client
+  may retry) — the tracker is honestly unavailable, never silently
+  degraded. The graceful drain: SIGTERM stops the accept loop,
+  in-flight queries finish within the drain timeout, the process
+  exits; the freshly installed binary starts, and the shims' retry
+  window covers the restart gap. The single point of failure per
+  root is accepted (the user's call): a daemon crash drops every
+  session's tracker until the next shim's ensure respawns it —
+  availability, not data (the store is files). Cost: the shim
+  (~a hundred lines: the proxy, the ensure, the retry window), the
   daemon's multi-session serve (the rmcp socket-transport
-  re-survey), the per-connection default-repo handshake (D8's flag
-  must reach the right session), and a single point of failure per
-  root — a daemon crash drops every session's tracker at once (the
-  store is files: availability, not data; the fallback bounds it).
+  re-survey), and the per-connection default-repo handshake.
 - **(b) The opt-in split.** The same single binary, but no-argument
   stays today's per-session stdio server and a `--shared` flag opts
   a config into the shim. The signed default untouched; the daemon
@@ -1563,17 +1571,16 @@ existing client configs change nothing.
   and the session-restart sweep might suffice. No new architecture,
   no new failure mode.
 
-**Recommendation: (a)** — the user's shape, with the in-process
-fallback as the safety that makes the default flip acceptable: the
-client boundary stays stdio (D5's letter holds at the client edge),
-the per-session server process retires, and a broken daemon degrades
-to today's behavior rather than breaking the tracker.
+**Recommendation: (a)** — the user's shape, as corrected: honest
+unavailability over silent degradation. The client boundary stays
+stdio (D5's letter holds at the client edge); the per-session server
+process retires.
 
 **On sign-off:** delete §12 item D25; open the shared-server arc
-(the shim with its fallback, the daemon's multi-session serve over
-the socket, the ensure/drain/reconnect lifecycle, the
-per-connection default repo, protocol tests); amend §4's store
-requirement (the daemon as an optional holder — the store stays
-local files, the CLI inspector daemon-less) and D13's record (the
-listener's owner becomes the daemon; the watchdog retires in the
-daemon shape).
+(the shim with its retry-then-error discipline, the daemon's
+multi-session serve over the socket, the ensure/drain/reconnect
+lifecycle, the per-connection default repo, protocol tests); amend
+§4's store requirement (the daemon as an optional holder — the store
+stays local files, the CLI inspector daemon-less) and D13's record
+(the listener's owner becomes the daemon; the watchdog retires in
+the daemon shape).

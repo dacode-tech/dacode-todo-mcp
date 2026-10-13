@@ -866,13 +866,16 @@ of the user's in-thread steering, §15 the design they settled.
 
 **D25 — The shared server per root: a daemon behind thin stdio
 shims.** One binary, two modes: the no-argument invocation is the
-thin stdio shim (it ensures the root's daemon and proxies MCP over a
-unix socket, falling back to in-process serving when the daemon
-cannot be had); the extra-argument invocation is the daemon — one
-per root, serving the sessions and owning the live-view listener.
-Updates kill the daemon gracefully (stop accepting, finish
-in-flight, exit) and the shims reconnect. Drafted 2026-10-13 from
-the user's in-thread ask and refinement; the options and the
+thin stdio shim (it connects to the root's daemon over a unix
+socket, spawning it when absent, and proxies MCP — retrying the
+connection for a bounded window and then answering the tool
+execution as a structured error, no fallback); the extra-argument
+invocation is the daemon — one process per root, serving every
+connected session concurrently and owning the live-view listener.
+Updates kill the daemon gracefully (stop accepting, drain in-flight
+within the timeout, exit) and the freshly installed binary starts
+under the shims' retry window. Drafted 2026-10-13 from the user's
+in-thread ask, refinement and correction; the options and the
 recommendation are D25 in `decisions.md`.
 
 ## 13. Packaging and Distribution
