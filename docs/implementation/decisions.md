@@ -45,7 +45,7 @@ and the meta block below; keep the shapes it parses.
 | ~~**D22**~~ | The reward model: sizes, arithmetic, triggers, opt-in | (a) two size buckets (planned at creation, actual at closure), server-computed integer rewards, per-root config, milestone + accumulation triggers, strictly opt-in | high | E13 | resolved (a) 2026-10-13 — user decision, in-thread ("I sign all three"); the implementation lands as E13's units |
 | ~~**D23**~~ | The storage move: the reward events and FORMAT_VERSION 2 | (a) two new event kinds plus the estimate on creation events; FORMAT_VERSION 1→2, in-place header migration, v1 replaying identically | high | E13 | resolved (a) 2026-10-13 — user decision, in-thread; the implementation lands as E13's store unit |
 | ~~**D24**~~ | The wire move: the surface extension | (a) the optional estimate on task_add, the optional actual size on closure, the reward line and reflection question on the closure response, one new tool (reward_reflect), the base-instructions rule | high | E13 | resolved (a) 2026-10-13 — user decision, in-thread; the implementation lands as E13's surface unit |
-| **D25** | The shared server per root: a daemon behind thin stdio shims | (a) the single binary — the no-argument invocation is the shim (connect/spawn the daemon, proxy MCP over a unix socket, retry-then-error with no fallback), the extra-argument invocation is the daemon serving every connected session | medium | the shared-server arc | open — drafted 2026-10-13 from the user's in-thread ask, refinement and correction |
+| ~~**D25**~~ | The shared server per root: a daemon behind thin stdio shims | (a) the single binary — the no-argument invocation is the shim (connect/spawn the daemon, proxy MCP over a unix socket, retry-then-error with no fallback), the extra-argument invocation is the daemon serving every connected session | medium | the shared-server arc | resolved (a) 2026-10-13 — user decision, in-thread ("ok, sign D25"); the implementation lands as the shared-server arc |
 
 ---
 
@@ -1501,8 +1501,18 @@ the base-instructions rule, disabled-root byte-identity).
 
 ### D25 — The shared server per root: a daemon behind thin stdio shims
 
-**Status: open — drafted 2026-10-13 from the user's in-thread ask;
-awaiting signature.**
+**Resolved 2026-10-13 — option (a), signed by the user ("ok, sign
+D25").** The shape is the user's own, carried through two in-thread
+refinements: one binary, two modes — the no-argument invocation is
+the shim, the extra-argument invocation is the daemon — with no
+fallback (retry-then-error) and the single point of failure
+accepted. Work order executed in the same change: §12 item D25
+deleted, §4's store requirement amended (the daemon as an optional
+holder — the store stays local files, the CLI inspector
+daemon-less), §13's D13 record amended (the daemon owns the
+listener; the watchdog retires in the daemon shape), and the
+shared-server arc opened (the rmcp socket survey, the daemon, the
+shim, the end-to-end update cycle).
 
 **Gates** — the shared-server arc (opens at sign-off) · **Drafted**
 2026-10-13 · **Confidence: medium** (the architecture is sound; the

@@ -189,6 +189,11 @@ it: **FORMAT_VERSION 2** adds the reward and reflection events and the
 replay identically and the header migrates in place the first time a
 v2 binary opens a v1 log for writing.
 
+The D25 shared daemon (signed 2026-10-13) does not violate the local
+requirement above: the store stays local files, queryable without any
+daemon — the CLI inspector is daemon-less — and the daemon is an
+optional session concentrator holding handles, never a second store.
+
 ### 4.1 Candidate engines
 
 - **(a) Append-only JSONL event log + in-memory graph.** Every mutation
@@ -862,21 +867,12 @@ watchdog takeover, the stdio wire unchanged — no §12 item sat open
 (the in-thread precedent, D19's), and D22/D23/D24 on 2026-10-13, the
 rewards arc's three moves — the reward model, the storage version
 bump, the surface extension — drafted and signed in one exchange out
-of the user's in-thread steering, §15 the design they settled.
+of the user's in-thread steering, §15 the design they settled, and
+D25 on 2026-10-13, the shared server per root — one binary, the
+no-argument shim and the extra-argument daemon — drafted, refined
+and signed across one day's in-thread exchange.
 
-**D25 — The shared server per root: a daemon behind thin stdio
-shims.** One binary, two modes: the no-argument invocation is the
-thin stdio shim (it connects to the root's daemon over a unix
-socket, spawning it when absent, and proxies MCP — retrying the
-connection for a bounded window and then answering the tool
-execution as a structured error, no fallback); the extra-argument
-invocation is the daemon — one process per root, serving every
-connected session concurrently and owning the live-view listener.
-Updates kill the daemon gracefully (stop accepting, drain in-flight
-within the timeout, exit) and the freshly installed binary starts
-under the shims' retry window. Drafted 2026-10-13 from the user's
-in-thread ask, refinement and correction; the options and the
-recommendation are D25 in `decisions.md`.
+None — the list is closed.
 
 ## 13. Packaging and Distribution
 
@@ -916,6 +912,20 @@ the view is up while at least one session server (or a manual
 per-root file — one discipline for both paths. The MCP wire surface
 is unchanged: no new tool, the stdio server's protocol behavior
 identical.
+
+D25 (signed 2026-10-13) changes the process topology: the
+no-argument invocation becomes the thin shim — it connects to the
+root's daemon over a unix socket (`<root>/serve.sock`), spawning it
+when absent, and proxies MCP, retrying the connection for a bounded
+window before answering the tool execution as a structured error
+(`io`) — and the daemon, one process per root started with an extra
+argument, serves every connected session concurrently and owns the
+live-view listener, so the watchdog retires in the daemon shape.
+Updates kill the daemon gracefully (stop accepting, drain in-flight
+within the timeout, exit) and the freshly installed binary starts
+under the shims' retry window. The store stays local files (§4); the
+CLI subcommands are daemon-less. The implementation lands as the
+shared-server arc.
 
 ## 14. Roadmap
 
