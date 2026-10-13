@@ -864,7 +864,16 @@ rewards arc's three moves — the reward model, the storage version
 bump, the surface extension — drafted and signed in one exchange out
 of the user's in-thread steering, §15 the design they settled.
 
-None — the list is closed.
+**D25 — The shared server per root: a daemon behind thin stdio
+shims.** One binary, two modes: the no-argument invocation is the
+thin stdio shim (it ensures the root's daemon and proxies MCP over a
+unix socket, falling back to in-process serving when the daemon
+cannot be had); the extra-argument invocation is the daemon — one
+per root, serving the sessions and owning the live-view listener.
+Updates kill the daemon gracefully (stop accepting, finish
+in-flight, exit) and the shims reconnect. Drafted 2026-10-13 from
+the user's in-thread ask and refinement; the options and the
+recommendation are D25 in `decisions.md`.
 
 ## 13. Packaging and Distribution
 
