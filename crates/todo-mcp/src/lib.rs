@@ -32,14 +32,25 @@
 //! time inside this process — the store's advisory lock is per file
 //! descriptor and one process holds one, so §8's single-writer
 //! guarantee is a *process*-boundary property the server must provide
-//! itself. [`TodoServer`] holds its `ServerState` — the [`DataRoot`] and
-//! the open per-repo handles — behind one `Arc<Mutex<…>>`, and every
-//! tool body takes that lock. The guard is taken and dropped **inside
-//! the sync tool body, never held across an await**: the tool bodies
-//! are `async fn` but contain no `.await` after acquisition — the
-//! store work is sync — so the rule holds by construction. A
-//! `std::sync::Mutex`, not tokio's, is the stronger discipline here:
-//! tokio's would *permit* holding the guard across an await.
+//! itself. The state is two halves (D25, U65): the **core** — the
+//! [`DataRoot`] and the open per-repo handles — behind one
+//! `Arc<Mutex<…>>`, and the **session** — the default repo slug, the
+//! working directory and the cwd-default memo — behind a second
+//! `Mutex` on the server itself. The stdio server owns its core
+//! privately; the daemon ([`daemon`]) shares one `Arc` across every
+//! connection, because per-connection cores could not even contend
+//! correctly — `DataRoot::open` opens the store *locked*, so a second
+//! connection resolving the same repo would fail with `locked`, and
+//! the advisory lock is per file descriptor — while every
+//! connection's session is its own: the preamble's defaults are
+//! per-connection. TodoServer::lock_state takes both guards at
+//! once and hands the tool body a ServerState view; the guards
+//! are taken and dropped **inside the sync tool body, never held
+//! across an await**: the tool bodies are `async fn` but contain no
+//! `.await` after acquisition — the store work is sync — so the rule
+//! holds by construction. A `std::sync::Mutex`, not tokio's, is the
+//! stronger discipline here: tokio's would *permit* holding the guard
+//! across an await.
 //!
 //! Reads and writes reach a store differently (D19, signed
 //! 2026-10-08): a write resolves through `ServerState::resolve`, which
@@ -59,14 +70,16 @@
 //! # The cwd default tier (D8, armed at t53)
 //!
 //! An absent `repo` parameter resolves through three tiers (§7): an
-//! explicit parameter, then the `--repo` flag's configured default,
-//! then the working directory's deterministic match — the registered
-//! checkout whose canonicalized path is the longest component-wise
-//! ancestor of the canonicalized cwd, ties refused. The binary reads
-//! the cwd once at startup and passes it in; this crate never touches
-//! the environment (the private `cwd` module owns the mechanics,
+//! explicit parameter, then the `--repo` flag's configured default
+//! (the daemon connection's preamble repo), then the working
+//! directory's deterministic match — the registered checkout whose
+//! canonicalized path is the longest component-wise ancestor of the
+//! canonicalized cwd, ties refused. The binary reads the cwd once at
+//! startup and passes it in (a daemon connection's preamble carries
+//! the *shim's* cwd instead); this crate never touches the
+//! environment (the private `cwd` module owns the mechanics,
 //! `repo_of` the tier order), and the derived default is fixed per
-//! process at first use (D3) — a `repo_set_path` or a later
+//! session at first use (D3) — a `repo_set_path` or a later
 //! `repo_register` does not move it.
 //!
 //! # The progress render (D20)
@@ -130,6 +143,13 @@
 //! Schema validators do not know — opencode's Ajv warns on every
 //! `tools/list` — so every schema this server advertises strips them;
 //! the `schema` module owns the strip and its wire pin.
+//!
+//! Over the file-size target by recorded exception: the state split
+//! (U65) grew the concurrency core's documentation past the target.
+//! The split, when the next growth arrives, is the state core —
+//! `CoreState`, `SessionState`, the `ServerState` view,
+//! `resolve`/`resolve_read` and `repo_of` — moving to its own module
+//! beside the cluster files.
 
 // Tests are exempt from the panic-family lints through a mechanism, not
 // a convention (the workspace's rule, stated once in the root
@@ -163,6 +183,7 @@ use todo_store::{DataRoot, Registry, Store, StoreError};
 
 pub mod args;
 mod cwd;
+pub mod daemon;
 mod dto;
 mod edges;
 pub mod import;
@@ -213,33 +234,16 @@ const INSTRUCTIONS: &str = "You are connected to a deterministic task-graph serv
     actionable rows yourself; the server's order is dependency-driven and \
     ignores it by design.";
 
-/// The server's mutable state, held behind one lock (§8): the injected
-/// data root, the configured default repo slug, the startup-read
-/// working directory and the open per-repo handles.
-struct ServerState {
+/// The process-wide half of the server's state (§8, D25): the
+/// injected data root and the open per-repo handles — the half every
+/// connection shares in the daemon, behind one lock, because the
+/// store's advisory lock is per file descriptor and the handles cache
+/// is the process's single-writer surface.
+struct CoreState {
     /// The injected data root (D4): every store and the shared registry
     /// live under it. The location is the caller's configuration
     /// (§13/D8), never a heuristic this crate grows.
     root: DataRoot,
-    /// The configured default repo slug (the committed D8): applied by
-    /// [`repo_of`] whenever a tool's `repo` parameter is absent — an
-    /// explicit parameter always wins. `None` until the binary passes
-    /// the `--repo` flag's parsed value; this tier is configuration,
-    /// and it outranks the cwd-derived tier below (§7).
-    default_repo: Option<RepoSlug>,
-    /// The working directory, read once and eagerly by the binary (D1)
-    /// and passed in — `None` when the read failed (a deleted cwd).
-    /// This crate never reads the environment: the cwd tier's
-    /// derivation is a function of this value, so the lib stays
-    /// testable and the binary owns the one env touch.
-    cwd: Option<PathBuf>,
-    /// The cwd default's per-process memo (D3): `Pending` until the
-    /// first default-needing call derives it, then the derived
-    /// [`cwd::MatchOutcome`] — fixed for the process, so a later
-    /// `repo_set_path` or `repo_register` does not move it. An
-    /// errored derivation leaves it `Pending`: the memo caches
-    /// answers, not faults.
-    cwd_default: cwd::CwdDefault,
     /// The open, locked store per registered repo, keyed by slug and
     /// iterated in sorted-slug order (`BTreeMap`) — U20(b)'s
     /// foundation: on a handles hit, the read tools answer from these
@@ -255,13 +259,63 @@ struct ServerState {
     handles: BTreeMap<RepoSlug, Box<dyn Store + Send>>,
 }
 
+/// The per-connection half (D8, D25): the session's default repo
+/// slug, its working directory and the cwd-default memo — the half
+/// the daemon gives each connection its own of, constructed from the
+/// socket preamble. The stdio server's is the `--repo` flag and the
+/// binary's startup cwd.
+struct SessionState {
+    /// The configured default repo slug (the committed D8): applied by
+    /// [`repo_of`] whenever a tool's `repo` parameter is absent — an
+    /// explicit parameter always wins. `None` until the caller passes
+    /// the flag's parsed value (or the preamble's repo); this tier is
+    /// configuration, and it outranks the cwd-derived tier below (§7).
+    default_repo: Option<RepoSlug>,
+    /// The working directory, read once and eagerly by the binary (D1)
+    /// — or carried by a daemon connection's preamble, which is the
+    /// *shim's* cwd, the client's working directory — `None` when the
+    /// read failed or the preamble omitted it. This crate never reads
+    /// the environment: the cwd tier's derivation is a function of
+    /// this value, so the lib stays testable and the binary owns the
+    /// one env touch.
+    cwd: Option<PathBuf>,
+    /// The cwd default's per-session memo (D3): `Pending` until the
+    /// first default-needing call derives it, then the derived
+    /// [`cwd::MatchOutcome`] — fixed for the session, so a later
+    /// `repo_set_path` or `repo_register` does not move it. An
+    /// errored derivation leaves it `Pending`: the memo caches
+    /// answers, not faults.
+    cwd_default: cwd::CwdDefault,
+}
+
+/// The locked view every tool body works over: the core's guard and
+/// the session's guard, taken together by [`TodoServer::lock_state`]
+/// so a tool body's store work runs under §8's serialization point
+/// while its default resolution reads this connection's own session.
+/// The core guard lives as long as the view — the `resolve` borrow
+/// contract — and neither guard is ever held across an await (the
+/// module doc's rule).
+struct ServerState<'s> {
+    /// The shared core's guard: root and handles.
+    core: MutexGuard<'s, CoreState>,
+    /// This connection's session guard: defaults and the memo.
+    session: MutexGuard<'s, SessionState>,
+}
+
 /// The MCP server: the macro-generated tool router plus the §8
 /// concurrency core.
 pub struct TodoServer {
     /// The router `registry.rs`'s `#[tool_router]` block builds.
     tool_router: ToolRouter<Self>,
-    /// The one lock every tool body takes (the module doc's rule).
-    state: Arc<Mutex<ServerState>>,
+    /// The core — root and handles behind one lock (§8) — one `Arc`
+    /// per process in the daemon, shared across every connection; a
+    /// private one in the stdio server.
+    core: Arc<Mutex<CoreState>>,
+    /// The session — this connection's defaults and memo. A second
+    /// `Mutex` because rmcp dispatches requests concurrently (§6.3)
+    /// and the memo's first use mutates it; the lock order is always
+    /// core-then-session, so no path can deadlock.
+    session: Mutex<SessionState>,
 }
 
 impl TodoServer {
@@ -273,8 +327,24 @@ impl TodoServer {
     /// when no flag is configured, the cwd's deterministic match
     /// against the registered checkouts (§7) supplies the default
     /// instead. `cwd` is `None` when the binary's read failed; the
-    /// lib never reads the environment itself.
+    /// lib never reads the environment itself. The core is private
+    /// to this server; the daemon shares one across connections via
+    /// Self::with_core.
     pub fn new(root: DataRoot, default_repo: Option<RepoSlug>, cwd: Option<PathBuf>) -> Self {
+        Self::with_core(Self::shared_core(root), default_repo, cwd)
+    }
+
+    /// The daemon's constructor (D25, U65): shares one core — the
+    /// root and the handles cache behind one lock — across every
+    /// connection, while this connection's session carries the
+    /// preamble's own defaults. Per-connection cores cannot work:
+    /// `DataRoot::open` opens the store *locked*, so a second
+    /// connection resolving the same repo would fail with `locked`.
+    pub(crate) fn with_core(
+        core: Arc<Mutex<CoreState>>,
+        default_repo: Option<RepoSlug>,
+        cwd: Option<PathBuf>,
+    ) -> Self {
         // The router composes across impl blocks (`ToolRouter::merge`):
         // the cluster files' routers — `registry.rs`'s `tool_router`,
         // `query.rs`'s `query_router`, `listing.rs`'s
@@ -300,29 +370,42 @@ impl TodoServer {
         }
         Self {
             tool_router,
-            state: Arc::new(Mutex::new(ServerState {
-                root,
+            core,
+            session: Mutex::new(SessionState {
                 default_repo,
                 cwd,
                 cwd_default: cwd::CwdDefault::Pending,
-                handles: BTreeMap::new(),
-            })),
+            }),
         }
     }
 
-    /// Takes the state lock — §8's serialization point, and the one
-    /// entry every tool body shares. The guard must never live across
-    /// an await (the module doc's rule); every current caller is a
-    /// sync body.
-    fn lock_state(&self) -> MutexGuard<'_, ServerState> {
+    /// An empty shared core over `root` (D25): no handles open — only
+    /// a write arms one (D19) — the one `Arc` a daemon hands every
+    /// connection.
+    pub(crate) fn shared_core(root: DataRoot) -> Arc<Mutex<CoreState>> {
+        Arc::new(Mutex::new(CoreState {
+            root,
+            handles: BTreeMap::new(),
+        }))
+    }
+
+    /// Takes both state locks — §8's serialization point (the core)
+    /// beside this connection's session — and hands the tool body the
+    /// one [`ServerState`] view. The guards must never live across an
+    /// await (the module doc's rule); every current caller is a sync
+    /// body.
+    fn lock_state(&self) -> ServerState<'_> {
         // The panic-family lints are denied workspace-wide, so the
         // guarded region cannot panic and poison is unreachable;
         // into_inner recovers rather than killing the server.
-        self.state.lock().unwrap_or_else(PoisonError::into_inner)
+        ServerState {
+            core: self.core.lock().unwrap_or_else(PoisonError::into_inner),
+            session: self.session.lock().unwrap_or_else(PoisonError::into_inner),
+        }
     }
 }
 
-impl ServerState {
+impl ServerState<'_> {
     /// The writer's repo dimension: resolve `slug` to an open, locked
     /// store handle — the arming resolve, every write tool's path
     /// (nodes, edges, the importer, `repo_set_path`). A handles hit
@@ -337,19 +420,24 @@ impl ServerState {
     /// [`Self::resolve_read`] instead — the same miss discipline
     /// minus the lock and the arming (D19).
     ///
-    /// Called under the state lock; the registry load happens only on
-    /// a miss.
+    /// Called under the core lock; the registry load happens only on
+    /// a miss. The returned borrow lives as long as the view — the
+    /// guard is the store work's serialization.
     fn resolve(&mut self, slug: &RepoSlug) -> Result<&mut Box<dyn Store + Send>, ToolError> {
-        match self.handles.entry(slug.clone()) {
+        // One deref of the guard, so the entry's mutable borrow of
+        // `handles` and the registry's shared borrow of `root` split
+        // as the disjoint fields they are.
+        let core = &mut *self.core;
+        match core.handles.entry(slug.clone()) {
             Entry::Occupied(entry) => Ok(entry.into_mut()),
             Entry::Vacant(entry) => {
-                let registry = Registry::load(&self.root)?;
+                let registry = Registry::load(&core.root)?;
                 if !registry.contains(slug) {
                     return Err(ToolError::from(DomainError::UnknownId {
                         id: slug.to_string(),
                     }));
                 }
-                let store = self.root.open(slug)?;
+                let store = core.root.open(slug)?;
                 // The mirror of the store's own cross-check
                 // (`DataRoot::repo_node`, layout.rs): a store directory
                 // copied or moved under another slug is `corrupt_store`
@@ -384,18 +472,19 @@ impl ServerState {
     /// unarmed server stays unarmed — only writes open handles.
     ///
     /// Takes `&self` because it mutates nothing; called under the
-    /// state lock like every tool body.
+    /// core lock like every tool body.
     fn resolve_read(&self, slug: &RepoSlug) -> Result<GraphSource<'_>, ToolError> {
-        if let Some(handle) = self.handles.get(slug) {
+        let core = &*self.core;
+        if let Some(handle) = core.handles.get(slug) {
             return Ok(GraphSource::Held(handle.graph()));
         }
-        let registry = Registry::load(&self.root)?;
+        let registry = Registry::load(&core.root)?;
         if !registry.contains(slug) {
             return Err(ToolError::from(DomainError::UnknownId {
                 id: slug.to_string(),
             }));
         }
-        let graph = self.root.read_repo(slug)?;
+        let graph = core.root.read_repo(slug)?;
         // The mirror of resolve's cross-check: `read_repo` is
         // path-derived and would otherwise serve a store directory
         // copied under this slug as the named repo's graph.
@@ -453,23 +542,26 @@ impl GraphSource<'_> {
 /// nothing, but the memo write is a mutation. Every call site already
 /// held `&mut` — the writes call [`ServerState::resolve`] after, the
 /// reads [`ServerState::resolve_read`].
-pub(crate) fn repo_of(state: &mut ServerState, repo: Option<&str>) -> Result<RepoSlug, ToolError> {
+pub(crate) fn repo_of(
+    state: &mut ServerState<'_>,
+    repo: Option<&str>,
+) -> Result<RepoSlug, ToolError> {
     match repo {
         Some(value) => RepoSlug::from_str(value).map_err(ToolError::from),
         None => {
-            // Tier 2: the --repo flag's configured default, fixed at
-            // startup.
-            if let Some(slug) = state.default_repo.clone() {
+            // Tier 2: the --repo flag's configured default (or the
+            // preamble's), fixed at the session's construction.
+            if let Some(slug) = state.session.default_repo.clone() {
                 return Ok(slug);
             }
             // Tier 3: the derived cwd default, fixed at first use —
             // the memo caches the outcome, and an errored derivation
             // leaves it Pending so the next call retries (D3).
-            let outcome = match state.cwd_default.clone() {
+            let outcome = match state.session.cwd_default.clone() {
                 cwd::CwdDefault::Resolved(outcome) => outcome,
                 cwd::CwdDefault::Pending => {
                     let outcome = cwd::derive(state)?;
-                    state.cwd_default = cwd::CwdDefault::Resolved(outcome.clone());
+                    state.session.cwd_default = cwd::CwdDefault::Resolved(outcome.clone());
                     outcome
                 }
             };

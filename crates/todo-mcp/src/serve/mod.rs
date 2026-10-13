@@ -72,6 +72,7 @@ mod poll;
 mod watchdog;
 mod ws;
 
+pub(crate) use self::watchdog::Watchdog;
 pub use self::watchdog::spawn_live_view;
 
 use self::http::{Request, Route};

@@ -11,10 +11,10 @@
 //! macros. What lexopt does not own is owned here: the usage text,
 //! the per-subcommand switch table (`--json`/`--out`/`--no-write`
 //! belong to `progress`, `--port-file` to `serve`,
-//! `--dry-run`/`--yes` to `repair` — each rejected everywhere else,
-//! never silently ignored), and the slug validation that makes a
-//! malformed `--repo` a **usage** fault (exit 2) rather than a store
-//! fault.
+//! `--dry-run`/`--yes` to `repair`, `--daemon` to the no-subcommand
+//! path — each rejected everywhere else, never silently ignored),
+//! and the slug validation that makes a malformed `--repo` a
+//! **usage** fault (exit 2) rather than a store fault.
 //!
 //! Parsing is total: every failure — lexopt's own, a missing required
 //! option, an unknown subcommand, a malformed slug — is a message the
@@ -39,7 +39,10 @@ todo-mcp — the dacode-todo MCP server and tool CLI (spec §13).
 
 Usage:
   todo-mcp --root <DIR> [--repo <SLUG>]                    the MCP server on stdio, ensuring
-                                                            the root's live view (D13)
+                                                           the root's live view (D13)
+  todo-mcp --root <DIR> --daemon                           the shared daemon (D25): one process
+                                                           per root, every session over
+                                                           <root>/serve.sock
   todo-mcp --root <DIR> [--repo <SLUG>] progress [flags]   the total-progress render
   todo-mcp --root <DIR> [--repo <SLUG>] refresh            re-import the repo's board
   todo-mcp --root <DIR> serve [--port-file <PATH>] [--open]
@@ -61,7 +64,18 @@ Options:
                       renders — an explicit value always wins over the
                       working-directory match (§7). Cannot combine
                       with serve: the listener serves every repo in
-                      the root, the repo is a URL parameter
+                      the root, the repo is a URL parameter. Cannot
+                      combine with --daemon either: the daemon serves
+                      every connection's own default via the socket
+                      preamble
+      --daemon        The shared daemon (D25): one process per root
+                      serving every connection's own session over
+                      <root>/serve.sock — the no-argument shim spawns
+                      it. SIGTERM is the graceful drain (stop
+                      accepting, wait for in-flight work within the
+                      drain bound, exit 0); SIGINT keeps the default
+                      disposition. Cannot combine with a subcommand
+                      or --repo
       --json          With `progress`: print the JSON document to stdout
                       instead of the summary; writes nothing
       --out <DIR>     With `progress`: write progress.html and
@@ -97,10 +111,13 @@ With `dump`/`verify`/`repair`: the repo resolves through the same
 Exit codes:
   0  the client closed the connection after a completed handshake,
       the listener shut down cleanly on the interrupt (or another
-      invocation attached to it), or the subcommand succeeded
+      invocation attached to it), the daemon drained on SIGTERM
+      within its bound (or found one already serving — one line, no
+      second listener), or the subcommand succeeded
   1  the serve loop failed, the listener did not start (a root with no
-      registry), the render failed (a repo that does not resolve,
-      or a store that will not read), the page did not write,
+      registry), the daemon's socket could not be ensured (the ensure's
+      lock or bind refused), the render failed (a repo that does not
+      resolve, or a store that will not read), the page did not write,
       or the refresh refused (the board is gone or broken, a live
       session holds the store, or the import failed); verify found a
       fault it will not act on; repair refused (unrepairable,
@@ -124,6 +141,15 @@ pub enum Command {
         root: OsString,
         /// The default repo slug (the committed D8).
         default_repo: Option<RepoSlug>,
+    },
+    /// `--daemon`: the shared daemon (D25, U65) — one process per
+    /// root serving every connection's own MCP session over
+    /// `<root>/serve.sock`, each connection's preamble carrying its
+    /// defaults. The no-argument shim (U66) spawns it; the CLI
+    /// subcommands are daemon-less.
+    Daemon {
+        /// The data root (§7/§13/D4).
+        root: OsString,
     },
     /// `refresh`: the on-demand re-import of the repo's board (t70's
     /// slice of D20's tool CLI) — the registry surgery, the
@@ -225,6 +251,7 @@ where
     let mut parser = lexopt::Parser::from_args(args);
     let mut root: Option<OsString> = None;
     let mut repo: Option<RepoSlug> = None;
+    let mut daemon = false;
     let mut refresh = false;
     let mut json = false;
     let mut open = false;
@@ -284,6 +311,10 @@ where
                 let slug = RepoSlug::from_str(text)
                     .map_err(|error| format!("todo-mcp: --repo: {error}"))?;
                 repo = Some(slug);
+            }
+            lexopt::Arg::Long("daemon") => {
+                reject_attached_value(&mut parser, "daemon")?;
+                daemon = true;
             }
             lexopt::Arg::Long("json") if progress => {
                 json = true;
@@ -390,6 +421,37 @@ where
                 .to_owned(),
         );
     }
+    if daemon {
+        // The daemon is the no-subcommand path's own shape: a
+        // subcommand beside it would be silently unserved, and a
+        // `--repo` flag would be silently ignored — the daemon serves
+        // every connection's own default via the socket preamble.
+        // Usage faults, never no-ops dressed as configuration (the
+        // serve precedent's rule).
+        if let Some(subcommand) = [
+            (progress, "progress"),
+            (refresh, "refresh"),
+            (serve, "serve"),
+            (dump, "dump"),
+            (verify, "verify"),
+            (repair, "repair"),
+        ]
+        .into_iter()
+        .find_map(|(seen, name)| seen.then_some(name))
+        {
+            return Err(format!(
+                "todo-mcp: '--daemon' cannot combine with '{subcommand}' (the daemon is the \
+                 no-subcommand path's own; the CLI subcommands are daemon-less)"
+            ));
+        }
+        if repo.is_some() {
+            return Err(
+                "todo-mcp: '--repo' cannot combine with '--daemon' (the daemon serves every \
+                 connection's own default via the socket preamble)"
+                    .to_owned(),
+            );
+        }
+    }
     if progress {
         // The write-shaping flags cannot combine with each other or
         // with `--json` — a flag that would be silently ignored is a
@@ -451,6 +513,8 @@ where
             dry_run,
             yes,
         }
+    } else if daemon {
+        Command::Daemon { root }
     } else {
         Command::McpServer {
             root,
@@ -774,6 +838,80 @@ mod tests {
                     .to_owned()
             )
         );
+    }
+
+    #[test]
+    fn the_daemon_flag_parses() {
+        // The no-subcommand path's own flag, ordering freely around
+        // the root like every global.
+        assert_eq!(
+            parse_args(["--root", "/tmp/data", "--daemon"]),
+            Ok(Command::Daemon {
+                root: OsString::from("/tmp/data")
+            })
+        );
+        assert_eq!(
+            parse_args(["--daemon", "--root", "/tmp/data"]),
+            Ok(Command::Daemon {
+                root: OsString::from("/tmp/data")
+            })
+        );
+    }
+
+    #[test]
+    fn the_repo_flag_cannot_combine_with_daemon() {
+        // The daemon serves every connection's own default via the
+        // socket preamble; a `--repo` would be silently ignored — a
+        // usage fault instead (the serve precedent's rule).
+        assert_eq!(
+            parse_args(["--root", "/tmp/data", "--daemon", "--repo", "fixture"]),
+            Err(
+                "todo-mcp: '--repo' cannot combine with '--daemon' (the daemon serves every \
+                 connection's own default via the socket preamble)"
+                    .to_owned()
+            )
+        );
+    }
+
+    #[test]
+    fn the_daemon_flag_cannot_combine_with_a_subcommand() {
+        // The daemon is the no-subcommand path's own shape; the CLI
+        // subcommands are daemon-less. Pinned for every subcommand
+        // and both orders, so a dropped row cannot survive.
+        for subcommand in ["progress", "refresh", "serve", "dump", "verify", "repair"] {
+            let expected = Err(format!(
+                "todo-mcp: '--daemon' cannot combine with '{subcommand}' (the daemon is the \
+                 no-subcommand path's own; the CLI subcommands are daemon-less)"
+            ));
+            assert_eq!(
+                parse_args(["--root", "/tmp/data", "--daemon", subcommand]),
+                expected
+            );
+            assert_eq!(
+                parse_args(["--root", "/tmp/data", subcommand, "--daemon"]),
+                expected
+            );
+        }
+    }
+
+    #[test]
+    fn the_daemon_flag_takes_no_value() {
+        // Pedantic: a flag that takes none refuses an attached value.
+        let error = parse_args(["--root", "/tmp/data", "--daemon=x"]).unwrap_err();
+        assert!(error.contains("takes no value"), "{error}");
+    }
+
+    #[test]
+    fn the_usage_text_names_the_daemon() {
+        // The operator-facing contract: the usage every fault prints
+        // carries the daemon line, its option entry (the drain and
+        // SIGINT's disposition), and its exit-code clauses.
+        assert!(USAGE.contains("todo-mcp --root <DIR> --daemon"));
+        assert!(USAGE.contains("the shared daemon (D25)"));
+        assert!(USAGE.contains("<root>/serve.sock"));
+        assert!(USAGE.contains("SIGINT keeps the default"));
+        assert!(USAGE.contains("the daemon drained on SIGTERM"));
+        assert!(USAGE.contains("the daemon's socket could not be ensured"));
     }
 
     #[test]

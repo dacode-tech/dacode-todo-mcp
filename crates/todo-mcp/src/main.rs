@@ -9,7 +9,13 @@
 //! The same binary carries the tool CLI (§13, D20): the first
 //! positional selects a subcommand, and no positional at all is the
 //! MCP server on stdio — the wiring every client has is unchanged.
-//! `progress` renders the total-progress document and the HTML page
+//! `--daemon` (D25, U65) is the no-subcommand path's extra-argument
+//! shape: the shared daemon, one process per root serving every
+//! connection's own session over `<root>/serve.sock` — the
+//! no-argument shim (U66) spawns it, and the lib's
+//! [`daemon`](todo_mcp::daemon) module owns its logic while this
+//! arm owns the exit codes. `progress` renders the total-progress
+//! document and the HTML page
 //! (t68's and t69's slices), writing the page and its JSON twin
 //! beside the repo's checkout unless `--json`/`--no-write`/`--out`
 //! say otherwise; `refresh` (t70's slice) re-imports a repo's board —
@@ -95,6 +101,11 @@ async fn main() -> ExitCode {
             todo_mcp::serve::spawn_live_view(&root, cwd.as_deref());
             serve_stdio(root, default_repo, cwd).await
         }
+        Ok(Command::Daemon { root }) => {
+            let cwd = std::env::current_dir().ok();
+            let root = DataRoot::new(root);
+            run_daemon(root, cwd).await
+        }
         Ok(Command::Refresh { root, repo }) => run_refresh(root, repo),
         Ok(Command::Progress {
             root,
@@ -159,6 +170,38 @@ async fn serve_stdio(
         Err(error) => {
             eprintln!("todo-mcp: {error}");
             ExitCode::FAILURE
+        }
+    }
+}
+
+/// The `--daemon` invocation (D25, U65): the shared server. The lib's
+/// [`daemon::run`](todo_mcp::daemon::run) owns the logic — the socket
+/// ensure, the live view, the accept loop, the per-connection
+/// sessions, the SIGTERM drain — and this arm owns the exit codes: a
+/// live daemon already serving is exit 0 with one line (never a
+/// second listener — the serialized ensure makes a racing double-spawn
+/// resolve the same way), a drained run is exit 0 whether or not
+/// every session ended (the drain bound is the documented contract; a
+/// cut connection gets its line), and a socket that could not be
+/// ensured — the lock or the bind refused — is exit 1 with the
+/// message.
+async fn run_daemon(root: DataRoot, cwd: Option<PathBuf>) -> ExitCode {
+    match todo_mcp::daemon::run(&root, cwd.as_deref(), todo_mcp::daemon::DRAIN_TIMEOUT).await {
+        Ok(todo_mcp::daemon::DaemonOutcome::AlreadyServing) => {
+            eprintln!("todo-mcp: a daemon already serves this root — no second one started");
+            ExitCode::SUCCESS
+        }
+        Ok(todo_mcp::daemon::DaemonOutcome::Drained { severed }) => {
+            if severed {
+                eprintln!(
+                    "todo-mcp: the drain bound was reached with connections live — they were cut"
+                );
+            }
+            ExitCode::SUCCESS
+        }
+        Err(message) => {
+            eprintln!("todo-mcp: {message}");
+            ExitCode::from(EXIT_RENDER)
         }
     }
 }

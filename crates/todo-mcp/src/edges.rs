@@ -186,7 +186,7 @@ fn relates_tasks(from: &BlockEnd, to: &BlockEnd) -> Result<(TaskId, TaskId), Too
 
 /// `task_link`'s answer: parse, resolve, convert, stamp, link.
 fn answer_task_link(
-    state: &mut ServerState,
+    state: &mut ServerState<'_>,
     params: &TaskLinkParams,
 ) -> Result<EdgeDto, ToolError> {
     let slug = repo_of(state, params.repo.as_deref())?;
@@ -212,7 +212,7 @@ fn answer_task_link(
 
 /// `task_unlink`'s answer: parse, resolve, convert, stamp, unlink.
 fn answer_task_unlink(
-    state: &mut ServerState,
+    state: &mut ServerState<'_>,
     params: &TaskUnlinkParams,
 ) -> Result<EdgeDto, ToolError> {
     let slug = repo_of(state, params.repo.as_deref())?;

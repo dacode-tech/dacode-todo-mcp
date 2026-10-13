@@ -332,7 +332,7 @@ where
 
 /// `next_task`'s answer: parse, resolve, query, convert.
 fn answer_next_task(
-    state: &mut ServerState,
+    state: &mut ServerState<'_>,
     params: &NextTaskParams,
 ) -> Result<NextTaskDto, ToolError> {
     let slug = repo_of(state, params.repo.as_deref())?;
@@ -352,7 +352,7 @@ fn answer_next_task(
 /// `next_items`'s answer: parse, reject the contradictory scopes,
 /// resolve, query, convert.
 fn answer_next_items(
-    state: &mut ServerState,
+    state: &mut ServerState<'_>,
     params: &NextItemsParams,
 ) -> Result<NextItemsDto, ToolError> {
     let slug = repo_of(state, params.repo.as_deref())?;
@@ -385,7 +385,7 @@ fn answer_next_items(
 
 /// `status_summary`'s answer: parse, resolve, query, convert.
 fn answer_status_summary(
-    state: &mut ServerState,
+    state: &mut ServerState<'_>,
     params: &StatusSummaryParams,
 ) -> Result<StatusSummaryDto, ToolError> {
     let slug = repo_of(state, params.repo.as_deref())?;
@@ -404,7 +404,7 @@ fn answer_status_summary(
 
 /// `task_show`'s answer: parse, resolve, look up, convert.
 fn answer_task_show(
-    state: &mut ServerState,
+    state: &mut ServerState<'_>,
     params: &TaskShowParams,
 ) -> Result<TaskDto, ToolError> {
     let slug = repo_of(state, params.repo.as_deref())?;
@@ -420,7 +420,7 @@ fn answer_task_show(
 
 /// `decision_show`'s answer: parse, resolve, look up, convert.
 fn answer_decision_show(
-    state: &mut ServerState,
+    state: &mut ServerState<'_>,
     params: &DecisionShowParams,
 ) -> Result<DecisionDto, ToolError> {
     let slug = repo_of(state, params.repo.as_deref())?;

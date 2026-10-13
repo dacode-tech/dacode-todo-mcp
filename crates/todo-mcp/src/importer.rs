@@ -221,7 +221,7 @@ impl From<OwnError> for ToolError {
 /// (`time::now()`) becomes `imported_at`, stamped on every op the
 /// board carries no date for (the one-read-per-mutation precedent).
 fn answer_import_md(
-    state: &mut ServerState,
+    state: &mut ServerState<'_>,
     params: &ImportMdParams,
 ) -> Result<ImportedDto, ToolError> {
     let slug = repo_of(state, params.repo.as_deref())?;

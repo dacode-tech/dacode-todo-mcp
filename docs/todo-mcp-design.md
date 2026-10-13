@@ -752,6 +752,31 @@ with the initialization skipped and pre-read messages dispatched first
 composes over the granted features; D25's medium confidence was about
 exactly this surface, and the survey resolves it.
 
+**U65's settlement (2026-10-13).** The preamble envelope is
+`{"repo": <slug string, optional>, "cwd": <path string, optional>}`
+— one JSON line, `deny_unknown_fields`, the repo parsed to a
+`RepoSlug` at the preamble (a malformed line, unknown field or slug
+drops the connection pre-protocol, one stderr line, no MCP answer),
+the cwd the *shim's* — the client's working directory — never the
+daemon's own; same-binary paired with the shim (U66), so no
+versioning. The state split the constraint above demanded: the root
+and the handles cache behind one `Arc<Mutex<…>>` shared across every
+connection, the default repo, the cwd and the memo per connection —
+the stdio path byte-identical, pinned by the existing goldens. The
+socket is `<root>/serve.sock` (D13's keying); the startup ensure —
+probe with a connect (live means one stderr line and exit 0), remove
+a stale file, bind — is serialized under an exclusive advisory lock
+on `<root>/serve.lock`, a persistent lockfile never removed (the
+ensure's second disk artifact beside the socket file): unserialized,
+a racing double-spawn's loser could remove the winner's socket after
+its bind and bind its own — two live daemons, the winner's socket
+inode orphaned — so the lock is what holds D25's one process per
+root; the waiter probes the winner and exits 0, and a bind that
+still refuses is the honest error. SIGTERM is the graceful drain —
+stop accepting, wait for the connection tasks within a named bound,
+exit 0 — and the socket file and the port publication are left in
+place on exit for the next owner's ensure.
+
 ## 7. Multi-Repo Registry and Path Handling
 
 The server is global: one store, many repositories, reached from
@@ -1021,7 +1046,11 @@ Updates kill the daemon gracefully (stop accepting, drain in-flight
 within the timeout, exit) and the freshly installed binary starts
 under the shims' retry window. The store stays local files (§4); the
 CLI subcommands are daemon-less. The implementation lands as the
-shared-server arc.
+shared-server arc. The extra argument is settled (U65, 2026-10-13):
+`--daemon`, a flag on the no-subcommand path —
+`todo-mcp --root <DIR> --daemon` — refused beside any subcommand or
+`--repo` (the daemon serves every connection's own default via the
+socket preamble; a `--repo` would be silently ignored).
 
 ## 14. Roadmap
 

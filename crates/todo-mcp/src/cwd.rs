@@ -23,9 +23,9 @@
 //! refused, never guessed. The refusal is an answer with content (the
 //! tied slugs), not a nested absence (J2).
 //!
-//! [`CwdDefault`] is the per-process memo (D3): the derivation runs
+//! [`CwdDefault`] is the per-session memo (D3): the derivation runs
 //! once, at the first default-needing call, and the outcome is fixed
-//! for the process — a later `repo_set_path` or `repo_register` does
+//! for the session — a later `repo_set_path` or `repo_register` does
 //! not move it. The memo caches the full outcome, not only the slug:
 //! the Ambiguous refusal's message names the tied slugs (D4), so the
 //! refusal's content must survive the cache like the match does. An
@@ -59,10 +59,10 @@ pub(crate) enum MatchOutcome {
     Ambiguous(Vec<RepoSlug>),
 }
 
-/// The per-process cwd-default memo (D3): `Pending` until the first
+/// The per-session cwd-default memo (D3): `Pending` until the first
 /// default-needing call derives the answer, then the derived
 /// [`MatchOutcome`] — match, no-match or ambiguity — so the default's
-/// identity, and the refusal's content, are fixed within the process.
+/// identity, and the refusal's content, are fixed within the session.
 /// An explicit two-state enum, never a double `Option`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum CwdDefault {
@@ -134,8 +134,8 @@ pub(crate) fn match_slug(cwd: &Path, candidates: &[(RepoSlug, PathBuf)]) -> Matc
 /// The cwd default's derivation (D5): the candidate walk plus the
 /// match. An absent cwd (the binary's read failed — a deleted cwd)
 /// answers no match: there is nothing to match against.
-pub(crate) fn derive(state: &mut ServerState) -> Result<MatchOutcome, ToolError> {
-    let Some(cwd) = state.cwd.clone() else {
+pub(crate) fn derive(state: &mut ServerState<'_>) -> Result<MatchOutcome, ToolError> {
+    let Some(cwd) = state.session.cwd.clone() else {
         return Ok(MatchOutcome::NoMatch);
     };
     let candidates = candidates(state)?;
@@ -150,8 +150,8 @@ pub(crate) fn derive(state: &mut ServerState) -> Result<MatchOutcome, ToolError>
 /// read fails the walk with the store's own error through the
 /// carrier: silently skipping it would make the derivation report
 /// less than the truth while still looking complete.
-fn candidates(state: &mut ServerState) -> Result<Vec<(RepoSlug, PathBuf)>, ToolError> {
-    let registry = Registry::load(&state.root)?;
+fn candidates(state: &mut ServerState<'_>) -> Result<Vec<(RepoSlug, PathBuf)>, ToolError> {
+    let registry = Registry::load(&state.core.root)?;
     let mut walked = Vec::with_capacity(registry.slugs().len());
     for slug in registry.slugs() {
         let graph = state.resolve_read(slug)?;

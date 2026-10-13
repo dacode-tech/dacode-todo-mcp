@@ -405,7 +405,10 @@ pub(crate) struct DocSetPathParams {
 // =================================================================
 
 /// `epic_add`'s answer: parse, resolve, convert, stamp, add.
-fn answer_epic_add(state: &mut ServerState, params: &EpicAddParams) -> Result<EpicDto, ToolError> {
+fn answer_epic_add(
+    state: &mut ServerState<'_>,
+    params: &EpicAddParams,
+) -> Result<EpicDto, ToolError> {
     let slug = repo_of(state, params.repo.as_deref())?;
     let references = references_of(params.references.as_deref().unwrap_or(&[]))?;
     let draft = EpicDraft {
@@ -421,7 +424,7 @@ fn answer_epic_add(state: &mut ServerState, params: &EpicAddParams) -> Result<Ep
 
 /// `epic_update`'s answer: parse, resolve, convert, stamp, patch.
 fn answer_epic_update(
-    state: &mut ServerState,
+    state: &mut ServerState<'_>,
     params: &EpicUpdateParams,
 ) -> Result<EpicDto, ToolError> {
     let slug = repo_of(state, params.repo.as_deref())?;
@@ -443,7 +446,10 @@ fn answer_epic_update(
 }
 
 /// `task_add`'s answer: parse, resolve, convert, stamp, add.
-fn answer_task_add(state: &mut ServerState, params: &TaskAddParams) -> Result<TaskDto, ToolError> {
+fn answer_task_add(
+    state: &mut ServerState<'_>,
+    params: &TaskAddParams,
+) -> Result<TaskDto, ToolError> {
     let slug = repo_of(state, params.repo.as_deref())?;
     let epic = parse_value::<EpicId>(&params.epic)?;
     let references = references_of(params.references.as_deref().unwrap_or(&[]))?;
@@ -473,7 +479,7 @@ fn answer_task_add(state: &mut ServerState, params: &TaskAddParams) -> Result<Ta
 
 /// `task_update`'s answer: parse, resolve, convert, stamp, patch.
 fn answer_task_update(
-    state: &mut ServerState,
+    state: &mut ServerState<'_>,
     params: &TaskUpdateParams,
 ) -> Result<TaskDto, ToolError> {
     let slug = repo_of(state, params.repo.as_deref())?;
@@ -509,7 +515,7 @@ fn answer_task_update(
 
 /// `decision_add`'s answer: parse, resolve, convert, stamp, add.
 fn answer_decision_add(
-    state: &mut ServerState,
+    state: &mut ServerState<'_>,
     params: &DecisionAddParams,
 ) -> Result<DecisionDto, ToolError> {
     let slug = repo_of(state, params.repo.as_deref())?;
@@ -530,7 +536,7 @@ fn answer_decision_add(
 
 /// `decision_update`'s answer: parse, resolve, convert, stamp, patch.
 fn answer_decision_update(
-    state: &mut ServerState,
+    state: &mut ServerState<'_>,
     params: &DecisionUpdateParams,
 ) -> Result<DecisionDto, ToolError> {
     let slug = repo_of(state, params.repo.as_deref())?;
@@ -556,7 +562,7 @@ fn answer_decision_update(
 
 /// `doc_register`'s answer: parse, resolve, convert, stamp, add.
 fn answer_doc_register(
-    state: &mut ServerState,
+    state: &mut ServerState<'_>,
     params: &DocRegisterParams,
 ) -> Result<DocDto, ToolError> {
     let slug = repo_of(state, params.repo.as_deref())?;
@@ -574,7 +580,7 @@ fn answer_doc_register(
 
 /// `doc_set_path`'s answer: parse, resolve, stamp, move.
 fn answer_doc_set_path(
-    state: &mut ServerState,
+    state: &mut ServerState<'_>,
     params: &DocSetPathParams,
 ) -> Result<DocDto, ToolError> {
     let slug = repo_of(state, params.repo.as_deref())?;
@@ -586,7 +592,7 @@ fn answer_doc_set_path(
 
 /// `doc_update`'s answer: parse, resolve, convert, stamp, patch.
 fn answer_doc_update(
-    state: &mut ServerState,
+    state: &mut ServerState<'_>,
     params: &DocUpdateParams,
 ) -> Result<DocDto, ToolError> {
     let slug = repo_of(state, params.repo.as_deref())?;

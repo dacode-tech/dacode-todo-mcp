@@ -120,6 +120,26 @@ impl Watchdog {
             Err(message) => TickOutcome::Failed { message },
         }
     }
+
+    /// The first tick's reporting (D3, stderr only — stdout is the
+    /// JSON-RPC channel): the URL line on start or attach, nothing on
+    /// the owner no-op, one line and `false` on failure. The thread
+    /// body's first half and the daemon's one-shot ensure (U65) are
+    /// this one method — the loop is the only part the daemon does
+    /// not take.
+    pub(crate) fn ensure(&mut self) -> bool {
+        match self.tick() {
+            TickOutcome::Started { url } | TickOutcome::Attached { url } => {
+                eprintln!("todo-mcp: live view at {url}");
+                true
+            }
+            TickOutcome::Owned => true,
+            TickOutcome::Failed { message } => {
+                eprintln!("todo-mcp: the live view is unavailable: {message}");
+                false
+            }
+        }
+    }
 }
 
 /// Spawns the live-view thread (D13, D2): one std thread, detached —
@@ -136,22 +156,15 @@ pub fn spawn_live_view(root: &DataRoot, cwd: Option<&Path>) {
     }
 }
 
-/// The thread body: the first tick prints the URL line (D3, stderr
-/// only — stdout is the JSON-RPC channel), then the loop re-probes at
-/// the interval. A failure prints one line and ends the watch (D4) —
-/// the wire is unaffected either way. Later ticks are silent: the URL
-/// line is the first tick's discovery, and a takeover's new port is
-/// discovered through the publication, which is its job.
+/// The thread body: the first tick's reporting (the [`Watchdog::ensure`]
+/// half), then the loop re-probes at the interval. A failure ends the
+/// watch (D4) — the wire is unaffected either way. Later ticks are
+/// silent: the URL line is the first tick's discovery, and a
+/// takeover's new port is discovered through the publication, which
+/// is its job.
 fn run(mut watchdog: Watchdog) {
-    match watchdog.tick() {
-        TickOutcome::Started { url } | TickOutcome::Attached { url } => {
-            eprintln!("todo-mcp: live view at {url}");
-        }
-        TickOutcome::Owned => {}
-        TickOutcome::Failed { message } => {
-            eprintln!("todo-mcp: the live view is unavailable: {message}");
-            return;
-        }
+    if !watchdog.ensure() {
+        return;
     }
     loop {
         thread::sleep(POLL_INTERVAL);

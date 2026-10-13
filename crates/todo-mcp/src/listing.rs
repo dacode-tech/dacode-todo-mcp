@@ -333,7 +333,7 @@ where
 
 /// `task_list`'s answer: parse, resolve, query, convert.
 fn answer_task_list(
-    state: &mut ServerState,
+    state: &mut ServerState<'_>,
     params: &TaskListParams,
 ) -> Result<TaskListDto, ToolError> {
     let slug = repo_of(state, params.repo.as_deref())?;
@@ -357,7 +357,7 @@ fn answer_task_list(
 
 /// `epic_list`'s answer: parse, resolve, list, convert.
 fn answer_epic_list(
-    state: &mut ServerState,
+    state: &mut ServerState<'_>,
     params: &EpicListParams,
 ) -> Result<EpicListDto, ToolError> {
     let slug = repo_of(state, params.repo.as_deref())?;
@@ -380,7 +380,7 @@ fn answer_epic_list(
 
 /// `decision_list`'s answer: parse, resolve, list, convert.
 fn answer_decision_list(
-    state: &mut ServerState,
+    state: &mut ServerState<'_>,
     params: &DecisionListParams,
 ) -> Result<DecisionListDto, ToolError> {
     let slug = repo_of(state, params.repo.as_deref())?;
@@ -403,7 +403,7 @@ fn answer_decision_list(
 
 /// `doc_list`'s answer: parse, resolve, list, convert.
 fn answer_doc_list(
-    state: &mut ServerState,
+    state: &mut ServerState<'_>,
     params: &DocListParams,
 ) -> Result<DocListDto, ToolError> {
     let slug = repo_of(state, params.repo.as_deref())?;
@@ -430,7 +430,7 @@ fn answer_doc_list(
 /// authoritative; alone, the repo is derived from the epic id), the
 /// repo scope, and the all-repos scope.
 fn answer_graph_show(
-    state: &mut ServerState,
+    state: &mut ServerState<'_>,
     params: &GraphShowParams,
 ) -> Result<GraphShowDto, ToolError> {
     let repo = params
@@ -460,7 +460,7 @@ fn answer_graph_show(
         // The all-repos scope: every registered repo, sorted by slug —
         // the registry's set (§6.2), read one by one lock-free on a
         // handles miss (D19), never a cold open and never an arming.
-        let registry = Registry::load(&state.root)?;
+        let registry = Registry::load(&state.core.root)?;
         let mut repos = Vec::new();
         for slug in registry.slugs() {
             let graph = state.resolve_read(slug)?;

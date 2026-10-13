@@ -116,7 +116,7 @@ pub(crate) struct RepoListDto {
 /// event line alone — and `registered_at` is fixed, so the response
 /// is clock-free.
 fn answer_repo_set_path(
-    state: &mut ServerState,
+    state: &mut ServerState<'_>,
     params: &RepoSetPathParams,
 ) -> Result<RepoDto, ToolError> {
     let slug = repo_of(state, params.repo.as_deref())?;
@@ -132,8 +132,8 @@ fn answer_repo_set_path(
 /// writer. One store is read at a time, in the registry's sorted
 /// order — t31's one-lock-at-a-time discipline, now trivial: the
 /// read takes no lock at all.
-fn answer_repo_list(state: &mut ServerState) -> Result<RepoListDto, ToolError> {
-    let registry = Registry::load(&state.root)?;
+fn answer_repo_list(state: &mut ServerState<'_>) -> Result<RepoListDto, ToolError> {
+    let registry = Registry::load(&state.core.root)?;
     let mut repos = Vec::new();
     for slug in registry.slugs() {
         let graph = state.resolve_read(slug)?;
@@ -145,7 +145,7 @@ fn answer_repo_list(state: &mut ServerState) -> Result<RepoListDto, ToolError> {
 /// `repo_show`'s answer: parse, resolve, convert — the same read
 /// path `repo_list` rows and every read tool take.
 fn answer_repo_show(
-    state: &mut ServerState,
+    state: &mut ServerState<'_>,
     params: &RepoShowParams,
 ) -> Result<RepoDto, ToolError> {
     let slug = repo_of(state, params.repo.as_deref())?;
@@ -185,14 +185,14 @@ impl TodoServer {
         // this sync body — no `.await` follows it (the lib module
         // doc's rule).
         let mut state = self.lock_state();
-        match state.root.register(repo.clone()) {
+        match state.core.root.register(repo.clone()) {
             Ok(store) => {
                 // Boxed into the trait object at insert: no engine type
                 // is held or named in this crate (§2). The handle keeps
                 // the store's advisory lock — this server is that
                 // repo's single writer from here on (§8) — and the map
                 // is U20(b)'s answer surface.
-                state.handles.insert(slug, Box::new(store));
+                state.core.handles.insert(slug, Box::new(store));
                 // The shared success arm: its serializer-fault bypass of
                 // the carrier is deliberate and documented on the helper
                 // (lib.rs's `structured`).

@@ -36,9 +36,10 @@ lexopt = "0.3"
 rmcp = { version = "3.5", features = ["server", "macros", "transport-io"] }
 serde_json = { version = "1", features = ["preserve_order"] }
 # tokio's `signal` (t71, spec-approved): the serve subcommand's clean
-# SIGINT shutdown — a feature flag on the existing dependency, not a
-# new crate.
-tokio = { version = "1", features = ["macros", "rt-multi-thread", "io-std", "io-util", "signal"] }
+# SIGINT shutdown — and `net` (D25, spec-approved): the daemon's
+# unix-socket listener. Feature flags on the existing dependency, not
+# new crates.
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "io-std", "io-util", "signal", "net"] }
 serde = { version = "1", features = ["derive"] }
 schemars = "1"
 
