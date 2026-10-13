@@ -8,13 +8,13 @@
 //!
 //! The same binary carries the tool CLI (§13, D20): the first
 //! positional selects a subcommand, and no positional at all is the
-//! MCP server on stdio — the wiring every client has is unchanged.
-//! `--daemon` (D25, U65) is the no-subcommand path's extra-argument
-//! shape: the shared daemon, one process per root serving every
-//! connection's own session over `<root>/serve.sock` — the
-//! no-argument shim (U66) spawns it, and the lib's
-//! [`daemon`](todo_mcp::daemon) module owns its logic while this
-//! arm owns the exit codes. `progress` renders the total-progress
+//! stdio shim — the wiring every client has is unchanged. `--daemon`
+//! (D25, U65) is the no-subcommand path's extra-argument shape: the
+//! shared daemon, one process per root serving every connection's
+//! own session over `<root>/serve.sock` — the no-argument shim (U66)
+//! spawns it and proxies MCP to it, and the lib's
+//! [`daemon`](todo_mcp::daemon) module owns its logic while this arm
+//! owns the exit codes. `progress` renders the total-progress
 //! document and the HTML page
 //! (t68's and t69's slices), writing the page and its JSON twin
 //! beside the repo's checkout unless `--json`/`--no-write`/`--out`
@@ -26,15 +26,15 @@
 //! carried is absorbed (t72, D20): `dump`/`verify`/`repair` —
 //! the lib's [`inspect`] module, dispatched below with the repo resolved
 //! through the same flag-over-cwd tier as every subcommand. The
-//! no-subcommand server itself ensures the root's live view (D13,
-//! t85): one detached std thread beside the runtime whose first tick
-//! attaches to or starts the listener and whose loop takes over when
-//! the owner dies — a side effect of startup, never a gate on the
-//! wire. The globals are shared: `--root <DIR>`
+//! daemon owns the root's live view (D25's retirement, U66): it
+//! ensures the listener once at startup, and the no-subcommand path
+//! never touches it — the shim proxies and the watchdog's takeover
+//! loop is gone. The globals are shared: `--root <DIR>`
 //! names the store location on every path — nothing reads the
 //! environment, a home directory or the cwd to find one — and
-//! `--repo <SLUG>`, validated at the parse, is the server's default slug
-//! (D8) or the subcommand's repo selection, resolved flag over
+//! `--repo <SLUG>`, validated at the parse, is the shim's default
+//! slug (D8, riding the socket preamble to its session) or the
+//! subcommand's repo selection, resolved flag over
 //! working-directory match (§7). The cwd is read once, here at
 //! startup, and passed into the lib as a value (D1): the lib stays
 //! env-free, and a read that fails — a deleted cwd — passes `None`
@@ -61,10 +61,9 @@
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
+use std::time::Duration;
 
-use rmcp::ServiceExt;
 use todo_domain::RepoSlug;
-use todo_mcp::TodoServer;
 use todo_mcp::args::{Command, USAGE, parse_args};
 use todo_mcp::inspect;
 use todo_mcp::render;
@@ -79,27 +78,54 @@ const EXIT_USAGE: u8 = 2;
 /// refresh refused — environment faults, not argument faults.
 const EXIT_RENDER: u8 = 1;
 
+/// The exit teardown's bound: how long the runtime's shutdown waits
+/// for in-flight work before cutting it. The bound exists for one
+/// case — the shim's abnormal end, where the client task's
+/// blocking-pool stdin read is still in flight when the outcome is
+/// already decided, and a plain `Runtime::drop` would wait that read
+/// out (the client holds its stdin open), so the exit code — the
+/// thing a supervisor and U67's restart flow wait on — never
+/// arrives. Every other arm, and the shim's normal ends, have
+/// nothing in flight at exit, so the shutdown returns immediately
+/// and the bound is never reached; a tenth of a second is far
+/// beyond noticing already-stopped work.
+const EXIT_SHUTDOWN_BOUND: Duration = Duration::from_millis(100);
+
 /// Entry point. `clippy::exit` is denied workspace-wide — the binary
-/// decides what is fatal by return value, never by aborting the process
-/// behind the runtime's back.
-#[tokio::main]
-async fn main() -> ExitCode {
+/// decides what is fatal by return value, never by aborting the
+/// process behind the runtime's back. The runtime is explicit, not
+/// `#[tokio::main]`'s implicit one, because the binary owns the exit
+/// and the teardown must not veto it: the dispatch is `block_on`'d,
+/// then the runtime is shut down within [`EXIT_SHUTDOWN_BOUND`] —
+/// cutting any in-flight blocking op at the bound (the thread is
+/// leaked; the process exit reaps it) — and only then is the outcome
+/// mapped to the exit code.
+fn main() -> ExitCode {
+    let runtime = match tokio::runtime::Runtime::new() {
+        Ok(runtime) => runtime,
+        Err(error) => {
+            eprintln!("todo-mcp: the async runtime could not start: {error}");
+            return ExitCode::FAILURE;
+        }
+    };
+    let code = runtime.block_on(dispatch());
+    runtime.shutdown_timeout(EXIT_SHUTDOWN_BOUND);
+    code
+}
+
+/// The dispatch: the argument vector in, the arm's [`ExitCode`] out.
+async fn dispatch() -> ExitCode {
     match parse_args(std::env::args_os().skip(1)) {
-        Ok(Command::McpServer { root, default_repo }) => {
+        Ok(Command::Shim { root, default_repo }) => {
             // The cwd, read once and eagerly (D1): the one environment
             // touch this binary makes for the default tier, passed in
             // as a value so the lib stays env-free. `None` when the
             // read fails — a deleted cwd — and the lib derives no
-            // default from an absent cwd.
+            // default from an absent cwd. The shim's cwd is the
+            // client's: it rides the socket preamble to the session.
             let cwd = std::env::current_dir().ok();
             let root = DataRoot::new(root);
-            // D13: the live view is a side effect of startup, never a
-            // gate — one detached std thread beside the runtime, whose
-            // first tick ensures the root's listener and whose loop
-            // watches it. The spawn returns immediately; the MCP
-            // handshake cannot wait on a listener.
-            todo_mcp::serve::spawn_live_view(&root, cwd.as_deref());
-            serve_stdio(root, default_repo, cwd).await
+            run_shim(root, default_repo, cwd).await
         }
         Ok(Command::Daemon { root }) => {
             let cwd = std::env::current_dir().ok();
@@ -146,31 +172,22 @@ async fn main() -> ExitCode {
     }
 }
 
-/// Serves over stdio until the client closes the connection. A quit
-/// after a completed handshake — the transport ended, the peer went
-/// away — is a stdio server's normal end (exit 0). A peer that closes
-/// *before* the handshake completes is a serve failure (exit 1,
-/// `connection closed: initialize request`): the server never got
-/// initialized, and hiding that behind exit 0 would report a session
-/// that never existed.
-async fn serve_stdio(
+/// The no-subcommand invocation (D25, U66): the stdio shim. The lib's
+/// [`shim::run`](todo_mcp::shim::run) owns the logic — the
+/// connect-or-spawn window, the preamble, the byte proxy, the
+/// degraded failure mode — and this arm owns the exit codes: 0 the
+/// client closed a completed session (proxied through the daemon, or
+/// served degraded after the retry window), 1 the daemon connection
+/// ended abnormally — lost mid-session, or ended before a session
+/// established (the stdio server's close-before-initialize case).
+async fn run_shim(
     root: DataRoot,
     default_repo: Option<RepoSlug>,
     cwd: Option<PathBuf>,
 ) -> ExitCode {
-    let server = TodoServer::new(root, default_repo, cwd);
-    match server.serve(rmcp::transport::stdio()).await {
-        Ok(service) => match service.waiting().await {
-            Ok(_) => ExitCode::SUCCESS,
-            Err(error) => {
-                eprintln!("todo-mcp: the service quit: {error}");
-                ExitCode::FAILURE
-            }
-        },
-        Err(error) => {
-            eprintln!("todo-mcp: {error}");
-            ExitCode::FAILURE
-        }
+    match todo_mcp::shim::run(&root, default_repo, cwd).await {
+        todo_mcp::shim::ShimOutcome::Completed => ExitCode::SUCCESS,
+        todo_mcp::shim::ShimOutcome::Incomplete => ExitCode::FAILURE,
     }
 }
 
@@ -208,8 +225,8 @@ async fn run_daemon(root: DataRoot, cwd: Option<PathBuf>) -> ExitCode {
 
 /// The `serve` subcommand (t71, D20): the live listener. The default
 /// port-file path is the per-root publication (D13, D1) —
-/// `<root>/serve.port`, the same file the no-subcommand server's
-/// watchdog ensures, one discipline for both paths; `--port-file`
+/// `<root>/serve.port`, the same file the daemon's startup ensure
+/// publishes, one discipline for both paths; `--port-file`
 /// stays the override. The serving line prints before the await:
 /// stdout is line-buffered, so a piped consumer sees the URL before
 /// the listener blocks on the interrupt. SIGINT is the clean shutdown

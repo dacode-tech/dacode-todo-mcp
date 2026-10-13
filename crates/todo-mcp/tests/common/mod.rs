@@ -5,7 +5,9 @@
 //! repo — and the import suite (t44) drives its own root, leaving the
 //! fixture half unreferenced in that target (allowed dead, the
 //! section's own note) — so "read" in the lift's history below is
-//! provenance, not scope.
+//! provenance, not scope. The protocol target joined at U66 (its own
+//! local drive needed the daemon stop the shim leaves behind), and
+//! the shim suite (U66) drives with the same helpers.
 //!
 //! The golden helper is a copy of
 //! `crates/todo-store/tests/common/mod.rs`, kept verbatim per the cli
@@ -27,13 +29,20 @@
 //! construction. rmcp dispatches each request in its own task (§6.3)
 //! and the probe measured out-of-order arrivals under rapid-fire
 //! writes — arrival order is a concurrency property t38 owns, not a
-//! byte property these goldens pin.
+//! byte property these goldens pin. Since the no-subcommand path
+//! became the shim (U66), every drive leaves a live daemon per root
+//! — the shim spawns it — and the drive stops it after the session
+//! ([`stop_daemon`]): without it the suite leaks a daemon per test
+//! and the caller's own post-drive store opens contend with the
+//! handles the daemon still holds.
 
 use std::fs;
 use std::io::{BufRead, BufReader, ErrorKind, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStdin, ChildStdout, Command, ExitStatus, Stdio};
 use std::str::FromStr;
+use std::thread;
+use std::time::{Duration, Instant};
 
 use serde_json::{Value, json};
 use tempfile::TempDir;
@@ -740,6 +749,69 @@ const INITIALIZE: &str = r#"{"jsonrpc":"2.0","id":1,"method":"initialize","param
 /// The handshake-completion notification — no response.
 const INITIALIZED: &str = r#"{"jsonrpc":"2.0","method":"notifications/initialized"}"#;
 
+/// How long [`stop_daemon`] waits for the SIGTERM'd daemon to be
+/// gone: the drain bound (no connections live by the time the stop
+/// runs — the shim's session ended with it) plus generous slack, so
+/// a slow host does not flake.
+const STOP_TIMEOUT: Duration = Duration::from_secs(15);
+
+/// The pids of the daemons serving `root`: every process whose
+/// command line carries the root path *and* `--daemon`. The temp
+/// root is unique per test, so the root path discriminates this
+/// test's daemon from every other's; the `--daemon` token keeps the
+/// pattern from matching the shim itself (the shim's command line
+/// has no `--daemon`). A zombie shows as `<defunct>` — its command
+/// line is gone — so an exited-but-unreaped daemon reads as stopped,
+/// which is the parent's (launchd's, or the test's own Child) reap
+/// to finish.
+pub(crate) fn daemon_pids(root: &Path) -> Vec<u32> {
+    let output = Command::new("ps")
+        .args(["-axo", "pid=,command="])
+        .output()
+        .expect("ps runs");
+    let text = String::from_utf8_lossy(&output.stdout);
+    let root_text = root.as_os_str().to_string_lossy();
+    text.lines()
+        .filter_map(|line| {
+            let line = line.trim_start();
+            let (pid, command) = line.split_once(char::is_whitespace)?;
+            if command.contains(root_text.as_ref()) && command.contains("--daemon") {
+                pid.parse().ok()
+            } else {
+                None
+            }
+        })
+        .collect()
+}
+
+/// Stops the daemon the shim left serving `root` (U66): SIGTERM —
+/// the drain signal, `Child::kill` sends SIGKILL — every matching
+/// pid, then wait for the process to be gone. Without this the suite
+/// leaks a daemon per driven test, and the daemon's held store
+/// handles contend with any post-drive store open the caller makes.
+pub(crate) fn stop_daemon(root: &Path) {
+    let deadline = Instant::now() + STOP_TIMEOUT;
+    loop {
+        let pids = daemon_pids(root);
+        if pids.is_empty() {
+            return;
+        }
+        for pid in &pids {
+            let _ = Command::new("/bin/kill")
+                .arg("-TERM")
+                .arg(pid.to_string())
+                .status();
+        }
+        assert!(
+            Instant::now() < deadline,
+            "the daemon for {} did not exit within {:?}",
+            root.display(),
+            STOP_TIMEOUT
+        );
+        thread::sleep(Duration::from_millis(50));
+    }
+}
+
 /// What one drive collected: the tool responses in request order, the
 /// server's stderr and its exit status.
 // The progress target (t68) drives nothing, so the collected fields
@@ -748,11 +820,12 @@ const INITIALIZED: &str = r#"{"jsonrpc":"2.0","method":"notifications/initialize
 pub(crate) struct Driven {
     /// The tool responses, one line each, in request order.
     pub responses: Vec<String>,
-    /// The server's stderr — empty on every green path except the
-    /// live-view line the default server's first tick prints (the
-    /// URL, or the one unavailable line, D13).
+    /// The server's stderr — empty on every green path: the shim
+    /// prints nothing on a proxied session (the daemon's own
+    /// diagnostics go to its null stdio, and the live-view URL line
+    /// with them).
     pub stderr: String,
-    /// The exit status — a completed handshake ends 0.
+    /// The exit status — a completed session ends 0.
     pub status: ExitStatus,
 }
 
@@ -842,6 +915,10 @@ fn drive_inner(
         .read_to_string(&mut stderr_text)
         .expect("read the server's stderr");
     let status = child.wait().expect("wait for the server");
+    // The shim leaves a live daemon per root (U66): stop it after the
+    // session, so the suite leaks nothing and the caller's own
+    // post-drive store opens find the locks released.
+    stop_daemon(root);
     Driven {
         responses,
         stderr: stderr_text,

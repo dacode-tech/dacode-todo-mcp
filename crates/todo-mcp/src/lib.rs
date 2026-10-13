@@ -36,14 +36,17 @@
 //! [`DataRoot`] and the open per-repo handles — behind one
 //! `Arc<Mutex<…>>`, and the **session** — the default repo slug, the
 //! working directory and the cwd-default memo — behind a second
-//! `Mutex` on the server itself. The stdio server owns its core
-//! privately; the daemon ([`daemon`]) shares one `Arc` across every
-//! connection, because per-connection cores could not even contend
-//! correctly — `DataRoot::open` opens the store *locked*, so a second
-//! connection resolving the same repo would fail with `locked`, and
-//! the advisory lock is per file descriptor — while every
-//! connection's session is its own: the preamble's defaults are
-//! per-connection. TodoServer::lock_state takes both guards at
+//! `Mutex` on the server itself. The daemon ([`daemon`]) is the only
+//! constructor since the no-subcommand path became the shim (U66):
+//! it shares one `Arc` across every connection, because
+//! per-connection cores could not even contend correctly —
+//! `DataRoot::open` opens the store *locked*, so a second connection
+//! resolving the same repo would fail with `locked`, and the
+//! advisory lock is per file descriptor — while every connection's
+//! session is its own: the preamble's defaults are per-connection.
+//! The shim itself ([`shim`]) holds no core at all — it proxies, and
+//! its failure mode answers a canned carrier without opening a
+//! store. TodoServer::lock_state takes both guards at
 //! once and hands the tool body a ServerState view; the guards
 //! are taken and dropped **inside the sync tool body, never held
 //! across an await**: the tool bodies are `async fn` but contain no
@@ -105,21 +108,23 @@
 //! every classification and byte offset the store's; the crate
 //! retired with the move.
 //!
-//! # The live listener (D20, t71; D13, t85)
+//! # The live listener (D20, t71; D13, t85; D25, U66)
 //!
 //! `serve` ([`serve::serve`]) is the live view: a listener over
 //! hand-rolled HTTP/1.1 on 127.0.0.1 — every route a fresh render,
 //! the repo a URL parameter — plus the WebSocket push channel, the
 //! port published per-root (`<root>/serve.port`) so a second
 //! invocation attaches instead of starting a second listener. The
-//! no-subcommand server ensures the same listener (D13):
-//! [`serve::spawn_live_view`] runs one detached std thread beside the
-//! runtime whose first tick attaches to or starts it and whose loop
-//! takes over when the owner dies — a side effect of startup, never a
-//! gate on the wire. The module stays parameterized and env-free: the
-//! default port-file path derives from the root, and only the `serve`
-//! subcommand owns a SIGINT shutdown — a session server dies with its
-//! process and the survivors take over.
+//! daemon owns the listener now (D25's retirement, U66): it ensures
+//! the root's live view once at startup through the same
+//! `serve::Watchdog::ensure` the `serve` entry backs, and the
+//! listener lives exactly as long as the daemon — the no-subcommand
+//! path became the shim, which never touches the listener, and the
+//! watchdog's takeover loop retired with it. The module stays
+//! parameterized and env-free: the default port-file path derives
+//! from the root, and only the `serve` subcommand owns a SIGINT
+//! shutdown — the daemon ends by SIGTERM's drain, and the next
+//! owner's ensure handles the stale publication.
 //!
 //! # The error carrier (D15)
 //!
@@ -145,11 +150,14 @@
 //! the `schema` module owns the strip and its wire pin.
 //!
 //! Over the file-size target by recorded exception: the state split
-//! (U65) grew the concurrency core's documentation past the target.
-//! The split, when the next growth arrives, is the state core —
-//! `CoreState`, `SessionState`, the `ServerState` view,
-//! `resolve`/`resolve_read` and `repo_of` — moving to its own module
-//! beside the cluster files.
+//! (U65) grew the concurrency core's documentation past the target,
+//! and the shim's landing (U66) grew it again — the
+//! `server_config`/`merged_router` extraction the degraded failure
+//! mode and the daemon's per-connection servers share. The split,
+//! when the next growth arrives, is the state core — `CoreState`,
+//! `SessionState`, the `ServerState` view, `resolve`/`resolve_read`
+//! and `repo_of` — moving to its own module beside the cluster
+//! files.
 
 // Tests are exempt from the panic-family lints through a mechanism, not
 // a convention (the workspace's rule, stated once in the root
@@ -197,6 +205,7 @@ mod registry;
 pub mod render;
 mod schema;
 pub mod serve;
+pub mod shim;
 mod time;
 
 /// U16(a)'s base instructions: the one text an agent that has never
@@ -319,32 +328,41 @@ pub struct TodoServer {
 }
 
 impl TodoServer {
-    /// A server serving every store under `root`, with an optional
-    /// default repo slug (the committed D8) and the startup-read
-    /// working directory (D1, armed at t53): the `--repo` startup
-    /// flag's parsed value is applied whenever a tool's `repo`
-    /// parameter is absent — an explicit parameter always wins — and
-    /// when no flag is configured, the cwd's deterministic match
-    /// against the registered checkouts (§7) supplies the default
-    /// instead. `cwd` is `None` when the binary's read failed; the
-    /// lib never reads the environment itself. The core is private
-    /// to this server; the daemon shares one across connections via
-    /// Self::with_core.
-    pub fn new(root: DataRoot, default_repo: Option<RepoSlug>, cwd: Option<PathBuf>) -> Self {
-        Self::with_core(Self::shared_core(root), default_repo, cwd)
-    }
-
     /// The daemon's constructor (D25, U65): shares one core — the
     /// root and the handles cache behind one lock — across every
     /// connection, while this connection's session carries the
     /// preamble's own defaults. Per-connection cores cannot work:
     /// `DataRoot::open` opens the store *locked*, so a second
     /// connection resolving the same repo would fail with `locked`.
+    /// The daemon is the only constructor since the no-subcommand
+    /// path became the shim (U66): the shim proxies to this server
+    /// and its failure mode answers a canned carrier, so no other
+    /// path constructs one.
     pub(crate) fn with_core(
         core: Arc<Mutex<CoreState>>,
         default_repo: Option<RepoSlug>,
         cwd: Option<PathBuf>,
     ) -> Self {
+        let tool_router = Self::merged_router();
+        Self {
+            tool_router,
+            core,
+            session: Mutex::new(SessionState {
+                default_repo,
+                cwd,
+                cwd_default: cwd::CwdDefault::Pending,
+            }),
+        }
+    }
+
+    /// The merged, schema-flattened tool router: every cluster's
+    /// `#[tool_router]` block composed, the input schemas' enum
+    /// flatten (t88) applied once per tool at startup. The one
+    /// construction both server shapes share — the daemon's
+    /// per-connection servers, and the shim's degraded failure mode,
+    /// whose `tools/list` is the router's advertisement with no
+    /// store behind it.
+    pub(crate) fn merged_router() -> ToolRouter<Self> {
         // The router composes across impl blocks (`ToolRouter::merge`):
         // the cluster files' routers — `registry.rs`'s `tool_router`,
         // `query.rs`'s `query_router`, `listing.rs`'s
@@ -368,15 +386,7 @@ impl TodoServer {
         for route in tool_router.map.values_mut() {
             schema::flatten_input(&mut route.attr.input_schema);
         }
-        Self {
-            tool_router,
-            core,
-            session: Mutex::new(SessionState {
-                default_repo,
-                cwd,
-                cwd_default: cwd::CwdDefault::Pending,
-            }),
-        }
+        tool_router
     }
 
     /// An empty shared core over `root` (D25): no handles open — only
@@ -684,9 +694,18 @@ impl ServerHandler for TodoServer {
     /// flow is served by the same `serve` call: rmcp dispatches it from
     /// the handler's defaults, no extra surface of ours.
     fn get_info(&self) -> ServerConfig {
-        ServerConfig::new(ServerCapabilities::builder().enable_tools().build())
-            .with_server_info(Implementation::new("todo-mcp", env!("CARGO_PKG_VERSION")))
-            .with_instructions(INSTRUCTIONS)
-            .with_protocol_version(ProtocolVersion::LATEST_WITH_INITIALIZE)
+        server_config()
     }
+}
+
+/// The server's identity and instructions (U16a): the one
+/// construction every server shape shares — the daemon's
+/// per-connection sessions and the shim's degraded failure mode
+/// answer the same handshake bytes, so a client cannot tell the
+/// modes apart from the initialize response.
+pub(crate) fn server_config() -> ServerConfig {
+    ServerConfig::new(ServerCapabilities::builder().enable_tools().build())
+        .with_server_info(Implementation::new("todo-mcp", env!("CARGO_PKG_VERSION")))
+        .with_instructions(INSTRUCTIONS)
+        .with_protocol_version(ProtocolVersion::LATEST_WITH_INITIALIZE)
 }

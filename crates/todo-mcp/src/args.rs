@@ -38,8 +38,8 @@ pub const USAGE: &str = "\
 todo-mcp — the dacode-todo MCP server and tool CLI (spec §13).
 
 Usage:
-  todo-mcp --root <DIR> [--repo <SLUG>]                    the MCP server on stdio, ensuring
-                                                           the root's live view (D13)
+  todo-mcp --root <DIR> [--repo <SLUG>]                    the stdio shim: connects to (spawning)
+                                                           the root's daemon and proxies MCP (D25)
   todo-mcp --root <DIR> --daemon                           the shared daemon (D25): one process
                                                            per root, every session over
                                                            <root>/serve.sock
@@ -58,7 +58,8 @@ Options:
                       registry (required on every path; D4's default
                       location is ~/.local/share/dacode-todo/, resolved
                       by the caller)
-      --repo <SLUG>   The repository: the server's default slug (D8),
+      --repo <SLUG>   The repository: the shim's default slug (D8),
+                      riding the socket preamble to its session and
                       applied whenever a tool's repo parameter is
                       absent, or the repo the progress subcommand
                       renders — an explicit value always wins over the
@@ -88,9 +89,9 @@ Options:
       --port-file <PATH>
                       With `serve`: where the listener's port is
                       published (default <root>/serve.port, the same
-                      publication the no-subcommand server's live view
-                      ensures) — a second invocation attaches to a
-                      live listener instead of starting another
+                      publication the daemon's live view ensures) —
+                      a second invocation attaches to a live listener
+                      instead of starting another
       --dry-run       With `repair`: classify and report, write nothing
       --yes           With `repair`: truncate without prompting
   -h, --help          Print this help and exit 0
@@ -109,19 +110,23 @@ With `dump`/`verify`/`repair`: the repo resolves through the same
       faults on stderr, deterministic for a given store state.
 
 Exit codes:
-  0  the client closed the connection after a completed handshake,
+  0  the client closed the connection after a completed session —
+      proxied through the daemon, or
+      served degraded after the retry window —
       the listener shut down cleanly on the interrupt (or another
       invocation attached to it), the daemon drained on SIGTERM
       within its bound (or found one already serving — one line, no
       second listener), or the subcommand succeeded
-  1  the serve loop failed, the listener did not start (a root with no
-      registry), the daemon's socket could not be ensured (the ensure's
-      lock or bind refused), the render failed (a repo that does not
-      resolve, or a store that will not read), the page did not write,
-      or the refresh refused (the board is gone or broken, a live
-      session holds the store, or the import failed); verify found a
-      fault it will not act on; repair refused (unrepairable,
-      diverged) or aborted at the prompt
+  1  the daemon connection was lost mid-session (or
+      ended before a session established), the serve loop failed,
+      the listener did not start (a root with no registry),
+      the daemon's socket could not be ensured (the ensure's
+      lock or bind refused), the render failed (a repo that does
+      not resolve, or a store that will not read), the page did
+      not write, or the refresh refused (the board is gone or
+      broken, a live session holds the store, or the import
+      failed); verify found a fault it will not act on; repair
+      refused (unrepairable, diverged) or aborted at the prompt
   2  usage: a bad flag, a missing --root, a malformed --repo value, an
       unknown subcommand, or flags that cannot combine
   3  the store refused the operation: any store error — io, locked,
@@ -133,13 +138,17 @@ Exit codes:
 /// selects.
 #[derive(Debug, PartialEq, Eq)]
 pub enum Command {
-    /// No subcommand: the MCP server on stdio, unchanged — the
-    /// protocol suite and every wire golden pin its bytes. Named for
-    /// what it is now that `serve` names the listener (t71's D7).
-    McpServer {
+    /// No subcommand: the stdio shim (D25, U66) — the thin client of
+    /// the root's daemon, connecting to (spawning) it over
+    /// `<root>/serve.sock` and proxying MCP bytes. The parse shape is
+    /// the one every existing client config names: no positional, the
+    /// globals only. Named for what it is now that `serve` names the
+    /// listener (t71's D7) and `--daemon` names the daemon (U65).
+    Shim {
         /// The data root (§7/§13/D4).
         root: OsString,
-        /// The default repo slug (the committed D8).
+        /// The default repo slug (the committed D8), riding the
+        /// socket preamble to the session.
         default_repo: Option<RepoSlug>,
     },
     /// `--daemon`: the shared daemon (D25, U65) — one process per
@@ -236,7 +245,7 @@ pub enum Command {
 /// are collected position-independently; the FIRST positional selects
 /// the command (`progress` routes to the render, `serve` to the
 /// listener, `dump`/`verify`/`repair` to the inspector, no positional
-/// at all to the server); any other positional is a usage fault naming
+/// at all to the shim); any other positional is a usage fault naming
 /// the attempted subcommand. lexopt (U14) is pedantic: anything but
 /// the known flags and their values is a usage fault, never a guess.
 /// The root is validated nowhere here — the store reports a missing
@@ -516,7 +525,7 @@ where
     } else if daemon {
         Command::Daemon { root }
     } else {
-        Command::McpServer {
+        Command::Shim {
             root,
             default_repo: repo,
         }
@@ -590,10 +599,10 @@ mod tests {
     }
 
     #[test]
-    fn no_arguments_route_to_the_server() {
+    fn no_arguments_route_to_the_shim() {
         assert_eq!(
             parse_args(["--root", "/tmp/data"]),
-            Ok(Command::McpServer {
+            Ok(Command::Shim {
                 root: OsString::from("/tmp/data"),
                 default_repo: None
             })
@@ -658,7 +667,7 @@ mod tests {
     fn the_happy_path_takes_the_root_and_repo_values() {
         assert_eq!(
             parse_args(["--root", "/tmp/data", "--repo", "fixture"]),
-            Ok(Command::McpServer {
+            Ok(Command::Shim {
                 root: OsString::from("/tmp/data"),
                 default_repo: Some(RepoSlug::from_str("fixture").unwrap()),
             })
@@ -671,7 +680,7 @@ mod tests {
         // order parses to the same configuration.
         assert_eq!(
             parse_args(["--repo", "fixture", "--root", "/tmp/data"]),
-            Ok(Command::McpServer {
+            Ok(Command::Shim {
                 root: OsString::from("/tmp/data"),
                 default_repo: Some(RepoSlug::from_str("fixture").unwrap()),
             })
@@ -997,11 +1006,21 @@ mod tests {
         assert!(USAGE.contains("--port-file <PATH>"));
         assert!(USAGE.contains("the listener shut down cleanly on the interrupt"));
         assert!(USAGE.contains("the listener did not start"));
-        // D13/D7: the no-subcommand line names the live view, and the
-        // port-file default is the per-root publication.
-        assert!(USAGE.contains("the MCP server on stdio, ensuring"));
-        assert!(USAGE.contains("the root's live view (D13)"));
+        // D13/D7: the port-file default is the per-root publication.
         assert!(USAGE.contains("(default <root>/serve.port"));
+    }
+
+    #[test]
+    fn the_usage_text_names_the_shim() {
+        // The operator-facing contract: the usage every fault prints
+        // carries the no-subcommand line (the shim, D25) and the
+        // shim's exit-code clauses.
+        assert!(USAGE.contains("the stdio shim: connects to (spawning)"));
+        assert!(USAGE.contains("the root's daemon and proxies MCP (D25)"));
+        assert!(USAGE.contains("after a completed session"));
+        assert!(USAGE.contains("served degraded after the retry window"));
+        assert!(USAGE.contains("the daemon connection was lost mid-session"));
+        assert!(USAGE.contains("ended before a session established"));
     }
 
     // =================================================================

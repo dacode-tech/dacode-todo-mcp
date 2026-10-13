@@ -136,6 +136,9 @@ fn rapid_fire(root: &Path, requests: &[String]) -> Rapid {
         .read_to_string(&mut stderr_text)
         .expect("read the server's stderr");
     let status = child.wait().expect("wait for the server");
+    // The shim leaves a live daemon per root (U66): stop it after the
+    // session, the common drive's own rule.
+    common::stop_daemon(root);
     Rapid {
         responses,
         stderr: stderr_text,
@@ -147,7 +150,9 @@ fn rapid_fire(root: &Path, requests: &[String]) -> Rapid {
 /// hammer: write every request line, close stdin — a stdio server's
 /// natural end — and wait for exit with the output collected. The
 /// flake's window lives between this reap and the caller's next open,
-/// so the hammer rides the exact shape the flaky test rode.
+/// so the hammer rides the exact shape the flaky test rode. The shim
+/// leaves a daemon per root: stopped here, the common drive's own
+/// rule (U66).
 fn drive_to_exit(root: &Path, requests: &str) -> (String, String, ExitStatus) {
     let mut child = spawn(root);
     {
@@ -157,6 +162,7 @@ fn drive_to_exit(root: &Path, requests: &str) -> (String, String, ExitStatus) {
             .expect("write the requests");
     }
     let output = child.wait_with_output().expect("wait for the server");
+    common::stop_daemon(root);
     (
         String::from_utf8(output.stdout).expect("stdout is utf-8"),
         String::from_utf8(output.stderr).expect("stderr is utf-8"),

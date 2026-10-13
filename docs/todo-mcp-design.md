@@ -777,6 +777,38 @@ stop accepting, wait for the connection tasks within a named bound,
 exit 0 — and the socket file and the port publication are left in
 place on exit for the next owner's ensure.
 
+**U66's settlement (2026-10-13).** The shim's connect phase: a first
+connect attempt rides before any spawn (a live daemon is attached
+to, never replaced); on failure the shim spawns the daemon — the
+same binary, `--root <dir> --daemon`, stdio null on all three (its
+diagnostics must not leak into the client's pipes, and it must not
+hold the shim's fds open after the shim exits), its own process
+group so it survives the client's process-group teardown — then
+retries the connect every 100ms within `RETRY_WINDOW` = 5s, a named
+constant: the bound covers spawn plus the daemon's serialized
+ensure (lock, probe, bind) and live-view ensure with huge margin,
+and U67's update cycle may revisit the value. A spawn that fails to
+execute at all skips the window (the failure mode answers at once);
+a connect that succeeds but dies before the preamble write folds
+back into the window. The failure mode (D25's no fallback,
+deliberately): the shim becomes a degraded MCP server over stdio —
+the initialize handshake byte-identical to the daemon's (the same
+`server_config` construction, so a client cannot tell the modes
+apart),
+`tools/list` answering the real tool list (the router is static; no
+store is opened), and every `tools/call` answered with §6.1's `io`
+carrier naming the daemon unreachable and the window expired — the
+in-band error a client may retry on; terminal for the shim process.
+The exit contract: 0 the client closed a completed session (proxied
+or degraded); 1 the daemon connection lost mid-session, or ended
+without a session establishing — the stdio server's own
+close-before-initialize case, which the socket cannot carry (a
+refused connection and an ended session both just close it), so the
+shim classifies the daemon's first response line on its way through
+the proxy: an `error` member (or no bytes at all) is the handshake
+gate's refusal, anything else a running session, and that bit picks
+the exit code.
+
 ## 7. Multi-Repo Registry and Path Handling
 
 The server is global: one store, many repositories, reached from
@@ -1033,6 +1065,19 @@ the view is up while at least one session server (or a manual
 per-root file — one discipline for both paths. The MCP wire surface
 is unchanged: no new tool, the stdio server's protocol behavior
 identical.
+
+**D13 amendment (2026-10-13, executing D25):** the daemon owns the
+live-view listener now. The no-subcommand invocation became the shim
+(U66) — it proxies MCP and never touches the listener — so the
+startup ensure and the periodic re-probe/takeover loop described
+above retired with the stdio path: the daemon makes one ensure at
+its startup (the same probe/bind/publish entry the `serve`
+subcommand uses) and the listener lives exactly as long as the
+daemon, which is a stronger liveness than the old
+any-session-server rule (the shim spawns the daemon on first
+connect, so the view is up whenever any client can reach the
+tracker at all). The per-root publication discipline is unchanged,
+and the `serve` subcommand keeps its own SIGINT shutdown.
 
 D25 (signed 2026-10-13) changes the process topology: the
 no-argument invocation becomes the thin shim — it connects to the

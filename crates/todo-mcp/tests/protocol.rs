@@ -25,6 +25,12 @@
     )
 )]
 
+// The common module joined this target at U66: the local drive needed
+// the daemon stop the shim leaves behind (the fixture half stays
+// unreferenced here — allowed dead per item, the module's own rule).
+#[allow(dead_code)]
+mod common;
+
 mod protocol {
     use std::io::Write as _;
     use std::path::Path;
@@ -32,6 +38,8 @@ mod protocol {
 
     use tempfile::TempDir;
     use todo_store::DataRoot;
+
+    use super::common::stop_daemon;
 
     /// U16a's base instructions as measured on the wire — one frozen
     /// copy, shared by the handshake and discover assertions.
@@ -93,8 +101,11 @@ mod protocol {
     /// (newline-delimited JSON-RPC) to its stdin, closes stdin — which
     /// is a stdio server's natural end — waits for exit, and returns
     /// stdout and stderr beside the exit status, which each test
-    /// asserts for its own case: a completed handshake ends 0, a peer
-    /// that closes before initialize ends 1.
+    /// asserts for its own case: a completed session ends 0, a peer
+    /// that closes before initialize ends 1. The shim the binary now
+    /// runs leaves a daemon per root: the drive stops it after the
+    /// session (U66), so the store opens the caller makes afterward
+    /// find the locks released.
     fn drive(root: &Path, requests: &str) -> (String, String, ExitStatus) {
         let mut child = Command::new(env!("CARGO_BIN_EXE_todo-mcp"))
             .arg("--root")
@@ -111,6 +122,7 @@ mod protocol {
                 .expect("write the requests");
         }
         let output = child.wait_with_output().expect("wait for the server");
+        stop_daemon(root);
         (
             String::from_utf8(output.stdout).expect("stdout is utf-8"),
             String::from_utf8(output.stderr).expect("stderr is utf-8"),

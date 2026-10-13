@@ -171,10 +171,11 @@ fn error_carrier_schema() -> Value {
 /// The input side of the enum flatten: the one seam this crate owns
 /// over an advertised input schema. The `#[tool]` macro generates
 /// input schemas inside rmcp (`schema_for_input`, thread-locally
-/// cached), so the router walk in `TodoServer::new` is where they can
-/// be post-processed — this function is its per-tool step, called once
-/// per tool at startup. The `Arc::make_mut` clone leaves rmcp's cache
-/// entry untouched, the same isolation `output_for_type` relies on.
+/// cached), so the router walk in `TodoServer::merged_router` is
+/// where they can be post-processed — this function is its per-tool
+/// step, called once per tool at startup. The `Arc::make_mut` clone
+/// leaves rmcp's cache entry untouched, the same isolation
+/// `output_for_type` relies on.
 pub(crate) fn flatten_input(schema: &mut Arc<JsonObject>) {
     flatten_inline_enums(Arc::make_mut(schema));
 }

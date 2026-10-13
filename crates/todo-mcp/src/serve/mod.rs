@@ -1,13 +1,13 @@
-//! The live view's listener (t71, D20's third slice; D13, t85): the
-//! `serve` subcommand's foreground listener and the no-subcommand
-//! server's background ensure of the same one — every route a fresh
+//! The live view's listener (t71, D20's third slice; D13, t85; D25,
+//! U66): the `serve` subcommand's foreground listener and the
+//! daemon's startup ensure of the same one — every route a fresh
 //! render, the port published per-root (`<root>/serve.port`) so a
-//! second invocation or session attaches instead of starting a second
-//! listener (U18 shape A, the Python tool's `--serve` mechanics
-//! ported; the per-root keying is D13's flip of the Python's per-user
-//! slot), plus the WebSocket push channel: one poller per connection
-//! stat-watching the repo's store files, one text frame per change,
-//! the page's script reloading on arrival.
+//! second invocation or session attaches instead of starting a
+//! second listener (U18 shape A, the Python tool's `--serve`
+//! mechanics ported; the per-root keying is D13's flip of the
+//! Python's per-user slot), plus the WebSocket push channel: one
+//! poller per connection stat-watching the repo's store files, one
+//! text frame per change, the page's script reloading on arrival.
 //!
 //! The module is five files split by responsibility — the spec's D8
 //! names one file, and the split is the house pattern once the
@@ -18,8 +18,9 @@
 //! hand-rolled HTTP/1.1 parser and response writer (D4), `ws` the
 //! RFC 6455 handshake, frame codec and connection loop (D5), `poll`
 //! the stat-polling change detection, and `watchdog` the D13
-//! ensure-listener thread the default server spawns beside its
-//! runtime.
+//! ensure-listener call the daemon makes at startup (the no-subcommand
+//! server's watch loop retired with the stdio path, U66 — the daemon
+//! owns the listener, so there is no survivor to take over).
 //!
 //! Over the file-size target by recorded exception (`_rust.md`): the
 //! epic route's dispatch handler (U53) joined the connection dispatch
@@ -73,7 +74,6 @@ mod watchdog;
 mod ws;
 
 pub(crate) use self::watchdog::Watchdog;
-pub use self::watchdog::spawn_live_view;
 
 use self::http::{Request, Route};
 
@@ -509,8 +509,8 @@ fn default_repo(root: &DataRoot, cwd: Option<&Path>) -> Result<RepoSlug, String>
 /// The root's publication path (D13, D1): `<root>/serve.port`. The
 /// publication is per-root — two roots key two listeners, and the
 /// file is the port's discovery, a machine-readable path per root.
-/// The `serve` subcommand's default and the no-subcommand server's
-/// watchdog both derive it here; `--port-file` stays the override.
+/// The `serve` subcommand's default and the daemon's startup ensure
+/// both derive it here; `--port-file` stays the override.
 pub fn port_file(root: &DataRoot) -> PathBuf {
     root.root().join("serve.port")
 }
@@ -528,7 +528,7 @@ fn read_published_port(path: &Path) -> Option<u16> {
 }
 
 /// The publish's per-call ticket: concurrent publishers in one
-/// process — the double-bind race, which the watchdog's takeover arm
+/// process — the double-bind race, which the racing serve entries
 /// and the tests both drive in-process — must not share a temp name.
 /// The pid alone keys one publisher per process; the first rename
 /// would consume the shared name out from under the second (measured:
@@ -571,10 +571,10 @@ fn publish_port(path: &Path, port: u16) -> Result<(), String> {
 /// reads as dead; a foreign server is never killed, only replaced in
 /// the publication.
 ///
-/// The whole exchange is bounded by one deadline (D6): the watchdog
-/// calls this every tick, so a port that accepts and dribbles — or
-/// accepts and never answers — must resolve within the probe timeout,
-/// never hang the tick.
+/// The whole exchange is bounded by one deadline (D6): every probe
+/// caller — the attach check, the ensure, the tests — needs a port
+/// that accepts and dribbles, or accepts and never answers, to
+/// resolve within the probe timeout, never hang the caller.
 fn listener_answers(port: u16) -> bool {
     let address = SocketAddr::from(([127, 0, 0, 1], port));
     let Ok(mut stream) = TcpStream::connect_timeout(&address, PROBE_TIMEOUT) else {
