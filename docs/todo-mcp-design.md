@@ -656,6 +656,102 @@ Purely descriptive: the params structs, the serde acceptance and every
 wire response are unchanged, and the wire pin in tests/read/query.rs
 walks both sides of every advertisement.
 
+### 6.4 rmcp socket-transport survey findings (U64, 2026-10-13)
+
+Facts for the shared-server arc (D25, §13), measured before U65 rather
+than assumed in it — the same method as §6.3: read the published rmcp
+3.5.0 source, then drive a probe. The probe is a daemon-shaped binary
+(`tmp/rmcpprobe/probe/src/bin/sock.rs`, gitignored, not committed —
+§6.3's rule) accepting unix-socket connections and serving one MCP
+session per connection, driven by `tmp/rmcpprobe/drive_sock.py`; the
+capture is `tmp/rmcpprobe/capture-sock.jsonl`. Source citations are to
+the crates.io 3.5.0 tree (vendored at `tmp/rmcpprobe/vendor/`).
+
+**The granted feature set already covers the socket transport.**
+`ServiceExt::serve` is generic over `IntoTransport`
+(`service.rs:337-347`), and the impls that matter are in
+`transport/async_rw.rs`: one for any `(R, W)` pair with
+`R: AsyncRead`, `W: AsyncWrite` (lines 24-33) and one for any combined
+`AsyncRead + AsyncWrite` stream (lines 37-47). Both are gated on
+`transport-async-rw`, which the user-approved `transport-io` feature
+already enables (`Cargo.toml:147-149`:
+`transport-io = ["transport-async-rw", "tokio/io-std"]`). A tokio
+`UnixStream` satisfies the bounds (the probe compiled and ran against
+the workspace's exact feature list), so the daemon needs **no new rmcp
+feature and no new dependency** — the 2026-10-03 grant covers it.
+
+**One MCP session per accepted connection — measured.** The probe's
+accept loop spawns a task per connection; each task calls
+`server.serve((BufReader<ReadHalf<UnixStream>>, WriteHalf<UnixStream>))`
+— the tuple impl, with the read half pre-wrapped so the preamble read
+(below) and rmcp share one buffer. Two connections were live
+simultaneously (both `initialize` requests in flight before either
+response was read — a daemon that could serve only one connection at a
+time would have blocked the second), each answered its own handshake
+and its own `tools/call`, and each printed `session ended: Closed` on
+its own disconnect. The initialize response over the socket is shaped
+exactly like the stdio one, including the `serverInfo` default when
+`get_info` does not override it — §6.3's finding (1) re-confirmed on
+this path.
+
+**Per-connection state needs a preamble; the protocol has no channel
+for it.** rmcp offers no per-connection metadata: the handler is
+constructed *before* the handshake (`serve` takes `self` by value and
+performs `initialize` itself), `initialize` receives the *client's*
+typed `InitializeRequestParams` — the shim cannot rewrite them without
+ceasing to be a byte proxy — and `RequestContext` (`service.rs:1208-1216`)
+carries only per-request state (a cancellation token, the request id,
+`_meta`, extensions, the peer). The D8 flag therefore cannot ride the
+MCP protocol. The mechanism that works, measured: **a one-line JSON
+preamble read from the stream before `serve` sees it** — the daemon
+splits the stream, reads one line off the `BufReader`, constructs the
+per-connection handler from it, then serves over `(BufReader,
+WriteHalf)`; bytes the client already sent (its `initialize`) ride
+inside the `BufReader` and are the first thing rmcp reads. On the wire:
+preamble `{"repo":"alpha"}` → `echo_repo {}` → `"alpha"`; a concurrent
+connection with `{"repo":"beta"}` → `"beta"`; an explicit
+`{"repo":"override"}` parameter wins, exactly D8's order. The socket is
+a closed internal surface — the shim is its only client — so a first
+line that is not a valid preamble is a connection error, dropped
+before any MCP byte is interpreted.
+
+**The pre-handshake disconnect is a per-connection serve error.**
+`serve` awaits the initialize handshake; a peer that vanishes before it
+completes returns `Err`. Measured: a connection that sent its preamble
+and disconnected produced `serve failed: connection closed: initialize
+request` — the same text the stdio path documents as its exit-1 case —
+while the other two sessions were unaffected. The daemon's per-session
+error handling is therefore the stdio server's, per connection.
+
+**The U65 state constraint.** `TodoServer` holds `default_repo` and
+`cwd` inside the one `Arc<Mutex<ServerState>>` (`crates/todo-mcp/src/
+lib.rs:260-311`), and the store-handles cache lives in the same state.
+Per-connection defaults (the preamble) therefore mean per-connection
+`TodoServer` instances — but §8's serialization point and the handles
+cache want to be process-wide, and the store's advisory file lock is
+per file descriptor (§6.3's finding (2)), so per-connection handle
+caches would not even contend correctly. U65 must split the
+per-connection defaults from the shared lock-and-handles core; the
+survey records the constraint, the split is U65's design.
+
+**The drain primitives exist.** `serve_with_ct` (`service.rs:348-356`)
+serves under an externally-owned `CancellationToken`;
+`RunningService::close_with_timeout(Duration)`
+(`service.rs:1143-1162`) cancels a session and bounds its cleanup;
+`waiting()` (`service.rs:1099-1104`) waits for the loop's natural end.
+SIGTERM's drain composes from these — stop the accept loop, then let
+in-flight requests finish (`waiting` under an overall timeout) or
+cancel per connection (`close_with_timeout`). Source-read, not
+probe-driven; U65's protocol tests exercise them for real.
+`serve_directly_with_ct` (`service.rs:1292-1315`) also exists — serving
+with the initialization skipped and pre-read messages dispatched first
+— but the daemon shape does not need it: the preamble plus a normal
+`serve` covers the design.
+
+**Nothing forces a design change back to D25.** The shape as signed
+composes over the granted features; D25's medium confidence was about
+exactly this surface, and the survey resolves it.
+
 ## 7. Multi-Repo Registry and Path Handling
 
 The server is global: one store, many repositories, reached from
