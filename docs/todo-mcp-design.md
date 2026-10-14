@@ -1101,6 +1101,15 @@ repo's board files are gone — a cut-over repo's store is primary),
 (the inspector `todo-cli` carried; that crate retires). The
 subcommands take `--root` and `--repo` with the same resolution order
 as the server (§7), and their output is golden-pinned per §10.
+A leading `~` or `~/` in the `--root` value expands against `HOME`
+at the parse boundary — the binary reads `HOME` once and passes it
+in as a value (the cwd precedent; the lib stays env-free) — because
+client configs spawn the binary without a shell and an absolute root
+would bake one user's home into a committed config; `~name` (another
+user's home) is a usage fault, as is a `~`-prefixed root when `HOME`
+is unset or empty (an empty home would otherwise expand `~` to the
+cwd-relative empty root), and only `--root` expands
+(`--out`/`--port-file` never appear in a no-shell config).
 `tools/progress.py` and its two committed drivers retire with the
 port.
 

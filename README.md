@@ -46,16 +46,19 @@ mv ~/.local/bin/todo-mcp.next ~/.local/bin/todo-mcp
 ```
 
 Then add an `mcp` entry to your global opencode config
-(`~/.config/opencode/opencode.jsonc`). This is the live entry this
-machine runs — substitute your own root path:
+(`~/.config/opencode/opencode.jsonc`). The command names the
+`todo-mcp` on your `PATH`, and the root's leading `~` expands against
+`HOME` in the server itself — no user-specific path anywhere in the
+entry, so the same shape works verbatim in a committed per-project
+config:
 
 ```jsonc
 "todo-mcp": {
   "type": "local",
   "command": [
-    "/Users/mouse/.local/bin/todo-mcp",
+    "todo-mcp",
     "--root",
-    "/Users/mouse/.local/share/dacode-todo"
+    "~/.local/share/dacode-todo"
   ],
   "enabled": true
 }

@@ -23,8 +23,27 @@
 //! FIRST positional selects the command; `--help`/`-h` short-circuit
 //! wherever they appear (per-subcommand help never demands the
 //! required options), and `--version`/`-V` is the top level's alone.
+//!
+//! The root's one spelling rule (U73): a leading `~` or `~/` in the
+//! `--root` value expands against a home the caller passes in — the
+//! binary reads `HOME` once and hands it over (the cwd precedent;
+//! the lib stays env-free) — because client configs spawn the binary
+//! without a shell and cannot expand it themselves. `~name` (another
+//! user's home) and a `~`-prefixed root with no home are usage
+//! faults. The expansion is a post-parse pass ([`expand_root`]) so
+//! the parse's pinned fault messages stay untouched, and only
+//! `--root` expands: `--out` and `--port-file` never appear in a
+//! no-shell config, and a shell user's tilde never reaches the
+//! binary.
+//!
+//! Over the file-size target (the ledger is U74 in the store): the
+//! usage text is this file's own operator contract and the expansion
+//! grew beside the parse it serves — the split, when the next growth
+//! arrives, is [`USAGE`] into its own module, leaving the parse and
+//! the expansion here.
 
-use std::ffi::OsString;
+use std::ffi::{OsStr, OsString};
+use std::os::unix::ffi::OsStrExt;
 use std::str::FromStr;
 
 use todo_domain::RepoSlug;
@@ -56,8 +75,11 @@ Usage:
 Options:
       --root <DIR>    The data root holding repos/<slug>/ and the shared
                       registry (required on every path; D4's default
-                      location is ~/.local/share/dacode-todo/, resolved
-                      by the caller)
+                      location is ~/.local/share/dacode-todo/). A leading
+                      '~' or '~/' expands against HOME — the spelling for
+                      client configs that spawn without a shell; '~name'
+                      (another user's home) and a '~' root with HOME unset
+                      or empty are usage faults
       --repo <SLUG>   The repository: the shim's default slug (D8),
                       riding the socket preamble to its session and
                       applied whenever a tool's repo parameter is
@@ -127,8 +149,8 @@ Exit codes:
       broken, a live session holds the store, or the import
       failed); verify found a fault it will not act on; repair
       refused (unrepairable, diverged) or aborted at the prompt
-  2  usage: a bad flag, a missing --root, a malformed --repo value, an
-      unknown subcommand, or flags that cannot combine
+  2  usage: a bad flag, a missing --root, a malformed --root or --repo
+      value, an unknown subcommand, or flags that cannot combine
   3  the store refused the operation: any store error — io, locked,
       version_mismatch, a corrupt store document
 ";
@@ -529,6 +551,111 @@ where
             root,
             default_repo: repo,
         }
+    })
+}
+
+/// Resolves a leading `~` in the parsed [`Command`]'s `--root` value
+/// against the caller's home directory (U73): the binary reads `HOME`
+/// once and passes it in as a value — the cwd precedent, the lib stays
+/// env-free — and this pass walks every command shape, so no arm of
+/// the dispatch can forget it. A value without a leading `~` passes
+/// through unchanged; `~` alone is the home itself; `~/rest` is the
+/// home with `rest`; `~name` (another user's home) is a usage fault,
+/// as is any `~`-prefixed value when no home was given — a directory
+/// literally named `~` is never the intent, and configuration is
+/// validated where it enters (the malformed-slug rule). Only `--root`
+/// expands: `--out` and `--port-file` never appear in a no-shell
+/// client config, and a shell user's tilde never reaches the binary.
+pub fn expand_root(command: Command, home: Option<&OsStr>) -> Result<Command, String> {
+    fn expand(root: OsString, home: Option<&OsStr>) -> Result<OsString, String> {
+        let bytes = root.as_os_str().as_bytes();
+        if !bytes.starts_with(b"~") {
+            return Ok(root);
+        }
+        // An empty HOME is no home: it would expand `~` to the empty
+        // root — a cwd-relative store on the write paths, silently.
+        let Some(home) = home.filter(|home| !home.is_empty()) else {
+            return Err(
+                "todo-mcp: the value of option '--root <DIR>' starts with '~' but HOME is not \
+                 set or is empty"
+                    .to_owned(),
+            );
+        };
+        if bytes == b"~" {
+            return Ok(home.to_os_string());
+        }
+        // A '~' followed by '/': the home with the rest riding after
+        // its slash. A '~' followed by anything else is `~name` —
+        // another user's home — and falls to the fault below.
+        if let Some(rest) = bytes.get(1..)
+            && rest.starts_with(b"/")
+        {
+            let mut expanded = home.to_os_string();
+            expanded.push(OsStr::from_bytes(rest));
+            return Ok(expanded);
+        }
+        Err(
+            "todo-mcp: the value of option '--root <DIR>' may start with '~' or '~/' only — \
+             '~name' (another user's home) is not supported"
+                .to_owned(),
+        )
+    }
+    Ok(match command {
+        Command::Shim { root, default_repo } => Command::Shim {
+            root: expand(root, home)?,
+            default_repo,
+        },
+        Command::Daemon { root } => Command::Daemon {
+            root: expand(root, home)?,
+        },
+        Command::Refresh { root, repo } => Command::Refresh {
+            root: expand(root, home)?,
+            repo,
+        },
+        Command::Progress {
+            root,
+            repo,
+            json,
+            open,
+            out,
+            no_write,
+        } => Command::Progress {
+            root: expand(root, home)?,
+            repo,
+            json,
+            open,
+            out,
+            no_write,
+        },
+        Command::Serve {
+            root,
+            port_file,
+            open,
+        } => Command::Serve {
+            root: expand(root, home)?,
+            port_file,
+            open,
+        },
+        Command::Dump { root, repo } => Command::Dump {
+            root: expand(root, home)?,
+            repo,
+        },
+        Command::Verify { root, repo } => Command::Verify {
+            root: expand(root, home)?,
+            repo,
+        },
+        Command::Repair {
+            root,
+            repo,
+            dry_run,
+            yes,
+        } => Command::Repair {
+            root: expand(root, home)?,
+            repo,
+            dry_run,
+            yes,
+        },
+        command @ (Command::Help | Command::Version) => command,
     })
 }
 
@@ -1220,5 +1347,176 @@ mod tests {
         assert!(
             USAGE.contains("3  the store refused the operation: any store error — io, locked,")
         );
+    }
+
+    // =================================================================
+    // The --root tilde expansion (U73): the no-shell configs' portable
+    // spelling. The fault messages are pinned exactly — they are the
+    // operator-facing contract, same as the parse faults above.
+    // =================================================================
+
+    /// The composition the binary runs: parse, then expand against a
+    /// home.
+    fn parse_and_expand<I>(args: I, home: Option<&str>) -> Result<Command, String>
+    where
+        I: IntoIterator,
+        I::Item: Into<OsString>,
+    {
+        let home = home.map(OsStr::new);
+        parse_args(args).and_then(|command| expand_root(command, home))
+    }
+
+    #[test]
+    fn a_leading_tilde_root_expands_against_the_home() {
+        assert_eq!(
+            parse_and_expand(
+                ["--root", "~/.local/share/dacode-todo"],
+                Some("/home/tester")
+            ),
+            Ok(Command::Shim {
+                root: OsString::from("/home/tester/.local/share/dacode-todo"),
+                default_repo: None
+            })
+        );
+    }
+
+    #[test]
+    fn a_bare_tilde_root_is_the_home_itself() {
+        assert_eq!(
+            parse_and_expand(["--root", "~"], Some("/home/tester")),
+            Ok(Command::Shim {
+                root: OsString::from("/home/tester"),
+                default_repo: None
+            })
+        );
+    }
+
+    #[test]
+    fn a_root_without_a_leading_tilde_passes_through() {
+        // Only a leading `~` expands — a tilde elsewhere in the path
+        // is a literal directory name, and an absolute or relative
+        // path is untouched.
+        assert_eq!(
+            parse_and_expand(["--root", "/tmp/~data"], Some("/home/tester")),
+            Ok(Command::Shim {
+                root: OsString::from("/tmp/~data"),
+                default_repo: None
+            })
+        );
+        assert_eq!(
+            parse_and_expand(["--root", "relative/~/x"], Some("/home/tester")),
+            Ok(Command::Shim {
+                root: OsString::from("relative/~/x"),
+                default_repo: None
+            })
+        );
+    }
+
+    #[test]
+    fn a_tilde_root_without_a_home_is_a_usage_fault() {
+        // Unset and empty are the same no-home: an empty HOME would
+        // otherwise expand `~` to the empty, cwd-relative root.
+        let expected = Err(
+            "todo-mcp: the value of option '--root <DIR>' starts with '~' but HOME is not \
+             set or is empty"
+                .to_owned(),
+        );
+        assert_eq!(parse_and_expand(["--root", "~/data"], None), expected);
+        assert_eq!(parse_and_expand(["--root", "~/data"], Some("")), expected);
+    }
+
+    #[test]
+    fn another_users_home_syntax_is_a_usage_fault() {
+        for bad in ["~mouse", "~mouse/data"] {
+            assert_eq!(
+                parse_and_expand(["--root", bad], Some("/home/tester")),
+                Err(
+                    "todo-mcp: the value of option '--root <DIR>' may start with '~' or '~/' \
+                     only — '~name' (another user's home) is not supported"
+                        .to_owned()
+                )
+            );
+        }
+    }
+
+    #[test]
+    fn every_command_shapes_root_expands() {
+        // The walk covers every variant so no arm of the dispatch can
+        // miss the expansion.
+        assert_eq!(
+            parse_and_expand(["--root", "~", "--daemon"], Some("/home/tester")),
+            Ok(Command::Daemon {
+                root: OsString::from("/home/tester")
+            })
+        );
+        assert_eq!(
+            parse_and_expand(["--root", "~/d", "progress"], Some("/home/tester")),
+            Ok(Command::Progress {
+                root: OsString::from("/home/tester/d"),
+                repo: None,
+                json: false,
+                open: false,
+                out: None,
+                no_write: false
+            })
+        );
+        assert_eq!(
+            parse_and_expand(["--root", "~/d", "refresh"], Some("/home/tester")),
+            Ok(Command::Refresh {
+                root: OsString::from("/home/tester/d"),
+                repo: None
+            })
+        );
+        assert_eq!(
+            parse_and_expand(["--root", "~/d", "serve"], Some("/home/tester")),
+            Ok(Command::Serve {
+                root: OsString::from("/home/tester/d"),
+                port_file: None,
+                open: false
+            })
+        );
+        assert_eq!(
+            parse_and_expand(["--root", "~/d", "dump"], Some("/home/tester")),
+            Ok(Command::Dump {
+                root: OsString::from("/home/tester/d"),
+                repo: None
+            })
+        );
+        assert_eq!(
+            parse_and_expand(["--root", "~/d", "verify"], Some("/home/tester")),
+            Ok(Command::Verify {
+                root: OsString::from("/home/tester/d"),
+                repo: None
+            })
+        );
+        assert_eq!(
+            parse_and_expand(
+                ["--root", "~/d", "repair", "--dry-run"],
+                Some("/home/tester")
+            ),
+            Ok(Command::Repair {
+                root: OsString::from("/home/tester/d"),
+                repo: None,
+                dry_run: true,
+                yes: false
+            })
+        );
+        // Help and Version carry no root — the pass-through.
+        assert_eq!(
+            parse_and_expand(["--help"], Some("/home/tester")),
+            Ok(Command::Help)
+        );
+        assert_eq!(parse_and_expand(["--version"], None), Ok(Command::Version));
+    }
+
+    #[test]
+    fn the_usage_text_names_the_tilde_expansion() {
+        // The operator-facing contract: the --root option's entry
+        // carries the spelling rule, and the exit-2 enumeration
+        // carries its faults.
+        assert!(USAGE.contains("expands against HOME"));
+        assert!(USAGE.contains("'~name'"));
+        assert!(USAGE.contains("HOME unset"));
+        assert!(USAGE.contains("a malformed --root or --repo"));
     }
 }

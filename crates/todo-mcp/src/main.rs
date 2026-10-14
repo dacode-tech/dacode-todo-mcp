@@ -31,15 +31,20 @@
 //! never touches it — the shim proxies and the watchdog's takeover
 //! loop is gone. The globals are shared: `--root <DIR>`
 //! names the store location on every path — nothing reads the
-//! environment, a home directory or the cwd to find one — and
+//! environment, a home directory or the cwd to find one, though a
+//! leading `~` in the given value is *spelled* against HOME (U73:
+//! client configs spawn the binary without a shell, so the portable
+//! root is theirs to write and this binary's to resolve) — and
 //! `--repo <SLUG>`, validated at the parse, is the shim's default
 //! slug (D8, riding the socket preamble to its session) or the
 //! subcommand's repo selection, resolved flag over
-//! working-directory match (§7). The cwd is read once, here at
-//! startup, and passed into the lib as a value (D1): the lib stays
-//! env-free, and a read that fails — a deleted cwd — passes `None`
-//! and derives no default. An explicit tool parameter outranks both
-//! tiers.
+//! working-directory match (§7). The cwd and HOME are each read
+//! once, here at startup, and passed into the lib as values (D1):
+//! the lib stays env-free, and a read that fails — a deleted cwd, an
+//! unset or empty HOME — passes nothing the lib can use and derives
+//! no default (a `~`-prefixed root with no home is a usage fault,
+//! never a directory literally named `~`). An explicit tool
+//! parameter outranks both tiers.
 
 // Tests are exempt from the panic-family lints through a mechanism, not
 // a convention (the workspace's rule, stated once in the root
@@ -64,7 +69,7 @@ use std::process::ExitCode;
 use std::time::Duration;
 
 use todo_domain::RepoSlug;
-use todo_mcp::args::{Command, USAGE, parse_args};
+use todo_mcp::args::{Command, USAGE, expand_root, parse_args};
 use todo_mcp::inspect;
 use todo_mcp::render;
 use todo_mcp::serve::{POLL_INTERVAL, ServeOutcome};
@@ -115,7 +120,18 @@ fn main() -> ExitCode {
 
 /// The dispatch: the argument vector in, the arm's [`ExitCode`] out.
 async fn dispatch() -> ExitCode {
-    match parse_args(std::env::args_os().skip(1)) {
+    // HOME, read once and eagerly beside the cwd: the binary's two
+    // environment reads, both passed into the lib as values so it
+    // stays env-free. HOME only *spells* a root the caller gave (a
+    // leading `~` in `--root`, U73) — it never *finds* one — and a
+    // home that is unset or empty makes a `~`-prefixed root a usage
+    // fault instead of a directory literally named `~` (the empty
+    // case is the lib's: an empty HOME would otherwise expand `~` to
+    // the cwd-relative empty root).
+    let home = std::env::var_os("HOME");
+    let parsed = parse_args(std::env::args_os().skip(1))
+        .and_then(|command| expand_root(command, home.as_deref()));
+    match parsed {
         Ok(Command::Shim { root, default_repo }) => {
             // The cwd, read once and eagerly (D1): the one environment
             // touch this binary makes for the default tier, passed in
