@@ -29,5 +29,5 @@
 <!-- hashes drive --check -->
 ```
 b1633a3c  dd35cda       305L  AGENTS.md
-81fe88cd  fc33f38       288L  README.md
+fe2aac2b  fc33f38       295L  README.md
 ```

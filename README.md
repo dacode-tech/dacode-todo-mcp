@@ -36,8 +36,8 @@ Build the release binary and install a stable copy — the config names
 the copy, not the checkout's `target/` (which `cargo clean` deletes).
 The copy lands via a fresh inode (cp to a temp name, then `mv`), never
 `cp` in place: on macOS, a signed binary modified in place while any
-process executes it — an opencode session's server, normally — leaves
-every NEW execution SIGKILL'd on a stale code-signature cache:
+process executes it — the daemon, normally — leaves every NEW
+execution SIGKILL'd on a stale code-signature cache:
 
 ```sh
 cargo build --release -p todo-mcp
@@ -61,19 +61,24 @@ machine runs — substitute your own root path:
 }
 ```
 
-Updating it is the same commands. No restart is needed: each opencode
-session spawns its own server process, so the next session picks up
-the new binary, and the rename leaves a running session's server on
-its old inode, undisturbed. One surface lags a step further: the
-live view's listener runs inside one session's server process and
-serves that process's inode — it moves to the new binary only when
-the old sessions exit and a new session's watchdog re-ensures the
-listener, so restart the opencode sessions to move the live view.
-The staleness tradeoff is deliberate and
-documented in the entry's comment in the live config: the installed
-copy goes stale after pulls until re-copied, and the store-format
-version gate (`version_mismatch`) makes a too-old binary refuse a
-newer store rather than guessing.
+Updating it is the same commands plus one signal: replace the binary,
+then SIGTERM the daemon (`pkill -TERM -f 'todo-mcp .* --daemon'`, or
+the pid from `ps`). The rename leaves the running daemon on its old
+inode, undisturbed, and the signal ends it gracefully: in-flight
+queries are answered through the drain, the connections break at the
+drain's bound, and every shim reconnects on its own — respawning the
+daemon from the installed path, which now names the new inode. No
+session restarts, no restart sweep: the client never learns the
+connection broke (the shim re-initializes the daemon-side session on
+the client's behalf), and a query sent during the reconnect window is
+answered once it completes. The live view moves with the daemon — the
+listener is the daemon's own, so the restart serves the new binary's
+pages and the old wait-for-sessions-to-exit lag is gone. The
+staleness tradeoff is deliberate and documented in the entry's
+comment in the live config: the installed copy goes stale after pulls
+until re-copied, and the store-format version gate
+(`version_mismatch`) makes a too-old binary refuse a newer store
+rather than guessing.
 
 A per-project mcp entry may pass a default repo slug (the `--repo`
 flag), and absent one the server derives the default from the directory
@@ -264,12 +269,14 @@ todo-mcp progress --root ~/.local/share/dacode-todo --no-write
 
 Green looks like `verify` exiting 0 with `status ok` and the render
 printing the totals. One live failure mode is expected, not broken
-wiring: while an opencode session's server holds a store's write
-handle (armed by a write tool call — the single-writer lock
-discipline), `verify` answers `store is locked`; the render reads
-lock-free and works regardless. Re-run `verify` once that session has
-ended. From inside opencode, the equivalent is asking the agent for
-`repo_list` — the tracked repos with their checkout paths (dacode,
+wiring: while the daemon holds a store's write handle (armed by a
+write tool call from any session — the single-writer lock discipline,
+and the handle is cached for the daemon's lifetime), `verify` answers
+`store is locked`; the render reads lock-free and works regardless.
+Re-run `verify` once no daemon holds the handle — after a daemon
+restart (the update cycle's signal) or with the daemon stopped. From
+inside opencode, the equivalent is asking the agent for `repo_list`
+— the tracked repos with their checkout paths (dacode,
 camera, ikvm-html, ipmi-collector, infra-hostrail-server, and this
 one).
 

@@ -10,9 +10,10 @@
 //! cannot tell the modes apart) and every `tools/call` answering
 //! §6.1's `io` carrier; the daemon spawned when absent and attached
 //! to (never duplicated) when present; and the abnormal end — the
-//! daemon lost mid-session — exiting 1 without waiting for the
-//! client's still-open stdin (the binary's bounded teardown, pinned
-//! by a test that hung on the pre-fix code).
+//! daemon lost mid-session beyond the reconnect's recovery, exiting
+//! 1 without waiting for the client's still-open stdin (the binary's
+//! bounded teardown, pinned by a test that hung on the pre-fix code;
+//! the reconnect's success path is the update suite's, U67).
 //!
 //! The window test waits out the real [`RETRY_WINDOW`] — the honest
 //! cost, exactly one such test. The fixture is the daemon suite's
@@ -293,15 +294,19 @@ mod shim {
     }
 
     /// 4. The abnormal end does not hang the exit: a live session
-    ///    whose daemon is SIGKILLed — the connection lost while the
-    ///    client's stdin is still open — answers one stderr line and
-    ///    exit 1 within the bound, never waiting for the client. The
-    ///    pre-fix shape hung exactly here: the runtime's implicit
-    ///    drop waited out the client task's in-flight blocking-pool
-    ///    stdin read, so the exit code arrived only when the client
-    ///    closed — a supervisor waiting on the exit (U67's restart
-    ///    flow) would deadlock. The fix is the binary's bounded
-    ///    teardown; this test pins it.
+    ///    whose daemon is SIGKILLed beyond recovery — the socket path
+    ///    replaced by an un-bindable directory before the kill, so
+    ///    the reconnect's respawned daemon can never ensure the
+    ///    socket and the retry window expires — answers one stderr
+    ///    line and exit 1 within the bound, never waiting for the
+    ///    client. The pre-fix shape hung exactly here: the runtime's
+    ///    implicit drop waited out the client task's in-flight
+    ///    blocking-pool stdin read, so the exit code arrived only
+    ///    when the client closed — a supervisor waiting on the exit
+    ///    (U67's restart flow) would deadlock. The fix is the
+    ///    binary's bounded teardown; this test pins it. The
+    ///    reconnect-success path — the same SIGKILL with a bindable
+    ///    socket — is the update suite's (tests/update.rs).
     #[test]
     fn a_lost_daemon_exits_one_without_waiting_for_the_client() {
         let root = shim_root();
@@ -329,18 +334,26 @@ mod shim {
             handshake.starts_with(r#"{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"#),
             "{handshake}"
         );
-        // The daemon dies hard — SIGKILL, no drain — while the
-        // client's stdin stays open.
+        // The socket path is made un-bindable BEFORE the kill: the
+        // live daemon keeps serving its connected session (the socket
+        // file's removal orphans its inode, nothing more), and the
+        // reconnect's respawned daemon — probing, failing to remove
+        // the directory, exiting — can never bind, so the shim's
+        // reconnect window expires into the terminal.
         let pids = daemon_pids(root.path());
         assert_eq!(pids.len(), 1, "one daemon serves the root");
+        std::fs::remove_file(root.path().join("serve.sock"))
+            .expect("the live daemon's socket file is removed");
+        std::fs::create_dir(root.path().join("serve.sock")).expect("the socket path is occupied");
         let signal = Command::new("/bin/kill")
             .arg("-9")
             .arg(pids[0].to_string())
             .status()
             .expect("the signal tool runs");
         assert!(signal.success(), "the SIGKILL is delivered");
-        // The shim answers the loss without waiting for the client:
-        // exit 1 within the bound.
+        // The shim answers the loss with the terminal — the reconnect
+        // window expired, one stderr line, exit 1 — within the bound,
+        // without waiting for the client's still-open stdin.
         let deadline = Instant::now() + EXIT_BOUND;
         let status = loop {
             if let Some(status) = child.try_wait().expect("the shim is waitable") {
@@ -366,6 +379,170 @@ mod shim {
             stderr.contains("the daemon connection was lost mid-session"),
             "one stderr line names the loss: {stderr}"
         );
+    }
+
+    /// 5. The client's EOF mid-reconnect still ends the session 0: a
+    ///    live session whose daemon is SIGKILLed, the client closing
+    ///    stdin shortly after the kill with NO post-kill bytes — the
+    ///    EOF read completes while the reconnect is still running, so
+    ///    the half the copy task holds and shuts down is the stale
+    ///    generation's, and the current generation's half sits
+    ///    untaken in the slot. The proxy loop must forward the EOF to
+    ///    the current generation (take the slot's untaken half, shut
+    ///    it down) and exit 0 within the bound — the pre-fix shape
+    ///    hung forever here: the respawned daemon never saw its
+    ///    transport EOF and the unbounded await waited it out. The
+    ///    update suite never caught this because its clients send a
+    ///    query before closing — the bytes arm re-acquires, the EOF
+    ///    rides the fresh half.
+    #[test]
+    fn a_client_eof_mid_reconnect_still_ends_zero() {
+        let root = shim_root();
+        let mut child = Command::new(env!("CARGO_BIN_EXE_todo-mcp"))
+            .arg("--root")
+            .arg(root.path())
+            .arg("--repo")
+            .arg(FIXTURE)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .expect("the shim spawns");
+        let mut stdin = child.stdin.take().expect("the shim's stdin");
+        let mut stdout = BufReader::new(child.stdout.take().expect("the shim's stdout"));
+        stdin
+            .write_all(format!("{INITIALIZE}\n{INITIALIZED}\n").as_bytes())
+            .expect("the handshake is sent");
+        let mut handshake = String::new();
+        stdout
+            .read_line(&mut handshake)
+            .expect("the handshake arrives");
+        assert!(
+            handshake.starts_with(r#"{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"#),
+            "{handshake}"
+        );
+        // The daemon dies hard; the client closes stdin shortly
+        // after — mid-reconnect, the respawn's bind still hundreds of
+        // milliseconds out — with no bytes after the kill.
+        let pids = daemon_pids(root.path());
+        assert_eq!(pids.len(), 1, "one daemon serves the root");
+        let signal = Command::new("/bin/kill")
+            .arg("-9")
+            .arg(pids[0].to_string())
+            .status()
+            .expect("the signal tool runs");
+        assert!(signal.success(), "the SIGKILL is delivered");
+        thread::sleep(Duration::from_millis(50));
+        drop(stdin);
+        // The session ends 0 within the bound: the reconnect
+        // completes, the EOF reaches the new generation, the daemon's
+        // session ends, the copy EOFs.
+        let deadline = Instant::now() + EXIT_BOUND;
+        let status = loop {
+            if let Some(status) = child.try_wait().expect("the shim is waitable") {
+                break status;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "the shim exits 0 after the EOF — the EOF must reach the \
+                 respawned generation, not die with the stale half"
+            );
+            thread::sleep(Duration::from_millis(25));
+        };
+        assert_eq!(status.code(), Some(0), "the completed session ends 0");
+        let mut stderr = String::new();
+        child
+            .stderr
+            .take()
+            .expect("the shim's stderr")
+            .read_to_string(&mut stderr)
+            .expect("read the shim's stderr");
+        assert!(stderr.is_empty(), "the reconnect is silent: {stderr}");
+        stop_daemon(root.path());
+    }
+
+    /// 6. The client's EOF after a completed reconnect still ends the
+    ///    session 0: the same kill, the stdin close landing after the
+    ///    respawn — the copy task is blocked in its read under the
+    ///    NEW generation but still holding the stale half (no bytes
+    ///    ever arrived to make it re-acquire), so its EOF shutdown
+    ///    hits the dead socket while the current generation's half
+    ///    sits untaken in the slot. The forwarding is the same fix;
+    ///    the pre-fix shape hung here too.
+    #[test]
+    fn a_client_eof_after_the_reconnect_still_ends_zero() {
+        let root = shim_root();
+        let mut child = Command::new(env!("CARGO_BIN_EXE_todo-mcp"))
+            .arg("--root")
+            .arg(root.path())
+            .arg("--repo")
+            .arg(FIXTURE)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .expect("the shim spawns");
+        let mut stdin = child.stdin.take().expect("the shim's stdin");
+        let mut stdout = BufReader::new(child.stdout.take().expect("the shim's stdout"));
+        stdin
+            .write_all(format!("{INITIALIZE}\n{INITIALIZED}\n").as_bytes())
+            .expect("the handshake is sent");
+        let mut handshake = String::new();
+        stdout
+            .read_line(&mut handshake)
+            .expect("the handshake arrives");
+        assert!(
+            handshake.starts_with(r#"{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"#),
+            "{handshake}"
+        );
+        // The daemon dies hard; the respawn is awaited, then the
+        // reconnect is given the retry cadence to complete its
+        // connect, handshake and publish before the close.
+        let pids = daemon_pids(root.path());
+        assert_eq!(pids.len(), 1, "one daemon serves the root");
+        let old_daemon = pids[0];
+        let signal = Command::new("/bin/kill")
+            .arg("-9")
+            .arg(old_daemon.to_string())
+            .status()
+            .expect("the signal tool runs");
+        assert!(signal.success(), "the SIGKILL is delivered");
+        let deadline = Instant::now() + EXIT_BOUND;
+        loop {
+            let pids = daemon_pids(root.path());
+            if pids.len() == 1 && pids[0] != old_daemon {
+                break;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "the respawn lands within the bound: {pids:?}"
+            );
+            thread::sleep(Duration::from_millis(25));
+        }
+        thread::sleep(Duration::from_millis(500));
+        drop(stdin);
+        let deadline = Instant::now() + EXIT_BOUND;
+        let status = loop {
+            if let Some(status) = child.try_wait().expect("the shim is waitable") {
+                break status;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "the shim exits 0 after the EOF — the EOF must reach the \
+                 current generation, not die with the stale half"
+            );
+            thread::sleep(Duration::from_millis(25));
+        };
+        assert_eq!(status.code(), Some(0), "the completed session ends 0");
+        let mut stderr = String::new();
+        child
+            .stderr
+            .take()
+            .expect("the shim's stderr")
+            .read_to_string(&mut stderr)
+            .expect("read the shim's stderr");
+        assert!(stderr.is_empty(), "the reconnect is silent: {stderr}");
+        stop_daemon(root.path());
     }
 
     /// Drives the shim in the protocol suite's shape — every request

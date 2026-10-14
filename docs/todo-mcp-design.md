@@ -809,6 +809,57 @@ the proxy: an `error` member (or no bytes at all) is the handshake
 gate's refusal, anything else a running session, and that bit picks
 the exit code.
 
+**U67's settlement (2026-10-14).** The reconnect: the daemon→client
+copy's end while the client's stdin is still open reuses the connect
+phase verbatim — the same function, a second caller — so a daemon
+lost mid-session is respawned (from the shim's own binary path, the
+freshly installed inode after an update) within the same
+`RETRY_WINDOW`; the drain does not count against the window, because
+the daemon serves the connection to the drain's bound and the shim
+observes the loss only at the bound's end. The fresh daemon-side
+session must be initialized before it will answer, and the client
+cannot re-send `initialize` — its session is established, and it must
+never learn the connection broke: the shim performs the
+**handshake-on-behalf** — its own `initialize` request with a STRING
+request id (`"shim-reconnect"`; the clients' request ids are numeric —
+rmcp's client-side id provider is a monotonic u32 counter — so a
+string id can never collide with one the client emits), an honest
+`clientInfo` naming the shim, and the protocol version this server
+declares — then `notifications/initialized`, everything consumed by
+the shim, nothing forwarded (the notification produces no response;
+JSON-RPC notifications never do). The client's bytes during the
+reconnect ride the stdin pipe: the shim initiates no stdin read of
+its own while reconnecting — a read already in flight when the loss
+was observed may complete during the reconnect, and its bytes are
+held by the copy task, not lost. The mechanism is one client→daemon
+copy task for the
+whole session — tokio's stdin read is uncancellable, its bytes
+dropped if the read future is dropped mid-operation (the handle's own
+docs), so a fresh copy task per generation would lose whatever an
+in-flight read returns and eat a request sent during the window. The
+task instead parks on a socket slot while the reconnect runs, the OS
+pipe buffering the client's bytes (a client writing past the pipe's
+capacity blocks, it does not fail); after the handshake-on-behalf the
+slot publishes the new write half and the task drains the pipe — plus
+any bytes an in-flight read returned, held by the task — so requests
+sent during the window are answered after the reconnect. The client's
+EOF is forwarded the same way: an EOF observed under a stale
+generation would die with that generation's half, so the loop takes
+the slot's published-but-untaken half and shuts it down — the current
+daemon sees its transport EOF and the session ends normally (the take
+is race-free; the copy task, the slot's only other taker, is
+finished). The session
+bit stays latched from the original session's first line: the
+reconnect's initialize response never passes through the first-line
+classifier (the reconnect generations' copies are blind from byte
+one; a successful handshake-on-behalf also latches the bit, so a
+daemon lost before the client's handshake completed still ends 0 when
+the reconnected session completes — rmcp re-answers a duplicate
+`initialize` post-init, so that edge is coherent). A reconnect whose
+window expires — or whose handshake is refused — is the terminal: one
+stderr line, exit 1; there is deliberately no mid-session degraded
+mode.
+
 ## 7. Multi-Repo Registry and Path Handling
 
 The server is global: one store, many repositories, reached from

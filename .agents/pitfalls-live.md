@@ -164,9 +164,18 @@ with EAGAIN on a silent socket is this entry's signature.
   live view lags one more step: the listener serves its owning
   session's inode, so the new pages arrive only after the old
   sessions exit and a new-binary watchdog re-ensures the listener
-- **Obsoleted by**: nothing — process discipline; the README's
-  install section names the live-view lag
+- **Obsoleted by**: U67's update cycle retires the live-view lag
+  (see the note below); the build-first discipline remains
 - **Source**: struggle
+
+**Obsolescence note (U67, 2026-10-14):** the update cycle retires the
+live-view lag — the listener is the daemon's own now, so killing the
+daemon after an install restarts the listener with the new binary; no
+waiting for old sessions to exit, no watchdog re-ensure. What remains
+true: an install without a daemon cycle still serves yesterday's
+pages (the daemon keeps running the old inode until signaled), and
+the build-first discipline is unchanged — the ritual's first line is
+still the only thing that catches a stale `target/release` copy.
 
 ---
 
@@ -192,8 +201,21 @@ with EAGAIN on a silent socket is this entry's signature.
   new inode; running servers keep their old one, undisturbed). The
   exit-137-with-no-output signature means the ritual was skipped —
   redo the install; do not debug the binary
-- **Obsoleted by**: nothing — macOS semantics; the README documents it
-  permanently
+- **Obsoleted by**: partially — U67's update cycle absorbs daemon loss
+  from any cause but a poisoned path (see the note below); the macOS
+  semantics themselves never retire
 - **Source**: struggle
+
+**Obsolescence note (U67, 2026-10-14):** the daemon shape absorbs
+daemon loss generally — the shims notice a death, respawn the daemon
+and reconnect within their retry window, so an update cycle or a
+crash costs a blip, not every session. The cp-in-place violation is
+*not* absorbed: it kills the running daemon and poisons the path, and
+the reconnect spends its single spawn per window against the poisoned
+path within milliseconds — a fresh-inode replace landing later in the
+window starts nothing, because no second spawn happens. Recovery
+needs the replace before the next respawn attempt: redo the install
+(the ritual in full), and the next session brings the daemon up on
+the fresh inode. The ritual stays load-bearing exactly as written.
 
 ---
