@@ -27,10 +27,10 @@ The three failure modes to avoid, in order of how often they happen:
    for`, attributes on a fn — that is `ast_grep_find_code_by_rule`, and
    the regex will be wrong in a way you will not notice.
 3. **Guessing at "who calls this".** Text search finds the name in
-   comments, strings, and unrelated inherent methods.
-   `serena_find_symbol` and `serena_find_referencing_symbols` give
-   rust-analyzer's answer, including through trait dispatch and macro
-   expansion. Scope them with `relative_path` or they can time out.
+   comments, strings, and unrelated inherent methods. The semantic
+   layer is gone (serena removed 2026-10-14), so there is no
+   compiler-certain answer: grep the name, read each hit's context,
+   and say the answer is lexical, not resolved.
 
 Zero results means escalate a layer, not rephrase at the same one.
 

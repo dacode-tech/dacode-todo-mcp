@@ -10,7 +10,7 @@
 # ─── Template Versioning ───────────────────────────────────────────────
 version:
   template: "0.1"          # Inherited from the dacode agent-rules layout
-  custom: 16               # Local adjustment counter
+  custom: 17               # Local adjustment counter
 
 # ─── Project Identity ──────────────────────────────────────────────────
 project:
@@ -189,17 +189,9 @@ harness:
     agent:
       build:
         permission:
-          serena*: allow
-          serena_search_for_pattern: deny
-          serena_replace_content: deny
-          serena_replace_in_files: deny
           ast_grep*: allow
       plan:
         permission:
-          serena*: allow
-          serena_search_for_pattern: deny
-          serena_replace_content: deny
-          serena_replace_in_files: deny
           ast_grep*: allow
 
 # ─── Role → model binding ──────────────────────────────────────────────
@@ -326,44 +318,20 @@ escalation:
 #   .mcp.json                -> "mcpServers" (command/args/env)
 mcp:
   servers:
-    serena:
-      # Semantic code retrieval/editing over LSP — rust-analyzer for this
-      # tree. Requires:
-      #   uv tool install -p 3.13 serena-agent && serena init
-      # `--context ide` trims the tool set that duplicates harness
-      # built-ins; `--project-from-cwd` keeps this checkout-path
-      # independent. `--tool-timeout` is command-line only, so it is set
-      # here to keep it project-scoped. Until the Cargo workspace exists
-      # rust-analyzer has nothing to chew on — Serena returns little;
-      # grep and the design doc answer everything in the design phase.
-      command:
-        ["serena", "start-mcp-server", "--context", "ide",
-         "--project-from-cwd", "--tool-timeout", "900",
-         "--open-web-dashboard", "False"]
-      enabled: true
-      global: false
-      # All agents, reviewers included: a reviewer that cannot resolve a
-      # symbol cannot check trait impls, call sites, or who depends on a
-      # changed signature. The schema cost sits in the cached prefix.
-      enable_for: ["dacode-todo-mcp", "dacode-todo-mcp-implementer",
-                   "dacode-todo-mcp-reviewer-primary",
-                   "dacode-todo-mcp-reviewer-secondary", "explore"]
-      # These duplicate the harness's own grep/edit tools; dropped
-      # explicitly (--context ide does not remove them).
-      disable_tools:
-        - search_for_pattern
-        - replace_content
-        - replace_in_files
-
     ast_grep:
-      # STRUCTURAL search layer. Official server from the ast-grep org
-      # (MIT); shells out to the `ast-grep` CLI, nothing leaves the host.
-      #   brew install ast-grep
+      # STRUCTURAL search layer — the top of the search ladder since
+      # serena's removal (the user's 2026-10-14 call: it never featured
+      # in delivered work and its ~20 tool schemas sat in every
+      # session's cached prefix). Official server from the ast-grep
+      # org (MIT); shells out to the `ast-grep` CLI, nothing leaves
+      # the host.   brew install ast-grep
       #
-      # Why alongside Serena: tree-sitter parses BOTH branches of every
-      # `cfg(...)`/`#[cfg]` and sees macro call sites pre-expansion, so
-      # ast-grep finds code rust-analyzer cannot (disabled features,
-      # other targets). Sub-second with no index.
+      # What it sees that grep cannot: tree-sitter parses BOTH
+      # branches of every `cfg(...)`/`#[cfg]` and macro call sites
+      # pre-expansion — disabled features, other targets. Sub-second
+      # with no index. The semantic layer (trait resolution, safe
+      # rename) is gone with serena; renames go through grep and
+      # review now, and `.agents/roles/_search.md` says so.
       command: ["uvx", "--from", "git+https://github.com/ast-grep/ast-grep-mcp",
                 "ast-grep-server"]
       enabled: true
@@ -374,20 +342,24 @@ mcp:
       env:
         AST_GREP_CONFIG: "sgconfig.yml"
 
-    # todo-mcp — THIS PROJECT'S SERVER — went global at t52 (§13): its
-    # entry lives in the user's global opencode config
-    # (~/.config/opencode/opencode.jsonc, the cve entry's pattern),
-    # naming the release binary (built by `cargo build --release -p
-    # todo-mcp` in this checkout; stale after pulls until rebuilt — the
-    # documented tradeoff of §13's "naming the binary", the store-format
-    # version gate refusing a too-old binary rather than guessing) and
-    # the durable D4 root ~/.local/share/dacode-todo that t48 filled.
-    # Not declared here on purpose: a servers entry renders into this
-    # project's config and would shadow the global one — the harness
-    # records only what it wires. The orchestrator's todo-mcp* allow is
-    # the role permission override (beside U16b's todowrite deny). No
-    # --repo default (D8): calls name their repo explicitly until t53's
-    # cwd auto-detection derives one.
+    todo-mcp:
+      # THIS PROJECT'S SERVER — global since t52 (§13): every agent in
+      # every session of this checkout gets the store surface, and the
+      # orchestrator's todo-mcp* allow is the role permission override
+      # (beside U16b's todowrite deny). Declared here since U72: the
+      # t52 stance (entry only in the user's global config, this
+      # project's config kept clean of it) is superseded by the
+      # user's 2026-10-14 ask — the committed project entry is the
+      # point now, so this checkout's sessions target this project's
+      # root whatever the global config carries. The command names
+      # the PATH-installed binary and the root's leading `~` expands
+      # against HOME in the server (U73) — no user-specific path in
+      # the committed config; the entry is the README's wiring
+      # example verbatim. No --repo default (D8): the cwd tier
+      # derives one per session.
+      command: ["todo-mcp", "--root", "~/.local/share/dacode-todo"]
+      enabled: true
+      global: true
 
 # ─── Session Integrity: canary + context health ───────────────────────
 session:

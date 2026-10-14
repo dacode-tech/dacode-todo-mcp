@@ -1,19 +1,5 @@
 {
   "mcpServers": {
-    "serena": {
-      "type": "stdio",
-      "command": "serena",
-      "args": [
-        "start-mcp-server",
-        "--context",
-        "ide",
-        "--project-from-cwd",
-        "--tool-timeout",
-        "900",
-        "--open-web-dashboard",
-        "False"
-      ]
-    },
     "ast_grep": {
       "type": "stdio",
       "command": "uvx",
@@ -25,6 +11,14 @@
       "env": {
         "AST_GREP_CONFIG": "sgconfig.yml"
       }
+    },
+    "todo-mcp": {
+      "type": "stdio",
+      "command": "todo-mcp",
+      "args": [
+        "--root",
+        "~/.local/share/dacode-todo"
+      ]
     }
   }
 }

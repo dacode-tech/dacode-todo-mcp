@@ -1,21 +1,6 @@
 {
   "$schema": "https://opencode.ai/config.json",
   "mcp": {
-    "serena": {
-      "type": "local",
-      "command": [
-        "serena",
-        "start-mcp-server",
-        "--context",
-        "ide",
-        "--project-from-cwd",
-        "--tool-timeout",
-        "900",
-        "--open-web-dashboard",
-        "False"
-      ],
-      "enabled": true
-    },
     "ast_grep": {
       "type": "local",
       "command": [
@@ -28,10 +13,18 @@
       "environment": {
         "AST_GREP_CONFIG": "sgconfig.yml"
       }
+    },
+    "todo-mcp": {
+      "type": "local",
+      "command": [
+        "todo-mcp",
+        "--root",
+        "~/.local/share/dacode-todo"
+      ],
+      "enabled": true
     }
   },
   "permission": {
-    "serena*": "deny",
     "ast_grep*": "deny"
   },
   "provider": {
@@ -61,19 +54,11 @@
   "agent": {
     "build": {
       "permission": {
-        "serena*": "allow",
-        "serena_search_for_pattern": "deny",
-        "serena_replace_content": "deny",
-        "serena_replace_in_files": "deny",
         "ast_grep*": "allow"
       }
     },
     "plan": {
       "permission": {
-        "serena*": "allow",
-        "serena_search_for_pattern": "deny",
-        "serena_replace_content": "deny",
-        "serena_replace_in_files": "deny",
         "ast_grep*": "allow"
       }
     }

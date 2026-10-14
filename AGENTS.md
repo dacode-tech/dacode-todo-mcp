@@ -177,10 +177,10 @@ reviewers enforce by hand:
 
 ## Code search: pick the layer
 
-Four layers, cheapest first — map (spec §2, `INDEX.md`, crate
-`AGENTS.md`) → lexical (`rg`, scoped) → structural (`ast-grep`) →
-semantic (Serena/rust-analyzer). Zero results means escalate a layer,
-not rephrase. Full policy: `.agents/roles/_search.md`.
+Three layers, cheapest first — map (spec §2, `INDEX.md`, crate
+`AGENTS.md`) → lexical (`rg`, scoped) → structural (`ast-grep`); the
+semantic layer is gone (serena removed 2026-10-14). Zero results means
+escalate a layer, not rephrase. Full policy: `.agents/roles/_search.md`.
 
 ## Boundaries
 

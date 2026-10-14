@@ -91,7 +91,6 @@ request/response pair belongs in the evidence (`task_update` →
 |---|---|
 | Rust stable | `rustup toolchain install stable` |
 | ast-grep CLI | `brew install ast-grep` |
-| Serena | `uv tool install -p 3.13 serena-agent && serena init` |
 | PyYAML (repo tooling) | `python3 -m pip install pyyaml` or a venv |
 
 If an install is unavailable or refused, the dependent gate is
@@ -104,9 +103,9 @@ silently dropping the gate.
   everything, including tests you cannot affect from your crate. Scope.
 - `cargo clippy --all-targets` includes tests and benches; without
   `--all-targets` a lint in test code survives to bite the final gate.
-- On a fresh clone, Serena/rust-analyzer returns nothing useful until the
-  first `cargo check` has run and the index is built — grep and ast-grep
-  carry that session (`.agents/roles/_search.md`).
+- On a fresh clone there is no semantic layer to warm up (serena was
+  removed 2026-10-14) — grep and ast-grep carry every session
+  (`.agents/roles/_search.md`).
 
 ## References
 
