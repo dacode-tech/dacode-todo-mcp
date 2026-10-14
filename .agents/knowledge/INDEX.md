@@ -13,7 +13,7 @@
 | Doc | Covers | rev | lag | open |
 |---|---|---|---|---|
 | [`(repo root)`](../../AGENTS.md) | Repository-wide instructions. opencode appends this to every agent's | `dd35cda` | — | — |
-| [`(repo root)`](../../README.md) | a deterministic task-graph MCP server — markdown TODO | `fc33f38` | — | — |
+| [`(repo root)`](../../README.md) | a deterministic task-graph MCP server — markdown TODO | `710eabb` | — | — |
 
 ## Topics
 
@@ -29,5 +29,5 @@
 <!-- hashes drive --check -->
 ```
 b1633a3c  dd35cda       305L  AGENTS.md
-fe2aac2b  fc33f38       295L  README.md
+fe2aac2b  710eabb       295L  README.md
 ```
