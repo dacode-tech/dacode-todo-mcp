@@ -225,6 +225,41 @@ fn a_v1_log_migrates_only_through_the_write_capable_open() {
     assert_eq!(graph.task(&task_id(7)), None);
 }
 
+#[test]
+fn a_longer_predecessor_header_refuses_the_in_place_migration() {
+    // U77's guard: the in-place rewrite is sound only while the two
+    // spellings occupy the same byte count. A hand-built longer v1
+    // header — the shape a future double-digit FORMAT_VERSION would
+    // make canonical — is refused before any byte moves: a named
+    // corrupt_store, nothing written, the bytes exactly as they were.
+    // The alternative the guard prevents is interior damage §4.3
+    // repair cannot fix: a longer first line written over the log's
+    // first event byte.
+    let v1 = fs::read(golden_path("event_log.v1")).unwrap();
+    // One space after the colon: still probe- and strict-parseable,
+    // still declaring the predecessor — one byte longer.
+    let mut longer = b"{\"format_version\": 1}\n".to_vec();
+    longer.extend_from_slice(&v1[HEADER_LINE_LEN..]);
+    let dir = TempDir::new().unwrap();
+    let path = log_path(&dir);
+    fs::write(&path, &longer).unwrap();
+
+    let error = JsonlStore::open_log(&path).unwrap_err();
+    match &error {
+        StoreError::CorruptStore { offset, detail } => {
+            assert_eq!(*offset, None, "{error}");
+            assert!(detail.contains("refused"), "{error}");
+            assert!(detail.contains("nothing was written"), "{error}");
+        }
+        other => panic!("expected the migration refusal, got {other:?}"),
+    }
+    // Nothing was written: the hand-built bytes are exactly as they
+    // were, and the failed open left no stale lock.
+    assert_eq!(fs::read(&path).unwrap(), longer);
+    let reopened = JsonlStore::open_log(&path);
+    assert_eq!(reopened.unwrap_err(), error);
+}
+
 /// The header line's byte length — `{"format_version":N}\n`, the same
 /// for every single-digit version, which is what makes the in-place
 /// migration length-preserving.

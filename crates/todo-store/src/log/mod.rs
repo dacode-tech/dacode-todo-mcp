@@ -208,7 +208,10 @@ impl JsonlStore {
     /// [`StoreError::VersionMismatch`] — except the predecessor
     /// (§15's strict superset), which replays identically and whose
     /// header this open migrates in place before any append can follow
-    /// it; a log that is malformed anywhere —
+    /// it, unless the two spellings differ in byte length, when the
+    /// migration is refused with a named error and nothing is written
+    /// (a longer first line would overwrite the log's first event
+    /// byte); a log that is malformed anywhere —
     /// a torn last line, garbage in the interior, a seed out of place, an
     /// event the domain rejects, an id that is not the next of its kind —
     /// is [`StoreError::CorruptStore`] carrying the offending line's
@@ -253,7 +256,14 @@ impl JsonlStore {
         // here is a named `corrupt_store` on the next open, never a
         // silent wrong graph.
         if declared_version == PREDECESSOR_VERSION {
-            migrate_log_header(path)?;
+            // Replay validated the header (probe, version, strict
+            // parse, terminator), so the split always yields it; the
+            // `else` keeps the refusal total rather than asserting the
+            // invariant.
+            let Some(header) = LineSplit::new(&bytes).next() else {
+                return Err(corrupt(0, DETAIL_EMPTY_LOG));
+            };
+            migrate_log_header(path, &header)?;
         }
         Ok(Self {
             path: path.to_path_buf(),
@@ -334,13 +344,35 @@ impl JsonlStore {
 /// the append handle is untouched and still points at the same inode.
 /// A torn write is the one crash window, and it is a named
 /// `corrupt_store` on the next open — never a silent wrong graph.
-fn migrate_log_header(path: &Path) -> Result<(), StoreError> {
+///
+/// The length guard (U77's note): the rewrite is sound only while the
+/// two spellings occupy the same byte count, so a mismatched length is
+/// refused before any byte moves — a future double-digit
+/// [`FORMAT_VERSION`] would otherwise write its longer first line over
+/// the log's first event byte, interior damage §4.3 repair cannot fix.
+/// The refusal is a cross-check between two lengths, not a fault in
+/// the stored bytes: `corrupt_store` with no offset, nothing written,
+/// the store left exactly as it was — the migration such a header
+/// needs is a real one, not an in-place rewrite.
+fn migrate_log_header(path: &Path, old_header: &LogLine<'_>) -> Result<(), StoreError> {
+    let mut line = to_bytes(&LogHeader::current())?;
+    if line.len() != old_header.bytes.len() {
+        return Err(StoreError::CorruptStore {
+            offset: None,
+            detail: format!(
+                "the in-place header migration refused: the log's {}-byte header line and \
+                 this build's {}-byte spelling differ in length — a length-changing header \
+                 is a real migration, not an in-place rewrite (nothing was written)",
+                old_header.bytes.len(),
+                line.len()
+            ),
+        });
+    }
+    line.push(LINE_FEED);
     let mut file = OpenOptions::new()
         .write(true)
         .open(path)
         .map_err(|error| io_error(CONTEXT_MIGRATE_OPEN, &error))?;
-    let mut line = to_bytes(&LogHeader::current())?;
-    line.push(LINE_FEED);
     file.write_all(&line)
         .map_err(|error| io_error(CONTEXT_MIGRATE_OPEN, &error))?;
     file.sync_all()
@@ -353,7 +385,8 @@ fn migrate_log_header(path: &Path) -> Result<(), StoreError> {
 /// reads the latest snapshot, then the log tail after it"); without one,
 /// every event in order. Returns the graph and the header's **declared**
 /// version, so a write-capable caller can migrate a predecessor header
-/// (§15) while the lock-free readers simply ignore it.
+/// (§15) while the lock-free readers gate the header through the same
+/// check and only decline the migration.
 ///
 /// The whole log is read into one buffer and split once: at §4.1's scale —
 /// 10^3 to 10^5 nodes — the buffer is the cheaper machinery, and holding
@@ -439,7 +472,9 @@ fn replay_from_snapshot(
 
 /// Checks the header line: probe, version, strict parse, committed
 /// (terminated) — [`VersionProbe`]'s ordering, the registry's and the
-/// snapshot's own. Returns the declared version. The lenient probe is
+/// snapshot's own, and the lock-free reads' gate (`reader.rs`), so one
+/// log answers one way on every read path. Returns the declared
+/// version. The lenient probe is
 /// what lets a header from a *newer* format report
 /// [`StoreError::VersionMismatch`] even when it carries fields this
 /// build has never seen: that is a migration question (§4), not
@@ -450,7 +485,7 @@ fn replay_from_snapshot(
 /// strict [`LogHeader`] parse then rejects an unknown field at any
 /// readable version, which is f14's damage — `deny_unknown_fields`
 /// with the registry and snapshot documents as the precedent.
-fn check_header(line: &LogLine<'_>) -> Result<u32, StoreError> {
+pub(crate) fn check_header(line: &LogLine<'_>) -> Result<u32, StoreError> {
     let probe: VersionProbe = from_bytes(line.bytes)
         .map_err(|error| corrupt(line.offset, prefixed(DETAIL_BAD_HEADER, &error)))?;
     if !is_readable(probe.format_version) {

@@ -27,6 +27,14 @@
 //! header error answers it: a crashed create is never registered, so
 //! the shape is unreachable by slug and reported, not special-cased.
 //!
+//! Every read below gates the prefix's first line — the header —
+//! through the graph read's own check: a newer-format log answers
+//! [`StoreError::VersionMismatch`] here exactly as the graph read
+//! answers it, never a silent sum over compatible events and never a
+//! `corrupt_store` misreported at the first event line (U77's note).
+//! The torn seed's empty prefix has no header to gate, and the reads'
+//! zero answers stand.
+//!
 //! The io context strings reuse the locked open's vocabulary ("open the
 //! event log", "read the event log") so a client sees one spelling per
 //! fault. The one divergence is exotic: a directory parked at the log
@@ -85,7 +93,7 @@ use crate::DataRoot;
 use crate::codec::from_bytes;
 use crate::error::{StoreError, io_error};
 use crate::event::{Event, ReflectionTrigger};
-use crate::log::{LineSplit, replay};
+use crate::log::{LineSplit, LogLine, check_header, replay};
 use crate::registry::Registry;
 
 /// The line terminator, and the only byte the log's line discipline
@@ -132,6 +140,22 @@ fn committed_prefix(bytes: &[u8]) -> &[u8] {
     }
 }
 
+/// The header gate the lock-free reads share (U77's note): the graph
+/// read's own [`check_header`] — probe, version, strict parse — so one
+/// log answers one way on every read path. A newer-format log is
+/// [`StoreError::VersionMismatch`] here too, never a silent sum over
+/// compatible events and never a `corrupt_store` misreported at the
+/// first event line; a damaged header reports the positioned fault the
+/// graph read reports. A `None` header — the torn seed's empty prefix
+/// — passes: the reads' zero answers over a crashed create are their
+/// own documented behavior.
+fn gate_header(header: Option<LogLine<'_>>) -> Result<(), StoreError> {
+    match header {
+        Some(header) => check_header(&header).map(|_| ()),
+        None => Ok(()),
+    }
+}
+
 /// The store-derived activity summary (t84's D2): what the event census
 /// counts over one log's committed prefix. A public summary type — the
 /// engine stays sealed behind it — with `BTreeMap` everywhere (§8) so
@@ -162,7 +186,8 @@ impl DataRoot {
     ///
     /// Path-derived like [`DataRoot::read_repo`]: the registry is not
     /// consulted, no lock is taken, nothing is created. The header line
-    /// is skipped (not an event); the seed is counted; a terminated but
+    /// is gated (the graph read's own check) and skipped (not an
+    /// event); the seed is counted; a terminated but
     /// unparseable line is the same positioned `corrupt_store` the
     /// graph read reports. The census is snapshot-blind: it counts what
     /// the log holds, covered region included.
@@ -314,17 +339,17 @@ fn overflowed() -> StoreError {
 }
 
 /// One repo's reward total: the `reward_grant` events of its committed
-/// prefix, summed. The same lock-free read and the same parse-fault
-/// spelling as the census's, so one damaged line reports identically
-/// on both paths.
+/// prefix, summed. The same lock-free read, the same header gate and
+/// the same parse-fault spelling as the census's, so one damaged line
+/// — or one foreign-version header — reports identically on both
+/// paths.
 fn reward_total_of(path: &Path) -> Result<u64, StoreError> {
     let mut file = File::open(path).map_err(|error| io_error(CONTEXT_OPEN_LOG, &error))?;
     let mut bytes = Vec::new();
     file.read_to_end(&mut bytes)
         .map_err(|error| io_error(CONTEXT_READ_LOG, &error))?;
     let mut lines = LineSplit::new(committed_prefix(&bytes));
-    // The header is format machinery, not an event: skipped.
-    let _header = lines.next();
+    gate_header(lines.next())?;
     let mut total: u64 = 0;
     for line in lines {
         let event: Event =
@@ -338,8 +363,9 @@ fn reward_total_of(path: &Path) -> Result<u64, StoreError> {
 
 /// One repo's reward events: the `reward_grant` and `reward_reflect`
 /// events of its committed prefix, in log order. The same lock-free
-/// read and the same parse-fault spelling as the census's and the
-/// totals', so one damaged line reports identically on every path.
+/// read, the same header gate and the same parse-fault spelling as the
+/// census's and the totals', so one damaged line — or one
+/// foreign-version header — reports identically on every path.
 fn reward_events_of(
     path: &Path,
     slug: &RepoSlug,
@@ -349,8 +375,7 @@ fn reward_events_of(
     file.read_to_end(&mut bytes)
         .map_err(|error| io_error(CONTEXT_READ_LOG, &error))?;
     let mut lines = LineSplit::new(committed_prefix(&bytes));
-    // The header is format machinery, not an event: skipped.
-    let _header = lines.next();
+    gate_header(lines.next())?;
     let mut grants = Vec::new();
     let mut reflections = Vec::new();
     for line in lines {
@@ -416,10 +441,11 @@ pub(crate) fn read_census(path: &Path) -> Result<EventCensus, StoreError> {
 /// happened, and no unterminated line can reach this loop.
 fn census_of(prefix: &[u8]) -> Result<EventCensus, StoreError> {
     let mut lines = LineSplit::new(prefix);
-    // The header is format machinery, not an event: skipped, never
-    // counted. An empty prefix yields no header and no events — the
-    // zero census, the honest count of a torn seed.
-    let _header = lines.next();
+    // The header is gated (the graph read's own check) then skipped —
+    // format machinery, not an event, never counted. An empty prefix
+    // yields no header and no events — the zero census, the honest
+    // count of a torn seed.
+    gate_header(lines.next())?;
     let mut census = EventCensus::default();
     for line in lines {
         let event: Event =

@@ -325,6 +325,59 @@ fn a_foreign_version_header_is_version_mismatch() {
     assert_eq!(root.open(&camera_slug).unwrap_err(), error);
 }
 
+#[test]
+fn a_foreign_version_header_is_version_mismatch_on_every_lock_free_read() {
+    // U77's note: the census, the totals and the events reads once
+    // skipped the header the graph read gates through, so a
+    // newer-format log silently summed — or misreported
+    // corrupt_store at the first event line — on exactly the reads
+    // that feed the rewards numbers. Every read gates through the
+    // graph read's own check now: one log, one answer, every path.
+    let dir = TempDir::new().unwrap();
+    let root = data_root(&dir);
+    let camera_slug = slug("camera");
+    let _ = committed_graph(&root);
+    let log = root.log_path(&camera_slug);
+    let valid = fs::read(&log).unwrap();
+    fs::write(&log, with_header_version(&valid, FORMAT_VERSION + 1)).unwrap();
+
+    let error = root.read_repo(&camera_slug).unwrap_err();
+    assert_eq!(
+        error,
+        StoreError::VersionMismatch {
+            found: FORMAT_VERSION + 1,
+            expected: FORMAT_VERSION
+        }
+    );
+    assert_eq!(root.read_repo_census(&camera_slug).unwrap_err(), error);
+    assert_eq!(root.rewards_totals().unwrap_err(), error);
+    assert_eq!(root.rewards_events().unwrap_err(), error);
+}
+
+#[test]
+fn a_damaged_header_reports_identically_on_every_lock_free_read() {
+    // The gate's other half (U77): a damaged header — not a newer
+    // format, damage — reports the graph read's own positioned
+    // corrupt_store on every lock-free read, byte for byte: one log,
+    // one answer, every path.
+    let dir = TempDir::new().unwrap();
+    let root = data_root(&dir);
+    let camera_slug = slug("camera");
+    let _ = committed_graph(&root);
+    let log = root.log_path(&camera_slug);
+    let valid = fs::read(&log).unwrap();
+    let first_lf = valid.iter().position(|byte| *byte == b'\n').unwrap();
+    let mut damaged = GARBAGE_LINE.to_vec();
+    damaged.extend_from_slice(&valid[first_lf + 1..]);
+    fs::write(&log, &damaged).unwrap();
+
+    let error = root.read_repo(&camera_slug).unwrap_err();
+    assert_eq!(error.code(), "corrupt_store");
+    assert_eq!(root.read_repo_census(&camera_slug).unwrap_err(), error);
+    assert_eq!(root.rewards_totals().unwrap_err(), error);
+    assert_eq!(root.rewards_events().unwrap_err(), error);
+}
+
 // =================================================================
 // Missing store (required test 8).
 // =================================================================
