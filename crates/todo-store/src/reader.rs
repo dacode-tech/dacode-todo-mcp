@@ -59,6 +59,19 @@
 //! `compact`, §4.3, so the log is the complete record in practice). The
 //! answer is [`RewardsTotals`], `BTreeMap`-keyed so the per-repo order
 //! is the registry's own ascending-slug order (§8).
+//!
+//! # The reward events (§15's display half, U63)
+//!
+//! [`DataRoot::rewards_events`] is the fourth lock-free read, the
+//! totals' sibling over the same walk: it **collects** the
+//! `reward_grant` and `reward_reflect` events instead of summing them,
+//! answering [`RewardsEvents`] — the fields verbatim, never re-derived,
+//! because §15's display renders them as recorded. The order is root
+//! order: the registry's ascending-slug order across repos, log
+//! (append) order within one — the order the events were recorded in,
+//! which "recent" is a suffix of at the display layer. The repo each
+//! event came from is the read's own key (the log's slug), not the
+//! event's — the events are repo-scoped by their log alone.
 
 use std::collections::BTreeMap;
 use std::fs::File;
@@ -66,12 +79,12 @@ use std::io::Read;
 use std::path::Path;
 
 use serde::Serialize;
-use todo_domain::{Graph, RepoSlug, Timestamp};
+use todo_domain::{Graph, RepoSlug, Size, TaskId, Timestamp};
 
 use crate::DataRoot;
 use crate::codec::from_bytes;
 use crate::error::{StoreError, io_error};
-use crate::event::Event;
+use crate::event::{Event, ReflectionTrigger};
 use crate::log::{LineSplit, replay};
 use crate::registry::Registry;
 
@@ -185,6 +198,31 @@ impl DataRoot {
         }
         Ok(totals)
     }
+
+    /// The root's reward events (§15's display half, U63): every
+    /// `reward_grant` and `reward_reflect` event of every registered
+    /// repo's committed prefix — the totals' own iterate-the-registry,
+    /// lock-free walk, collecting the events instead of summing them.
+    /// The answer's order is root order: the registry's
+    /// ascending-slug order across repos, log (append) order within
+    /// one. The fields are the events' own, verbatim — the display
+    /// never re-derives them (§15).
+    ///
+    /// A store that will not read fails the whole call with the error
+    /// its own read reports — the same all-or-nothing reading as
+    /// [`DataRoot::rewards_totals`], for the same reason: a repo
+    /// whose events quietly disappear from the answer is a silent
+    /// omission.
+    pub fn rewards_events(&self) -> Result<RewardsEvents, StoreError> {
+        let registry = Registry::load(self)?;
+        let mut events = RewardsEvents::default();
+        for slug in registry.slugs() {
+            let (mut grants, mut reflections) = reward_events_of(&self.log_path(slug), slug)?;
+            events.grants.append(&mut grants);
+            events.reflections.append(&mut reflections);
+        }
+        Ok(events)
+    }
 }
 
 /// The derived rewards totals of a data root (§15): summed from the
@@ -199,6 +237,70 @@ pub struct RewardsTotals {
     pub total: u64,
     /// Per-repo totals, ascending by slug — the registry's own order.
     pub by_repo: BTreeMap<RepoSlug, u64>,
+}
+
+/// The root's reward events as the logs record them (§15's display
+/// half, U63): every `reward_grant` and `reward_reflect` event of
+/// every registered repo's committed prefix, in root order — the
+/// registry's ascending-slug order across repos, log (append) order
+/// within one. A public summary type — the engine stays sealed behind
+/// it — carrying the events' fields verbatim: the display renders
+/// them as recorded and never re-derives, interprets or reformats
+/// them (§15).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct RewardsEvents {
+    /// The grants, root order.
+    pub grants: Vec<GrantedReward>,
+    /// The reflections, root order.
+    pub reflections: Vec<RewardReflection>,
+}
+
+/// One granted reward as the log records it (§15's display half): the
+/// `reward_grant` event's fields verbatim — the task, the amount, the
+/// size and the multipliers the arithmetic applied — plus the repo
+/// whose log holds it (the read's own key: the event is repo-scoped
+/// by its log alone). Serialized in declaration order, the canonical
+/// order (D14), so the progress document's twin embeds it as-is.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct GrantedReward {
+    /// The grant's audit instant — the closure's own `ts`.
+    pub ts: Timestamp,
+    /// The repo whose log holds the grant.
+    pub repo: RepoSlug,
+    /// The task whose closure granted.
+    pub task: TaskId,
+    /// The granted amount, in the config's currency units.
+    pub amount: u64,
+    /// The size whose base cost was applied — the reported actual, or
+    /// the config's default bucket when the closure reported none.
+    pub size: Size,
+    /// The priority percent applied (100 when the task carried no
+    /// priority).
+    pub priority_pct: u64,
+    /// The kind percent applied.
+    pub kind_pct: u64,
+}
+
+/// One logged reflection as the log records it (§15's display half):
+/// the `reward_reflect` event's fields verbatim — the answer exactly
+/// as given, the trigger that asked, and the derived totals at the
+/// moment the answer landed — plus the repo whose log holds it. The
+/// answer is never interpreted here or above it (§15: the answers are
+/// the experiment's data, not the server's).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct RewardReflection {
+    /// The reflection's audit instant — the answer's.
+    pub ts: Timestamp,
+    /// The repo whose log holds the reflection.
+    pub repo: RepoSlug,
+    /// The verbatim answer, as given.
+    pub answer: String,
+    /// Why the question was asked.
+    pub trigger: ReflectionTrigger,
+    /// The root's accumulated total at the moment.
+    pub root_total: u64,
+    /// This repo's accumulated total at the moment.
+    pub repo_total: u64,
 }
 
 /// The overflow fault of a totals sum: unpositioned, because it locates
@@ -232,6 +334,63 @@ fn reward_total_of(path: &Path) -> Result<u64, StoreError> {
         }
     }
     Ok(total)
+}
+
+/// One repo's reward events: the `reward_grant` and `reward_reflect`
+/// events of its committed prefix, in log order. The same lock-free
+/// read and the same parse-fault spelling as the census's and the
+/// totals', so one damaged line reports identically on every path.
+fn reward_events_of(
+    path: &Path,
+    slug: &RepoSlug,
+) -> Result<(Vec<GrantedReward>, Vec<RewardReflection>), StoreError> {
+    let mut file = File::open(path).map_err(|error| io_error(CONTEXT_OPEN_LOG, &error))?;
+    let mut bytes = Vec::new();
+    file.read_to_end(&mut bytes)
+        .map_err(|error| io_error(CONTEXT_READ_LOG, &error))?;
+    let mut lines = LineSplit::new(committed_prefix(&bytes));
+    // The header is format machinery, not an event: skipped.
+    let _header = lines.next();
+    let mut grants = Vec::new();
+    let mut reflections = Vec::new();
+    for line in lines {
+        let event: Event =
+            from_bytes(line.bytes).map_err(|error| census_parse_fault(line.offset, &error))?;
+        match event {
+            Event::RewardGrant {
+                ts,
+                task,
+                amount,
+                size,
+                priority_pct,
+                kind_pct,
+            } => grants.push(GrantedReward {
+                ts,
+                repo: slug.clone(),
+                task,
+                amount,
+                size,
+                priority_pct,
+                kind_pct,
+            }),
+            Event::RewardReflect {
+                ts,
+                answer,
+                trigger,
+                root_total,
+                repo_total,
+            } => reflections.push(RewardReflection {
+                ts,
+                repo: slug.clone(),
+                answer,
+                trigger,
+                root_total,
+                repo_total,
+            }),
+            _ => {}
+        }
+    }
+    Ok((grants, reflections))
 }
 
 /// Counts the events the log at `path` holds as of its last commit —

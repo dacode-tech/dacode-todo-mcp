@@ -47,11 +47,12 @@ mod progress {
     use serde_json::{Value, json};
     use tempfile::TempDir;
     use todo_domain::{
-        BlocksEdge, Confidence, DecisionDraft, DecisionStatus, EpicDraft, References, Repo,
-        RepoSlug, Status, TaskDraft, TaskKind, Timestamp,
+        BaseCosts, BlocksEdge, Confidence, DecisionDraft, DecisionStatus, EpicDraft,
+        KindMultipliers, PriorityMultipliers, References, Repo, RepoSlug, RewardsConfig, Size,
+        Status, TaskDraft, TaskKind, Timestamp,
     };
     use todo_mcp::render;
-    use todo_store::{DataRoot, Store};
+    use todo_store::{DataRoot, ReflectionTrigger, Store, TaskPatch};
 
     use crate::common::assert_golden;
 
@@ -1138,6 +1139,473 @@ mod progress {
         assert_eq!(
             value["activity"]["last_ts"],
             json!("2026-10-07T08:20:05.000000000Z")
+        );
+    }
+
+    // =================================================================
+    // The rewards section (§15's display half, U63) — the enabled
+    // fixtures and their goldens
+    // =================================================================
+
+    /// The enabled config the rewards fixture runs under: the domain
+    /// test table's numbers (s=10, m=25, high=150, task=100), the
+    /// threshold at 50 so the fixture's third grant crosses it from
+    /// below.
+    fn rewards_config() -> RewardsConfig {
+        RewardsConfig {
+            enabled: true,
+            currency: "coffee".to_owned(),
+            base_costs: BaseCosts {
+                s: 10,
+                m: 25,
+                l: 50,
+                xl: 100,
+            },
+            default_size: Size::M,
+            priority_multipliers: PriorityMultipliers {
+                high: 150,
+                medium: 100,
+                low: 50,
+            },
+            kind_multipliers: KindMultipliers {
+                task: 100,
+                gate: 100,
+                finding: 50,
+                debt: 25,
+            },
+            reflect_every: 50,
+        }
+    }
+
+    /// The closure patch: closed with evidence — the closure
+    /// discipline the grant path requires.
+    fn closing_patch() -> TaskPatch {
+        TaskPatch {
+            status: Some(Status::Closed),
+            evidence: Some(Some("the closure evidence".to_owned())),
+            ..TaskPatch::default()
+        }
+    }
+
+    /// Builds the rewards fixture under `root` — the enabled goldens'
+    /// world, shaped to exercise every display rule:
+    ///
+    /// - **fixture** holds E1, the milestone epic (the provenance
+    ///   description the heuristic reads), with U1 (estimated S) and
+    ///   U2 (unestimated) under it, and E2, a plain epic, with U3
+    ///   (estimated L) and U4 (unestimated) open under it.
+    /// - **alpha** — registered after fixture, sorted before it — holds
+    ///   one epic and one task, so the per-repo totals and the events'
+    ///   root order have a real second repo.
+    /// - The config is saved, then three closures grant: fixture U1
+    ///   with a reported actual (S → 10), fixture U2 without (the
+    ///   default M → 25), alpha U1 without (25) — the third grant
+    ///   crossing `reflect_every` 50 from below.
+    /// - Two reflections land: alpha answers the threshold crossing,
+    ///   fixture the milestone closure — the totals at each answer's
+    ///   moment, one answer carrying `&` so the golden pins the
+    ///   escaping.
+    ///
+    /// The grants' `ts` values deliberately disagree with the root
+    /// order (alpha's grant is the latest by `ts` yet comes first):
+    /// the order is the registry's and the log's, never the
+    /// timestamps' — the golden pins that.
+    fn build_rewards_fixture(root: &DataRoot) {
+        let mut store = root
+            .register(Repo {
+                slug: fixture_slug(),
+                name: "Fixture".to_owned(),
+                path: "/repos/fixture".to_owned(),
+                registered_at: ts("2026-10-02T08:00:00Z"),
+            })
+            .expect("the fixture repo registers");
+        let milestone = store
+            .add_epic(
+                EpicDraft {
+                    title: "Milestone epic".to_owned(),
+                    description: "the fixture board's §2 milestone M1".to_owned(),
+                    status: Status::Open,
+                    references: References::new(),
+                },
+                ts("2026-10-02T08:01:00Z"),
+            )
+            .expect("E1 lands");
+        let plain = store
+            .add_epic(
+                EpicDraft {
+                    title: "Plain epic".to_owned(),
+                    description: "The plain epic.".to_owned(),
+                    status: Status::InWork,
+                    references: References::new(),
+                },
+                ts("2026-10-02T08:02:00Z"),
+            )
+            .expect("E2 lands");
+        let draft = |epic: &todo_domain::EpicId, title: &str, estimate: Option<Size>| TaskDraft {
+            estimate,
+            epic: epic.clone(),
+            kind: TaskKind::Task,
+            title: title.to_owned(),
+            body: String::new(),
+            status: Status::Open,
+            verify: Some("cargo test -p fixture".to_owned()),
+            evidence: None,
+            note: None,
+            references: References::new(),
+            priority: None,
+            until: None,
+        };
+        let u1 = store
+            .add_task(
+                draft(&milestone.id, "Estimated small", Some(Size::S)),
+                ts("2026-10-02T08:10:01Z"),
+            )
+            .expect("U1 lands");
+        let u2 = store
+            .add_task(
+                draft(&milestone.id, "Unestimated", None),
+                ts("2026-10-02T08:10:02Z"),
+            )
+            .expect("U2 lands");
+        store
+            .add_task(
+                draft(&plain.id, "Estimated large", Some(Size::L)),
+                ts("2026-10-02T08:10:03Z"),
+            )
+            .expect("U3 lands");
+        store
+            .add_task(
+                draft(&plain.id, "Unestimated open", None),
+                ts("2026-10-02T08:10:04Z"),
+            )
+            .expect("U4 lands");
+        drop(store);
+
+        let mut alpha = root
+            .register(Repo {
+                slug: RepoSlug::from_str(ALPHA).expect("a valid slug"),
+                name: "Alpha".to_owned(),
+                path: "/repos/alpha".to_owned(),
+                registered_at: ts("2026-10-02T09:00:00Z"),
+            })
+            .expect("the alpha repo registers");
+        let alpha_epic = alpha
+            .add_epic(
+                EpicDraft {
+                    title: "Alpha epic".to_owned(),
+                    description: "The alpha epic.".to_owned(),
+                    status: Status::Open,
+                    references: References::new(),
+                },
+                ts("2026-10-02T09:01:00Z"),
+            )
+            .expect("alpha E1 lands");
+        let alpha_task = alpha
+            .add_task(
+                draft(&alpha_epic.id, "Alpha task", None),
+                ts("2026-10-02T09:02:00Z"),
+            )
+            .expect("alpha U1 lands");
+        drop(alpha);
+
+        root.save_config(&rewards_config())
+            .expect("the config saves");
+
+        let mut store = root.open(&fixture_slug()).expect("the fixture store opens");
+        store
+            .close_task(
+                u1.id,
+                ts("2026-10-02T08:30:00Z"),
+                closing_patch(),
+                Some(Size::S),
+            )
+            .expect("U1 closes and grants");
+        store
+            .close_task(u2.id, ts("2026-10-02T08:31:00Z"), closing_patch(), None)
+            .expect("U2 closes and grants");
+        drop(store);
+        let mut alpha = root
+            .open(&RepoSlug::from_str(ALPHA).expect("a valid slug"))
+            .expect("the alpha store opens");
+        alpha
+            .close_task(
+                alpha_task.id,
+                ts("2026-10-02T09:30:00Z"),
+                closing_patch(),
+                None,
+            )
+            .expect("alpha U1 closes and grants");
+        let totals = root.rewards_totals().expect("the totals derive");
+        alpha
+            .log_reflection(
+                "Crossed the threshold; the pace feels sustainable.".to_owned(),
+                ReflectionTrigger::Threshold,
+                totals.clone(),
+                ts("2026-10-02T09:40:00Z"),
+            )
+            .expect("the threshold reflection logs");
+        drop(alpha);
+        let mut store = root.open(&fixture_slug()).expect("the fixture store opens");
+        store
+            .log_reflection(
+                "The milestone closed clean & the estimate held.".to_owned(),
+                ReflectionTrigger::EpicClosure {
+                    epic: milestone.id.clone(),
+                },
+                totals,
+                ts("2026-10-02T09:41:00Z"),
+            )
+            .expect("the milestone reflection logs");
+    }
+
+    /// The rewards fixture under a fresh temp root, registered at
+    /// placeholder paths — the in-process tests never match a cwd
+    /// against them.
+    fn rewards_fixture() -> TempDir {
+        let root = TempDir::new().expect("a fresh temp root");
+        build_rewards_fixture(&DataRoot::new(root.path()));
+        root
+    }
+
+    /// The enabled page golden: the rewards fixture's page,
+    /// byte-identical to `tests/golden/rewards_page.v1.golden` — the
+    /// rewards section (the totals, the recent grants, the
+    /// reflections), the est/actual columns and the section's CSS all
+    /// pinned.
+    #[test]
+    fn the_enabled_page_is_golden_pinned() {
+        let root = rewards_fixture();
+        assert_golden("rewards_page.v1", fixture_page(&root).as_bytes());
+    }
+
+    /// Two enabled page renders over unchanged state are
+    /// byte-identical (§8) — the in-process twin of the golden's
+    /// regeneration ritual.
+    #[test]
+    fn two_enabled_page_renders_are_byte_identical() {
+        let root = rewards_fixture();
+        assert_eq!(fixture_page(&root), fixture_page(&root));
+    }
+
+    /// The enabled JSON golden: the rewards fixture's document,
+    /// byte-identical to `tests/golden/rewards_progress.v1.golden` —
+    /// the rewards block and the open items' size fields pinned.
+    #[test]
+    fn the_enabled_json_is_golden_pinned() {
+        let root = rewards_fixture();
+        assert_golden("rewards_progress.v1", fixture_document(&root).as_bytes());
+    }
+
+    /// The enabled epic page golden: the rewards fixture's E1 page
+    /// (the milestone lane — the closed pair with their actuals),
+    /// byte-identical to `tests/golden/rewards_epic_page.v1.golden`.
+    /// The epic page gains the columns alone, never the section (§15
+    /// names the progress page, the JSON twin and the live view).
+    #[test]
+    fn the_enabled_epic_page_is_golden_pinned() {
+        let root = rewards_fixture();
+        assert_golden(
+            "rewards_epic_page.v1",
+            fixture_epic_page(&root, 1).as_bytes(),
+        );
+    }
+
+    /// The enabled document's rewards block, asserted on the parsed
+    /// JSON: the totals (root and per-repo, the registry's order), the
+    /// recent grants in root order — alpha's grant first, the
+    /// registry's order, not the registration's and not the
+    /// timestamps' — with their fields as recorded, the reflections
+    /// verbatim with their triggers, and the open items' size fields.
+    #[test]
+    fn the_enabled_document_carries_the_rewards_block() {
+        let root = rewards_fixture();
+        let document = fixture_document(&root);
+        let value: Value = serde_json::from_str(&document).expect("the document is JSON");
+        assert_eq!(value["rewards"]["currency"], json!("coffee"));
+        assert_eq!(
+            value["rewards"]["totals"],
+            json!({"total": 60, "by_repo": {"alpha": 25, "fixture": 35}})
+        );
+        let grants = value["rewards"]["recent_grants"]
+            .as_array()
+            .expect("the recent grants");
+        assert_eq!(grants.len(), 3);
+        // Root order: alpha first (the registry's order), then
+        // fixture's two in log order — alpha's grant is the latest by
+        // ts yet comes first.
+        assert_eq!(grants[0]["repo"], json!("alpha"));
+        assert_eq!(grants[0]["task"], json!("alpha:U1"));
+        assert_eq!(grants[0]["amount"], json!(25));
+        assert_eq!(grants[0]["size"], json!("m"));
+        assert_eq!(grants[0]["priority_pct"], json!(100));
+        assert_eq!(grants[0]["kind_pct"], json!(100));
+        assert_eq!(grants[0]["ts"], json!("2026-10-02T09:30:00.000000000Z"));
+        assert_eq!(grants[1]["task"], json!("fixture:U1"));
+        assert_eq!(grants[1]["amount"], json!(10));
+        assert_eq!(grants[1]["size"], json!("s"));
+        assert_eq!(grants[2]["task"], json!("fixture:U2"));
+        assert_eq!(grants[2]["size"], json!("m"));
+        let reflections = value["rewards"]["reflections"]
+            .as_array()
+            .expect("the reflections");
+        assert_eq!(reflections.len(), 2);
+        assert_eq!(
+            reflections[0]["answer"],
+            json!("Crossed the threshold; the pace feels sustainable.")
+        );
+        assert_eq!(reflections[0]["trigger"], json!({"trigger": "threshold"}));
+        assert_eq!(reflections[0]["root_total"], json!(60));
+        assert_eq!(reflections[0]["repo_total"], json!(25));
+        assert_eq!(
+            reflections[1]["answer"],
+            json!("The milestone closed clean & the estimate held.")
+        );
+        assert_eq!(
+            reflections[1]["trigger"],
+            json!({"trigger": "epic_closure", "epic": "fixture:E1"})
+        );
+        assert_eq!(reflections[1]["repo_total"], json!(35));
+        // The open items' size fields: U3 estimated L with no actual,
+        // U4 neither — the closed U1/U2 are not open items.
+        let items = value["open_items"].as_array().expect("the open items");
+        let u3 = items
+            .iter()
+            .find(|item| item["id"] == json!("U3"))
+            .expect("U3 is an open item");
+        assert_eq!(u3["estimate"], json!("l"));
+        assert_eq!(u3["actual"], json!(null));
+        let u4 = items
+            .iter()
+            .find(|item| item["id"] == json!("U4"))
+            .expect("U4 is an open item");
+        assert_eq!(u4["estimate"], json!(null));
+        assert_eq!(u4["actual"], json!(null));
+    }
+
+    /// The enabled page's section and columns: the header with the
+    /// root total, the per-repo totals line, the recent grants table
+    /// (full task ids — the list is root-scoped), the reflections
+    /// verbatim with the `&` escaped, and the est/actual column heads
+    /// and cells — U3's row the estimate with the dashed actual, the
+    /// epic page's U1 row the pair agreeing (the honesty anchor).
+    #[test]
+    fn the_enabled_page_renders_the_section_and_columns() {
+        let root = rewards_fixture();
+        let page = fixture_page(&root);
+        assert!(
+            page.contains("<h2>Rewards — 60 coffee total</h2>"),
+            "the header carries the root total and the currency"
+        );
+        assert!(
+            page.contains(
+                "<div class=\"rtot\">per-repo totals: alpha <b>25</b> · fixture <b>35</b></div>"
+            ),
+            "the per-repo totals line, the registry's order"
+        );
+        assert!(
+            page.contains(
+                "<tr><td class=\"mono\">alpha:U1</td><td>25 coffee</td><td class=\"mono\">M</td>\
+                 <td class=\"mono\">100</td><td class=\"mono\">100</td>\
+                 <td class=\"mono\">2026-10-02T09:30:00.000000000Z</td></tr>"
+            ),
+            "a recent grant row: the full task id, the amount with the currency, the size and \
+             the multipliers as recorded, the audit instant"
+        );
+        assert!(
+            page.contains("Crossed the threshold; the pace feels sustainable."),
+            "the threshold answer, verbatim"
+        );
+        assert!(
+            page.contains("The milestone closed clean &amp; the estimate held."),
+            "the milestone answer, verbatim with the ampersand escaped"
+        );
+        assert!(
+            page.contains("<th>est</th><th>actual</th>"),
+            "the size column heads"
+        );
+        assert!(
+            page.contains(
+                "<tr><td class=\"mono\">U3</td><td>task</td><td class=\"st-open\">open</td>\
+                 <td>Estimated large</td><td class=\"mono\">L</td><td class=\"mono\">-</td>\
+                 <td></td></tr>"
+            ),
+            "U3's row: the estimate L, the actual dashed"
+        );
+        let epic = fixture_epic_page(&root, 1);
+        assert!(
+            epic.contains(
+                "<tr><td class=\"mono\">U1</td><td>task</td><td class=\"st-closed\">closed</td>\
+                 <td>Estimated small</td><td class=\"mono\">S</td><td class=\"mono\">S</td>\
+                 <td></td></tr>"
+            ),
+            "the epic page's U1 row: the estimate and the reported actual agreeing"
+        );
+        assert!(
+            epic.contains(
+                "<tr><td class=\"mono\">U2</td><td>task</td><td class=\"st-closed\">closed</td>\
+                 <td>Unestimated</td><td class=\"mono\">-</td><td class=\"mono\">M</td>\
+                 <td></td></tr>"
+            ),
+            "U2's row: the estimate dashed, the actual the default bucket the grant applied"
+        );
+        assert!(
+            !epic.contains("<h2>Rewards"),
+            "the epic page carries the columns but never the section"
+        );
+    }
+
+    /// §15's fence at the display: a root with `enabled: false`
+    /// renders byte-identically to a root with no config at all — the
+    /// page, the JSON twin and the epic page carry no rewards bytes.
+    /// The same graph under both roots, so the comparison isolates
+    /// the config alone.
+    #[test]
+    fn a_disabled_root_renders_byte_identically_to_a_configless_one() {
+        let fence_fixture = |config: Option<bool>| {
+            let root = TempDir::new().expect("a fresh temp root");
+            let data_root = DataRoot::new(root.path());
+            build_render_fixture(&data_root, "/repos/fixture");
+            if let Some(enabled) = config {
+                let mut config = rewards_config();
+                config.enabled = enabled;
+                data_root.save_config(&config).expect("the config saves");
+            }
+            root
+        };
+        let absent = fence_fixture(None);
+        let disabled = fence_fixture(Some(false));
+        let absent_root = DataRoot::new(absent.path());
+        let disabled_root = DataRoot::new(disabled.path());
+        assert_eq!(
+            render::page(&absent_root, &fixture_slug()).expect("the page renders"),
+            render::page(&disabled_root, &fixture_slug()).expect("the page renders"),
+            "the page carries no rewards bytes"
+        );
+        assert_eq!(
+            render::json(&absent_root, &fixture_slug()).expect("the document renders"),
+            render::json(&disabled_root, &fixture_slug()).expect("the document renders"),
+            "the JSON twin carries no rewards bytes"
+        );
+        assert_eq!(
+            render::epic_page(&absent_root, &fixture_slug(), 2).expect("the epic page renders"),
+            render::epic_page(&disabled_root, &fixture_slug(), 2).expect("the epic page renders"),
+            "the epic page carries no rewards bytes"
+        );
+    }
+
+    /// A malformed config is damage, never a silent inert root: the
+    /// render fails with the config's named error — the config
+    /// module's own discipline, ported to the display path.
+    #[test]
+    fn a_malformed_config_fails_the_render() {
+        let root = render_fixture();
+        std::fs::write(root.path().join("config.json"), b"not a config\n")
+            .expect("the malformed config lands");
+        let message = render::json(&DataRoot::new(root.path()), &fixture_slug())
+            .expect_err("the malformed config is refused");
+        assert!(
+            message.contains("the config is not a parseable document"),
+            "the named config fault: {message}"
         );
     }
 

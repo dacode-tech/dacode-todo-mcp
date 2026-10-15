@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<title>fixture · progress</title>
+<style>:root { color-scheme: light dark; }
+body { font: 14px/1.5 -apple-system, "Segoe UI", Roboto, sans-serif; margin: 0;
+       padding: 24px 28px 60px; color: #16181d; background: #fbfbfa; }
+h1 { font-size: 20px; margin: 0 0 4px; }
+h2 { font-size: 14px; text-transform: uppercase; letter-spacing: .08em;
+     color: #6b7280; margin: 30px 0 10px; }
+.sub { color: #6b7280; font-size: 12.5px; margin-bottom: 18px; }
+.switch { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 16px; }
+.switch a, .switch span { border: 1px solid #e3e3e0; border-radius: 6px; padding: 3px 10px;
+                          font-size: 12px; background: #fff; color: #3f444c;
+                          text-decoration: none; }
+.switch .cur { background: #e6f4ec; border-color: #bfe0cd; color: #1f6f43; font-weight: 600; }
+.cards { display: flex; flex-wrap: wrap; gap: 10px; }
+.card { border: 1px solid #e3e3e0; border-radius: 10px; padding: 10px 14px;
+        background: #fff; min-width: 148px; }
+.card b { display: block; font-size: 21px; font-variant-numeric: tabular-nums; }
+.card i { font-style: normal; font-size: 11px; text-transform: uppercase;
+          letter-spacing: .07em; color: #6b7280; }
+.card small { display: block; color: #6b7280; font-size: 11.5px; margin-top: 4px;
+              max-width: 210px; }
+.card .p { float: right; font-size: 13px; color: #2f6f4f; font-weight: 600; }
+.msrow { display: flex; gap: 8px; flex-wrap: wrap; }
+.ms { border: 1px solid #e3e3e0; border-radius: 8px; padding: 6px 12px; background: #fff;
+      font-size: 12.5px; }
+.ms b { font-size: 13px; }
+.ms span { display: block; color: #6b7280; font-size: 11px; }
+.msdone { background: #e6f4ec; border-color: #bfe0cd; }
+.msdone span { color: #1f6f43; }
+.scroll { overflow-x: auto; border: 1px solid #e3e3e0; border-radius: 10px; background: #fff; }
+svg text { font-family: inherit; }
+.lane { font-size: 11px; fill: #6b7280; text-transform: uppercase; letter-spacing: .06em; }
+.laneline { stroke: #efefec; stroke-width: 1; }
+.nid { font-size: 11.5px; font-weight: 700; }
+.nlabel { font-size: 10.5px; fill: #3f444c; }
+.node { cursor: pointer; }
+.node:hover rect { stroke-width: 2.6; }
+.edge { fill: none; stroke: #2f6f4f; stroke-width: 1.3; opacity: .55; }
+table { border-collapse: collapse; width: 100%; background: #fff; font-size: 12.5px; }
+th, td { text-align: left; padding: 6px 9px; border-bottom: 1px solid #eee; vertical-align: top; }
+th { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: #6b7280; }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.st-closed { color: #1f6f43; } .st-open { color: #8a5a00; }
+.st-in_work { color: #8a5a00; } .st-blocked { color: #9b1c1c; font-weight: 700; }
+.st-signed { color: #1f6f43; }
+#detail { border: 1px solid #e3e3e0; border-left: 4px solid #2f6f4f; border-radius: 8px;
+          background: #fff; padding: 10px 14px; margin-top: 10px; display: none;
+          font-size: 12.5px; }
+#detail b { font-size: 13.5px; }
+.legend { font-size: 11.5px; color: #6b7280; margin: 8px 0 0; }
+.legend span { display: inline-block; margin-right: 14px; }
+.sw { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 4px; }
+footer { margin-top: 34px; color: #6b7280; font-size: 11.5px; border-top: 1px solid #eee;
+         padding-top: 10px; }
+.cols { display: flex; gap: 26px; align-items: flex-start; }
+.sidebar { width: 252px; flex: 0 0 252px; position: sticky; top: 20px;
+           max-height: calc(100vh - 40px); overflow-y: auto; }
+main { flex: 1 1 auto; min-width: 0; }
+@media (max-width: 880px) { .cols { display: block; }
+  .sidebar { position: static; width: auto; max-height: none; } }
+.srepo { margin-bottom: 12px; }
+.sname { display: block; font-weight: 600; font-size: 13px; color: #3f444c;
+         text-decoration: none; margin-bottom: 3px; }
+a.sname:hover { text-decoration: underline; }
+.scur { color: #1f6f43; }
+.sepic { display: flex; justify-content: space-between; gap: 6px; font-size: 12px;
+         padding: 1px 0 1px 10px; }
+.sepic a { color: #3f444c; text-decoration: none; }
+.sepic a:hover { text-decoration: underline; }
+.sepic span { color: #6b7280; font-variant-numeric: tabular-nums; font-size: 11px; }
+.unread { color: #9b1c1c; font-size: 11px; font-weight: 700; margin-left: 6px; }
+.act { background: #fff; border: 1px solid #e3e3e0;
+      border-radius: 10px; padding: 12px 14px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.chip { border: 1px solid #e3e3e0; border-radius: 12px; padding: 2px 10px; font-size: 11.5px;
+        background: #fbfbfa; color: #3f444c; }
+.chip b { color: #2f6f4f; font-variant-numeric: tabular-nums; }
+.hist { display: flex; align-items: flex-end; gap: 5px; flex-wrap: wrap; }
+.hday { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.hnum { font-size: 10.5px; color: #6b7280; font-variant-numeric: tabular-nums; }
+.hbar { width: 24px; background: #2f6f4f; border-radius: 3px 3px 0 0; }
+.hdate { font-size: 9.5px; color: #6b7280;
+         font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.lastact { margin-top: 10px; font-size: 11.5px; color: #6b7280; }
+.rwd { background: #fff; border: 1px solid #e3e3e0;
+      border-radius: 10px; padding: 12px 14px; }
+.rtot { font-size: 12.5px; color: #3f444c; margin-bottom: 10px; }
+.rtot b { color: #2f6f4f; font-variant-numeric: tabular-nums; }
+.refl { border-top: 1px solid #eee; padding: 8px 0; }
+.refl .rmeta { font-size: 11.5px; color: #6b7280; margin-bottom: 3px; }
+.refl .rmeta b { color: #2f6f4f; font-variant-numeric: tabular-nums; }
+.refl p { margin: 0; font-size: 12.5px; }
+</style></head><body>
+<nav class="switch"><a href="?repo=alpha">alpha</a><span class="cur">fixture</span></nav>
+<div class="cols">
+<nav class="sidebar"><div class="srepo"><a class="sname" href="?repo=alpha">Alpha</a><div class="sepic"><a href="/repo/alpha/epic/1">E1 · Alpha epic</a><span>1/1</span></div></div><div class="srepo"><span class="sname scur">Fixture</span><div class="sepic"><a href="/repo/fixture/epic/1">E1 · Milestone epic</a><span>2/2</span></div><div class="sepic"><a href="/repo/fixture/epic/2">E2 · Plain epic</a><span>0/2</span></div></div></nav><main>
+
+<h1>fixture — total progress</h1>
+<div class="sub">Rendered by <span class="mono">todo-mcp progress</span> from <span class="mono">fixture</span>'s imported board — imported <span class="mono">2026-10-02T08:00:00.000000000Z</span> (the repo node's registered_at — the staleness signal: the page renders the last import, not the board as it is). The markdown board remains the tracker of record; if this page disagrees with it, the board wins. Machine-readable twin: <span class="mono">progress.json</span>.</div>
+
+<h2>Totals</h2>
+<div class="cards"><div class="card"><i>Milestones</i><span class="p">0%</span><b>0/1</b><small>the board&#x27;s milestone table via the server&#x27;s epics — the roadmap measure</small></div><div class="card"><i>Tasks</i><span class="p">50%</span><b>2/4</b><small>the board&#x27;s §4 follow-ups, one unit each</small></div><div class="card"><i>Gates</i><span class="p">—</span><b>0/0</b><small>milestone exit gates</small></div><div class="card"><i>Findings</i><span class="p">—</span><b>0/0</b><small>an open finding is a fact written down, not a defect</small></div><div class="card"><i>Debt</i><span class="p">—</span><b>0/0 closed</b><small>the board&#x27;s §5, acknowledged deferrals</small></div><div class="card"><i>Decisions</i><span class="p">—</span><b>0/0 signed</b><small>the decisions file&#x27;s dossiers; an open one gates work</small></div><div class="card"><i>Blocked</i><span class="p">0%</span><b>0</b><small>tasks whose status is blocked</small></div></div>
+
+<h2>Activity — 12 events since 2026-10-02T08:00:00.000000000Z</h2>
+<div class="act"><div class="chips"><span class="chip">epic_add <b>2</b></span><span class="chip">repo_register <b>1</b></span><span class="chip">reward_grant <b>2</b></span><span class="chip">reward_reflect <b>1</b></span><span class="chip">task_add <b>4</b></span><span class="chip">task_update <b>2</b></span></div><div class="hist"><div class="hday" title="2026-10-02: 12 events"><span class="hnum">12</span><span class="hbar" style="height:64px"></span><span class="hdate">2026-10-02</span></div></div><div class="lastact">Last activity: 2026-10-02T09:41:00.000000000Z</div>
+</div>
+
+<h2>Rewards — 60 coffee total</h2>
+<div class="rwd">
+<div class="rtot">per-repo totals: alpha <b>25</b> · fixture <b>35</b></div>
+<p class="legend"><b>Recent rewards</b> — the last 3 grants, root order</p>
+<table><thead><tr><th>task</th><th>reward</th><th>size</th><th>×prio</th><th>×kind</th><th>when</th></tr></thead>
+<tbody><tr><td class="mono">alpha:U1</td><td>25 coffee</td><td class="mono">M</td><td class="mono">100</td><td class="mono">100</td><td class="mono">2026-10-02T09:30:00.000000000Z</td></tr><tr><td class="mono">fixture:U1</td><td>10 coffee</td><td class="mono">S</td><td class="mono">100</td><td class="mono">100</td><td class="mono">2026-10-02T08:30:00.000000000Z</td></tr><tr><td class="mono">fixture:U2</td><td>25 coffee</td><td class="mono">M</td><td class="mono">100</td><td class="mono">100</td><td class="mono">2026-10-02T08:31:00.000000000Z</td></tr></tbody></table>
+<p class="legend"><b>Reflections</b> — the answers, verbatim</p>
+<div class="refl"><div class="rmeta"><span class="mono">2026-10-02T09:40:00.000000000Z</span> · threshold · root <b>60 coffee</b> · alpha <b>25</b></div><p>Crossed the threshold; the pace feels sustainable.</p></div>
+<div class="refl"><div class="rmeta"><span class="mono">2026-10-02T09:41:00.000000000Z</span> · epic_closure fixture:E1 · root <b>60 coffee</b> · fixture <b>35</b></div><p>The milestone closed clean &amp; the estimate held.</p></div>
+</div>
+
+<h2>Milestones (the board's roadmap via the server's epics)</h2>
+<div class="msrow"><div class="ms" title="Milestone epic — open"><b>M1</b><span>open</span></div></div>
+
+<h2>Dependency graph — 4 nodes, 0 edges</h2>
+<div class="scroll"><svg id="graph" viewBox="0 0 536 202" width="536" height="202" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="task dependency graph"><defs><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#8a8f98"/></marker><marker id="arrg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#2f6f4f"/></marker></defs><text id="lane-1" class="lane" x="54" y="46">M1 · Milestone epic</text><line class="laneline" x1="44" y1="58" x2="44" y2="182"/><text id="lane-2" class="lane" x="268" y="46">Plain epic</text><line class="laneline" x1="258" y1="58" x2="258" y2="182"/><g class="node" data-id="fixture:U1" transform="translate(54,88)"><rect rx="7" width="186" height="30" fill="#e6f4ec" stroke="#1f6f43" stroke-width="1.6"/><title>U1 · task · closed
+Estimated small</title><text class="nid" x="8" y="19" fill="#1f6f43">▢ U1</text><text class="nlabel" x="46" y="19">Estimated small</text><circle class="dot" cx="176" cy="8" r="4" fill="#1f6f43"/></g><g class="node" data-id="fixture:U2" transform="translate(54,132)"><rect rx="7" width="186" height="30" fill="#e6f4ec" stroke="#1f6f43" stroke-width="1.6"/><title>U2 · task · closed
+Unestimated</title><text class="nid" x="8" y="19" fill="#1f6f43">▢ U2</text><text class="nlabel" x="46" y="19">Unestimated</text><circle class="dot" cx="176" cy="8" r="4" fill="#1f6f43"/></g><g class="node" data-id="fixture:U3" transform="translate(268,88)"><rect rx="7" width="186" height="30" fill="#fdf3e0" stroke="#8a5a00" stroke-width="1.6"/><title>U3 · task · open
+Estimated large</title><text class="nid" x="8" y="19" fill="#8a5a00">▢ U3</text><text class="nlabel" x="46" y="19">Estimated large</text><circle class="dot" cx="176" cy="8" r="4" fill="#8a5a00"/></g><g class="node" data-id="fixture:U4" transform="translate(268,132)"><rect rx="7" width="186" height="30" fill="#fdf3e0" stroke="#8a5a00" stroke-width="1.6"/><title>U4 · task · open
+Unestimated open</title><text class="nid" x="8" y="19" fill="#8a5a00">▢ U4</text><text class="nlabel" x="46" y="19">Unestimated open</text><circle class="dot" cx="176" cy="8" r="4" fill="#8a5a00"/></g></svg></div>
+<p class="legend">
+<span><i class="sw" style="background:#1f6f43"></i>done / signed</span>
+<span><i class="sw" style="background:#8a5a00"></i>open / in work</span>
+<span><i class="sw" style="background:#9b1c1c"></i>blocked</span>
+<span>— the lanes are the epics; a decision sits in the lane of the epic it gates</span>
+<span>▢ task ▣ gate ◆ finding ▲ debt ✦ decision</span>
+<span>click a node for its fields and edges</span>
+</p>
+<div id="detail"></div>
+<script type="application/json" id="detail-data">{"nodes":{"fixture:U1":{"id":"fixture:U1","kind":"task","status":"closed","title":"Estimated small","verify":"cargo test -p fixture","evidence":"the closure evidence","note":null,"resolution":null},"fixture:U2":{"id":"fixture:U2","kind":"task","status":"closed","title":"Unestimated","verify":"cargo test -p fixture","evidence":"the closure evidence","note":null,"resolution":null},"fixture:U3":{"id":"fixture:U3","kind":"task","status":"open","title":"Estimated large","verify":"cargo test -p fixture","evidence":null,"note":null,"resolution":null},"fixture:U4":{"id":"fixture:U4","kind":"task","status":"open","title":"Unestimated open","verify":"cargo test -p fixture","evidence":null,"note":null,"resolution":null}},"edges":[]}</script>
+
+<h2>Open items — 2 rows</h2>
+<table><thead><tr><th>id</th><th>kind</th><th>status</th><th>what</th><th>est</th><th>actual</th><th>waits on</th></tr></thead>
+<tbody><tr><td class="mono">U3</td><td>task</td><td class="st-open">open</td><td>Estimated large</td><td class="mono">L</td><td class="mono">-</td><td></td></tr><tr><td class="mono">U4</td><td>task</td><td class="st-open">open</td><td>Unestimated open</td><td class="mono">-</td><td class="mono">-</td><td></td></tr></tbody></table>
+
+<h2>Decisions — 0 rows</h2>
+<table><thead><tr><th>id</th><th>status</th><th>what</th><th>gates</th><th>confidence</th></tr></thead>
+<tbody></tbody></table>
+<footer>
+Reading the percentages: each card states its own denominator, because "progress" depends
+entirely on what is counted. <b>Milestones</b> measure the roadmap. <b>Tasks</b> measure the
+work decomposed so far, which is <em>not</em> the whole project. <b>Findings</b> and
+<b>debt</b> are records rather than deliverables. The import instant above is the staleness
+signal: the page renders the last import, not the board as it is now.
+</footer>
+</main>
+</div>
+<script>
+document.addEventListener('click', event => {
+  const n = event.target.closest('.node');
+  if (!n) return;
+  const source = document.getElementById('detail-data');
+  if (!source) return;
+  const data = JSON.parse(source.textContent);
+  const id = n.dataset.id, d = data.nodes[id];
+  const box = document.getElementById('detail');
+  if (!d) return;
+  const rel = data.edges.filter(e => e.from === id || e.to === id)
+    .map(e => `<div>${e.from} ${e.from === id ? '→' : '←'} ${e.to}</div>`).join('');
+  box.innerHTML = `<b>${id}</b> · ${d.kind || 'decision'} · ${d.status}<br>`
+    + `${d.title || ''}`
+    + (d.verify ? `<br><br><b>verify:</b> ${d.verify}` : '')
+    + (d.evidence ? `<br><b>evidence:</b> ${d.evidence}` : '')
+    + (d.note ? `<br><b>note:</b> ${d.note}` : '')
+    + (d.resolution ? `<br><b>resolution:</b> ${d.resolution}` : '')
+    + `<br><br><b>edges</b><br>${rel || 'none drawn'}`;
+  box.style.display = 'block';
+});
+let liveWs = null, liveRepo = 'fixture';
+connectWs();
+let fetchGen = 0;
+function swapView(doc) {
+  document.title = doc.title;
+  const style = document.querySelector('style');
+  const freshStyle = doc.querySelector('style');
+  if (style && freshStyle) style.replaceWith(freshStyle);
+  const switcher = document.querySelector('nav.switch');
+  const freshSwitcher = doc.querySelector('nav.switch');
+  if (switcher && freshSwitcher) switcher.replaceWith(freshSwitcher);
+  const cols = document.querySelector('.cols');
+  const freshCols = doc.querySelector('.cols');
+  if (cols && freshCols) {
+    cols.replaceWith(freshCols);
+    intercept();
+  }
+}
+async function fetchView(url, push) {
+  // Last-initiated navigation wins: a superseded fetch abandons after every await.
+  const gen = ++fetchGen;
+  try {
+    const response = await fetch(url);
+    if (gen !== fetchGen) return;
+    if (!response.ok) { location.assign(url); return; }
+    const text = await response.text();
+    if (gen !== fetchGen) return;
+    swapView(new DOMParser().parseFromString(text, 'text/html'));
+    if (push) history.pushState(null, '', url);
+    // The URL is the view's own by now (pushState for clicks, popstate
+    // moved it earlier) — the subscription can follow it.
+    followView();
+  } catch (e) {
+    if (gen === fetchGen) location.assign(url);
+  }
+}
+function intercept() {
+  document.querySelectorAll('.sepic a').forEach(a => a.addEventListener('click', event => {
+    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+    fetchView(a.href, true);
+  }));
+}
+function connectWs() {
+  try {
+    liveWs = new WebSocket('ws://' + location.host + '/ws?repo=' + liveRepo);
+    liveWs.onmessage = () => fetchView(location.pathname + location.search, false);
+  } catch (e) {}
+}
+function currentRepo() {
+  const parts = location.pathname.split('/');
+  if (parts[1] === 'repo' && parts[2]) return parts[2];
+  const repo = new URLSearchParams(location.search).get('repo');
+  if (repo) return repo;
+  const cur = document.querySelector('nav.switch .cur');
+  return cur ? cur.textContent : null;
+}
+function followView() {
+  // The subscription follows the view: close the old connection before opening the new.
+  const repo = currentRepo();
+  if (!repo || repo === liveRepo) return;
+  if (liveWs) liveWs.close();
+  liveRepo = repo;
+  connectWs();
+}
+window.addEventListener('popstate', () => fetchView(location.pathname + location.search, false));
+intercept();
+</script>
+</body></html>

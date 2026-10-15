@@ -42,8 +42,8 @@ use super::{
 /// an unknown repo fails through the same resolve discipline as the
 /// repo page. Golden-pinned as `tests/golden/epic_page.v1`.
 pub fn epic_page(root: &DataRoot, repo: &RepoSlug, epic: u64) -> Result<String, String> {
-    let (graph, census, sidebar) = gather(root, repo, Some(epic))?;
-    let model = build(&graph, &census, &sidebar).map_err(|error| error.message)?;
+    let (graph, census, sidebar, rewards) = gather(root, repo, Some(epic))?;
+    let model = build(&graph, &census, &sidebar, rewards).map_err(|error| error.message)?;
     let Some(lane) = model
         .lanes
         .iter()
@@ -71,6 +71,16 @@ fn epic_page_text(model: &Model, lane: &Lane) -> String {
     let kinds = kind_line(lane);
     let rows = task_rows(model, lane);
     let decision_rows = decision_rows(model, lane);
+    // The est/actual column heads (§15, U63): present only on an
+    // enabled root — the repo page's own conditional, the shared row
+    // cells' order. The epic page gains the columns alone, never the
+    // rewards section: the section is the progress page's (§15 names
+    // the progress page, the JSON twin and the live view).
+    let size_heads = if model.rewards.is_some() {
+        super::rewards::SIZE_HEADS
+    } else {
+        ""
+    };
 
     let mut page = String::with_capacity(8 * 1024);
     page.push_str("<!doctype html>\n<html lang=\"en\"><head><meta charset=\"utf-8\">\n");
@@ -109,8 +119,8 @@ fn epic_page_text(model: &Model, lane: &Lane) -> String {
     page.push_str(&kinds);
     page.push_str(&format!(
         "\n<h2>Tasks — {} rows</h2>\n\
-         <table><thead><tr><th>id</th><th>kind</th><th>status</th><th>what</th><th>waits \
-         on</th></tr></thead>\n<tbody>{rows}</tbody></table>\n",
+         <table><thead><tr><th>id</th><th>kind</th><th>status</th><th>what</th>{size_heads}\
+         <th>waits on</th></tr></thead>\n<tbody>{rows}</tbody></table>\n",
         lane.tasks.len()
     ));
     page.push_str(&format!(

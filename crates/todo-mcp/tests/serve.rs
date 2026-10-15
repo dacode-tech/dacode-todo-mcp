@@ -62,9 +62,10 @@ mod serve {
 
     use tempfile::TempDir;
     use todo_domain::{
-        EpicDraft, References, Repo, RepoSlug, Status, TaskDraft, TaskKind, Timestamp,
+        BaseCosts, EpicDraft, KindMultipliers, PriorityMultipliers, References, Repo, RepoSlug,
+        RewardsConfig, Size, Status, TaskDraft, TaskKind, Timestamp,
     };
-    use todo_store::{DataRoot, Store};
+    use todo_store::{DataRoot, ReflectionTrigger, RewardsTotals, Store, TaskPatch};
 
     /// The fixture repo's slug.
     const FIXTURE: &str = "fixture";
@@ -444,6 +445,160 @@ mod serve {
         assert!(body.contains("<title>alpha · progress</title>"));
 
         shutdown(&mut first);
+    }
+
+    /// 3b. The live view over an enabled root (§15's display half,
+    ///     U63): the served page carries the rewards section and the
+    ///     est/actual columns, and `/json` carries the rewards block —
+    ///     the listener renders through the same render code, so the
+    ///     section reaches it by construction; this pins that it does.
+    #[test]
+    fn the_live_view_renders_the_rewards_section() {
+        let root = rewards_serve_fixture();
+        let port_file = root.path().join("serve.port");
+        let mut child = spawn_serve(root.path());
+        let port = wait_for_listener(&port_file, &mut child).expect("the listener answers");
+
+        let (status, body) = http_get(port, &format!("/?repo={FIXTURE}"));
+        assert_eq!(status, Some(200));
+        assert!(
+            body.contains("<h2>Rewards — 25 coffee total</h2>"),
+            "the served page carries the rewards section: {}",
+            &body[..body.len().min(300)]
+        );
+        assert!(
+            body.contains("<th>est</th><th>actual</th>"),
+            "the served page carries the size columns"
+        );
+        assert!(
+            body.contains("<td class=\"mono\">L</td><td class=\"mono\">-</td>"),
+            "the open task's row: the estimate, the dashed actual"
+        );
+        let (status, body) = http_get(port, "/json?repo=fixture");
+        assert_eq!(status, Some(200));
+        let value: serde_json::Value = serde_json::from_str(&body).expect("the JSON twin parses");
+        assert_eq!(value["rewards"]["currency"], serde_json::json!("coffee"));
+        assert_eq!(value["rewards"]["totals"]["total"], serde_json::json!(25));
+        assert_eq!(
+            value["rewards"]["reflections"][0]["answer"],
+            serde_json::json!("It feels earned.")
+        );
+
+        shutdown(&mut child);
+    }
+
+    /// The enabled root the live-view test serves: one repo with a
+    /// config, one closed task (the grant) and one open estimated
+    /// task (the columns), and one reflection.
+    fn rewards_serve_fixture() -> TempDir {
+        let root = TempDir::new().expect("a fresh temp root");
+        let data_root = DataRoot::new(root.path());
+        let mut store = data_root
+            .register(Repo {
+                slug: fixture_slug(),
+                name: FIXTURE.to_owned(),
+                path: format!("/repos/{FIXTURE}"),
+                registered_at: ts("2026-10-02T08:00:00Z"),
+            })
+            .expect("the repo registers");
+        let epic = store
+            .add_epic(
+                EpicDraft {
+                    title: "The rewards epic".to_owned(),
+                    description: "An epic.".to_owned(),
+                    status: Status::Open,
+                    references: References::new(),
+                },
+                ts("2026-10-02T08:01:00Z"),
+            )
+            .expect("the epic lands");
+        let closed = store
+            .add_task(
+                TaskDraft {
+                    estimate: Some(Size::S),
+                    epic: epic.id.clone(),
+                    kind: TaskKind::Task,
+                    title: "The closed task".to_owned(),
+                    body: String::new(),
+                    status: Status::Open,
+                    verify: Some("cargo test -p fixture".to_owned()),
+                    evidence: None,
+                    note: None,
+                    references: References::new(),
+                    priority: None,
+                    until: None,
+                },
+                ts("2026-10-02T08:02:00Z"),
+            )
+            .expect("the closed task lands");
+        store
+            .add_task(
+                TaskDraft {
+                    estimate: Some(Size::L),
+                    epic: epic.id,
+                    kind: TaskKind::Task,
+                    title: "The open task".to_owned(),
+                    body: String::new(),
+                    status: Status::Open,
+                    verify: Some("cargo test -p fixture".to_owned()),
+                    evidence: None,
+                    note: None,
+                    references: References::new(),
+                    priority: None,
+                    until: None,
+                },
+                ts("2026-10-02T08:03:00Z"),
+            )
+            .expect("the open task lands");
+        drop(store);
+        data_root
+            .save_config(&RewardsConfig {
+                enabled: true,
+                currency: "coffee".to_owned(),
+                base_costs: BaseCosts {
+                    s: 10,
+                    m: 25,
+                    l: 50,
+                    xl: 100,
+                },
+                default_size: Size::M,
+                priority_multipliers: PriorityMultipliers {
+                    high: 150,
+                    medium: 100,
+                    low: 50,
+                },
+                kind_multipliers: KindMultipliers {
+                    task: 100,
+                    gate: 100,
+                    finding: 50,
+                    debt: 25,
+                },
+                reflect_every: 0,
+            })
+            .expect("the config saves");
+        let mut store = data_root.open(&fixture_slug()).expect("the store opens");
+        store
+            .close_task(
+                closed.id,
+                ts("2026-10-02T08:30:00Z"),
+                TaskPatch {
+                    status: Some(Status::Closed),
+                    evidence: Some(Some("the closure evidence".to_owned())),
+                    ..TaskPatch::default()
+                },
+                None,
+            )
+            .expect("the closure grants");
+        store
+            .log_reflection(
+                "It feels earned.".to_owned(),
+                ReflectionTrigger::Threshold,
+                RewardsTotals::default(),
+                ts("2026-10-02T08:40:00Z"),
+            )
+            .expect("the reflection logs");
+        drop(store);
+        root
     }
 
     /// 4. A stale publication is taken over: SIGTERM (the default

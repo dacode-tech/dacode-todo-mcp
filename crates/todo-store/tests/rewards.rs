@@ -17,8 +17,9 @@
 //! config variants, `rewards/config.rs` the config document — its
 //! golden, its faults, the inert root — `rewards/grant.rs` the
 //! closure-aware update's semantics, `rewards/reflect.rs` the
-//! reflection event and its round-trip, and `rewards/totals.rs` the
-//! derived per-root totals.
+//! reflection event and its round-trip, `rewards/totals.rs` the
+//! derived per-root totals, and `rewards/events.rs` the reward events
+//! read (§15's display half, U63).
 
 #![cfg_attr(
     test,
@@ -51,6 +52,7 @@ mod rewards {
     mod timeline;
 
     mod config;
+    mod events;
     mod fixtures;
     mod grant;
     mod reflect;

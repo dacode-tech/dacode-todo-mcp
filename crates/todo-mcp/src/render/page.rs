@@ -25,7 +25,10 @@
 //!
 //! The file runs over the 600-line target because U54's script work
 //! (the inert data element, the reworked click-detail, the lazy
-//! navigation script) grew the skeleton; the split point is the CSS
+//! navigation script) grew the skeleton, and U63's rewards arc joined
+//! the conditional column heads, the section's insertion and the CSS
+//! join rather than take the split mid-arc (the arc's display code
+//! landed in `render/rewards.rs` instead); the split point is the CSS
 //! block and the script consts out into their own file, which the
 //! next over-target touch should take.
 //!
@@ -68,8 +71,8 @@ pub struct Outputs {
 /// strings, with the project switcher and the left sidebar. A pure
 /// function of `(root, repo)` — golden-pinned as `tests/golden/page.v1`.
 pub fn page(root: &DataRoot, repo: &RepoSlug) -> Result<String, String> {
-    let (graph, census, sidebar) = gather(root, repo, None)?;
-    let model = build(&graph, &census, &sidebar).map_err(|error| error.message)?;
+    let (graph, census, sidebar, rewards) = gather(root, repo, None)?;
+    let model = build(&graph, &census, &sidebar, rewards).map_err(|error| error.message)?;
     page_text(&model)
 }
 
@@ -91,15 +94,32 @@ pub(super) fn page_text(model: &Model) -> Result<String, String> {
     let rows = open_item_rows(model);
     let decision_rows = decision_rows(model);
     let data = detail_data(model)?;
+    // §15's fence: the rewards CSS rides the page only when the root's
+    // config enables rewards — a disabled root's style block is
+    // byte-identical to today's.
+    let rewards_css = if model.rewards.is_some() {
+        super::rewards::REWARDS_CSS
+    } else {
+        ""
+    };
+    // The est/actual column heads (§15): present only on an enabled
+    // root, between the title and the waits-on heads — the row cells'
+    // own order.
+    let size_heads = if model.rewards.is_some() {
+        super::rewards::SIZE_HEADS
+    } else {
+        ""
+    };
 
     let mut page = String::with_capacity(12 * 1024);
     page.push_str("<!doctype html>\n<html lang=\"en\"><head><meta charset=\"utf-8\">\n");
     page.push_str(&format!("<title>{slug_esc} · progress</title>\n"));
     page.push_str(&format!(
-        "<style>{}{}{}</style></head><body>\n",
+        "<style>{}{}{}{}</style></head><body>\n",
         CSS,
         super::sidebar::SIDEBAR_CSS,
-        super::panel::PANEL_CSS
+        super::panel::PANEL_CSS,
+        rewards_css
     ));
     page.push_str(&switcher_html(model.sidebar, &model.repo.slug));
     page.push_str("\n<div class=\"cols\">\n");
@@ -118,6 +138,11 @@ pub(super) fn page_text(model: &Model) -> Result<String, String> {
         "\n<h2>Totals</h2>\n<div class=\"cards\">{card_html}</div>\n"
     ));
     page.push_str(&super::panel::panel_html(model.activity));
+    // The rewards section (§15, U63): after the activity panel — both
+    // are event-derived — and only on an enabled root.
+    if let Some(rewards) = &model.rewards {
+        page.push_str(&super::rewards::section_html(rewards));
+    }
     page.push_str(&format!(
         "\n<h2>Milestones (the board's roadmap via the server's epics)</h2>\n\
          <div class=\"msrow\">{ms_bar}</div>\n"
@@ -148,8 +173,8 @@ pub(super) fn page_text(model: &Model) -> Result<String, String> {
     ));
     page.push_str(&format!(
         "\n<h2>Open items — {} rows</h2>\n\
-         <table><thead><tr><th>id</th><th>kind</th><th>status</th><th>what</th><th>waits \
-         on</th></tr></thead>\n<tbody>{rows}</tbody></table>\n",
+         <table><thead><tr><th>id</th><th>kind</th><th>status</th><th>what</th>{size_heads}\
+         <th>waits on</th></tr></thead>\n<tbody>{rows}</tbody></table>\n",
         model.open_items.len()
     ));
     page.push_str(&format!(

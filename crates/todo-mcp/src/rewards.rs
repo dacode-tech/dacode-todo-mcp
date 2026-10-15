@@ -127,8 +127,10 @@ pub(crate) fn reward_line(
 }
 
 /// The size's label in the reward line's multiplier pair: the spec's
-/// example spells the buckets uppercase — `S`, `M`, `L`, `XL`.
-fn size_label(size: Size) -> &'static str {
+/// example spells the buckets uppercase — `S`, `M`, `L`, `XL`. The
+/// display's size columns share it (U63), so the surfaces cannot
+/// drift apart on the spelling.
+pub(crate) fn size_label(size: Size) -> &'static str {
     match size {
         Size::S => "S",
         Size::M => "M",

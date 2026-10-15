@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<title>fixture · E1 — Milestone epic</title>
+<style>:root { color-scheme: light dark; }
+body { font: 14px/1.5 -apple-system, "Segoe UI", Roboto, sans-serif; margin: 0;
+       padding: 24px 28px 60px; color: #16181d; background: #fbfbfa; }
+h1 { font-size: 20px; margin: 0 0 4px; }
+h2 { font-size: 14px; text-transform: uppercase; letter-spacing: .08em;
+     color: #6b7280; margin: 30px 0 10px; }
+.sub { color: #6b7280; font-size: 12.5px; margin-bottom: 18px; }
+.switch { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 16px; }
+.switch a, .switch span { border: 1px solid #e3e3e0; border-radius: 6px; padding: 3px 10px;
+                          font-size: 12px; background: #fff; color: #3f444c;
+                          text-decoration: none; }
+.switch .cur { background: #e6f4ec; border-color: #bfe0cd; color: #1f6f43; font-weight: 600; }
+.cards { display: flex; flex-wrap: wrap; gap: 10px; }
+.card { border: 1px solid #e3e3e0; border-radius: 10px; padding: 10px 14px;
+        background: #fff; min-width: 148px; }
+.card b { display: block; font-size: 21px; font-variant-numeric: tabular-nums; }
+.card i { font-style: normal; font-size: 11px; text-transform: uppercase;
+          letter-spacing: .07em; color: #6b7280; }
+.card small { display: block; color: #6b7280; font-size: 11.5px; margin-top: 4px;
+              max-width: 210px; }
+.card .p { float: right; font-size: 13px; color: #2f6f4f; font-weight: 600; }
+.msrow { display: flex; gap: 8px; flex-wrap: wrap; }
+.ms { border: 1px solid #e3e3e0; border-radius: 8px; padding: 6px 12px; background: #fff;
+      font-size: 12.5px; }
+.ms b { font-size: 13px; }
+.ms span { display: block; color: #6b7280; font-size: 11px; }
+.msdone { background: #e6f4ec; border-color: #bfe0cd; }
+.msdone span { color: #1f6f43; }
+.scroll { overflow-x: auto; border: 1px solid #e3e3e0; border-radius: 10px; background: #fff; }
+svg text { font-family: inherit; }
+.lane { font-size: 11px; fill: #6b7280; text-transform: uppercase; letter-spacing: .06em; }
+.laneline { stroke: #efefec; stroke-width: 1; }
+.nid { font-size: 11.5px; font-weight: 700; }
+.nlabel { font-size: 10.5px; fill: #3f444c; }
+.node { cursor: pointer; }
+.node:hover rect { stroke-width: 2.6; }
+.edge { fill: none; stroke: #2f6f4f; stroke-width: 1.3; opacity: .55; }
+table { border-collapse: collapse; width: 100%; background: #fff; font-size: 12.5px; }
+th, td { text-align: left; padding: 6px 9px; border-bottom: 1px solid #eee; vertical-align: top; }
+th { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: #6b7280; }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.st-closed { color: #1f6f43; } .st-open { color: #8a5a00; }
+.st-in_work { color: #8a5a00; } .st-blocked { color: #9b1c1c; font-weight: 700; }
+.st-signed { color: #1f6f43; }
+#detail { border: 1px solid #e3e3e0; border-left: 4px solid #2f6f4f; border-radius: 8px;
+          background: #fff; padding: 10px 14px; margin-top: 10px; display: none;
+          font-size: 12.5px; }
+#detail b { font-size: 13.5px; }
+.legend { font-size: 11.5px; color: #6b7280; margin: 8px 0 0; }
+.legend span { display: inline-block; margin-right: 14px; }
+.sw { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 4px; }
+footer { margin-top: 34px; color: #6b7280; font-size: 11.5px; border-top: 1px solid #eee;
+         padding-top: 10px; }
+.cols { display: flex; gap: 26px; align-items: flex-start; }
+.sidebar { width: 252px; flex: 0 0 252px; position: sticky; top: 20px;
+           max-height: calc(100vh - 40px); overflow-y: auto; }
+main { flex: 1 1 auto; min-width: 0; }
+@media (max-width: 880px) { .cols { display: block; }
+  .sidebar { position: static; width: auto; max-height: none; } }
+.srepo { margin-bottom: 12px; }
+.sname { display: block; font-weight: 600; font-size: 13px; color: #3f444c;
+         text-decoration: none; margin-bottom: 3px; }
+a.sname:hover { text-decoration: underline; }
+.scur { color: #1f6f43; }
+.sepic { display: flex; justify-content: space-between; gap: 6px; font-size: 12px;
+         padding: 1px 0 1px 10px; }
+.sepic a { color: #3f444c; text-decoration: none; }
+.sepic a:hover { text-decoration: underline; }
+.sepic span { color: #6b7280; font-variant-numeric: tabular-nums; font-size: 11px; }
+.unread { color: #9b1c1c; font-size: 11px; font-weight: 700; margin-left: 6px; }
+.sepic .scur { color: #1f6f43; font-size: 12px; }
+</style></head><body>
+<nav class="switch"><a href="?repo=alpha">alpha</a><span class="cur">fixture</span></nav>
+<div class="cols">
+<nav class="sidebar"><div class="srepo"><a class="sname" href="?repo=alpha">Alpha</a><div class="sepic"><a href="/repo/alpha/epic/1">E1 · Alpha epic</a><span>1/1</span></div></div><div class="srepo"><span class="sname scur">Fixture</span><div class="sepic"><span class="scur">E1 · Milestone epic</span><span>2/2</span></div><div class="sepic"><a href="/repo/fixture/epic/2">E2 · Plain epic</a><span>0/2</span></div></div></nav><main>
+
+<h1>fixture — E1 · Milestone epic</h1>
+<div class="sub">Rendered by <span class="mono">todo-mcp</span> from <span class="mono">fixture</span>'s imported board — imported <span class="mono">2026-10-02T08:00:00.000000000Z</span> (the repo node's registered_at — the staleness signal: the page renders the last import, not the board as it is).</div>
+
+<h2>The epic</h2>
+<p class="legend"><span>status <b class="st-open">open</b></span><span>milestone <b class="mono">M1</b></span></p>
+<p class="legend">the fixture board&#x27;s §2 milestone M1</p>
+
+<h2>Counts</h2>
+<div class="cards"><div class="card"><i>Tasks</i><span class="p">100%</span><b>2/2</b><small>every task under the epic, all four kinds</small></div><div class="card"><i>Blocked</i><span class="p">0%</span><b>0</b><small>tasks whose status is blocked</small></div><div class="card"><i>Decisions</i><span class="p">—</span><b>0/0 open</b><small>gating this epic or one of its tasks; an open one gates work</small></div></div>
+<p class="legend"><span>task 2/2 done</span><span>gate 0/0 done</span><span>finding 0/0 done</span><span>debt 0/0 done</span></p>
+
+<h2>Tasks — 2 rows</h2>
+<table><thead><tr><th>id</th><th>kind</th><th>status</th><th>what</th><th>est</th><th>actual</th><th>waits on</th></tr></thead>
+<tbody><tr><td class="mono">U1</td><td>task</td><td class="st-closed">closed</td><td>Estimated small</td><td class="mono">S</td><td class="mono">S</td><td></td></tr><tr><td class="mono">U2</td><td>task</td><td class="st-closed">closed</td><td>Unestimated</td><td class="mono">-</td><td class="mono">M</td><td></td></tr></tbody></table>
+
+<h2>Decisions — 0 rows</h2>
+<table><thead><tr><th>id</th><th>status</th><th>what</th><th>gates</th><th>confidence</th></tr></thead>
+<tbody></tbody></table>
+</main>
+</div>
+<script>
+let liveWs = null, liveRepo = 'fixture';
+connectWs();
+let fetchGen = 0;
+function swapView(doc) {
+  document.title = doc.title;
+  const style = document.querySelector('style');
+  const freshStyle = doc.querySelector('style');
+  if (style && freshStyle) style.replaceWith(freshStyle);
+  const switcher = document.querySelector('nav.switch');
+  const freshSwitcher = doc.querySelector('nav.switch');
+  if (switcher && freshSwitcher) switcher.replaceWith(freshSwitcher);
+  const cols = document.querySelector('.cols');
+  const freshCols = doc.querySelector('.cols');
+  if (cols && freshCols) {
+    cols.replaceWith(freshCols);
+    intercept();
+  }
+}
+async function fetchView(url, push) {
+  // Last-initiated navigation wins: a superseded fetch abandons after every await.
+  const gen = ++fetchGen;
+  try {
+    const response = await fetch(url);
+    if (gen !== fetchGen) return;
+    if (!response.ok) { location.assign(url); return; }
+    const text = await response.text();
+    if (gen !== fetchGen) return;
+    swapView(new DOMParser().parseFromString(text, 'text/html'));
+    if (push) history.pushState(null, '', url);
+    // The URL is the view's own by now (pushState for clicks, popstate
+    // moved it earlier) — the subscription can follow it.
+    followView();
+  } catch (e) {
+    if (gen === fetchGen) location.assign(url);
+  }
+}
+function intercept() {
+  document.querySelectorAll('.sepic a').forEach(a => a.addEventListener('click', event => {
+    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+    fetchView(a.href, true);
+  }));
+}
+function connectWs() {
+  try {
+    liveWs = new WebSocket('ws://' + location.host + '/ws?repo=' + liveRepo);
+    liveWs.onmessage = () => fetchView(location.pathname + location.search, false);
+  } catch (e) {}
+}
+function currentRepo() {
+  const parts = location.pathname.split('/');
+  if (parts[1] === 'repo' && parts[2]) return parts[2];
+  const repo = new URLSearchParams(location.search).get('repo');
+  if (repo) return repo;
+  const cur = document.querySelector('nav.switch .cur');
+  return cur ? cur.textContent : null;
+}
+function followView() {
+  // The subscription follows the view: close the old connection before opening the new.
+  const repo = currentRepo();
+  if (!repo || repo === liveRepo) return;
+  if (liveWs) liveWs.close();
+  liveRepo = repo;
+  connectWs();
+}
+window.addEventListener('popstate', () => fetchView(location.pathname + location.search, false));
+intercept();
+</script>
+</body></html>

@@ -17,8 +17,8 @@ use super::{Model, build, gather};
 /// The `progress --json` document: the golden-pinned v1 JSON, one
 /// trailing newline — exactly the bytes the subcommand prints.
 pub fn json(root: &DataRoot, repo: &RepoSlug) -> Result<String, String> {
-    let (graph, census, sidebar) = gather(root, repo, None)?;
-    let model = build(&graph, &census, &sidebar).map_err(|error| error.message)?;
+    let (graph, census, sidebar, rewards) = gather(root, repo, None)?;
+    let model = build(&graph, &census, &sidebar, rewards).map_err(|error| error.message)?;
     json_text(&model)
 }
 
@@ -54,6 +54,11 @@ struct ProgressJson {
     /// The store-derived activity summary — the census verbatim (t84's
     /// D6), the page's activity panel's machine-readable twin.
     activity: EventCensus,
+    /// The rewards block (§15's display half, U63) — the totals, the
+    /// recent grants and the reflections, the section's twin. Absent
+    /// on every disabled root: the fence's byte-identity.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    rewards: Option<super::rewards::RewardsJson>,
 }
 
 /// The totals block.
@@ -116,6 +121,18 @@ struct OpenItemDto {
     status: String,
     /// The task's title.
     title: String,
+    /// The planned size (§15's estimate), wire spelling. The outer
+    /// `None` is the disabled root — the key is absent, the fence's
+    /// byte-identity — and the inner one an enabled root's absent
+    /// estimate, spelled `null` (the house document style: an absent
+    /// value is `null`, never a missing key).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    estimate: Option<Option<String>>,
+    /// The actual size — the task's latest grant's size, wire
+    /// spelling. The outer/inner `None` reading is
+    /// [`Self::estimate`]'s.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    actual: Option<Option<String>>,
     /// The open decisions gating the task's epic, short ids — empty
     /// when nothing gates it.
     waits_on: String,
@@ -182,12 +199,31 @@ fn document(model: &Model) -> ProgressJson {
     let open_items: Vec<OpenItemDto> = model
         .open_items
         .iter()
-        .map(|task| OpenItemDto {
-            id: super::short_id(&task.id.to_string()),
-            kind: task.kind.as_str().to_owned(),
-            status: task.status.as_str().to_owned(),
-            title: task.title.clone(),
-            waits_on: model.waits.get(&task.id).cloned().unwrap_or_default(),
+        .map(|task| {
+            // §15's fence: the size fields ride the rows only on an
+            // enabled root — a disabled root's rows are byte-identical
+            // to today's.
+            let (estimate, actual) = match &model.rewards {
+                Some(rewards) => (
+                    Some(task.estimate.map(|size| size.as_str().to_owned())),
+                    Some(
+                        rewards
+                            .actuals
+                            .get(&task.id)
+                            .map(|size| size.as_str().to_owned()),
+                    ),
+                ),
+                None => (None, None),
+            };
+            OpenItemDto {
+                id: super::short_id(&task.id.to_string()),
+                kind: task.kind.as_str().to_owned(),
+                status: task.status.as_str().to_owned(),
+                title: task.title.clone(),
+                estimate,
+                actual,
+                waits_on: model.waits.get(&task.id).cloned().unwrap_or_default(),
+            }
         })
         .collect();
     let decisions: Vec<DecisionDto> = model
@@ -258,5 +294,6 @@ fn document(model: &Model) -> ProgressJson {
         decisions,
         graph: GraphDto { nodes, edges },
         activity: model.activity.clone(),
+        rewards: model.rewards.as_ref().map(super::rewards::json),
     }
 }

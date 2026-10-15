@@ -9,7 +9,7 @@
 //! (§8): the golden-pinned bytes, and two runs over unchanged state,
 //! are byte-identical by construction.
 //!
-//! The module is seven files, split at U37's named point and the seams
+//! The module is eight files, split at U37's named point and the seams
 //! t84's page rework forced: this one holds the model, the resolution,
 //! the gather orchestration and the shared text helpers, [`json()`]
 //! the golden-pinned JSON document, [`page()`] the HTML page's
@@ -19,22 +19,26 @@
 //! from the page when the page half crossed the 600-line target — the
 //! split the spec's D1 named, plus the seam it forced), `sidebar` the
 //! left nav with the registered projects and their epics (the
-//! per-repo reads and the nav tree), and `panel` the activity section
-//! over the event census. The public surface is five functions over
-//! one internal model — [`json()`] and [`summary`] (one surface
-//! each), [`page()`] (the HTML), [`epic_page()`] (the epic-scoped
-//! HTML — serve-scoped, a pure function of `(root, repo, epic)` like
-//! [`page()`] is of `(root, repo)`, and never one of [`outputs`]'s
-//! written surfaces: the static progress output stays one snapshot),
-//! and [`outputs`] (one resolve + one census + one build, all three
-//! surfaces plus the repo's registered checkout, for the subcommand's
-//! default write location) — plus [`resolve_by_cwd`], the
-//! subcommand's repo tier: the `--repo` flag wins (the binary owns
-//! that check), else the working directory's deterministic
-//! longest-ancestor match against the registered checkouts (§7, the
-//! same rule the server's default tier applies). The binary reads
-//! the cwd once and passes it in; this crate never touches the
-//! environment.
+//! per-repo reads and the nav tree), `panel` the activity section
+//! over the event census, and `rewards` the §15 rewards section (the
+//! model slice, the section's HTML, the size columns' cells and the
+//! JSON twin's block — its own module because this file and `page.rs`
+//! already ran over the target with recorded debt, so the arc's
+//! display code landed beside them instead of inside them). The
+//! public surface is five functions over one internal model —
+//! [`json()`] and [`summary`] (one surface each), [`page()`] (the
+//! HTML), [`epic_page()`] (the epic-scoped HTML — serve-scoped, a
+//! pure function of `(root, repo, epic)` like [`page()`] is of
+//! `(root, repo)`, and never one of [`outputs`]'s written surfaces:
+//! the static progress output stays one snapshot), and [`outputs`]
+//! (one resolve + one census + one build, all three surfaces plus the
+//! repo's registered checkout, for the subcommand's default write
+//! location) — plus [`resolve_by_cwd`], the subcommand's repo tier:
+//! the `--repo` flag wins (the binary owns that check), else the
+//! working directory's deterministic longest-ancestor match against
+//! the registered checkouts (§7, the same rule the server's default
+//! tier applies). The binary reads the cwd once and passes it in;
+//! this crate never touches the environment.
 //!
 //! The resolution mirrors `ServerState::resolve_read`'s discipline
 //! exactly (the t64 hand-off): the registry consult first —
@@ -47,7 +51,11 @@
 //! the named repo. The census read joins the resolve in `gather`
 //! (t84's D8): after it, over the same slug, so an unregistered slug
 //! is refused before it — and a census failure fails the render, the
-//! panel being part of the page, never silently omitted.
+//! panel being part of the page, never silently omitted. The rewards
+//! read joins last (U63): the config first — absent or disabled
+//! answers `None` and every later read is skipped, §15's fence — and
+//! a malformed config fails the render the same way, never a silent
+//! inert root.
 //!
 //! Two rules port verbatim from the Python tool, both because a
 //! renderer that quietly shows less than everything is worse than no
@@ -59,13 +67,17 @@
 //!
 //! The file runs over the 600-line target because U55's hoist moved
 //! the shared row/card helpers here, beside their `esc`/`short`
-//! siblings; the split point is the model-and-`build` half into its
-//! own file, which the next over-target touch should take.
+//! siblings, and U63's rewards arc joined the gather orchestration
+//! (the config read, the model field, the row's size cells) rather
+//! than take the split mid-arc; the split point is the
+//! model-and-`build` half into its own file, which the next
+//! over-target touch should take.
 
 mod epic;
 mod json;
 mod page;
 mod panel;
+mod rewards;
 mod sidebar;
 mod svg;
 
@@ -86,6 +98,7 @@ use crate::ToolError;
 use crate::cwd::{MatchOutcome, match_slug};
 use crate::rewards::milestone_of;
 
+use self::rewards::{RewardsModel, gather_rewards, size_cells};
 use self::sidebar::{SidebarRepo, sidebar_repos};
 
 /// Per-kind counts over the four task kinds (the Python tool's
@@ -148,6 +161,10 @@ struct Model<'a> {
     /// The sidebar's per-repo reads: every registered repo with its
     /// epics, the rendered repo marked, an unreadable one reported.
     sidebar: &'a [SidebarRepo],
+    /// The rewards model slice (§15's display half, U63) — `None` on
+    /// every disabled root, the fence: no section, no columns, no
+    /// bytes that differ.
+    rewards: Option<RewardsModel>,
 }
 
 /// One lane: an epic, its tasks in id order, and the decisions
@@ -168,8 +185,8 @@ struct Lane<'a> {
 /// the git sha and the date — narration, not a pinned surface, but
 /// derived from the same model so it can never disagree with the JSON.
 pub fn summary(root: &DataRoot, repo: &RepoSlug) -> Result<String, String> {
-    let (graph, census, sidebar) = gather(root, repo, None)?;
-    let model = build(&graph, &census, &sidebar).map_err(|error| error.message)?;
+    let (graph, census, sidebar, rewards) = gather(root, repo, None)?;
+    let model = build(&graph, &census, &sidebar, rewards).map_err(|error| error.message)?;
     Ok(summary_text(&model))
 }
 
@@ -179,8 +196,8 @@ pub fn summary(root: &DataRoot, repo: &RepoSlug) -> Result<String, String> {
 /// the binary derives its default output directory from the repo's
 /// registered checkout without a second read.
 pub fn outputs(root: &DataRoot, repo: &RepoSlug) -> Result<Outputs, String> {
-    let (graph, census, sidebar) = gather(root, repo, None)?;
-    let model = build(&graph, &census, &sidebar).map_err(|error| error.message)?;
+    let (graph, census, sidebar, rewards) = gather(root, repo, None)?;
+    let model = build(&graph, &census, &sidebar, rewards).map_err(|error| error.message)?;
     Ok(Outputs {
         page: page::page_text(&model)?,
         json: json::json_text(&model)?,
@@ -189,26 +206,31 @@ pub fn outputs(root: &DataRoot, repo: &RepoSlug) -> Result<Outputs, String> {
     })
 }
 
-/// One resolve, one census read and the sidebar's per-repo reads — the
-/// shared orchestration of every surface (t84's D8). The census happens
-/// after the resolve, over the same slug, so an unregistered slug is
-/// refused before it; a census failure fails the render (the panel is
-/// part of the page, never silently omitted); the sidebar reads every
-/// registered repo lock-free, reporting an unreadable repo rather than
-/// dropping it (D3). The `current_epic` number is the sidebar's
-/// current-epic marker — `None` on every repo-scoped surface, the
-/// epic page's scoped number.
+/// One resolve, one census read, the sidebar's per-repo reads and the
+/// rewards read — the shared orchestration of every surface (t84's
+/// D8; U63's join). The census happens after the resolve, over the
+/// same slug, so an unregistered slug is refused before it; a census
+/// failure fails the render (the panel is part of the page, never
+/// silently omitted); the sidebar reads every registered repo
+/// lock-free, reporting an unreadable repo rather than dropping it
+/// (D3); the rewards read is the config first — absent or disabled
+/// answers `None` and the totals/events reads are skipped (§15's
+/// fence) — and a malformed config fails the render. The
+/// `current_epic` number is the sidebar's current-epic marker —
+/// `None` on every repo-scoped surface, the epic page's scoped
+/// number.
 fn gather(
     root: &DataRoot,
     slug: &RepoSlug,
     current_epic: Option<u64>,
-) -> Result<(Graph, EventCensus, Vec<SidebarRepo>), String> {
+) -> Result<(Graph, EventCensus, Vec<SidebarRepo>, Option<RewardsModel>), String> {
     let graph = resolve(root, slug).map_err(|error| error.message)?;
     let census = root
         .read_repo_census(slug)
         .map_err(|error| ToolError::from(error).message)?;
     let sidebar = sidebar_repos(root, slug, &graph, current_epic)?;
-    Ok((graph, census, sidebar))
+    let rewards = gather_rewards(root)?;
+    Ok((graph, census, sidebar, rewards))
 }
 
 /// The subcommand's repo tier (§7): the working directory's
@@ -267,13 +289,14 @@ pub(crate) fn resolve(root: &DataRoot, slug: &RepoSlug) -> Result<Graph, ToolErr
     Ok(graph)
 }
 
-/// The model over one graph, its census and the sidebar's reads — the
-/// Python tool's `build()` ported onto the domain types, grown by
-/// t84's D8.
+/// The model over one graph, its census, the sidebar's reads and the
+/// rewards slice — the Python tool's `build()` ported onto the domain
+/// types, grown by t84's D8 and U63's join.
 fn build<'a>(
     graph: &'a Graph,
     census: &'a EventCensus,
     sidebar: &'a [SidebarRepo],
+    rewards: Option<RewardsModel>,
 ) -> Result<Model<'a>, ToolError> {
     let epics: Vec<&Epic> = graph.epics().collect();
     if epics.is_empty() {
@@ -443,6 +466,7 @@ fn build<'a>(
         task_count: all_tasks.len(),
         activity: census,
         sidebar,
+        rewards,
     })
 }
 
@@ -552,12 +576,15 @@ fn short_id(full: &str) -> String {
 /// the epic page's task rows and the repo page's open-items rows were
 /// byte-identical format strings, so the shape has one home and cannot
 /// drift): the id, kind, status, title and waits-on columns, the
-/// waits text from the model.
+/// waits text from the model — plus the est/actual size cells (U63)
+/// between the title and the waits, empty on every disabled root
+/// (§15's fence: no columns, no bytes).
 fn task_row_html(model: &Model, task: &Task) -> String {
     let waits = model.waits.get(&task.id).cloned().unwrap_or_default();
+    let sizes = size_cells(model.rewards.as_ref(), task);
     format!(
         "<tr><td class=\"mono\">{}</td><td>{}</td><td class=\"st-{}\">{}</td>\
-         <td>{}</td><td>{}</td></tr>",
+         <td>{}</td>{sizes}<td>{}</td></tr>",
         esc(&short_id(&task.id.to_string())),
         esc(task.kind.as_str()),
         esc(task.status.as_str()),
