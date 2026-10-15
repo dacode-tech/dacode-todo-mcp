@@ -271,17 +271,18 @@ todo-mcp progress --root ~/.local/share/dacode-todo --no-write
 ```
 
 Green looks like `verify` exiting 0 with `status ok` and the render
-printing the totals. One live failure mode is expected, not broken
-wiring: while the daemon holds a store's write handle (armed by a
-write tool call from any session — the single-writer lock discipline,
-and the handle is cached for the daemon's lifetime), `verify` answers
-`store is locked`; the render reads lock-free and works regardless.
-Re-run `verify` once no daemon holds the handle — after a daemon
-restart (the update cycle's signal) or with the daemon stopped. From
-inside opencode, the equivalent is asking the agent for `repo_list`
-— the tracked repos with their checkout paths (dacode,
-camera, ikvm-html, ipmi-collector, infra-hostrail-server, and this
-one).
+printing the totals. Both answers hold while the daemon holds a
+store's write handle (armed by a write tool call from any session —
+the single-writer lock discipline, and the handle is cached for the
+daemon's lifetime): the render reads lock-free, and `verify` answers
+through the same lock-free read (D19) — the committed prefix, the
+same report. The one reading that differs: beside a live writer an
+unterminated final log line is an append in flight, not damage — the
+torn-tail fault is reported only when no writer holds the handle,
+which is when `verify`'s strict whole-log open runs. From inside
+opencode, the equivalent is asking the agent for `repo_list` — the
+tracked repos with their checkout paths (dacode, camera, ikvm-html,
+ipmi-collector, infra-hostrail-server, and this one).
 
 ## Reading more
 

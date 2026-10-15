@@ -2,11 +2,15 @@
 //! `status: ok`, exit 0); a torn tail (code `corrupt_store`, the offset,
 //! the `TornTail` classification with its preview, exit 1); interior
 //! damage (the `Unrepairable` detail, exit 1); a diverged pair (both
-//! numbers, exit 1); contended (`locked`, exit 3, and **no** repair
-//! classification attempted); a missing store directory (`io`, exit 3); a
-//! foreign header version (`version_mismatch`, exit 3); an unparseable
-//! snapshot (exit 1, "classification: unavailable"); and the stream
-//! discipline (report on stdout, faults on stderr).
+//! numbers, exit 1); a live writer holding the write handle (the same
+//! report through D19's lock-free read, exit 0 — U71); a torn tail
+//! beside that writer (an append in flight: the committed report, exit
+//! 0); interior damage beside that writer (the fault reported, the
+//! classification unavailable — the dry run needs the lock the writer
+//! holds, exit 1); a missing store directory (`io`, exit 3); a foreign header
+//! version (`version_mismatch`, exit 3); an unparseable snapshot (exit
+//! 1, "classification: unavailable"); and the stream discipline (report
+//! on stdout, faults on stderr).
 //!
 //! Plus §13's resolution pins, end to end through the spawned binary:
 //! the cwd tier (no `--repo`, the working directory inside a registered
@@ -36,6 +40,24 @@ fn verify(dir: &TempDir) -> crate::inspect::fixtures::CliRun {
     run_cli(&["verify", "--root", root_arg(dir), "--repo", "camera"])
 }
 
+/// The short store's expected report — the exact bytes both read arms
+/// must print over the same committed log (the counts are the fixture's
+/// world; only the log's size varies).
+fn short_report(log_bytes: usize) -> String {
+    format!(
+        "slug: camera\n\
+         epics: 1\n\
+         tasks: 2\n\
+         decisions: 0\n\
+         docs: 0\n\
+         blocks: 1\n\
+         relates: 0\n\
+         log_bytes: {log_bytes}\n\
+         snapshot_bytes: none\n\
+         status: ok\n"
+    )
+}
+
 #[test]
 fn a_clean_store_reports_its_counts_sizes_and_ok() {
     let dir = TempDir::new().unwrap();
@@ -48,22 +70,7 @@ fn a_clean_store_reports_its_counts_sizes_and_ok() {
     // The sizes are stats, not a second reading of the format, and
     // the report is line-oriented and total — no line count (f25's
     // parked boundary), no clock, no host path.
-    assert_eq!(
-        run.stdout,
-        format!(
-            "slug: camera\n\
-             epics: 1\n\
-             tasks: 2\n\
-             decisions: 0\n\
-             docs: 0\n\
-             blocks: 1\n\
-             relates: 0\n\
-             log_bytes: {}\n\
-             snapshot_bytes: none\n\
-             status: ok\n",
-            valid.len()
-        )
-    );
+    assert_eq!(run.stdout, short_report(valid.len()));
     assert_no_debris(&root);
 }
 
@@ -250,37 +257,98 @@ fn a_diverged_pair_is_reported_with_both_numbers() {
     assert_no_debris(&root);
 }
 
+/// U71's pin: a live writer holding the write handle — the daemon
+/// shape, where the handle is cached for the daemon's lifetime — does
+/// not refuse `verify`. The locked open cannot run, so the answer
+/// comes through D19's lock-free read of the committed prefix: the
+/// same report the strict arm prints over the same bytes, exit 0, and
+/// nothing written (the read takes no lock, the sizes are stats).
 #[test]
-fn a_contended_store_is_locked_with_no_classification_attempted() {
+fn a_live_writer_holding_the_write_handle_is_answered_through_the_lock_free_read() {
     let dir = TempDir::new().unwrap();
     let root = data_root(&dir);
     // §8's single writer, held in-process: the spawned binary's open
-    // must refuse with `locked` — and must not then attempt a repair
-    // dry run, which would contend on the same lock.
+    // must refuse with `locked` — and the lock-free read answers
+    // anyway, with the committed graph.
     let held = build_short_store(&root);
+    let valid = log_bytes(&root);
 
     let run = verify(&dir);
-    assert_eq!(run.code, 3, "the store refused the operation");
+    assert_eq!(run.code, 0, "stderr: {}", run.stderr);
+    assert_eq!(run.stderr, "");
+    assert_eq!(run.stdout, short_report(valid.len()));
+    assert_eq!(log_bytes(&root), valid, "verify writes nothing");
+    assert_no_debris(&root);
+
+    drop(held);
+}
+
+/// The fallback's tail reading (D19): beside a live writer an
+/// unterminated final line is an append in flight, so the lock-free
+/// arm answers the committed graph — `status: ok`, the counts without
+/// the fragment, `log_bytes` the stat's whole file. The damage reading
+/// of the same bytes — no writer alive, the strict arm — is the
+/// torn-tail pin above.
+#[test]
+fn a_torn_tail_beside_a_live_writer_reads_as_an_append_in_flight() {
+    let dir = TempDir::new().unwrap();
+    let root = data_root(&dir);
+    let held = build_short_store(&root);
+    let valid = log_bytes(&root);
+    let torn_bytes = torn(&valid);
+    fs::write(log_path(&root), &torn_bytes).unwrap();
+
+    let run = verify(&dir);
+    assert_eq!(run.code, 0, "the committed prefix is sound");
+    assert_eq!(run.stderr, "");
+    assert_eq!(run.stdout, short_report(torn_bytes.len()));
+    assert_eq!(log_bytes(&root), torn_bytes, "verify writes nothing");
+    assert_no_debris(&root);
+
+    drop(held);
+}
+
+/// The fallback's corrupt arm: interior damage in the committed prefix
+/// beside a live writer. The lock-free read reports the fault — the
+/// same positioned `corrupt_store` the strict arm reports over the
+/// same bytes — and the dry-run classification, which takes the lock
+/// the writer holds, refuses honestly: "classification: unavailable"
+/// with the locked fault lines, exit 1.
+#[test]
+fn interior_damage_beside_a_live_writer_reports_the_fault_with_no_classification() {
+    let dir = TempDir::new().unwrap();
+    let root = data_root(&dir);
+    let held = build_short_store(&root);
+    let valid = log_bytes(&root);
+    // Line 2 is the first event after the seed: an `epic_add`.
+    let (spliced, interior_at) = with_interior_garbage(&valid, 2);
+    fs::write(log_path(&root), &spliced).unwrap();
+
+    let run = verify(&dir);
+    assert_eq!(run.code, 1, "a faulty store is the found-a-fault exit");
     assert_eq!(run.stdout, "");
-    assert!(run.stderr.starts_with("locked\n"), "{:?}", run.stderr);
     assert!(
-        run.stderr.contains("store is locked: repo camera"),
+        run.stderr.starts_with("corrupt_store\n"),
         "{:?}",
         run.stderr
     );
     assert!(
-        !run.stderr.contains('/'),
-        "the locked report carries no path: {:?}",
+        run.stderr.contains(&format!("offset: {interior_at}\n")),
+        "{:?}",
         run.stderr
     );
+    // The classification's own refusal is the report's tail: the
+    // writer holds the lock the dry run needs.
     assert!(
-        !run.stderr.contains("classification"),
-        "no repair dry run against a contended lock: {:?}",
+        run.stderr
+            .ends_with("classification: unavailable\nlocked\nstore is locked: repo camera\n"),
+        "{:?}",
         run.stderr
     );
+    assert_eq!(log_bytes(&root), spliced, "verify writes nothing");
+    assert_no_debris(&root);
 
     drop(held);
-    assert_no_debris(&root);
 }
 
 #[test]

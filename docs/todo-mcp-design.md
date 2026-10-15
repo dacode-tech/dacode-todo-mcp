@@ -1098,9 +1098,14 @@ unchanged — and subcommands carry the per-project tool surface:
 `refresh` (the re-register + re-import surgery, refusing where a
 repo's board files are gone — a cut-over repo's store is primary),
 `serve` (the live view, U18's shape A), and `dump`/`verify`/`repair`
-(the inspector `todo-cli` carried; that crate retires). The
-subcommands take `--root` and `--repo` with the same resolution order
-as the server (§7), and their output is golden-pinned per §10.
+(the inspector `todo-cli` carried; that crate retires). `verify` reads
+two-armed (U71): the strict whole-log open while no writer holds the
+lock — a torn tail is the fault it is — and, beside a live writer (the
+daemon caches the write handle for its lifetime), D19's lock-free read
+of the committed prefix, the same report with an unterminated tail read
+as an append in flight. The subcommands take `--root` and `--repo` with
+the same resolution order as the server (§7), and their output is
+golden-pinned per §10.
 A leading `~` or `~/` in the `--root` value expands against `HOME`
 at the parse boundary — the binary reads `HOME` once and passes it
 in as a value (the cwd precedent; the lib stays env-free) — because

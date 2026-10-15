@@ -1,6 +1,17 @@
 //! The `verify` command: the report for a store that opened, and for one
 //! that did not.
 //!
+//! The read is two-armed (U71): the strict whole-log open, and — when a
+//! live writer holds the write handle, which under the daemon shape is
+//! its whole lifetime (the handles cache, D25) — D19's lock-free read
+//! of the committed prefix, which does not contend and prints the same
+//! report over the same committed bytes. The arms' one difference is
+//! the tail: the strict open replays the whole log, so a torn tail is
+//! the damage it is; the lock-free read answers the committed prefix,
+//! so the same bytes beside a live writer are an append in flight —
+//! D19's own reading. The damage reading needs the lock free, which is
+//! exactly when the strict arm runs.
+//!
 //! Every fact comes from somewhere honest: the counts from the opened
 //! graph's accessors, the file sizes from `fs::metadata` on the layout's
 //! own [`DataRoot::log_path`]/[`DataRoot::snapshot_path`] — a *stat*, not
@@ -31,30 +42,60 @@ use super::{EXIT_FAULT, EXIT_OK, fault_lines, store_refused};
 /// stdout and exit 0; on a corrupt store print the fault and the store's
 /// own dry-run classification to stderr and exit 1; on any other store
 /// refusal print its §6.1 code and report to stderr and exit 3.
+///
+/// A store whose write handle a live writer holds — the daemon's cached
+/// handle, held for the daemon's lifetime (U71) — is not a refusal: the
+/// answer comes through D19's lock-free read of the committed prefix,
+/// the same report. The fallback's one difference is the tail reading
+/// (module docs): an unterminated final line is an append in flight
+/// beside the writer that owns it.
 pub fn run(root: &DataRoot, slug: &RepoSlug) -> ExitCode {
     match root.open(slug) {
-        Ok(store) => match opened_report(root, slug, store.graph()) {
-            Ok(report) => {
-                print!("{report}");
-                ExitCode::from(EXIT_OK)
-            }
+        Ok(store) => opened(root, slug, store.graph()),
+        // The daemon shape: the write handle is cached for the daemon's
+        // lifetime, so the locked open would refuse for as long as it
+        // lives. verify only reads — D19's lock-free read answers
+        // without contending.
+        Err(StoreError::Locked { .. }) => match root.read_repo(slug) {
+            Ok(graph) => opened(root, slug, &graph),
+            // The writer's lock is still held, so the dry-run
+            // classification below may itself refuse with `locked` —
+            // the honest "classification: unavailable" arm, never a
+            // guess.
+            Err(StoreError::CorruptStore { offset, detail }) => faulty(root, slug, offset, &detail),
             Err(error) => store_refused(&error),
         },
         // A corrupt store is verify's found-a-fault case: the command ran
         // and reported what it will not act on (exit-code table's 1). The
         // failed open already dropped its lock guard, so the dry-run
         // classification below is not contention.
-        Err(StoreError::CorruptStore { offset, detail }) => {
-            eprint!("{}", corrupt_report(root, slug, offset, &detail));
-            ExitCode::from(EXIT_FAULT)
-        }
-        // `locked`, `version_mismatch`, `io` (a missing store directory
-        // included — the engine's honest NotFound, never a guess): the
-        // store refused the operation, exit-code table's 3. A contended
-        // store gets no repair dry run — it would contend on the same
-        // lock.
+        Err(StoreError::CorruptStore { offset, detail }) => faulty(root, slug, offset, &detail),
+        // `version_mismatch`, `io` (a missing store directory included —
+        // the engine's honest NotFound, never a guess): the store refused
+        // the operation, exit-code table's 3 — from either arm, since
+        // the lock-free read gates the version and spells io the same.
         Err(error) => store_refused(&error),
     }
+}
+
+/// The clean-store arm both reads share: the report on stdout, exit 0. A
+/// stat the report needs that fails is the store refusing the operation,
+/// exit 3.
+fn opened(root: &DataRoot, slug: &RepoSlug, graph: &Graph) -> ExitCode {
+    match opened_report(root, slug, graph) {
+        Ok(report) => {
+            print!("{report}");
+            ExitCode::from(EXIT_OK)
+        }
+        Err(error) => store_refused(&error),
+    }
+}
+
+/// The corrupt-store arm both reads share: the fault and the store's own
+/// dry-run classification on stderr, exit 1.
+fn faulty(root: &DataRoot, slug: &RepoSlug, offset: Option<usize>, detail: &str) -> ExitCode {
+    eprint!("{}", corrupt_report(root, slug, offset, detail));
+    ExitCode::from(EXIT_FAULT)
 }
 
 /// The clean-store report: the slug, the node and edge counts from the
