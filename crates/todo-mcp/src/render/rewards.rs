@@ -3,11 +3,11 @@
 //! the per-root and per-repo totals, the recent grants, the
 //! reflections verbatim, and the planned/actual size columns' data.
 //! Its own module because both `mod.rs` and `page.rs` ran over the
-//! 600-line target with recorded debt when the arc landed (U57 has
-//! since paid mod.rs's; U58 still owns page.rs's): the arc's display
-//! code lands here rather than growing them, and the shared files
-//! gain only the joins — the gather call, the model field, the row's
-//! size cells, the section's insertion, the JSON twin's block.
+//! 600-line target with recorded debt when the arc landed (U57 and
+//! U58 have since paid them): the arc's display code lands here
+//! rather than growing them, and the shared files gain only the
+//! joins — the gather call, the model field, the row's size cells,
+//! the section's insertion, the JSON twin's block.
 //!
 //! §15's fence is the module's first rule: a root with no config — or
 //! `enabled: false` — answers [`gather_rewards`] with `None`, and

@@ -25,7 +25,9 @@ use todo_domain::{DecisionStatus, RepoSlug, Status, TaskKind};
 use todo_store::DataRoot;
 
 use super::model::{Lane, Model, build, gather};
-use super::page::{CSS, LAZY_SCRIPT, live_script, pct, switcher_html};
+use super::page::{live_script, pct, switcher_html};
+use super::script::LAZY_SCRIPT;
+use super::style::CSS;
 use super::{card_html, counts_for, decision_row_html, esc, is_done, short, task_row_html};
 
 /// The epic-scoped HTML page (E12's per-epic surface): one epic's

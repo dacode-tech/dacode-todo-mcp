@@ -9,14 +9,16 @@
 //! (§8): the golden-pinned bytes, and two runs over unchanged state,
 //! are byte-identical by construction.
 //!
-//! The module is nine files, split at U37's named point, the seams
-//! t84's page rework forced, and U57's model split: this one holds
-//! the surface assembly (the summary and the outputs), the
+//! The module is eleven files, split at U37's named point, the seams
+//! t84's page rework forced, and the U57/U58 file-size splits: this
+//! one holds the surface assembly (the summary and the outputs), the
 //! resolution and the shared text helpers, `model` the model types
 //! with the `gather` and `build` halves that produce them (U57's
 //! split, paying this file's recorded file-size debt), [`json()`] the
 //! golden-pinned JSON document, [`page()`] the HTML page's skeleton
-//! with the project switcher, `epic` the epic-scoped page (one
+//! with the project switcher, `style` and `script` the stylesheet and
+//! the two scripts every page carries (U58's split out of `page.rs`,
+//! paying its recorded file-size debt), `epic` the epic-scoped page (one
 //! epic's lane as a page, the sidebar marking that epic current —
 //! E12's per-epic surface), `svg` the dependency-graph SVG (extracted
 //! from the page when the page half crossed the 600-line target — the
@@ -54,7 +56,9 @@ mod model;
 mod page;
 mod panel;
 mod rewards;
+mod script;
 mod sidebar;
+mod style;
 mod svg;
 
 pub use self::epic::epic_page;
