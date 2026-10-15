@@ -471,6 +471,7 @@ fn answer_task_add(
         references,
         priority: params.priority.map(Priority::from),
         until,
+        estimate: None,
     };
     let handle = state.resolve(&slug)?;
     let task = handle.add_task(draft, time::now())?;

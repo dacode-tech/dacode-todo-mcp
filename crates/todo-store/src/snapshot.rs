@@ -116,7 +116,7 @@ use todo_domain::{
 };
 
 use crate::FORMAT_VERSION;
-use crate::codec::{VersionProbe, from_bytes, to_bytes};
+use crate::codec::{VersionProbe, from_bytes, is_readable, to_bytes};
 use crate::error::{StoreError, io_error};
 use crate::event::BlocksEdgeDto;
 
@@ -385,8 +385,12 @@ pub(crate) fn load_snapshot(path: &Path) -> Result<Option<SnapshotDocument>, Sto
         Err(error) => return Err(io_error(CONTEXT_READ, &error)),
     };
     // The version probe runs on the lenient shape first (module docs).
+    // The predecessor is readable (§15's strict superset — a v1
+    // snapshot's tasks carry no `estimate` and read as `None`); the
+    // next `snapshot()` call rewrites the document as the current
+    // version. Anything else is the migration question.
     let probe: VersionProbe = from_bytes(&bytes).map_err(|error| corrupt(CONTEXT_PARSE, &error))?;
-    if probe.format_version != FORMAT_VERSION {
+    if !is_readable(probe.format_version) {
         return Err(StoreError::VersionMismatch {
             found: probe.format_version,
             expected: FORMAT_VERSION,

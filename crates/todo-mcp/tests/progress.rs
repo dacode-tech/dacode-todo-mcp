@@ -214,6 +214,7 @@ mod progress {
                 references: References::new(),
                 priority: None,
                 until: None,
+                estimate: None,
             };
 
         let u1 = store
@@ -392,6 +393,7 @@ mod progress {
                     references: References::new(),
                     priority: None,
                     until: None,
+                    estimate: None,
                 },
                 ts("2026-10-02T09:02:00Z"),
             )
@@ -1399,6 +1401,7 @@ mod progress {
                         references: References::new(),
                         priority: None,
                         until: None,
+                        estimate: None,
                     },
                     ts(&format!("2026-10-02T10:10:{n:02}Z")),
                 )

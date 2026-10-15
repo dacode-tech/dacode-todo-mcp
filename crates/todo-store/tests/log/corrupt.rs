@@ -95,53 +95,77 @@ fn header_faults_are_named_errors() {
 
     // A newer format version is a migration question (§4), not
     // corruption, and is reported before anything is replayed.
-    let mut newer = br#"{"format_version":2}"#.to_vec();
+    let mut newer = br#"{"format_version":3}"#.to_vec();
     newer.push(b'\n');
     for line in &log_lines[1..] {
         newer.extend_from_slice(line);
     }
-    let fixture = write_fixture(&dir, "version-2.jsonl", &newer);
+    let fixture = write_fixture(&dir, "version-3.jsonl", &newer);
     let error = JsonlStore::open_log(&fixture).unwrap_err();
     assert_eq!(
         error,
         StoreError::VersionMismatch {
-            found: 2,
+            found: 3,
             expected: FORMAT_VERSION
         }
     );
     assert_eq!(error.code(), "version_mismatch");
-    assert!(error.to_string().contains("version 2"), "{error}");
+    assert!(error.to_string().contains("version 3"), "{error}");
 
-    // An unknown field at the *current* version is damage, not a
+    // The predecessor (§15's strict superset) is the one other accepted
+    // reading: it opens, replays, and migrates its header in place —
+    // the migration suite's own test pins that; here the pin is that
+    // the header alone is not a fault.
+    let mut predecessor = br#"{"format_version":1}"#.to_vec();
+    predecessor.push(b'\n');
+    for line in &log_lines[1..] {
+        predecessor.extend_from_slice(line);
+    }
+    let fixture = write_fixture(&dir, "version-1.jsonl", &predecessor);
+    assert!(JsonlStore::open_log(&fixture).is_ok());
+
+    // An unknown field at a readable version is damage, not a
     // migration: the strict `LogHeader` parse rejects it (f14's
     // `deny_unknown_fields`, on the registry/snapshot precedent), at
-    // offset 0 with the bad-header detail. Hand-written header, spliced
-    // real events — the block above's shape, and the header's own
-    // precedent: no writer can produce one.
-    let mut extra = br#"{"format_version":1,"extra":true}"#.to_vec();
-    extra.push(b'\n');
-    for line in &log_lines[1..] {
-        extra.extend_from_slice(line);
+    // offset 0 with the bad-header detail — at the current version and
+    // at the predecessor alike, since both are read strictly.
+    // Hand-written headers, spliced real events — the block above's
+    // shape, and the header's own precedent: no writer can produce one.
+    for (name, header) in [
+        (
+            "version-2-extra",
+            br#"{"format_version":2,"extra":true}"#.as_slice(),
+        ),
+        (
+            "version-1-extra",
+            br#"{"format_version":1,"extra":true}"#.as_slice(),
+        ),
+    ] {
+        let mut extra = header.to_vec();
+        extra.push(b'\n');
+        for line in &log_lines[1..] {
+            extra.extend_from_slice(line);
+        }
+        let fixture = write_fixture(&dir, &format!("{name}.jsonl"), &extra);
+        expect_corrupt(&fixture, 0, "not a format-version header");
     }
-    let fixture = write_fixture(&dir, "version-1-extra.jsonl", &extra);
-    expect_corrupt(&fixture, 0, "not a format-version header");
 
     // The same unknown field at a *newer* version stays the migration
     // question: the lenient probe reads the version before the strict
     // parse ever sees the field (D1's probe-first ordering — without it
     // this fixture reports `corrupt_store`, which is what the ordering
     // exists to prevent).
-    let mut newer_extra = br#"{"format_version":2,"extra":true}"#.to_vec();
+    let mut newer_extra = br#"{"format_version":3,"extra":true}"#.to_vec();
     newer_extra.push(b'\n');
     for line in &log_lines[1..] {
         newer_extra.extend_from_slice(line);
     }
-    let fixture = write_fixture(&dir, "version-2-extra.jsonl", &newer_extra);
+    let fixture = write_fixture(&dir, "version-3-extra.jsonl", &newer_extra);
     let error = JsonlStore::open_log(&fixture).unwrap_err();
     assert_eq!(
         error,
         StoreError::VersionMismatch {
-            found: 2,
+            found: 3,
             expected: FORMAT_VERSION
         }
     );

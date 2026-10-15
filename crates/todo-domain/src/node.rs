@@ -23,7 +23,7 @@ use crate::id::{DecisionId, DocId, EpicId, RepoSlug, TaskId};
 use crate::reference::References;
 use crate::status::{DecisionStatus, Status, TaskKind};
 use crate::time::{Date, Timestamp};
-use crate::{DomainError, Priority};
+use crate::{DomainError, Priority, Size};
 
 /// A repository registration (spec §3, §7): the immutable slug is the
 /// key; the display name and filesystem path are mutable attributes —
@@ -98,6 +98,14 @@ pub struct Task {
     pub priority: Option<Priority>,
     /// Optional until-date (D9), pure metadata.
     pub until: Option<Date>,
+    /// The planned size (§15, D22): the creating agent's pre-flight
+    /// guess, recorded at creation and never rewritten through the
+    /// persisted surface — the honesty anchor's first half, the actual
+    /// size reported at closure being the second. Absent is legitimate
+    /// (the `-` column) and is the pre-E13 spelling: a v1 line carries
+    /// no field and reads as `None`.
+    #[serde(default)]
+    pub estimate: Option<Size>,
     /// Creation time; caller-passed (§8).
     pub created: Timestamp,
     /// Last mutation time; caller-passed (§8).
@@ -274,6 +282,7 @@ mod tests {
             references: References::new(),
             priority: None,
             until: None,
+            estimate: None,
             created: ts("2026-09-26T12:00:00Z"),
             updated: ts("2026-09-26T12:00:00Z"),
         }

@@ -13,15 +13,19 @@ use std::str::FromStr;
 
 use tempfile::TempDir;
 use todo_domain::{
-    BlocksEdge, Confidence, Date, DecisionDraft, DecisionId, DecisionStatus, DocDraft, DocId,
-    EpicDraft, EpicId, Priority, Reference, ReferenceKind, References, Repo, RepoSlug, Status,
-    TaskDraft, TaskId, TaskKind, Timestamp,
+    BaseCosts, BlocksEdge, Confidence, Date, DecisionDraft, DecisionId, DecisionStatus, DocDraft,
+    DocId, EpicDraft, EpicId, KindMultipliers, Priority, PriorityMultipliers, Reference,
+    ReferenceKind, References, Repo, RepoSlug, RewardsConfig, Size, Status, TaskDraft, TaskId,
+    TaskKind, Timestamp,
 };
-use todo_store::{DecisionPatch, DocPatch, EpicPatch, JsonlStore, Store, StoreError, TaskPatch};
+use todo_store::{
+    DataRoot, DecisionPatch, DocPatch, EpicPatch, JsonlStore, ReflectionTrigger, RewardsTotals,
+    Store, StoreError, TaskPatch,
+};
 
-/// The seventeen `kind` tags of §4.1's schema, in the order the
-/// timeline first exercises them.
-pub(super) const EVERY_KIND: [&str; 17] = [
+/// The nineteen `kind` tags of §4.1's schema (v2: §15's two rewards
+/// kinds join), in the order the timeline first exercises them.
+pub(super) const EVERY_KIND: [&str; 19] = [
     "repo_register",
     "epic_add",
     "task_add",
@@ -39,6 +43,8 @@ pub(super) const EVERY_KIND: [&str; 17] = [
     "blocks_unlink",
     "relates_link",
     "relates_unlink",
+    "reward_grant",
+    "reward_reflect",
 ];
 
 // =================================================================
@@ -85,6 +91,50 @@ pub(super) fn repo() -> Repo {
     }
 }
 
+/// The timeline's camera slug — the store's path under a root.
+pub(super) fn camera_slug() -> RepoSlug {
+    slug("camera")
+}
+
+/// The timeline's rewards config (§15): every number distinct so the
+/// golden's reward lines pin which multiplier produced which amount.
+/// `reflect_every` sits above U1's grant and below the running total
+/// after U3's, so the timeline's threshold crossing is real.
+pub(super) fn rewards_config() -> RewardsConfig {
+    RewardsConfig {
+        enabled: true,
+        currency: "coffee".to_owned(),
+        base_costs: BaseCosts {
+            s: 10,
+            m: 25,
+            l: 50,
+            xl: 100,
+        },
+        default_size: Size::M,
+        priority_multipliers: PriorityMultipliers {
+            high: 150,
+            medium: 100,
+            low: 50,
+        },
+        kind_multipliers: KindMultipliers {
+            task: 110,
+            gate: 130,
+            finding: 70,
+            debt: 40,
+        },
+        reflect_every: 100,
+    }
+}
+
+/// The golden timeline's root: a data root with the rewards config
+/// saved, so the timeline's closures grant (§15's enabled root). An
+/// inert root — no config — is simply `DataRoot::new(dir.path())`.
+pub(super) fn timeline_root(dir: &TempDir) -> DataRoot {
+    let root = DataRoot::new(dir.path());
+    root.save_config(&rewards_config()).unwrap();
+    root
+}
+
 pub(super) fn log_path(dir: &TempDir) -> PathBuf {
     dir.path().join("event-log.jsonl")
 }
@@ -121,6 +171,7 @@ pub(super) fn task_draft(epic: &EpicId, title: &str) -> TaskDraft {
         references: References::new(),
         priority: None,
         until: None,
+        estimate: None,
     }
 }
 
@@ -224,15 +275,21 @@ fn spec_references() -> References {
 }
 
 // =================================================================
-// The scripted timeline (all 17 event kinds).
+// The scripted timeline (all 19 event kinds).
 // =================================================================
 
-/// Creates a log at `path` and runs the whole scripted timeline over
-/// it, returning the open store.
-pub(super) fn build_timeline(path: &Path) -> JsonlStore {
-    let mut store = JsonlStore::create_log(path, repo()).unwrap();
+/// Creates the camera store under the enabled `root` and runs the whole
+/// scripted timeline over it, returning the open store.
+///
+/// The timeline is root-based because its closures grant: the config
+/// document is the root's, and only a store the layout opened reads it.
+/// On an inert root the same halves run grant-free — every `close_task`
+/// degrades to its raw update — which is the byte-neutrality §15 pins.
+pub(super) fn build_timeline(root: &DataRoot) -> JsonlStore {
+    let mut store = root.register(repo()).unwrap();
     timeline_first_half(&mut store);
     timeline_second_half(&mut store);
+    timeline_rewards_phase(&mut store);
     store
 }
 
@@ -368,7 +425,11 @@ pub(super) fn timeline_first_half(store: &mut JsonlStore) {
 /// The timeline's second half: updates through every patch DTO with
 /// every field `Some` at least once, the epic-delete cascade that
 /// burns two task numbers, the repo attribute updates whose audit
-/// instant rides the event line, and the adds that show the gap.
+/// instant rides the event line, and the adds that show the gap. The
+/// three terminal updates go through the closure-aware path: on the
+/// enabled root U1 and U3 grant (a reported size and the default
+/// bucket), U4's `wontfix` grants nothing; on an inert root all three
+/// are byte-identical to the raw update.
 pub(super) fn timeline_second_half(store: &mut JsonlStore) {
     store
         .update_task(
@@ -393,8 +454,8 @@ pub(super) fn timeline_second_half(store: &mut JsonlStore) {
             },
         )
         .unwrap();
-    store
-        .update_task(
+    let u1_closure = store
+        .close_task(
             task_id(1),
             at("2026-09-25T12:00:00Z"),
             TaskPatch {
@@ -410,11 +471,21 @@ pub(super) fn timeline_second_half(store: &mut JsonlStore) {
                 until: Some(Some(Date::parse("2026-10-01").unwrap())),
                 ..TaskPatch::default()
             },
+            // The actual size reported at the closure call: L, against
+            // no estimate — the pre-E13 task's shape. On the enabled
+            // root this grants 50 × 150 × 130 / 10000 → 98 coffee (the
+            // gate kind the patch set, the high priority, the reported
+            // L); the amount is pinned by the golden's bytes and the
+            // rewards suite's own assertions, which run where the root
+            // is known to be enabled — these halves run on inert roots
+            // too, where the same call grants nothing.
+            Some(Size::L),
         )
         .unwrap();
+    drop(u1_closure);
     // Both terminal statuses, so the cascade below may run.
-    store
-        .update_task(
+    let u3_closure = store
+        .close_task(
             task_id(3),
             at("2026-09-25T12:30:00Z"),
             TaskPatch {
@@ -422,18 +493,26 @@ pub(super) fn timeline_second_half(store: &mut JsonlStore) {
                 evidence: Some(Some("the shim is gone".to_owned())),
                 ..TaskPatch::default()
             },
+            // No size reported: the default bucket (M) applies. On the
+            // enabled root: 25 × 100 × 40 / 10000 → 10 coffee.
+            None,
         )
         .unwrap();
-    store
-        .update_task(
+    drop(u3_closure);
+    let u4_closure = store
+        .close_task(
             task_id(4),
             at("2026-09-25T12:45:00Z"),
             TaskPatch {
                 status: Some(Status::Wontfix),
                 ..TaskPatch::default()
             },
+            Some(Size::S),
         )
         .unwrap();
+    // `wontfix` grants nothing on any root — declined work is not
+    // rewarded work.
+    assert_eq!(u4_closure.reward, None);
 
     store
         .update_epic(
@@ -524,6 +603,55 @@ pub(super) fn timeline_second_half(store: &mut JsonlStore) {
         .add_task(
             task_draft(&epic_id(3), "Profile the muxer"),
             at("2026-09-25T16:00:00Z"),
+        )
+        .unwrap();
+}
+
+/// The timeline's rewards phase (§15): an estimated task closed through
+/// the grant path — the Xl estimate is the guess, the reported L the
+/// fact, so the honesty anchor's delta is in the data — and the
+/// reflection the threshold crossing asked for. Runs on the enabled
+/// root alone; the inert timelines never call it.
+pub(super) fn timeline_rewards_phase(store: &mut JsonlStore) {
+    let u7 = store
+        .add_task(
+            TaskDraft {
+                estimate: Some(Size::Xl),
+                ..task_draft(&epic_id(3), "Ship the muxer profile")
+            },
+            at("2026-09-25T16:30:00Z"),
+        )
+        .unwrap();
+    assert_eq!(u7.estimate, Some(Size::Xl));
+    let closure = store
+        .close_task(
+            u7.id.clone(),
+            at("2026-09-25T17:00:00Z"),
+            TaskPatch {
+                status: Some(Status::Closed),
+                evidence: Some(Some("the muxer is profiled".to_owned())),
+                ..TaskPatch::default()
+            },
+            Some(Size::L),
+        )
+        .unwrap();
+    // On the enabled root: 50 × 100 × 110 / 10000 → 55 coffee (the
+    // task kind, no priority, the reported L against the Xl estimate).
+    drop(closure);
+
+    // The running total crossed `reflect_every` (100) at U3's grant
+    // (98 + 10); the answer arrives later, after U7's — the totals at
+    // the moment are the answer's, 98 + 10 + 55 = 163.
+    let totals = RewardsTotals {
+        total: 163,
+        by_repo: [(camera_slug(), 163)].into_iter().collect(),
+    };
+    store
+        .log_reflection(
+            "the closure went clean and the estimate held.".to_owned(),
+            ReflectionTrigger::Threshold,
+            totals,
+            at("2026-09-25T17:05:00Z"),
         )
         .unwrap();
 }
@@ -646,8 +774,8 @@ pub(super) fn expect_corrupt(path: &Path, offset: usize, needle: &str) -> StoreE
     error
 }
 
-/// The timeline's log bytes, on disk.
-pub(super) fn timeline_bytes(path: &Path) -> Vec<u8> {
-    drop(build_timeline(path));
-    fs::read(path).unwrap()
+/// The timeline's log bytes, on disk under `root`.
+pub(super) fn timeline_bytes(root: &DataRoot) -> Vec<u8> {
+    drop(build_timeline(root));
+    fs::read(root.log_path(&camera_slug())).unwrap()
 }

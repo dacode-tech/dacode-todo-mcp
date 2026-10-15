@@ -22,7 +22,7 @@ use super::timeline::{
 /// (Decision 9).
 fn header_plus_seed(repo: &todo_domain::Repo) -> Vec<u8> {
     let mut expected = Vec::new();
-    expected.extend_from_slice(br#"{"format_version":1}"#);
+    expected.extend_from_slice(br#"{"format_version":2}"#);
     expected.push(b'\n');
     expected.extend_from_slice(
         &to_bytes(&Event::RepoRegister {

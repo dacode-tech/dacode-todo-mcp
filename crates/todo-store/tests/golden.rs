@@ -119,6 +119,7 @@ mod golden {
             references,
             priority: Some(Priority::High),
             until: Some(Date::parse("2026-10-01").unwrap()),
+            estimate: None,
             // created is second-precision, updated fractional: both must
             // appear in the golden as the 30-byte nine-digit-fraction
             // canonical spelling.
@@ -225,6 +226,7 @@ mod golden {
             references: References::new(),
             priority: None,
             until: None,
+            estimate: None,
         };
         let first = graph.add_task(draft("first"), at.clone()).unwrap();
         let second = graph.add_task(draft("second"), at.clone()).unwrap();
@@ -353,6 +355,7 @@ mod golden {
             references,
             priority: None,
             until: None,
+            estimate: None,
             created: ts("2026-09-26T08:00:00Z"),
             updated: ts("2026-09-26T08:00:00Z"),
         };

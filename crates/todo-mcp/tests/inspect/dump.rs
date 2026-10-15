@@ -1,6 +1,6 @@
 //! The dump's determinism instruments (spec §8, §10;
 //! `.agents/knowledge/workflows/golden-files.md`): the moved golden
-//! (`dump.v1`, the cli's `cli_dump.v1` under the host's per-surface
+//! (`dump.v<N>`, the cli's `cli_dump.v<N>` under the host's per-surface
 //! naming), twice-run byte identity, the parse-back round trip,
 //! insertion-order robustness, and the no-host-path rule asserted on
 //! the bytes rather than documented in prose.

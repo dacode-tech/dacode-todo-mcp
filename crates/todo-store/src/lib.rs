@@ -23,34 +23,42 @@
 //! The engine needs no async runtime; this crate stays sync and
 //! runtime-agnostic (spec §2).
 //!
-//! Current surface (M1): the canonical serializer over the domain's
-//! serde schema — [`to_bytes`]/[`from_bytes`], with the JSON engine
-//! (D1) sealed inside the crate — [`StoreError`], carrying §6.1's
-//! `corrupt_store`, `version_mismatch` and now `locked` ([`LockTarget`]
-//! names the contended store) with the byte offset a repair needs (spec
-//! §4.3), [`FORMAT_VERSION`], the single source of §4's versioning
-//! requirement, and the persistence surface itself: [`Store`], the one
-//! trait of §4.2 — its constructor half ([`Store::create`],
-//! [`Store::open`]) takes a [`DataRoot`] and a repo or slug, not a bare
-//! path — with [`JsonlStore`] as the D1 implementation over [`Event`],
-//! the persisted schema. The D4 layout ([`DataRoot`]), the shared
-//! registry ([`Registry`], [`RegistryEntry`]) and §8's advisory locks
-//! ([`RegistryLock`], and the per-store lock every [`JsonlStore`] holds)
-//! are landed, as are §4.1/§4.3's snapshots and log compaction
-//! ([`Store::snapshot`], [`Store::compact`] → [`Compaction`]) — explicit
-//! calls with no policy and no clock behind them; t13's cli and M3's
-//! server decide *when*. The serialized bytes are pinned by the golden
-//! files under `tests/golden/` (spec §10,
-//! `.agents/knowledge/workflows/golden-files.md`): `event_log`,
-//! `serialize_nodes`, `registry` and `snapshot`. The cli inspector reads
-//! the store back, and §4.3's one recovery operation is landed:
-//! [`DataRoot::repair`] → [`RepairOutcome`]/[`TornTail`], which truncates
-//! a torn last line under §8's lock and refuses — as an outcome, never as
-//! an error, §6.1's list being closed — everything a truncation cannot
-//! fix. Through M1 the constructors return the concrete [`JsonlStore`];
-//! M3's server gets a boxed opener (`Box<dyn Store>`) if it would
-//! otherwise have to name the engine — the `dyn Store` object-safety pin
-//! keeps that available, and it is deliberately not built now.
+//! Current surface (M1, plus §15's storage half): the canonical
+//! serializer over the domain's serde schema — [`to_bytes`]/
+//! [`from_bytes`], with the JSON engine (D1) sealed inside the crate —
+//! [`StoreError`], carrying §6.1's `corrupt_store`, `version_mismatch`
+//! and now `locked` ([`LockTarget`] names the contended store) with the
+//! byte offset a repair needs (spec §4.3), [`FORMAT_VERSION`], the
+//! single source of §4's versioning requirement, and the persistence
+//! surface itself: [`Store`], the one trait of §4.2 — its constructor
+//! half ([`Store::create`], [`Store::open`]) takes a [`DataRoot`] and a
+//! repo or slug, not a bare path — with [`JsonlStore`] as the D1
+//! implementation over [`Event`], the persisted schema. The D4 layout
+//! ([`DataRoot`]), the shared registry ([`Registry`], [`RegistryEntry`])
+//! and §8's advisory locks ([`RegistryLock`], and the per-store lock
+//! every [`JsonlStore`] holds) are landed, as are §4.1/§4.3's snapshots
+//! and log compaction ([`Store::snapshot`], [`Store::compact`] →
+//! [`Compaction`]) — explicit calls with no policy and no clock behind
+//! them; t13's cli and M3's server decide *when*. §15's storage half
+//! (D23, U61) rides the same surface: the per-root config document
+//! ([`DataRoot::load_config`]/[`DataRoot::save_config`] over
+//! `<root>/config.json`), the closure-aware update that grants
+//! ([`Store::close_task`] → [`TaskClosure`]) and the reflection log
+//! ([`Store::log_reflection`], [`ReflectionTrigger`]), the derived
+//! totals ([`DataRoot::rewards_totals`] → [`RewardsTotals`] — never
+//! stored), and the `estimate` on task-creation events. The serialized
+//! bytes are pinned by the golden files under `tests/golden/` (spec
+//! §10, `.agents/knowledge/workflows/golden-files.md`): `event_log`,
+//! `serialize_nodes`, `registry`, `snapshot` and `config`. The cli
+//! inspector reads the store back, and §4.3's one recovery operation is
+//! landed: [`DataRoot::repair`] → [`RepairOutcome`]/[`TornTail`], which
+//! truncates a torn last line under §8's lock and refuses — as an
+//! outcome, never as an error, §6.1's list being closed — everything a
+//! truncation cannot fix. Through M1 the constructors return the
+//! concrete [`JsonlStore`]; M3's server gets a boxed opener
+//! (`Box<dyn Store>`) if it would otherwise have to name the engine —
+//! the `dyn Store` object-safety pin keeps that available, and it is
+//! deliberately not built now.
 
 #![cfg_attr(
     test,
@@ -64,6 +72,7 @@
 )]
 
 mod codec;
+mod config;
 mod error;
 mod event;
 mod layout;
@@ -78,16 +87,17 @@ mod store;
 pub use codec::{from_bytes, to_bytes};
 pub use error::{LockTarget, StoreError};
 pub use event::{
-    BlocksEdgeDto, DecisionPatch, DocPatch, EpicPatch, Event, ReplayFault, TaskPatch,
-    apply_decision_patch, apply_doc_patch, apply_epic_patch, apply_task_patch, replay_step,
+    BlocksEdgeDto, DecisionPatch, DocPatch, EpicPatch, Event, ReflectionTrigger, ReplayFault,
+    TaskPatch, apply_decision_patch, apply_doc_patch, apply_epic_patch, apply_task_patch,
+    replay_step,
 };
 pub use layout::DataRoot;
 pub use lock::RegistryLock;
 pub use log::JsonlStore;
-pub use reader::EventCensus;
+pub use reader::{EventCensus, RewardsTotals};
 pub use registry::{Registry, RegistryEntry};
 pub use repair::{RepairOutcome, TornTail};
-pub use store::{Compaction, Store};
+pub use store::{Compaction, Store, TaskClosure};
 
 /// The store format version — spec §4: "a format version in the header;
 /// a format change is a migration, never an in-place edit of meaning".
@@ -104,4 +114,19 @@ pub use store::{Compaction, Store};
 /// (`.agents/knowledge/workflows/golden-files.md`). Note that the
 /// snapshot's `log_offset` couples `snapshot.v<N>` to `event_log.v<N>`'s
 /// exact bytes: an event-schema change moves two goldens.
-pub const FORMAT_VERSION: u32 = 1;
+///
+/// Version 2 (§15, D23) is a strict superset of 1: the `estimate` on
+/// task-creation events (absent reads as `None`), the `reward_grant` and
+/// `reward_reflect` event kinds, and the per-root config document. A v1
+/// log, registry or snapshot replays identically under this build —
+/// [`PREDECESSOR_VERSION`] names what it accepts — and a write-capable
+/// open migrates a v1 log's header in place.
+pub const FORMAT_VERSION: u32 = 2;
+
+/// The predecessor format this build reads as a strict superset (§15,
+/// D23): a v1 store — log, registry, snapshot — replays identically
+/// under the v2 reader, and a write-capable open of a v1 log migrates
+/// its header in place. Anything older is damage this build never wrote
+/// and reports as [`StoreError::VersionMismatch`]; anything newer is
+/// the migration question §4's version gate exists to ask.
+pub const PREDECESSOR_VERSION: u32 = 1;

@@ -147,7 +147,7 @@ fn trait_create_makes_the_d4_directory_and_open_replays_it() {
     // The log's bytes are exactly the engine's header and seed — the
     // trait constructor adds layout, never content.
     let mut expected = Vec::new();
-    expected.extend_from_slice(br#"{"format_version":1}"#);
+    expected.extend_from_slice(br#"{"format_version":2}"#);
     expected.push(b'\n');
     expected.extend_from_slice(
         &to_bytes(&Event::RepoRegister {

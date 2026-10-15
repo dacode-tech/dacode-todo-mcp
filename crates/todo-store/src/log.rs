@@ -31,38 +31,44 @@
 //! drops the unpersisted mutation (see [`crate::Store`]).
 //!
 //! Over the file-size target by recorded exception (`_rust.md`, board
-//! §5/U13): append, snapshot-aware replay and compaction are one engine
-//! today — `compact`'s step order and the replay that trusts it are one
-//! crash-safety argument. The split, when M2's query layer shows the
+//! §5/U13): append, snapshot-aware replay, compaction and §15's grant
+//! path are one engine today — `compact`'s step order, the replay that
+//! trusts it, and the closure that grants are one crash-safety and
+//! one atomicity argument. The split, when M2's query layer shows the
 //! seam, is the snapshot-aware replay (`replay`,
-//! `replay_from_snapshot`) plus [`Store::compact`] moving out.
+//! `replay_from_snapshot`) plus [`Store::compact`] moving out; the
+//! grant path would follow the write half it belongs to.
 
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
 
 use todo_domain::{
-    BlocksEdge, Decision, DecisionId, Doc, DocId, Epic, EpicId, Graph, Repo, RepoSlug, Task,
-    TaskId, Timestamp,
+    BlocksEdge, Decision, DecisionId, Doc, DocId, Epic, EpicId, Graph, Repo, RepoSlug, RewardInput,
+    RewardsConfig, Size, Task, TaskId, Timestamp,
 };
 use todo_domain::{DecisionDraft, DocDraft, EpicDraft, TaskDraft};
 
 use crate::FORMAT_VERSION;
-use crate::codec::{VersionProbe, from_bytes, to_bytes};
+use crate::PREDECESSOR_VERSION;
+use crate::codec::{VersionProbe, from_bytes, is_readable, to_bytes};
+use crate::config;
 use crate::error::{LockTarget, StoreError, io_error, io_error_kind};
 use crate::event::{
-    BlocksEdgeDto, DecisionPatch, DocPatch, EpicPatch, Event, LogHeader, TaskPatch,
-    apply_decision_patch, apply_doc_patch, apply_epic_patch, apply_task_patch, replay_step,
+    BlocksEdgeDto, DecisionPatch, DocPatch, EpicPatch, Event, LogHeader, ReflectionTrigger,
+    TaskPatch, apply_decision_patch, apply_doc_patch, apply_epic_patch, apply_task_patch,
+    replay_step,
 };
 use crate::layout::{
     DataRoot, lock_path_for, snapshot_path_for, store_dir_missing, store_target_from_log_path,
 };
 use crate::lock::{CONTEXT_STORE, FileLock};
+use crate::reader::RewardsTotals;
 use crate::snapshot::{
     SnapshotDocument, load_snapshot, rename_into_place, temp_path_for, write_snapshot_atomic,
     write_temp,
 };
-use crate::store::{Compaction, Store};
+use crate::store::{Compaction, Store, TaskClosure};
 
 /// The line terminator, and the only byte the log's line discipline
 /// attaches meaning to (§4.1: every mutation is one JSON line).
@@ -79,6 +85,10 @@ const CONTEXT_REOPEN_LOG: &str = "reopen the event log after compaction";
 /// The io-fault context of the pre-compaction read: the old log's bytes
 /// are what the event count and the covered region are measured over.
 const CONTEXT_READ_LOG: &str = "read the event log for compaction";
+/// The io-fault contexts of the in-place header migration (§15): a v1
+/// log opened for writing has its header rewritten before any append.
+const CONTEXT_MIGRATE_OPEN: &str = "rewrite the event log's header";
+const CONTEXT_MIGRATE_FLUSH: &str = "flush the event log's header to disk";
 
 /// The corruption details, pinned by `tests/log/corrupt.rs`:
 /// deterministic, and never carrying a host path — a §4.3 report is all a
@@ -116,6 +126,11 @@ pub struct JsonlStore {
     _lock: FileLock,
     /// The graph every read answers from, kept current by every append.
     graph: Graph,
+    /// The root's config document, when this store lives in the D4
+    /// layout — the rewards source, read fresh at each closure (§15) so
+    /// a config change takes effect without a reopen. `None` for a
+    /// bare-path store: no root, no config, the inert store.
+    config_path: Option<PathBuf>,
 }
 
 impl JsonlStore {
@@ -174,6 +189,7 @@ impl JsonlStore {
             file,
             _lock: lock,
             graph,
+            config_path: None,
         })
     }
 
@@ -204,7 +220,10 @@ impl JsonlStore {
     /// directory that does not exist holds neither the log nor a lock file
     /// ([`DataRoot::open`]'s answer for a slug that was never registered).
     /// A log whose header declares another format version is
-    /// [`StoreError::VersionMismatch`]; a log that is malformed anywhere —
+    /// [`StoreError::VersionMismatch`] — except the predecessor
+    /// (§15's strict superset), which replays identically and whose
+    /// header this open migrates in place before any append can follow
+    /// it; a log that is malformed anywhere —
     /// a torn last line, garbage in the interior, a seed out of place, an
     /// event the domain rejects, an id that is not the next of its kind —
     /// is [`StoreError::CorruptStore`] carrying the offending line's
@@ -238,13 +257,45 @@ impl JsonlStore {
         let mut bytes = Vec::new();
         file.read_to_end(&mut bytes)
             .map_err(|error| io_error("read the event log", &error))?;
-        let graph = replay(path, &bytes)?;
+        let (graph, declared_version) = replay(path, &bytes)?;
+        // §15's in-place header migration: a v1 log opened for writing
+        // becomes a v2 log before any v2 event can follow the v1 header
+        // — the version gate is what protects an older binary from
+        // estimate-bearing lines, so the header moves first. The write
+        // is length-preserving (both spellings are
+        // `{"format_version":N}\n`), so no other byte, no snapshot
+        // `log_offset` and no line offset moves with it; a torn write
+        // here is a named `corrupt_store` on the next open, never a
+        // silent wrong graph.
+        if declared_version == PREDECESSOR_VERSION {
+            migrate_log_header(path)?;
+        }
         Ok(Self {
             path: path.to_path_buf(),
             file,
             _lock: lock,
             graph,
+            config_path: None,
         })
+    }
+
+    /// The root's config document this store reads rewards from — the
+    /// layout's to set (it knows the root), never a caller above the
+    /// crate's: the config is the root's, and the store's source is the
+    /// layout's business. Bare-path stores keep `None`: the inert store.
+    pub(crate) fn attach_config_path(&mut self, config_path: PathBuf) {
+        self.config_path = Some(config_path);
+    }
+
+    /// The root's rewards config, read fresh at the call (§15's opt-in
+    /// is a document, not a session): `None` when this store has no
+    /// config source or the root has no config — the inert root. A
+    /// malformed config is the named error, never a silent inert root.
+    fn load_rewards_config(&self) -> Result<Option<RewardsConfig>, StoreError> {
+        match &self.config_path {
+            Some(path) => config::load(path),
+            None => Ok(None),
+        }
     }
 
     /// §4.3's append discipline: one `write_all` of a complete line under
@@ -301,6 +352,27 @@ impl JsonlStore {
     }
 }
 
+/// Rewrites a predecessor log's header line in place (§4, §15): the v1
+/// and v2 spellings are both `{"format_version":N}\n` — the same byte
+/// length — so the write moves no other byte, and every snapshot
+/// `log_offset` and every line offset stays valid. The write-mode handle
+/// starts at offset 0 (no `O_APPEND`), writes the one line, and syncs;
+/// the append handle is untouched and still points at the same inode.
+/// A torn write is the one crash window, and it is a named
+/// `corrupt_store` on the next open — never a silent wrong graph.
+fn migrate_log_header(path: &Path) -> Result<(), StoreError> {
+    let mut file = OpenOptions::new()
+        .write(true)
+        .open(path)
+        .map_err(|error| io_error(CONTEXT_MIGRATE_OPEN, &error))?;
+    let mut line = to_bytes(&LogHeader::current())?;
+    line.push(LINE_FEED);
+    file.write_all(&line)
+        .map_err(|error| io_error(CONTEXT_MIGRATE_OPEN, &error))?;
+    file.sync_all()
+        .map_err(|error| io_error(CONTEXT_MIGRATE_FLUSH, &error))
+}
+
 impl Store for JsonlStore {
     fn create(root: &DataRoot, repo: Repo) -> Result<Self, StoreError>
     where
@@ -315,7 +387,9 @@ impl Store for JsonlStore {
     where
         Self: Sized,
     {
-        Self::open_log(root.log_path(slug))
+        // The layout's open: it resolves the path and attaches the
+        // root's config document as this store's rewards source (§15).
+        root.open(slug)
     }
 
     fn graph(&self) -> &Graph {
@@ -508,6 +582,88 @@ impl Store for JsonlStore {
         Ok(task)
     }
 
+    fn close_task(
+        &mut self,
+        id: TaskId,
+        at: Timestamp,
+        patch: TaskPatch,
+        actual_size: Option<Size>,
+    ) -> Result<TaskClosure, StoreError> {
+        // The config is read before anything is applied, so a malformed
+        // config fails the whole call atomically (§8's write contract)
+        // rather than leaving a closure half-granted.
+        let config = self.load_rewards_config()?;
+        let before = self.graph.task(&id).map(|task| task.status);
+        let event_id = id.clone();
+        let task = self
+            .graph
+            .update_task(id, at.clone(), |task| apply_task_patch(task, &patch))
+            .map_err(StoreError::Domain)?;
+        self.append(&Event::TaskUpdate {
+            ts: at.clone(),
+            id: event_id.clone(),
+            patch,
+        })?;
+        // The grant fires on the transition into `closed` alone: a task
+        // already closed (a later patch on a closed task) grants nothing
+        // twice, and `wontfix` never was a closure. The computation is
+        // the domain's, single-sourced — the store never re-derives the
+        // fallback rules — and its `None` (overflow, non-closure) means
+        // no event, per the reviewer note the domain's contract pins.
+        let granted = match (&config, before) {
+            (Some(config), Some(before))
+                if config.enabled
+                    && before != todo_domain::Status::Closed
+                    && task.status == todo_domain::Status::Closed =>
+            {
+                todo_domain::reward(
+                    config,
+                    RewardInput {
+                        status: task.status,
+                        kind: task.kind,
+                        priority: task.priority,
+                        size: actual_size,
+                    },
+                )
+            }
+            _ => None,
+        };
+        if let Some(reward) = &granted {
+            self.append(&Event::reward_grant(at, event_id, reward))?;
+        }
+        Ok(TaskClosure {
+            task,
+            reward: granted,
+        })
+    }
+
+    fn log_reflection(
+        &mut self,
+        answer: String,
+        trigger: ReflectionTrigger,
+        totals: RewardsTotals,
+        at: Timestamp,
+    ) -> Result<(), StoreError> {
+        // The store records the answer it was handed, verbatim (§15:
+        // the server never interprets an answer, and neither does the
+        // store). The enabled-gate for reflections is the caller's —
+        // the question is asked only on a rewards-enabled root — so the
+        // totals arrive with the answer, derived by the caller through
+        // the root's own query.
+        let repo_total = totals
+            .by_repo
+            .get(&self.graph.repo().slug)
+            .copied()
+            .unwrap_or(0);
+        self.append(&Event::RewardReflect {
+            ts: at,
+            answer,
+            trigger,
+            root_total: totals.total,
+            repo_total,
+        })
+    }
+
     fn update_decision(
         &mut self,
         id: DecisionId,
@@ -609,7 +765,9 @@ impl Store for JsonlStore {
 /// seed, then — when a snapshot sits beside the log — the restored graph
 /// plus only the tail after the snapshot's `log_offset` (§4.3: "replay
 /// reads the latest snapshot, then the log tail after it"); without one,
-/// every event in order.
+/// every event in order. Returns the graph and the header's **declared**
+/// version, so a write-capable caller can migrate a predecessor header
+/// (§15) while the lock-free readers simply ignore it.
 ///
 /// The whole log is read into one buffer and split once: at §4.1's scale —
 /// 10^3 to 10^5 nodes — the buffer is the cheaper machinery, and holding
@@ -623,17 +781,19 @@ impl Store for JsonlStore {
 /// so a log written by a newer build reports
 /// [`StoreError::VersionMismatch`] even when its header line is the only
 /// thing in the file or carries fields this build has never seen: that
-/// is a migration question (§4), not corruption. The log's checks all
-/// run before the snapshot is consulted, so a log that is itself
-/// malformed reports its own fault at its own offset even when a
-/// snapshot exists.
-pub(crate) fn replay(path: &Path, bytes: &[u8]) -> Result<Graph, StoreError> {
+/// is a migration question (§4), not corruption. The predecessor version
+/// is the one accepted reading (§15's strict superset); anything older
+/// is damage this build never wrote and reports as the mismatch. The
+/// log's checks all run before the snapshot is consulted, so a log that
+/// is itself malformed reports its own fault at its own offset even when
+/// a snapshot exists.
+pub(crate) fn replay(path: &Path, bytes: &[u8]) -> Result<(Graph, u32), StoreError> {
     let mut lines = LineSplit::new(bytes);
 
     let Some(header) = lines.next() else {
         return Err(corrupt(0, DETAIL_EMPTY_LOG));
     };
-    check_header(&header)?;
+    let declared_version = check_header(&header)?;
 
     let Some(seed) = lines.next() else {
         return Err(corrupt(0, DETAIL_NO_EVENTS));
@@ -650,7 +810,7 @@ pub(crate) fn replay(path: &Path, bytes: &[u8]) -> Result<Graph, StoreError> {
     // tail may start at.
     let seed_end = seed.offset + seed.bytes.len() + 1;
 
-    match load_snapshot(&snapshot_path_for(path))? {
+    let graph = match load_snapshot(&snapshot_path_for(path))? {
         None => {
             let mut graph = Graph::new(repo.clone());
             for line in lines {
@@ -658,10 +818,11 @@ pub(crate) fn replay(path: &Path, bytes: &[u8]) -> Result<Graph, StoreError> {
                 replay_step(&mut graph, &event)
                     .map_err(|fault| corrupt(line.offset, fault.to_string()))?;
             }
-            Ok(graph)
+            graph
         }
-        Some(document) => replay_from_snapshot(document, &repo.slug, seed_end, bytes, lines),
-    }
+        Some(document) => replay_from_snapshot(document, &repo.slug, seed_end, bytes, lines)?,
+    };
+    Ok((graph, declared_version))
 }
 
 /// §4.3's replay over a snapshot: the document reconciles itself against
@@ -692,17 +853,21 @@ fn replay_from_snapshot(
 
 /// Checks the header line: probe, version, strict parse, committed
 /// (terminated) — [`VersionProbe`]'s ordering, the registry's and the
-/// snapshot's own. The lenient probe is what lets a header from a
-/// *newer* format report [`StoreError::VersionMismatch`] even when it
-/// carries fields this build has never seen: that is a migration
-/// question (§4), not corruption. The strict [`LogHeader`] parse then
-/// rejects an unknown field at the *current* version, which is f14's
-/// damage — `deny_unknown_fields` with the registry and snapshot
-/// documents as the precedent.
-fn check_header(line: &LogLine<'_>) -> Result<(), StoreError> {
+/// snapshot's own. Returns the declared version. The lenient probe is
+/// what lets a header from a *newer* format report
+/// [`StoreError::VersionMismatch`] even when it carries fields this
+/// build has never seen: that is a migration question (§4), not
+/// corruption. The predecessor version is the one other accepted
+/// reading (§15's strict superset — a v1 log replays identically, and
+/// the write-capable open migrates its header in place); anything older
+/// is a version this build never wrote and reports as the mismatch. The
+/// strict [`LogHeader`] parse then rejects an unknown field at any
+/// readable version, which is f14's damage — `deny_unknown_fields`
+/// with the registry and snapshot documents as the precedent.
+fn check_header(line: &LogLine<'_>) -> Result<u32, StoreError> {
     let probe: VersionProbe = from_bytes(line.bytes)
         .map_err(|error| corrupt(line.offset, prefixed(DETAIL_BAD_HEADER, &error)))?;
-    if probe.format_version != FORMAT_VERSION {
+    if !is_readable(probe.format_version) {
         return Err(StoreError::VersionMismatch {
             found: probe.format_version,
             expected: FORMAT_VERSION,
@@ -713,7 +878,7 @@ fn check_header(line: &LogLine<'_>) -> Result<(), StoreError> {
     if !line.terminated {
         return Err(corrupt(line.offset, DETAIL_TORN_LINE));
     }
-    Ok(())
+    Ok(probe.format_version)
 }
 
 /// Reads one event line: the torn-tail check first (§4.3 — an

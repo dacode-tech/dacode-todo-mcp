@@ -17,6 +17,7 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
 use crate::error::StoreError;
+use crate::{FORMAT_VERSION, PREDECESSOR_VERSION};
 
 /// Serializes one value to its canonical bytes.
 ///
@@ -66,4 +67,15 @@ pub fn from_bytes<T: DeserializeOwned>(bytes: &[u8]) -> Result<T, StoreError> {
 pub(crate) struct VersionProbe {
     /// The declared format version.
     pub(crate) format_version: u32,
+}
+
+/// Whether `version` is one this build reads: the current
+/// [`FORMAT_VERSION`] or [`PREDECESSOR_VERSION`] (§15's strict superset
+/// — a v1 store replays identically under the v2 reader). The log
+/// header, the registry and the snapshot all ask through this one
+/// place, so the three documents cannot drift on which versions open.
+/// The config document does not ask: it is born at v2 and has no
+/// predecessor spelling.
+pub(crate) fn is_readable(version: u32) -> bool {
+    version == FORMAT_VERSION || version == PREDECESSOR_VERSION
 }

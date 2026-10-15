@@ -126,6 +126,7 @@ mod serve {
                     references: References::new(),
                     priority: None,
                     until: None,
+                    estimate: None,
                 },
                 ts("2026-10-02T08:02:00Z"),
             )
@@ -651,6 +652,7 @@ mod serve {
                     references: References::new(),
                     priority: None,
                     until: None,
+                    estimate: None,
                 },
                 ts("2026-10-02T10:00:00Z"),
             )

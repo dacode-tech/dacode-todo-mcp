@@ -43,7 +43,7 @@
 mod repair {
     /// t10's builders and byte helpers, included **read-only** by path so
     /// "reuse" means the same file, not a copy that can drift — it pins
-    /// `event_log.v1.golden` and must not change (the snapshot suite's
+    /// `event_log.v2.golden` and must not change (the snapshot suite's
     /// precedent). The `allow` is for the helpers this suite does not
     /// call: the file compiles in full or not at all.
     #[allow(

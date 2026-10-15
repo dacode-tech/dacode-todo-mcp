@@ -1,0 +1,1 @@
+{"format_version":2,"rewards":{"enabled":true,"currency":"coffee","base_costs":{"s":10,"m":25,"l":50,"xl":100},"default_size":"m","priority_multipliers":{"high":150,"medium":100,"low":50},"kind_multipliers":{"task":110,"gate":130,"finding":70,"debt":40},"reflect_every":100}}

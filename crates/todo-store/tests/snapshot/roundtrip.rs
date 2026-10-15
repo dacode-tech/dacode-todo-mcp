@@ -200,6 +200,67 @@ fn the_golden_fixture_snapshot_matches_its_golden() {
 }
 
 // =================================================================
+// The v1 pair under the v2 reader (§15's strict superset).
+// =================================================================
+
+#[test]
+fn a_v1_snapshot_and_log_pair_loads_under_the_v2_reader() {
+    // A genuine v1 pair, built by string surgery on real v2 bytes: the
+    // version numbers spelled down to 1 and the `estimate` fields
+    // stripped from both files — exactly the pre-bump format's shape.
+    // The snapshot's `log_offset` is re-based to the stripped log's new
+    // length, so the pair stays consistent the way a real one was.
+    let dir = TempDir::new().unwrap();
+    let path = log_path(&dir);
+    let mut store = build_golden_store(&path);
+    store.snapshot().unwrap();
+    let written: Graph = store.graph().clone();
+    drop(store);
+
+    let log_v2 = fs::read(&path).unwrap();
+    let snapshot_v2 = snapshot_bytes(&path);
+    let to_v1 = |bytes: &[u8]| -> Vec<u8> {
+        String::from_utf8_lossy(bytes)
+            .replace("\"format_version\":2", "\"format_version\":1")
+            .replace("\"estimate\":null,", "")
+            .into_bytes()
+    };
+    let log_v1 = to_v1(&log_v2);
+    // Non-vacuity: the surgery really moved bytes.
+    assert!(log_v1.len() < log_v2.len());
+    assert!(!String::from_utf8_lossy(&log_v1).contains("estimate"));
+
+    let snapshot_text = String::from_utf8_lossy(&snapshot_v2).into_owned();
+    let stripped = snapshot_text
+        .replace("\"format_version\":2", "\"format_version\":1")
+        .replace("\"estimate\":null,", "");
+    let snapshot_v1 = stripped
+        .replace(
+            &format!("\"log_offset\":{}", log_v2.len()),
+            &format!("\"log_offset\":{}", log_v1.len()),
+        )
+        .into_bytes();
+    assert!(snapshot_v1.len() < snapshot_v2.len());
+
+    let v1_dir = TempDir::new().unwrap();
+    let v1_path = log_path(&v1_dir);
+    fs::write(&v1_path, &log_v1).unwrap();
+    fs::write(snapshot_path(&v1_path), &snapshot_v1).unwrap();
+
+    // The v2 reader restores the v1 snapshot and replays the v1 tail:
+    // the same graph, every estimate `None` — the absent field's
+    // reading. The header migrated in place on the write-capable open.
+    let reopened = JsonlStore::open_log(&v1_path).unwrap();
+    assert_eq!(reopened.graph(), &written);
+    for task in reopened.graph().tasks() {
+        assert_eq!(task.estimate, None);
+    }
+    let migrated = fs::read(&v1_path).unwrap();
+    assert!(migrated.starts_with(b"{\"format_version\":2}\n"));
+    assert_eq!(&migrated[21..], &log_v1[21..]);
+}
+
+// =================================================================
 // Determinism (required test 4, §8).
 // =================================================================
 

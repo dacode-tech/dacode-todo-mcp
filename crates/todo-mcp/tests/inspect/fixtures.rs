@@ -117,6 +117,7 @@ pub(super) fn task_draft(epic: &EpicId, title: &str) -> TaskDraft {
         references: References::new(),
         priority: None,
         until: None,
+        estimate: None,
     }
 }
 

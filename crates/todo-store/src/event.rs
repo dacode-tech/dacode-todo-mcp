@@ -6,12 +6,16 @@
 //! the format the golden files pin and that t13's inspector reads. Three
 //! rules decided them:
 //!
-//! - **One kind per domain mutation, 1:1.** The seventeen variants of
-//!   [`Event`] mirror [`Graph`]'s mutating API exactly. There is no
-//!   `task_reparent` kind — [`Graph::reparent_task`] is sugar over
+//! - **One kind per domain mutation, 1:1.** The seventeen graph-mutation
+//!   variants of [`Event`] mirror [`Graph`]'s mutating API exactly. There
+//!   is no `task_reparent` kind — [`Graph::reparent_task`] is sugar over
 //!   `update_task`, and [`TaskPatch::epic`] carries it — and no
 //!   single-task delete, because the domain has none: a task leaves the
-//!   graph only through the epic-delete cascade.
+//!   graph only through the epic-delete cascade. §15's two rewards kinds
+//!   (`reward_grant`, `reward_reflect`) are the deliberate exception:
+//!   they mutate no graph state — they are the audit trail the totals
+//!   derive from — so replay applies them as no-ops and the census
+//!   counts them like any other line.
 //! - **Flat, internally tagged lines.** `{"kind":"task_add",…}` reads in
 //!   an editor, which §4's human-auditability requirement asks for. Field
 //!   order is declaration order (the codec's contract) and every variant
@@ -63,7 +67,8 @@ use serde::{Deserialize, Deserializer, Serialize};
 
 use todo_domain::{
     BlocksEdge, Confidence, Date, Decision, DecisionId, DecisionStatus, Doc, DocId, DomainError,
-    Epic, EpicId, Graph, Priority, References, Repo, Status, Task, TaskId, TaskKind, Timestamp,
+    Epic, EpicId, Graph, Priority, References, Repo, Reward, Size, Status, Task, TaskId, TaskKind,
+    Timestamp,
 };
 
 use crate::FORMAT_VERSION;
@@ -250,8 +255,48 @@ pub enum Event {
         ts: Timestamp,
         /// One end of the pair.
         a: TaskId,
-        /// The other end.
+        /// The other end of the pair.
         b: TaskId,
+    },
+    /// A reward granted at a task's closure (§15, D23): the amount and
+    /// the inputs the arithmetic actually applied, taken from the
+    /// domain's computed [`Reward`] — the single source, never
+    /// re-derived. Mutates no graph state: the line is the audit record
+    /// the per-root totals derive from, so replay applies it as a no-op.
+    RewardGrant {
+        /// The audit instant — the closure's own `ts`.
+        ts: Timestamp,
+        /// The task whose closure granted.
+        task: TaskId,
+        /// The granted amount, in the config's currency units.
+        amount: u64,
+        /// The size whose base cost was applied — the reported actual,
+        /// or the config's default bucket when the closure reported
+        /// none.
+        size: Size,
+        /// The priority percent applied (100 when the task carries no
+        /// priority).
+        priority_pct: u64,
+        /// The kind percent applied.
+        kind_pct: u64,
+    },
+    /// A reflection logged (§15, D23): the closing agent's verbatim
+    /// answer, the trigger that asked, and the derived totals at the
+    /// moment the answer landed. The server never interprets an answer
+    /// — the answers are the experiment's data — and neither does the
+    /// store: the line records what it was handed. Mutates no graph
+    /// state; replay applies it as a no-op.
+    RewardReflect {
+        /// The audit instant — the answer's.
+        ts: Timestamp,
+        /// The verbatim answer, as given.
+        answer: String,
+        /// Why the question was asked.
+        trigger: ReflectionTrigger,
+        /// The root's accumulated total at the moment.
+        root_total: u64,
+        /// This repo's accumulated total at the moment.
+        repo_total: u64,
     },
 }
 
@@ -277,6 +322,22 @@ impl Event {
             Self::BlocksUnlink { .. } => "blocks_unlink",
             Self::RelatesLink { .. } => "relates_link",
             Self::RelatesUnlink { .. } => "relates_unlink",
+            Self::RewardGrant { .. } => "reward_grant",
+            Self::RewardReflect { .. } => "reward_reflect",
+        }
+    }
+
+    /// §15's reward event: the fields are the domain's computed
+    /// [`Reward`] verbatim — the single source, never re-derived — plus
+    /// the task the closure granted on.
+    pub(crate) fn reward_grant(ts: Timestamp, task: TaskId, granted: &Reward) -> Self {
+        Self::RewardGrant {
+            ts,
+            task,
+            amount: granted.amount,
+            size: granted.size,
+            priority_pct: granted.priority_pct,
+            kind_pct: granted.kind_pct,
         }
     }
 
@@ -300,9 +361,30 @@ impl Event {
             | Self::BlocksLink { ts, .. }
             | Self::BlocksUnlink { ts, .. }
             | Self::RelatesLink { ts, .. }
-            | Self::RelatesUnlink { ts, .. } => ts,
+            | Self::RelatesUnlink { ts, .. }
+            | Self::RewardGrant { ts, .. }
+            | Self::RewardReflect { ts, .. } => ts,
         }
     }
+}
+
+/// Why a reflection was asked (§15, D23): the two triggers — a
+/// milestone epic's closure, or the root's accumulated total crossing
+/// the config's `reflect_every`. The detection is the caller's (the
+/// closure response carries the question); this is the record of what
+/// was asked, in the shape the log spells it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "trigger", rename_all = "snake_case")]
+pub enum ReflectionTrigger {
+    /// A milestone epic's closure asked.
+    EpicClosure {
+        /// The epic whose closure asked.
+        epic: EpicId,
+    },
+    /// The root's accumulated total crossed `reflect_every`. The
+    /// crossing's numbers are the event's sibling totals fields; the
+    /// threshold itself is the config's, not the line's.
+    Threshold,
 }
 
 /// The patchable fields of a [`Task`].
@@ -753,6 +835,10 @@ pub fn replay_step(graph: &mut Graph, event: &Event) -> Result<(), ReplayFault> 
         Event::RelatesUnlink { a, b, .. } => graph
             .unlink_relates(a.clone(), b.clone())
             .map_err(ReplayFault::Domain),
+        // §15's rewards kinds mutate no graph state — the lines are the
+        // audit trail the totals derive from — so replay's graph is
+        // exactly what the session's was with or without them.
+        Event::RewardGrant { .. } | Event::RewardReflect { .. } => Ok(()),
     }
 }
 

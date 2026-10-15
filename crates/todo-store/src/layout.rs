@@ -10,6 +10,7 @@
 //! ```text
 //! <root>/registry.json            the shared slug index
 //! <root>/registry.json.lock       its advisory lock (§8)
+//! <root>/config.json              the per-root config (§15, D23)
 //! <root>/repos/<slug>/event-log.jsonl             one repository's log
 //! <root>/repos/<slug>/event-log.jsonl.lock        its advisory lock (§8)
 //! <root>/repos/<slug>/event-log.jsonl.snapshot    its latest snapshot (§4.3)
@@ -40,11 +41,14 @@
 //! immutable fields, so no operation ever needs the registry lock while
 //! holding a store lock**: [`DataRoot::register`] takes registry → the
 //! new slug's store, and [`DataRoot::open_many`] takes sorted slugs
-//! only. If a mutable field ever enters the registry — a `path` index,
-//! say — that argument dies on the spot: `repo_set_path` would then need
-//! the registry lock *while holding the store lock*, acquiring in the
-//! forbidden order. Extend the registry format only together with a
-//! re-derived lock order.
+//! only. The config document's writer
+//! ([`DataRoot::save_config`]) shares the registry lock as the
+//! root-level writer lock and holds no store lock, so it sits on the
+//! same safe side of the order. If a mutable field ever enters the
+//! registry — a `path` index, say — that argument dies on the spot:
+//! `repo_set_path` would then need the registry lock *while holding the
+//! store lock*, acquiring in the forbidden order. Extend the registry
+//! format only together with a re-derived lock order.
 //!
 //! # Registry ↔ store divergence is a report, not a check
 //!
@@ -93,6 +97,9 @@ const REGISTRY_FILE: &str = "registry.json";
 /// The registry's lock file: the protected path plus `.lock`, the one
 /// rule of this module.
 const REGISTRY_LOCK_FILE: &str = "registry.json.lock";
+/// The per-root config document's file name (§15, D23) — the root's
+/// rewards block, versioned and golden-pinned like the registry.
+const CONFIG_FILE: &str = "config.json";
 /// The per-repo store directory's name under `repos/`.
 const REPOS_DIR: &str = "repos";
 /// The event log's file name inside a store directory — t10's fixture
@@ -180,6 +187,13 @@ impl DataRoot {
     /// `<root>/registry.json` — the shared registry (§2).
     pub fn registry_path(&self) -> PathBuf {
         self.root.join(REGISTRY_FILE)
+    }
+
+    /// `<root>/config.json` — the per-root config (§15, D23). The
+    /// document's readers and writer live in `config`; the path is the
+    /// layout's, like every other name under the root.
+    pub fn config_path(&self) -> PathBuf {
+        self.root.join(CONFIG_FILE)
     }
 
     /// `<root>/registry.json.lock` — the registry's advisory lock file
@@ -301,7 +315,12 @@ impl DataRoot {
     pub(crate) fn create_store(&self, repo: &Repo) -> Result<JsonlStore, StoreError> {
         fs::create_dir_all(self.store_dir(&repo.slug))
             .map_err(|error| io_error("create the store directory", &error))?;
-        JsonlStore::create_log(self.log_path(&repo.slug), repo.clone())
+        let mut store = JsonlStore::create_log(self.log_path(&repo.slug), repo.clone())?;
+        // The layout knows the root, so the store's rewards source is
+        // the root's config document — read fresh at each closure (§15),
+        // never cached in the handle.
+        store.attach_config_path(self.config_path());
+        Ok(store)
     }
 
     /// Opens the store registered under `slug` and returns it locked.
@@ -310,9 +329,13 @@ impl DataRoot {
     /// authoritative for that repo's data, and a missing log is the
     /// engine's honest [`StoreError::Io`] (`open the event log:
     /// NotFound`). Registry↔store divergence is a report, and t13's
-    /// inspector owns it (module docs). Creates nothing.
+    /// inspector owns it (module docs). Creates nothing. The store's
+    /// rewards source is the root's config document, attached here
+    /// because the layout knows the root (§15).
     pub fn open(&self, slug: &RepoSlug) -> Result<JsonlStore, StoreError> {
-        JsonlStore::open_log(self.log_path(slug))
+        let mut store = JsonlStore::open_log(self.log_path(slug))?;
+        store.attach_config_path(self.config_path());
+        Ok(store)
     }
 
     /// Opens several stores for §2's cross-repo queries: "iterate the

@@ -19,8 +19,11 @@
 //! ([`RepoSlug`], the typed node ids [`TaskId`]/[`EpicId`]/
 //! [`DecisionId`]/[`DocId`]), time values ([`Timestamp`], [`Date`]),
 //! [`References`], the status/kind vocabularies with the closure
-//! discipline ([`Task::validate`], [`Decision::validate`]), and the five
-//! node structs ([`Repo`], [`Epic`], [`Task`], [`Decision`], [`Doc`]) —
+//! discipline ([`Task::validate`], [`Decision::validate`]), the §15
+//! size vocabulary and rewards half ([`Size`], [`RewardsConfig`],
+//! [`reward()`] — the computation, with the task's `estimate` as the
+//! vocabulary's storage half), and the five node structs ([`Repo`],
+//! [`Epic`], [`Task`], [`Decision`], [`Doc`]) —
 //! plus the in-memory task graph over them: [`Graph`] holds one
 //! repository's nodes, its §5.1 edges and the §3 id-allocation counters,
 //! enforcing the `parent` tree, the acyclic `blocks` DAG
@@ -173,6 +176,7 @@ mod tests {
             references,
             priority: Some(Priority::High),
             until: Some(Date::parse("2026-10-01").unwrap()),
+            estimate: None,
             // created is second-precision, updated fractional, so the
             // node round-trips exercise both padding paths.
             created: ts("2026-09-25T09:00:00Z"),
@@ -341,6 +345,26 @@ mod tests {
             decision
         );
         assert_eq!(from_bytes::<Doc>(&to_bytes(&doc).unwrap()).unwrap(), doc);
+    }
+
+    #[test]
+    fn the_estimate_round_trips_both_spellings() {
+        // §15's estimate: `Some` and `None` both round-trip byte-stably.
+        // The absent-field spelling — a v1 line carrying no estimate —
+        // is the store's v1-golden replay test to pin, over the real
+        // format this crate's test codec only approximates.
+        let mut task = sample_task();
+        task.estimate = Some(Size::Xl);
+        let bytes = to_bytes(&task).unwrap();
+        let reloaded: Task = from_bytes(&bytes).unwrap();
+        assert_eq!(reloaded.estimate, Some(Size::Xl));
+        assert_eq!(to_bytes(&reloaded).unwrap(), bytes);
+
+        task.estimate = None;
+        let bytes = to_bytes(&task).unwrap();
+        let reloaded: Task = from_bytes(&bytes).unwrap();
+        assert_eq!(reloaded.estimate, None);
+        assert_eq!(to_bytes(&reloaded).unwrap(), bytes);
     }
 
     #[test]

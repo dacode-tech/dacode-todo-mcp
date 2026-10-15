@@ -102,6 +102,7 @@ mod cwd {
                     references: References::new(),
                     priority: None,
                     until: None,
+                    estimate: None,
                 },
                 ts("2026-10-01T08:02:00Z"),
             )

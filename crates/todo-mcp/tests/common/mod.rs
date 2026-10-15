@@ -442,6 +442,7 @@ fn build_fixture(root: &DataRoot) {
         references: References::new(),
         priority: None,
         until: None,
+        estimate: None,
     };
 
     let mut u1_references = References::new();
@@ -730,6 +731,7 @@ fn build_alpha(root: &DataRoot) {
                 references: References::new(),
                 priority: None,
                 until: None,
+                estimate: None,
             },
             ts("2026-10-01T09:02:00Z"),
         )

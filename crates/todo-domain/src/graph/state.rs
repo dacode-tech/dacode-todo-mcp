@@ -609,6 +609,7 @@ mod tests {
                     references: References::new(),
                     priority: None,
                     until: None,
+                    estimate: None,
                 },
                 at.clone(),
             )
@@ -627,6 +628,7 @@ mod tests {
                     references: References::new(),
                     priority: None,
                     until: None,
+                    estimate: None,
                 },
                 at,
             )
@@ -669,6 +671,7 @@ mod tests {
                     references: References::new(),
                     priority: None,
                     until: None,
+                    estimate: None,
                 },
                 Timestamp::parse("2026-09-26T10:00:00Z").unwrap(),
             )

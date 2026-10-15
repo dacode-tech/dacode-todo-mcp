@@ -179,6 +179,7 @@ fn finding_op(
             references: references(vec![(ReferenceKind::Other, source.to_owned())])?,
             priority: None,
             until: None,
+            estimate: None,
         },
         id: TaskId::from_nonzero(opts.slug.clone(), position(number)),
         at: opts.imported_at.clone(),

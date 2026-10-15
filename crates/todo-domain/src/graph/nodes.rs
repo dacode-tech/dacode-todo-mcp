@@ -81,6 +81,7 @@ impl Graph {
             references: draft.references,
             priority: draft.priority,
             until: draft.until,
+            estimate: draft.estimate,
             created: at.clone(),
             updated: at,
         };
@@ -458,6 +459,7 @@ mod tests {
             references: References::new(),
             priority: None,
             until: None,
+            estimate: None,
         }
     }
 

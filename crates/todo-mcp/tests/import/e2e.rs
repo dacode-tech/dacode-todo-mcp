@@ -38,7 +38,7 @@ use todo_domain::{Repo, RepoSlug, Timestamp};
 use todo_mcp::import::dacode::{DacodeBoard, map_board, parse_board};
 use todo_mcp::import::plan::{ImportOptions, apply_plan};
 use todo_mcp::inspect::dump::Dump;
-use todo_store::{DataRoot, Store};
+use todo_store::{DataRoot, FORMAT_VERSION, Store};
 
 use crate::common::{assert_golden, call, drive, structured};
 
@@ -166,7 +166,11 @@ fn the_real_board_dumps_to_the_expected_graph() {
     apply_plan(&plan, &mut store).unwrap();
     let dump = Dump::from_graph(store.graph());
     let bytes = dump.to_line().unwrap();
-    assert_golden("dacode_dump.v1", &bytes);
+    // The golden's name tracks the store's FORMAT_VERSION — the dump
+    // mirrors the format's shapes, so a format bump renames the golden
+    // instead of silently re-pinning the old one (the inspect suite's
+    // `dump` subject, same reasoning).
+    assert_golden(&format!("dacode_dump.v{FORMAT_VERSION}"), &bytes);
 }
 
 // =================================================================

@@ -45,14 +45,15 @@
 //! when the change happened.
 
 use todo_domain::{
-    BlocksEdge, Decision, DecisionId, Doc, DocId, Epic, EpicId, Graph, Repo, RepoSlug, Task,
-    TaskId, Timestamp,
+    BlocksEdge, Decision, DecisionId, Doc, DocId, Epic, EpicId, Graph, Repo, RepoSlug, Reward,
+    Size, Task, TaskId, Timestamp,
 };
 use todo_domain::{DecisionDraft, DocDraft, EpicDraft, TaskDraft};
 
 use crate::error::StoreError;
-use crate::event::{DecisionPatch, DocPatch, EpicPatch, TaskPatch};
+use crate::event::{DecisionPatch, DocPatch, EpicPatch, ReflectionTrigger, TaskPatch};
 use crate::layout::DataRoot;
+use crate::reader::RewardsTotals;
 
 /// The whole persistence surface a caller above this crate uses (§4.2).
 pub trait Store {
@@ -201,12 +202,62 @@ pub trait Store {
     /// task's `updated`. Setting [`TaskPatch::epic`] is a reparenting and
     /// is checked like one (§5.1) — there is no separate verb for it, in
     /// the log or here.
+    ///
+    /// The raw patch path: no reward is computed or appended on a
+    /// closure that goes through here — the importer's historical
+    /// closures and the replay path's own semantics both rely on that.
+    /// A live closure that should grant goes through [`Store::close_task`].
     fn update_task(
         &mut self,
         id: TaskId,
         at: Timestamp,
         patch: TaskPatch,
     ) -> Result<Task, StoreError>;
+
+    /// The closure-aware update (§15, D23): applies the patch exactly as
+    /// [`Store::update_task`] does, and — when the transition moves the
+    /// task **into** `closed` on a root whose config is enabled —
+    /// computes the reward through the domain's `reward` (the single
+    /// source: the store never re-derives the fallback rules) and
+    /// appends the `reward_grant` event after the `task_update` line.
+    /// `actual_size` is §15's second size bucket, reported at the
+    /// closure call; absent falls to the config's default bucket.
+    ///
+    /// The grant fires on the transition alone: a patch on an
+    /// already-closed task grants nothing a second time, `wontfix`
+    /// grants nothing at all, and a computation that overflows grants
+    /// nothing (the domain's `None`, event emission follows it). A root
+    /// with no config — or `enabled: false` — is inert: the call is
+    /// byte-identical to [`Store::update_task`], no reward event, no
+    /// reward in the answer. The config is read fresh at the call, so a
+    /// config change takes effect without a reopen; a malformed config
+    /// fails the whole call atomically before anything is applied.
+    ///
+    /// Returns [`TaskClosure`]: the task's new state and the reward
+    /// granted, if any — the closure response's reward line is the
+    /// server's to render (§15).
+    fn close_task(
+        &mut self,
+        id: TaskId,
+        at: Timestamp,
+        patch: TaskPatch,
+        actual_size: Option<Size>,
+    ) -> Result<TaskClosure, StoreError>;
+
+    /// Logs a reflection (§15, D23): the closing agent's verbatim
+    /// `answer`, the `trigger` that asked the question, and the
+    /// `totals` at the moment the answer landed — the caller derives
+    /// them through [`DataRoot::rewards_totals`], the store records
+    /// them. The store never interprets an answer; the enabled-gate for
+    /// reflections is the caller's, because the question is asked only
+    /// on a rewards-enabled root. `at` is the answer's audit instant.
+    fn log_reflection(
+        &mut self,
+        answer: String,
+        trigger: ReflectionTrigger,
+        totals: RewardsTotals,
+        at: Timestamp,
+    ) -> Result<(), StoreError>;
 
     /// Patches a decision and appends its `decision_update` line; `at`
     /// becomes the node's `updated`. Signing it changes no edge: its
@@ -286,6 +337,20 @@ pub struct Compaction {
     /// a torn fragment from a crashed earlier session was never a
     /// committed event and is not counted (the engine documents both).
     pub events_dropped: u64,
+}
+
+/// What one [`Store::close_task`] did (§15): the task's new state and
+/// the reward its closure granted, if any. The reward is the domain's
+/// computed [`Reward`] — the amount plus the inputs the arithmetic
+/// applied — handed back so the closure response can carry the line;
+/// `None` is every no-grant case (inert root, non-closure, `wontfix`,
+/// overflow).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TaskClosure {
+    /// The task as the patch left it.
+    pub task: Task,
+    /// The reward the closure granted, when it granted one.
+    pub reward: Option<Reward>,
 }
 
 /// Compile-time pin: `dyn Store` must keep compiling, because M3's server

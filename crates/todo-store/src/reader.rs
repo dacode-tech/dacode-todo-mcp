@@ -48,6 +48,17 @@
 //! a compaction dropped from the log stays dropped — so a store with a
 //! snapshot counts the covered lines too, which is the honest answer
 //! to "what does the log hold".
+//!
+//! # The rewards totals (§15, D23)
+//!
+//! [`DataRoot::rewards_totals`] is the third lock-free read: §2's
+//! iterate-the-registry pattern — load the registry, read every listed
+//! repo's committed prefix, sum the `reward_grant` events. Totals are
+//! **never stored**; the events are the record, so the same
+//! snapshot-blind reading as the census's applies (nothing in v1 calls
+//! `compact`, §4.3, so the log is the complete record in practice). The
+//! answer is [`RewardsTotals`], `BTreeMap`-keyed so the per-repo order
+//! is the registry's own ascending-slug order (§8).
 
 use std::collections::BTreeMap;
 use std::fs::File;
@@ -62,6 +73,7 @@ use crate::codec::from_bytes;
 use crate::error::{StoreError, io_error};
 use crate::event::Event;
 use crate::log::{LineSplit, replay};
+use crate::registry::Registry;
 
 /// The line terminator, and the only byte the log's line discipline
 /// attaches meaning to (§4.1) — the commit marker the prefix is cut at.
@@ -92,7 +104,7 @@ pub(crate) fn read_graph(path: &Path) -> Result<Graph, StoreError> {
     let mut bytes = Vec::new();
     file.read_to_end(&mut bytes)
         .map_err(|error| io_error(CONTEXT_READ_LOG, &error))?;
-    replay(path, committed_prefix(&bytes))
+    replay(path, committed_prefix(&bytes)).map(|(graph, _)| graph)
 }
 
 /// The committed prefix: the bytes through the last LF. The trailing LF
@@ -144,6 +156,82 @@ impl DataRoot {
     pub fn read_repo_census(&self, slug: &RepoSlug) -> Result<EventCensus, StoreError> {
         read_census(&self.log_path(slug))
     }
+
+    /// The root's derived rewards totals (§15, D23): §2's
+    /// iterate-the-registry pattern — every registered repo's log,
+    /// lock-free, its `reward_grant` events summed. Totals are never
+    /// stored; the events are the record, and this read is the only
+    /// source of the number. Every registered repo appears in
+    /// `by_repo`, zero included, so the answer's shape is the registry's
+    /// own and does not move when rewards do.
+    ///
+    /// A store that will not read fails the whole call with the error
+    /// its own read reports — the same all-or-nothing reading as
+    /// [`DataRoot::repo_list`], for the same reason: a repo that
+    /// quietly disappears from the totals is a silent omission. A
+    /// reward sum that would overflow `u64` is a named `corrupt_store`:
+    /// a log this build writes cannot produce one (each grant is
+    /// checked), so it is damage, and saturating would hide it.
+    pub fn rewards_totals(&self) -> Result<RewardsTotals, StoreError> {
+        let registry = Registry::load(self)?;
+        let mut totals = RewardsTotals::default();
+        for slug in registry.slugs() {
+            let repo_total = reward_total_of(&self.log_path(slug))?;
+            totals.total = totals
+                .total
+                .checked_add(repo_total)
+                .ok_or_else(overflowed)?;
+            totals.by_repo.insert(slug.clone(), repo_total);
+        }
+        Ok(totals)
+    }
+}
+
+/// The derived rewards totals of a data root (§15): summed from the
+/// `reward_grant` events of every registered repo's log — never stored.
+/// A public summary type — the engine stays sealed behind it — with
+/// `BTreeMap` everywhere (§8) so two reads of unchanged bytes are equal
+/// and the serialized shape is canonical.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+pub struct RewardsTotals {
+    /// The per-root total: every `reward_grant` event's amount, summed
+    /// across the registry's repos.
+    pub total: u64,
+    /// Per-repo totals, ascending by slug — the registry's own order.
+    pub by_repo: BTreeMap<RepoSlug, u64>,
+}
+
+/// The overflow fault of a totals sum: unpositioned, because it locates
+/// an arithmetic fact across a whole root, not a byte a repair would
+/// cut at.
+fn overflowed() -> StoreError {
+    StoreError::CorruptStore {
+        offset: None,
+        detail: "the root's summed rewards overflow u64".to_owned(),
+    }
+}
+
+/// One repo's reward total: the `reward_grant` events of its committed
+/// prefix, summed. The same lock-free read and the same parse-fault
+/// spelling as the census's, so one damaged line reports identically
+/// on both paths.
+fn reward_total_of(path: &Path) -> Result<u64, StoreError> {
+    let mut file = File::open(path).map_err(|error| io_error(CONTEXT_OPEN_LOG, &error))?;
+    let mut bytes = Vec::new();
+    file.read_to_end(&mut bytes)
+        .map_err(|error| io_error(CONTEXT_READ_LOG, &error))?;
+    let mut lines = LineSplit::new(committed_prefix(&bytes));
+    // The header is format machinery, not an event: skipped.
+    let _header = lines.next();
+    let mut total: u64 = 0;
+    for line in lines {
+        let event: Event =
+            from_bytes(line.bytes).map_err(|error| census_parse_fault(line.offset, &error))?;
+        if let Event::RewardGrant { amount, .. } = event {
+            total = total.checked_add(amount).ok_or_else(overflowed)?;
+        }
+    }
+    Ok(total)
 }
 
 /// Counts the events the log at `path` holds as of its last commit —

@@ -11,6 +11,7 @@
 use crate::id::EpicId;
 use crate::node::Confidence;
 use crate::reference::References;
+use crate::reward::Size;
 use crate::status::{DecisionStatus, Priority, Status, TaskKind};
 use crate::time::Date;
 
@@ -59,6 +60,10 @@ pub struct TaskDraft {
     pub priority: Option<Priority>,
     /// Optional until-date (D9), pure metadata.
     pub until: Option<Date>,
+    /// The planned size (§15, D22): the pre-flight guess, set at
+    /// creation and not patchable afterwards — the honesty anchor
+    /// needs the guess frozen before the work starts.
+    pub estimate: Option<Size>,
 }
 
 /// The fields a `decision_add` supplies (§6, D10): everything a

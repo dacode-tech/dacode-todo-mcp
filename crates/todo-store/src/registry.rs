@@ -48,7 +48,7 @@ use serde::{Deserialize, Serialize};
 use todo_domain::{Repo, RepoSlug, Timestamp};
 
 use crate::FORMAT_VERSION;
-use crate::codec::{VersionProbe, from_bytes, to_bytes};
+use crate::codec::{VersionProbe, from_bytes, is_readable, to_bytes};
 use crate::error::{StoreError, io_error};
 use crate::layout::DataRoot;
 
@@ -122,7 +122,11 @@ impl Registry {
     fn parse(bytes: &[u8]) -> Result<Self, StoreError> {
         let probe: VersionProbe =
             from_bytes(bytes).map_err(|error| corrupt(CONTEXT_PARSE, &error))?;
-        if probe.format_version != FORMAT_VERSION {
+        // The predecessor is readable (§15's strict superset — a v1
+        // registry is an existing root's, and this build must keep
+        // loading it); the next save rewrites it as the current
+        // version. Anything else is the migration question.
+        if !is_readable(probe.format_version) {
             return Err(StoreError::VersionMismatch {
                 found: probe.format_version,
                 expected: FORMAT_VERSION,

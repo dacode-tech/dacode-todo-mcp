@@ -7,15 +7,16 @@ use std::fs;
 use tempfile::TempDir;
 use todo_domain::{BlocksEdge, DecisionStatus, DomainError, Graph, Status, TaskDraft};
 use todo_store::{
-    DocPatch, Event, FORMAT_VERSION, JsonlStore, Store, StoreError, TaskPatch, from_bytes, to_bytes,
+    DataRoot, DocPatch, Event, FORMAT_VERSION, JsonlStore, Store, StoreError, TaskPatch,
+    from_bytes, to_bytes,
 };
 
 use super::fixtures::{
-    EVERY_KIND, at, build_timeline, decision_id, doc_id, epic_id, lines, lines_of_kind, log_path,
-    repo, short_store, task_draft, task_id, timeline_bytes, timeline_first_half,
-    timeline_second_half,
+    EVERY_KIND, at, build_timeline, camera_slug, decision_id, doc_id, epic_id, lines,
+    lines_of_kind, log_path, repo, short_store, task_draft, task_id, timeline_bytes,
+    timeline_first_half, timeline_rewards_phase, timeline_root, timeline_second_half,
 };
-use crate::common::assert_golden;
+use crate::common::{assert_golden, golden_path};
 
 // =================================================================
 // Replay.
@@ -24,8 +25,9 @@ use crate::common::assert_golden;
 #[test]
 fn replay_of_the_scripted_timeline_is_graph_equal() {
     let dir = TempDir::new().unwrap();
-    let path = log_path(&dir);
-    let store = build_timeline(&path);
+    let root = timeline_root(&dir);
+    let path = root.log_path(&camera_slug());
+    let store = build_timeline(&root);
     let original = store.graph().clone();
     drop(store);
 
@@ -36,7 +38,8 @@ fn replay_of_the_scripted_timeline_is_graph_equal() {
     assert_eq!(reopened.format_version(), FORMAT_VERSION);
 
     // The cascade's gap survives replay: U3 and U4 are gone, the task
-    // counter still holds 4's successor, and the later adds are U5/U6.
+    // counter still holds 4's successor, and the later adds are U5/U6
+    // — U7 beyond them, from the rewards phase.
     let counters = reopened.graph().counters();
     assert_eq!(
         (
@@ -45,12 +48,17 @@ fn replay_of_the_scripted_timeline_is_graph_equal() {
             counters.decision(),
             counters.doc()
         ),
-        (3, 6, 1, 1)
+        (3, 7, 1, 1)
     );
     assert_eq!(reopened.graph().task(&task_id(3)), None);
     assert_eq!(reopened.graph().task(&task_id(4)), None);
     assert!(reopened.graph().task(&task_id(5)).is_some());
     assert!(reopened.graph().task(&task_id(6)).is_some());
+    // The rewards phase's task, with its estimate — the only task the
+    // timeline gave one.
+    let u7 = reopened.graph().task(&task_id(7)).unwrap();
+    assert_eq!(u7.estimate, Some(todo_domain::Size::Xl));
+    assert_eq!(u7.status, Status::Closed);
 
     // The reparenting landed, the relates pair and the two surviving
     // `blocks` edges are there, and the decision gate outlived its
@@ -92,12 +100,12 @@ fn replay_of_the_scripted_timeline_is_graph_equal() {
 #[test]
 fn the_golden_timeline_exercises_every_event_kind() {
     let dir = TempDir::new().unwrap();
-    let path = log_path(&dir);
-    let bytes = timeline_bytes(&path);
+    let root = timeline_root(&dir);
+    let bytes = timeline_bytes(&root);
 
     // The header is the versioned first line, exactly as written.
     let log_lines = lines(&bytes);
-    assert_eq!(log_lines[0], b"{\"format_version\":1}\n");
+    assert_eq!(log_lines[0], b"{\"format_version\":2}\n");
 
     let mut kinds = BTreeMap::new();
     for line in &log_lines[1..] {
@@ -113,7 +121,8 @@ fn the_golden_timeline_exercises_every_event_kind() {
 #[test]
 fn every_event_kind_round_trips_through_the_codec() {
     let dir = TempDir::new().unwrap();
-    let bytes = timeline_bytes(&dir.path().join("kinds.jsonl"));
+    let root = timeline_root(&dir);
+    let bytes = timeline_bytes(&root);
     for line in &lines(&bytes)[1..] {
         let event: Event = from_bytes(line).unwrap();
         let serialized = to_bytes(&event).unwrap();
@@ -146,14 +155,80 @@ fn every_event_kind_round_trips_through_the_codec() {
 #[test]
 fn the_scripted_timeline_matches_its_golden_log() {
     let dir = TempDir::new().unwrap();
-    let path = log_path(&dir);
+    let root = timeline_root(&dir);
     // The golden name embeds FORMAT_VERSION, so bumping the format
     // without landing the new golden fails as "missing golden".
     assert_golden(
         &format!("event_log.v{FORMAT_VERSION}"),
-        &timeline_bytes(&path),
+        &timeline_bytes(&root),
     );
 }
+
+// =================================================================
+// The v1 → v2 migration (§15: the strict superset).
+// =================================================================
+
+#[test]
+fn a_v1_log_replays_identically_under_the_v2_reader() {
+    // The frozen v1 golden — the pre-bump format's real timeline bytes,
+    // kept in the tree as the migration fixture (the golden workflow's
+    // coexistence rule). Under the v2 reader it replays to exactly the
+    // graph the same timeline builds on an inert root: the drafts carry
+    // no estimate, so the v1 lines' absent field and the v2 lines'
+    // `null` agree.
+    let v1 = fs::read(golden_path("event_log.v1")).unwrap();
+    let dir = TempDir::new().unwrap();
+    let path = log_path(&dir);
+    fs::write(&path, &v1).unwrap();
+    let store = JsonlStore::open_log(&path).unwrap();
+
+    let inert_dir = TempDir::new().unwrap();
+    let inert_root = DataRoot::new(inert_dir.path());
+    let mut reference = inert_root.register(repo()).unwrap();
+    timeline_first_half(&mut reference);
+    timeline_second_half(&mut reference);
+    assert_eq!(store.graph(), reference.graph());
+    // The v1 lines carry no estimate field: every task reads as `None`.
+    for task in store.graph().tasks() {
+        assert_eq!(task.estimate, None);
+    }
+
+    // The header migrated in place: same length, the v2 first line, and
+    // every byte after it untouched — the length-preserving rewrite
+    // that keeps every snapshot `log_offset` valid.
+    let migrated = fs::read(&path).unwrap();
+    assert_eq!(migrated.len(), v1.len());
+    assert_eq!(&migrated[..HEADER_LINE_LEN], b"{\"format_version\":2}\n");
+    assert_eq!(&migrated[HEADER_LINE_LEN..], &v1[HEADER_LINE_LEN..]);
+    // A second open is a plain v2 open: no migration, same graph.
+    drop(store);
+    let reopened = JsonlStore::open_log(&path).unwrap();
+    assert_eq!(reopened.graph(), reference.graph());
+}
+
+#[test]
+fn a_v1_log_migrates_only_through_the_write_capable_open() {
+    // The lock-free read (D19) writes nothing: a v1 log read through
+    // `read_repo` answers the graph and leaves the bytes exactly as
+    // they were — the migration belongs to the locked open alone.
+    let v1 = fs::read(golden_path("event_log.v1")).unwrap();
+    let dir = TempDir::new().unwrap();
+    let root = DataRoot::new(dir.path());
+    let path = root.log_path(&camera_slug());
+    fs::create_dir_all(root.store_dir(&camera_slug())).unwrap();
+    fs::write(&path, &v1).unwrap();
+
+    let graph = root.read_repo(&camera_slug()).unwrap();
+    assert_eq!(fs::read(&path).unwrap(), v1);
+    // The read answered the v1 timeline's graph — U6 is its last task.
+    assert!(graph.task(&task_id(6)).is_some());
+    assert_eq!(graph.task(&task_id(7)), None);
+}
+
+/// The header line's byte length — `{"format_version":N}\n`, the same
+/// for every single-digit version, which is what makes the in-place
+/// migration length-preserving.
+const HEADER_LINE_LEN: usize = 21;
 
 // =================================================================
 // Determinism (§8, §16 of the task's decision list).
@@ -161,29 +236,33 @@ fn the_scripted_timeline_matches_its_golden_log() {
 
 #[test]
 fn the_same_timeline_twice_is_deterministic() {
-    let dir = TempDir::new().unwrap();
-    let first = timeline_bytes(&dir.path().join("first.jsonl"));
-    let second = timeline_bytes(&dir.path().join("second.jsonl"));
+    let first_dir = TempDir::new().unwrap();
+    let first = timeline_bytes(&timeline_root(&first_dir));
+    let second_dir = TempDir::new().unwrap();
+    let second = timeline_bytes(&timeline_root(&second_dir));
     assert_eq!(first, second);
 }
 
 #[test]
 fn appends_after_a_reopen_are_byte_stable() {
-    let dir = TempDir::new().unwrap();
-    let one_session = timeline_bytes(&dir.path().join("one-session.jsonl"));
+    let one_dir = TempDir::new().unwrap();
+    let one_session = timeline_bytes(&timeline_root(&one_dir));
 
     // The same timeline with a session boundary in the middle: the
     // replay must leave the graph exactly where the writer had it, and
     // the appends that follow must be the same bytes.
-    let path = dir.path().join("two-sessions.jsonl");
-    let mut store = JsonlStore::create_log(&path, repo()).unwrap();
+    let dir = TempDir::new().unwrap();
+    let root = timeline_root(&dir);
+    let path = root.log_path(&camera_slug());
+    let mut store = root.register(repo()).unwrap();
     timeline_first_half(&mut store);
     let mid_graph = store.graph().clone();
     drop(store);
 
-    let mut reopened = JsonlStore::open_log(&path).unwrap();
+    let mut reopened = root.open(&camera_slug()).unwrap();
     assert_eq!(reopened.graph(), &mid_graph);
     timeline_second_half(&mut reopened);
+    timeline_rewards_phase(&mut reopened);
     drop(reopened);
 
     assert_eq!(fs::read(&path).unwrap(), one_session);
@@ -201,7 +280,7 @@ fn a_created_log_is_its_header_and_its_seed() {
 
     let seed = repo();
     let mut expected = Vec::new();
-    expected.extend_from_slice(br#"{"format_version":1}"#);
+    expected.extend_from_slice(br#"{"format_version":2}"#);
     expected.push(b'\n');
     expected.extend_from_slice(
         &to_bytes(&Event::RepoRegister {

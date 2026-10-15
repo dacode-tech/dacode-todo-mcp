@@ -148,6 +148,7 @@ pub(super) fn task_draft(epic: &EpicId) -> TaskDraft {
         references: References::new(),
         priority: None,
         until: None,
+        estimate: None,
     }
 }
 
@@ -189,6 +190,7 @@ pub(super) fn task_node(number: u64, epic: u64, status: Status) -> Task {
         references: References::new(),
         priority: None,
         until: Some(Date::parse("2026-10-01").unwrap()),
+        estimate: None,
         created: at(number),
         updated: at(number),
     };

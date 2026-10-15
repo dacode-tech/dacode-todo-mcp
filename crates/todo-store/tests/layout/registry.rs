@@ -274,24 +274,24 @@ fn registry_faults_are_named_errors() {
     // A foreign version is the migration question it is (§4), reported
     // before the document is read strictly — a newer build's extra fields
     // cannot masquerade as damage.
-    let error = faulty_registry(br#"{"format_version":2,"repos":[]}"#);
+    let error = faulty_registry(br#"{"format_version":3,"repos":[]}"#);
     assert_eq!(
         error,
         StoreError::VersionMismatch {
-            found: 2,
+            found: 3,
             expected: FORMAT_VERSION
         }
     );
     assert_eq!(error.code(), "version_mismatch");
-    let error = faulty_registry(br#"{"format_version":2,"repos":[],"future":"field"}"#);
+    let error = faulty_registry(br#"{"format_version":3,"repos":[],"future":"field"}"#);
     assert_eq!(error.code(), "version_mismatch");
 
-    // `deny_unknown_fields` at the current version, on the document and on
+    // `deny_unknown_fields` at a readable version, on the document and on
     // an entry: an unknown field can only be damage (Decision 16).
-    let error = faulty_registry(br#"{"format_version":1,"repos":[],"surprise":true}"#);
+    let error = faulty_registry(br#"{"format_version":2,"repos":[],"surprise":true}"#);
     assert_eq!(error.code(), "corrupt_store");
     let error = faulty_registry(
-        br#"{"format_version":1,"repos":[{"registered_at":"2026-09-25T08:00:00.000000000Z","slug":"camera","name":"x"}]}"#,
+        br#"{"format_version":2,"repos":[{"registered_at":"2026-09-25T08:00:00.000000000Z","slug":"camera","name":"x"}]}"#,
     );
     assert_eq!(error.code(), "corrupt_store");
 
@@ -299,7 +299,7 @@ fn registry_faults_are_named_errors() {
     // the codec's rejection: a registry this build cannot parse is not a
     // registry.
     let error = faulty_registry(
-        br#"{"format_version":1,"repos":[{"registered_at":"2026-09-25T08:00:00.000000000Z","slug":"CAMERA"}]}"#,
+        br#"{"format_version":2,"repos":[{"registered_at":"2026-09-25T08:00:00.000000000Z","slug":"CAMERA"}]}"#,
     );
     assert_eq!(error.code(), "corrupt_store");
     assert!(
@@ -307,10 +307,50 @@ fn registry_faults_are_named_errors() {
         "{error}"
     );
     let error = faulty_registry(
-        br#"{"format_version":1,"repos":[{"registered_at":"yesterday","slug":"camera"}]}"#,
+        br#"{"format_version":2,"repos":[{"registered_at":"yesterday","slug":"camera"}]}"#,
     );
     assert_eq!(error.code(), "corrupt_store");
     assert!(error.to_string().contains("timestamp"), "{error}");
+}
+
+#[test]
+fn a_v1_registry_loads_under_the_v2_reader() {
+    // The frozen v1 golden — the pre-bump format's real registry bytes,
+    // kept in the tree as the migration fixture. §15's strict superset:
+    // an existing root's registry keeps loading, and the next save
+    // rewrites it as the current version.
+    let v1 = fs::read(crate::common::golden_path("registry.v1")).unwrap();
+    let dir = TempDir::new().unwrap();
+    let root = data_root(&dir);
+    fs::write(root.registry_path(), &v1).unwrap();
+
+    let loaded = Registry::load(&root).unwrap();
+    assert_eq!(
+        loaded.slugs(),
+        vec![&slug("camera"), &slug("ikvm-html"), &slug("shelly-ng")]
+    );
+    // The load wrote nothing: the v1 bytes are still the bytes.
+    assert_eq!(fs::read(root.registry_path()).unwrap(), v1);
+
+    // A following register rewrites the whole document canonically at
+    // the current version — the v1 spelling never survives a write
+    // cycle, and the result is byte-identical to a fresh v2 root that
+    // registered the same four repos in sorted order.
+    register_and_release(&root, repo("aaa", "2026-09-25T07:00:00Z"));
+    let rewritten = fs::read(root.registry_path()).unwrap();
+    assert!(rewritten.starts_with(br#"{"format_version":2,"repos":["#));
+
+    let dir2 = TempDir::new().unwrap();
+    let root2 = data_root(&dir2);
+    for registration in [
+        repo("aaa", "2026-09-25T07:00:00Z"),
+        camera(),
+        repo("ikvm-html", "2026-09-25T09:00:00.5Z"),
+        repo("shelly-ng", "2026-09-25T09:30:00Z"),
+    ] {
+        register_and_release(&root2, registration);
+    }
+    assert_eq!(rewritten, fs::read(root2.registry_path()).unwrap());
 }
 
 // =================================================================
