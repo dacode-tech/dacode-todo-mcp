@@ -12,7 +12,7 @@ use serde::Serialize;
 use todo_domain::{DecisionStatus, RepoSlug};
 use todo_store::{DataRoot, EventCensus};
 
-use super::{Model, build, gather};
+use super::model::{KindState, Model, build, gather};
 
 /// The `progress --json` document: the golden-pinned v1 JSON, one
 /// trailing newline — exactly the bytes the subcommand prints.
@@ -71,7 +71,7 @@ struct TotalsDto {
     /// Every task, all kinds.
     tasks: usize,
     /// Per-kind counts over the four task kinds.
-    by_kind: super::KindState,
+    by_kind: KindState,
     /// The open items' short ids, the `open_items` list's order.
     open_items: Vec<String>,
     /// The decisions' signed/total.

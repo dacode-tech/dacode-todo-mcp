@@ -2,8 +2,9 @@
 //! progress surfaces gain when the root's config enables rewards —
 //! the per-root and per-repo totals, the recent grants, the
 //! reflections verbatim, and the planned/actual size columns' data.
-//! Its own module because both `mod.rs` and `page.rs` already run over
-//! the 600-line target with recorded debt (U57/U58): the arc's display
+//! Its own module because both `mod.rs` and `page.rs` ran over the
+//! 600-line target with recorded debt when the arc landed (U57 has
+//! since paid mod.rs's; U58 still owns page.rs's): the arc's display
 //! code lands here rather than growing them, and the shared files
 //! gain only the joins — the gather call, the model field, the row's
 //! size cells, the section's insertion, the JSON twin's block.
@@ -86,7 +87,7 @@ impl RewardsModel {
 /// `enabled: false` answers `None`, §15's fence — then, when enabled,
 /// the totals and the events, both lock-free (D19). A malformed
 /// config fails with its named error, never a silent inert root. One
-/// call per render, inside [`super::gather`], so every surface shares
+/// call per render, inside [`super::model::gather`], so every surface shares
 /// one answer.
 pub(crate) fn gather_rewards(root: &DataRoot) -> Result<Option<RewardsModel>, String> {
     let config = root

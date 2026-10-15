@@ -49,8 +49,9 @@ use serde::Serialize;
 use todo_domain::{DecisionStatus, RepoSlug, Status};
 use todo_store::DataRoot;
 
+use super::model::{Model, build, gather};
 use super::svg::render_svg;
-use super::{Model, build, card_html, decision_row_html, esc, gather, task_row_html};
+use super::{card_html, decision_row_html, esc, task_row_html};
 
 /// Every surface from one render — see [`super::outputs`].
 pub struct Outputs {

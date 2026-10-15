@@ -8,7 +8,8 @@
 
 use std::collections::BTreeMap;
 
-use super::{Model, esc, short, short_id};
+use super::model::Model;
+use super::{esc, short, short_id};
 
 /// The SVG dependency graph — the Python tool's `render_svg` ported:
 /// one lane column per epic, the nodes stacked in id order (tasks then
