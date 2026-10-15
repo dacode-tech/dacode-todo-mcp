@@ -46,7 +46,10 @@
 //! ([`Store::close_task`] → [`TaskClosure`]) and the reflection log
 //! ([`Store::log_reflection`], [`ReflectionTrigger`]), the derived
 //! totals ([`DataRoot::rewards_totals`] → [`RewardsTotals`] — never
-//! stored), and the `estimate` on task-creation events. The serialized
+//! stored), the reward events read (§15's display half, U63:
+//! [`DataRoot::rewards_events`] → [`RewardsEvents`], the grants and
+//! reflections verbatim in root order), and the `estimate` on
+//! task-creation events. The serialized
 //! bytes are pinned by the golden files under `tests/golden/` (spec
 //! §10, `.agents/knowledge/workflows/golden-files.md`): `event_log`,
 //! `serialize_nodes`, `registry`, `snapshot` and `config`. The cli
@@ -94,7 +97,7 @@ pub use event::{
 pub use layout::DataRoot;
 pub use lock::RegistryLock;
 pub use log::JsonlStore;
-pub use reader::{EventCensus, RewardsTotals};
+pub use reader::{EventCensus, GrantedReward, RewardReflection, RewardsEvents, RewardsTotals};
 pub use registry::{Registry, RegistryEntry};
 pub use repair::{RepairOutcome, TornTail};
 pub use store::{Compaction, Store, TaskClosure};
