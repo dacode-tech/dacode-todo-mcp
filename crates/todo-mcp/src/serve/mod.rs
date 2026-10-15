@@ -9,7 +9,7 @@
 //! poller per connection stat-watching the repo's store files, one
 //! text frame per change, the page's script reloading on arrival.
 //!
-//! The module is five files split by responsibility — the spec's D8
+//! The module is six files split by responsibility — the spec's D8
 //! names one file, and the split is the house pattern once the
 //! listener, the HTTP layer, the WS codec and the poller together
 //! cross the 600-line target: this file owns the listener (the attach
@@ -17,16 +17,12 @@
 //! connection dispatch, the default-repo tier), `http` the
 //! hand-rolled HTTP/1.1 parser and response writer (D4), `ws` the
 //! RFC 6455 handshake, frame codec and connection loop (D5), `poll`
-//! the stat-polling change detection, and `watchdog` the D13
+//! the stat-polling change detection, `render_dispatch` the render
+//! routes (U56's split — the page, the JSON twin and the epic page,
+//! with the repo resolution they share), and `watchdog` the D13
 //! ensure-listener call the daemon makes at startup (the no-subcommand
 //! server's watch loop retired with the stdio path, U66 — the daemon
 //! owns the listener, so there is no survivor to take over).
-//!
-//! Over the file-size target by recorded exception (`_rust.md`): the
-//! epic route's dispatch handler (U53) joined the connection dispatch
-//! this file owns. The split, when the next route joins, is the render
-//! dispatch — `render_route`, `render_epic_route` and `Surface` —
-//! moving to its own file beside `http`.
 //!
 //! Thread-per-connection (D4): concurrent tabs render concurrently —
 //! safe because renders are lock-free (D19), which is why the Python
@@ -57,25 +53,28 @@ use std::io::{BufReader, ErrorKind, Read, Write};
 use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
 use std::process;
-use std::str::FromStr;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
-use todo_domain::{ErrorCode, RepoSlug};
+use todo_domain::RepoSlug;
 use todo_store::{DataRoot, Registry};
 
 use crate::render;
 
 mod http;
 mod poll;
+mod render_dispatch;
 mod watchdog;
 mod ws;
 
 pub(crate) use self::watchdog::Watchdog;
 
-use self::http::{Request, Route};
+use self::http::Route;
+use self::render_dispatch::{
+    RENDER_FAILED_BODY, Surface, render_epic_route, render_route, repo_for_request,
+};
 
 /// The `/health` marker, byte-identical to the Python tool's (D2): the
 /// attach probe's contract — a listener of ours answers exactly this,
@@ -84,10 +83,6 @@ pub const HEALTH_MARKER: &str = "dacode-todo-mcp progress listener";
 
 /// The `/health` body: the marker and one newline.
 const HEALTH_BODY: &[u8] = b"dacode-todo-mcp progress listener\n";
-
-/// The failed-render body (D2): the reason is already on the
-/// listener's stderr; the response says only that.
-const RENDER_FAILED_BODY: &str = "render failed — see the listener's stderr\n";
 
 /// The push poll interval (D5, judgment call (a)): two `stat()`s per
 /// connected tab per tick, and sub-second push latency reads as live.
@@ -373,123 +368,6 @@ fn handle_connection(stream: TcpStream, state: Arc<ConnState>) {
     }
 }
 
-/// Which render surface a route asked for.
-enum Surface {
-    /// The HTML page.
-    Page,
-    /// The JSON twin.
-    Json,
-}
-
-/// The render routes (D2): resolve the repo — the `?repo=` parameter,
-/// else the default tier — render fresh, answer 200; any failure is
-/// 500 with the reason on stderr (the listener stays up).
-fn render_route(state: &ConnState, request: &Request, stream: &mut TcpStream, surface: Surface) {
-    let slug = repo_for_request(state, request);
-    let rendered = match surface {
-        Surface::Page => slug.and_then(|slug| render::page(&state.root, &slug)),
-        Surface::Json => slug.and_then(|slug| render::json(&state.root, &slug)),
-    };
-    match rendered {
-        Ok(text) => {
-            let content_type = match surface {
-                Surface::Page => "text/html; charset=utf-8",
-                Surface::Json => "application/json",
-            };
-            http::write_plain_response(stream, 200, content_type, text.as_bytes());
-        }
-        Err(message) => {
-            eprintln!("todo-mcp serve: the render failed: {message}");
-            http::write_plain_response(
-                stream,
-                500,
-                "text/plain; charset=utf-8",
-                RENDER_FAILED_BODY.as_bytes(),
-            );
-        }
-    }
-}
-
-/// The request's repo (D2): the `?repo=` parameter — a malformed value
-/// is a failed render, answered 500 like an unknown one — else the
-/// default tier.
-fn repo_for_request(state: &ConnState, request: &Request) -> Result<RepoSlug, String> {
-    match http::repo_param(request) {
-        Some(raw) => RepoSlug::from_str(raw).map_err(|error| error.to_string()),
-        None => default_repo(&state.root, state.cwd.as_deref()),
-    }
-}
-
-/// The epic page's route (E12, U53): `/repo/<slug>/epic/<number>` —
-/// the path is the repo's only source, `?repo=` ignored entirely. The
-/// pre-checks answer before any render: an unknown repo is a named
-/// 404 — the resolve error's `unknown_id` code, the variant's stable
-/// identity, never a message match — and an epic number the resolved
-/// graph does not hold is a named 404; every other resolve failure —
-/// an unreadable or corrupt store — is a server fault: 500 with the
-/// reason on stderr, the `render_route` discipline. The pre-check
-/// pays resolve plus an epics scan, not the render; the 200 path then
-/// reads the graph a second time inside `epic_page` — the accepted
-/// cost of keeping that function's pure signature.
-fn render_epic_route(state: &ConnState, slug: &RepoSlug, number: u64, stream: &mut TcpStream) {
-    match render::resolve(&state.root, slug) {
-        Ok(graph) => {
-            if !graph.epics().any(|epic| epic.id.number() == number) {
-                let miss = format!("{slug} holds no epic {number}");
-                eprintln!("todo-mcp serve: {miss}");
-                http::write_plain_response(
-                    stream,
-                    404,
-                    "text/plain; charset=utf-8",
-                    format!("{miss}\n").as_bytes(),
-                );
-                return;
-            }
-            match render::epic_page(&state.root, slug, number) {
-                Ok(text) => {
-                    http::write_plain_response(
-                        stream,
-                        200,
-                        "text/html; charset=utf-8",
-                        text.as_bytes(),
-                    );
-                }
-                Err(message) => {
-                    eprintln!("todo-mcp serve: the render failed: {message}");
-                    http::write_plain_response(
-                        stream,
-                        500,
-                        "text/plain; charset=utf-8",
-                        RENDER_FAILED_BODY.as_bytes(),
-                    );
-                }
-            }
-        }
-        Err(error) if error.code == ErrorCode::UnknownId.as_str() => {
-            let miss = format!("no repo {slug} under this root");
-            eprintln!("todo-mcp serve: {miss}");
-            http::write_plain_response(
-                stream,
-                404,
-                "text/plain; charset=utf-8",
-                format!("{miss}\n").as_bytes(),
-            );
-        }
-        Err(error) => {
-            eprintln!(
-                "todo-mcp serve: the epic page's resolve failed: {}",
-                error.message
-            );
-            http::write_plain_response(
-                stream,
-                500,
-                "text/plain; charset=utf-8",
-                RENDER_FAILED_BODY.as_bytes(),
-            );
-        }
-    }
-}
-
 /// The default repo for `/` and `/ws` (D2, judgment call (f)): the cwd
 /// tier, and — for every way it can fail to answer (no cwd, no match,
 /// ambiguity, a store that will not read) — the registry's first slug:
@@ -616,6 +494,7 @@ fn listener_answers(port: u16) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::str::FromStr;
 
     /// The publication round-trip: publish, read back; absent,
     /// non-digit and out-of-range files read as not published.
