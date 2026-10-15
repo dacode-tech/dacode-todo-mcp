@@ -445,9 +445,10 @@ fn day_key(ts: &Timestamp) -> String {
 
 /// The census's parse fault: the graph read's own spelling —
 /// `the line is not a parseable event: …` at the line's absolute
-/// offset — duplicated here (log.rs's `DETAIL_BAD_EVENT` is private to
-/// it) so a damaged line reports byte-identically on both read paths;
-/// `tests/layout/reader.rs` pins that equality and catches any drift.
+/// offset — duplicated here (the log module's `DETAIL_BAD_EVENT` is
+/// private to it) so a damaged line reports byte-identically on both
+/// read paths; `tests/layout/reader.rs` pins that equality and catches
+/// any drift.
 fn census_parse_fault(offset: usize, error: &StoreError) -> StoreError {
     let inner = match error {
         StoreError::CorruptStore { detail, .. } => detail.clone(),
