@@ -70,7 +70,11 @@ mod protocol {
         `priority` (high, medium, low) — set \
         it when triaging, prefer higher priority when choosing among \
         actionable rows yourself; the server's order is dependency-driven and \
-        ignores it by design.";
+        ignores it by design. A task closure's response may carry a reflection \
+        question — a milestone epic's completion or the root's reward total \
+        crossing a threshold, asking how the reward feels. Answer it honestly, \
+        once, through the reward_reflect tool; the verbatim answer is logged \
+        as-is.";
 
     /// The initialize request every handshake test opens with —
     /// protocol 2025-11-25, the version this server declares.
@@ -278,6 +282,7 @@ mod protocol {
                 "repo_register",
                 "repo_set_path",
                 "repo_show",
+                "reward_reflect",
                 "status_summary",
                 "task_add",
                 "task_link",

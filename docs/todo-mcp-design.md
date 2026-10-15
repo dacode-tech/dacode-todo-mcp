@@ -1215,7 +1215,11 @@ repos (§2's iterate-the-registry pattern; totals are never stored).
 
 **The reflections.** Two triggers: a milestone epic's closure, and the
 root's accumulated total crossing a configurable threshold
-(`reflect_every`). The trigger rides the closure response as a
+(`reflect_every`) — a from-below crossing: the trigger fires when the
+pre-grant total is below the threshold and the post-grant total
+reaches it (`before < threshold <= after`; a threshold of 0 never
+fires), so a closure already above the threshold does not ask again.
+The trigger rides the closure response as a
 question; the closing agent answers through one tool, `reward_reflect`,
 and the verbatim answer is logged as an event and displayed as-is. The
 server never interprets an answer — the answers are the experiment's

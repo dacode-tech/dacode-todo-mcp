@@ -1499,6 +1499,17 @@ optional parameters, the response lines, the new tool); open the
 surface unit's task (protocol-level tests, the schema advertisement,
 the base-instructions rule, disabled-root byte-identity).
 
+**Amendment (2026-10-15, ratified in-thread):** `reward_reflect`
+carries a third parameter — the trigger — beyond option (a)'s "(the
+repo, the verbatim answer)". D23's signed event shape requires the
+trigger label in the reflection event, no stateless derivation
+recovers it (the current totals cannot distinguish a milestone answer
+from a threshold answer once above the threshold; per-process memory
+dies with every daemon restart), and every alternative was a larger
+unsigned extension. The reflection question teaches the exact echo,
+so the parameter is mechanical data — the server still never
+interprets an answer.
+
 ### D25 — The shared server per root: a daemon behind thin stdio shims
 
 **Resolved 2026-10-13 — option (a), signed by the user ("ok, sign

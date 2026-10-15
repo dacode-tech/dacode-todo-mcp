@@ -84,6 +84,7 @@ use todo_store::{DataRoot, EventCensus, Registry, StoreError};
 
 use crate::ToolError;
 use crate::cwd::{MatchOutcome, match_slug};
+use crate::rewards::milestone_of;
 
 use self::sidebar::{SidebarRepo, sidebar_repos};
 
@@ -510,30 +511,6 @@ fn summary_text(model: &Model) -> String {
     out
 }
 
-/// The board's M id for a milestone epic, recovered from the mapping's
-/// provenance description — the one contract every dialect writes:
-/// `the <board> board's §<n> milestone <M-id>` (own, camera and ikvm
-/// §2; dacode §5, where the board's milestones live). The synthetic
-/// containers (`… §6 open follow-ups, not tied to a milestone`) do not
-/// match: the section part must be digits and the milestone word must
-/// be followed by exactly one token.
-fn milestone_of(epic: &Epic) -> Option<String> {
-    let (head, tail) = epic.description.split_once(" milestone ")?;
-    if !head.starts_with("the ") || !head.contains(" board's §") {
-        return None;
-    }
-    let section = head.rsplit(" board's §").next().unwrap_or_default();
-    if section.is_empty() || !section.bytes().all(|byte| byte.is_ascii_digit()) {
-        return None;
-    }
-    let mut tokens = tail.split_whitespace();
-    let id = tokens.next()?;
-    if tokens.next().is_some() {
-        return None;
-    }
-    Some(id.to_owned())
-}
-
 /// The Python `html.escape(quote=True)` equivalent — the same five
 /// entities.
 fn esc(text: &str) -> String {
@@ -647,33 +624,6 @@ fn counts_for(tasks: &[&Task], kind: TaskKind) -> KindCounts {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use todo_domain::References;
-
-    /// An epic with `description`, for the matcher tests.
-    fn epic_with(description: &str) -> Epic {
-        Epic {
-            id: "fixture:E1".parse().unwrap(),
-            repo: "fixture".parse().unwrap(),
-            title: "an epic".to_owned(),
-            description: description.to_owned(),
-            status: Status::Open,
-            references: References::new(),
-        }
-    }
-
-    /// All four dialects' provenance prefixes recover their M id —
-    /// own, camera and ikvm write §2, dacode §5.
-    #[test]
-    fn every_dialects_milestone_prefix_recovers_the_id() {
-        for (description, id) in [
-            ("the dacode-todo-mcp board's §2 milestone M0", "M0"),
-            ("the camera board's §2 milestone M3", "M3"),
-            ("the ikvm-html board's §2 milestone M1", "M1"),
-            ("the dacode board's §5 milestone M6", "M6"),
-        ] {
-            assert_eq!(milestone_of(&epic_with(description)), Some(id.to_owned()));
-        }
-    }
 
     /// The label helper: whitespace collapses, truncation lands on a
     /// character boundary with the ellipsis.
@@ -682,22 +632,5 @@ mod tests {
         assert_eq!(short("a  b\t c", 30), "a b c");
         assert_eq!(short("abcdef", 4), "abc…");
         assert_eq!(short("日本語のタイトル", 4), "日本語…");
-    }
-
-    /// The synthetic containers and prose descriptions do not match:
-    /// the follow-ups container ends at "milestone" with no trailing
-    /// id, a non-digit section fails, and a second token after the id
-    /// fails.
-    #[test]
-    fn synthetic_containers_and_prose_do_not_match() {
-        for description in [
-            "the fixture board's §6 open follow-ups, not tied to a milestone",
-            "the fixture board's §two milestone M0",
-            "the fixture board's §2 milestone M0 and more",
-            "The sensor bring-up epic.",
-            "a milestone word in prose",
-        ] {
-            assert_eq!(milestone_of(&epic_with(description)), None);
-        }
     }
 }

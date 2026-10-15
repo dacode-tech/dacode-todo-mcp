@@ -71,6 +71,23 @@
 //! argument fault, which is exactly what §6's frame ("the board's
 //! culture becomes the API's contract") forbids.
 //!
+//! # The rewards closure path (§15, D24)
+//!
+//! `task_update` is the closure call: on a patch that sets
+//! `status: closed` over a root whose config is present and enabled,
+//! the answer routes through the store's `close_task` (the grant
+//! path, the actual size riding its parameter — never a task patch
+//! field) and the response gains the reward line and, on a trigger,
+//! the reflection question. Every other patch — no closing status, no
+//! config, `enabled: false` — is the raw `update_task` path, and the
+//! response is the plain task state, byte-identical to the pre-E13
+//! wire: §15's fence, the opt-in's whole safety. The line, the
+//! questions and the trigger detection live in `crate::rewards`
+//! (this cluster renders; that module computes nothing the store did
+//! not report). `task_add`'s `estimate` is wire-write-only by the
+//! same signed shape: §15's wire paragraph names the input alone, and
+//! the task DTOs' bytes are the goldens' to keep.
+//!
 //! # The vocabulary boundary
 //!
 //! `status`/`kind`/`confidence`/`priority`/reference `kind` are typed
@@ -96,11 +113,13 @@
 //! Over the file-size target by recorded exception (`_rust.md`, board
 //! §5/U25): the cluster's dispatch pins all nine tools, their params
 //! and their draft/patch conversions in one file, the `query.rs`/
-//! `listing.rs` shape this cluster's spec named; the cap holds. The
-//! split, if the cluster ever grows a tenth tool, is the doc family
-//! (`doc_register`/`doc_set_path`/`doc_update` and their
-//! conversions) into its own module — a named diff for whoever next
-//! owns the file.
+//! `listing.rs` shape this cluster's spec named, and U62's closure
+//! path grew it again (the rewards routing is this cluster's — the
+//! line, the questions and the triggers live in `rewards.rs`); the
+//! cap holds. The split, if the cluster ever grows a tenth tool, is
+//! the doc family (`doc_register`/`doc_set_path`/`doc_update` and
+//! their conversions) into its own module — a named diff for whoever
+//! next owns the file.
 
 use std::str::FromStr;
 
@@ -111,14 +130,17 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Deserializer};
 use todo_domain::{
     Confidence, Date, DecisionDraft, DecisionId, DecisionStatus, DocDraft, DocId, EpicDraft,
-    EpicId, Priority, Reference, ReferenceKind, References, Status, TaskDraft, TaskId, TaskKind,
-    ValueError,
+    EpicId, Priority, Reference, ReferenceKind, References, Size, Status, TaskDraft, TaskId,
+    TaskKind, ValueError,
 };
 use todo_store::{DecisionPatch, DocPatch, EpicPatch, TaskPatch};
 
 use crate::dto::{
     ConfidenceDto, DecisionDto, DecisionStatusDto, DocDto, EpicDto, PriorityDto, ReferenceParam,
-    StatusDto, TaskDto, TaskKindDto,
+    SizeDto, StatusDto, TaskDto, TaskKindDto, TaskUpdateDto,
+};
+use crate::rewards::{
+    epic_complete, milestone_of, milestone_question, reward_line, threshold_question,
 };
 use crate::{ServerState, TodoServer, ToolError, error_carrier, repo_of, structured, time};
 
@@ -247,6 +269,8 @@ pub(crate) struct TaskAddParams {
     pub priority: Option<PriorityDto>,
     /// Optional until-date (D9), pure metadata — `YYYY-MM-DD`.
     pub until: Option<String>,
+    /// The planned size bucket (§15, D22): s, m, l or xl — the pre-flight guess, recorded before the work; absent (or `null`, the same bytes to a creation call — nothing to clear yet) means no estimate, and the task closes against the config's default bucket.
+    pub estimate: Option<SizeDto>,
 }
 
 /// `decision_add`'s parameters (§6, D10): the dossier's every field except the identity and the timestamps.
@@ -344,6 +368,8 @@ pub(crate) struct TaskUpdateParams {
     pub until: Option<Option<String>>,
     /// A new parent epic — a reparenting, checked like one (§5.1); absent leaves the task where it is.
     pub epic: Option<String>,
+    /// The actual size reported at the closure call (§15): s, m, l or xl — meaningful only when the patch closes the task (status `closed`) on a rewards-enabled root, where it rides the store's grant path; absent falls to the config's default bucket, and every other patch ignores it.
+    pub actual_size: Option<SizeDto>,
 }
 
 /// `decision_update`'s parameters (§6, D10): the patchable dossier fields under RFC 7386's three-state reading — absent is untouched, `null` clears an optional field, a value replaces it whole.
@@ -471,18 +497,25 @@ fn answer_task_add(
         references,
         priority: params.priority.map(Priority::from),
         until,
-        estimate: None,
+        estimate: params.estimate.map(Size::from),
     };
     let handle = state.resolve(&slug)?;
     let task = handle.add_task(draft, time::now())?;
     Ok(TaskDto::from(&task))
 }
 
-/// `task_update`'s answer: parse, resolve, convert, stamp, patch.
+/// `task_update`'s answer: parse, resolve, convert, stamp, patch —
+/// and, on a closing patch over a rewards-enabled root, the
+/// closure-aware path (§15, D24): the store's `close_task` grants on
+/// the transition, and the response gains the reward line and, on a
+/// trigger, the reflection question. Every other call — no closing
+/// status, no config, `enabled: false` — routes through the raw
+/// `update_task` and answers the plain task state, byte-identical to
+/// the pre-E13 wire (§15's fence).
 fn answer_task_update(
     state: &mut ServerState<'_>,
     params: &TaskUpdateParams,
-) -> Result<TaskDto, ToolError> {
+) -> Result<TaskUpdateDto, ToolError> {
     let slug = repo_of(state, params.repo.as_deref())?;
     let task = parse_value::<TaskId>(&params.task)?;
     let references = params
@@ -509,9 +542,77 @@ fn answer_task_update(
         until,
         epic,
     };
+    let actual_size = params.actual_size.map(Size::from);
+    let root = state.core.root.clone();
     let handle = state.resolve(&slug)?;
-    let task = handle.update_task(task, time::now(), patch)?;
-    Ok(TaskDto::from(&task))
+    // §15's fence: the rewards surface engages only on a closing
+    // patch — the one patch that can move a task into `closed` — so
+    // every other update's bytes cannot move at all, on any root. A
+    // malformed config fails the closure here, before the store is
+    // touched, with the config's own named error.
+    let config = if patch.status == Some(Status::Closed) {
+        root.load_config()?
+    } else {
+        None
+    };
+    let Some(config) = config.filter(|config| config.enabled) else {
+        let task = handle.update_task(task, time::now(), patch)?;
+        return Ok(TaskUpdateDto::from_task(&task, None, None));
+    };
+    let at = time::now();
+    // The grant and both triggers fire on the transition into closed
+    // alone — the store's own before-check, mirrored here for the
+    // trigger detection: a patch re-closing an already-closed task
+    // grants nothing and asks nothing a second time.
+    let before = handle.graph().task(&task).map(|task| task.status);
+    let will_close = matches!(before, Some(status) if status != Status::Closed);
+    // The threshold trigger's pre-grant total: read before the
+    // closure appends the grant, only when a crossing is possible.
+    let pre_total = if will_close && config.reflect_every > 0 {
+        Some(root.rewards_totals()?.total)
+    } else {
+        None
+    };
+    let closure = handle.close_task(task, at, patch, actual_size)?;
+    let mut reflection = None;
+    if will_close && closure.task.status == Status::Closed {
+        // The milestone trigger: the closure completed a milestone
+        // epic — the render's provenance heuristic, moved to the
+        // rewards module (U62).
+        let epic_id = closure.task.epic.clone();
+        let graph = handle.graph();
+        if graph.epic(&epic_id).and_then(milestone_of).is_some() && epic_complete(graph, &epic_id) {
+            reflection = Some(milestone_question(&epic_id));
+        }
+    }
+    let reward = match &closure.reward {
+        Some(granted) => {
+            let totals = root.rewards_totals()?;
+            // The threshold trigger: strictly below before this grant,
+            // at or above after — the from-below crossing, so a later
+            // closure above the threshold does not re-ask. The
+            // milestone question wins when both fire (the rewards
+            // module's doc): one closure, one question.
+            if reflection.is_none()
+                && pre_total.is_some_and(|pre| pre < config.reflect_every)
+                && totals.total >= config.reflect_every
+            {
+                reflection = Some(threshold_question(
+                    config.reflect_every,
+                    totals.total,
+                    &config.currency,
+                ));
+            }
+            Some(reward_line(
+                granted,
+                closure.task.priority,
+                &config.currency,
+                totals.total,
+            ))
+        }
+        None => None,
+    };
+    Ok(TaskUpdateDto::from_task(&closure.task, reward, reflection))
 }
 
 /// `decision_add`'s answer: parse, resolve, convert, stamp, add.
@@ -672,10 +773,10 @@ impl TodoServer {
         }
     }
 
-    /// Patch a task in place — absent fields untouched, `null` clears an optional one, a value replaces it whole; `epic` reparents, validated like one — and answer with the new state, `updated` clock-stamped.
+    /// Patch a task in place — absent fields untouched, `null` clears an optional one, a value replaces it whole; `epic` reparents, validated like one — and answer with the new state, `updated` clock-stamped. On a closing patch over a rewards-enabled root the answer also carries the reward line and, on a trigger, the reflection question (§15, D24).
     #[tool(
         name = "task_update",
-        output_schema = crate::schema::output_for_type::<TaskDto>(),
+        output_schema = crate::schema::output_for_type::<TaskUpdateDto>(),
         annotations(open_world_hint = false)
     )]
     async fn task_update(

@@ -203,6 +203,7 @@ mod query;
 pub mod refresh;
 mod registry;
 pub mod render;
+mod rewards;
 mod schema;
 pub mod serve;
 pub mod shim;
@@ -241,7 +242,11 @@ const INSTRUCTIONS: &str = "You are connected to a deterministic task-graph serv
     `priority` (high, medium, low) — set \
     it when triaging, prefer higher priority when choosing among \
     actionable rows yourself; the server's order is dependency-driven and \
-    ignores it by design.";
+    ignores it by design. A task closure's response may carry a reflection \
+    question — a milestone epic's completion or the root's reward total \
+    crossing a threshold, asking how the reward feels. Answer it honestly, \
+    once, through the reward_reflect tool; the verbatim answer is logged \
+    as-is.";
 
 /// The process-wide half of the server's state (§8, D25): the
 /// injected data root and the open per-repo handles — the half every
@@ -367,17 +372,19 @@ impl TodoServer {
         // the cluster files' routers — `registry.rs`'s `tool_router`,
         // `query.rs`'s `query_router`, `listing.rs`'s
         // `listing_router`, `nodes.rs`'s `nodes_router`, `edges.rs`'s
-        // `edges_router`, `importer.rs`'s `import_router` — each
-        // cluster file owning its own block and no cluster editing
-        // another's. Merge order is wire-invisible: the router is a
-        // name-keyed map and `list_all` sorts by name (§6.3), so
-        // later clusters follow the same pattern.
+        // `edges_router`, `importer.rs`'s `import_router`,
+        // `rewards.rs`'s `rewards_router` — each cluster file owning
+        // its own block and no cluster editing another's. Merge order
+        // is wire-invisible: the router is a name-keyed map and
+        // `list_all` sorts by name (§6.3), so later clusters follow
+        // the same pattern.
         let mut tool_router = Self::tool_router();
         tool_router.merge(Self::query_router());
         tool_router.merge(Self::listing_router());
         tool_router.merge(Self::nodes_router());
         tool_router.merge(Self::edges_router());
         tool_router.merge(Self::import_router());
+        tool_router.merge(Self::rewards_router());
         // The input schemas' enum flatten (t88): the `#[tool]` macro
         // generates them inside rmcp, so the merged router is the one
         // seam this crate owns over what `tools/list` advertises —

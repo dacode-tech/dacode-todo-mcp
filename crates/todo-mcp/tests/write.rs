@@ -12,14 +12,17 @@
 //!
 //! The suite is split by cluster the way `tests/read.rs` is:
 //! `write/nodes.rs` holds the node-CRUD cluster's tests,
-//! `write/edges.rs` the edge cluster's, and later clusters add
-//! sibling files under `write/` — no `mod.rs` in the directory
-//! (P-LIVE-004). Every test lists as `write::nodes::…` /
-//! `write::edges::…` so the module-path filter
+//! `write/edges.rs` the edge cluster's, `write/rewards.rs` the
+//! rewards surface's (U62 — its own fixture, because the shared
+//! fixture must stay configless: its goldens pin the inert root), and
+//! later clusters add sibling files under `write/` — no `mod.rs` in
+//! the directory (P-LIVE-004). Every test lists as
+//! `write::nodes::…` / `write::edges::…` / `write::rewards::…` so
+//! the module-path filter
 //! `cargo test -p todo-mcp --test write -- write::edges` selects
 //! exactly one suite (P-LIVE-002/P-LIVE-005: quote the counts beside
-//! the filter — the target holds two suites, so the sibling's count
-//! is the filtered-out one).
+//! the filter — the target holds three suites, so the siblings'
+//! counts are the filtered-out ones).
 
 #![cfg_attr(
     test,
@@ -39,6 +42,7 @@ use std::str::FromStr;
 mod write {
     mod edges;
     mod nodes;
+    mod rewards;
 }
 
 // The write target's own helper, shared by both suites and compiled

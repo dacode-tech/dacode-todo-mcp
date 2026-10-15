@@ -270,6 +270,7 @@ fn tools_list_advertises_output_schemas_with_single_line_descriptions() {
             "repo_register",
             "repo_set_path",
             "repo_show",
+            "reward_reflect",
             "status_summary",
             "task_add",
             "task_link",
@@ -278,7 +279,7 @@ fn tools_list_advertises_output_schemas_with_single_line_descriptions() {
             "task_unlink",
             "task_update"
         ],
-        "all twenty-six landed tools, sorted by name"
+        "all twenty-seven landed tools, sorted by name"
     );
     for tool in tools {
         assert!(

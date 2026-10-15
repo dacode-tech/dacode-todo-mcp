@@ -33,7 +33,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use todo_domain::{
     Confidence, Decision, DecisionStatus, DeferredSummary, Doc, Epic, Priority, Reference,
-    ReferenceKind, Repo, Status, Task, TaskKind,
+    ReferenceKind, Repo, Size, Status, Task, TaskKind,
 };
 
 /// The wire mirror of the task/epic lifecycle status (§3, D9): `open`, `in_work`, `blocked`, `deferred`, `closed`, `wontfix`.
@@ -270,6 +270,46 @@ impl From<ReferenceKindDto> for ReferenceKind {
     }
 }
 
+/// The wire mirror of the size vocabulary (§15, D22): `s`, `m`, `l`, `xl` — the volume axis the reward scales on, one vocabulary shared by the two buckets a task carries (the `estimate` planned at creation, the actual reported at closure).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+#[schemars(inline)]
+pub(crate) enum SizeDto {
+    /// The smallest bucket.
+    S,
+    /// The default-sized bucket in a typical config.
+    M,
+    /// The large bucket.
+    L,
+    /// The largest bucket.
+    Xl,
+}
+
+impl From<Size> for SizeDto {
+    fn from(size: Size) -> Self {
+        match size {
+            Size::S => Self::S,
+            Size::M => Self::M,
+            Size::L => Self::L,
+            Size::Xl => Self::Xl,
+        }
+    }
+}
+
+/// The input direction of the vocabulary: an `estimate` or actual-size
+/// parameter back into the domain's enum, variant-for-variant and
+/// total.
+impl From<SizeDto> for Size {
+    fn from(size: SizeDto) -> Self {
+        match size {
+            SizeDto::S => Self::S,
+            SizeDto::M => Self::M,
+            SizeDto::L => Self::L,
+            SizeDto::Xl => Self::Xl,
+        }
+    }
+}
+
 /// The input mirror of one `{kind, target, note?}` reference entry (§3, D10) — the shape an add or update's `references` parameter takes, converted per entry through the domain's validating constructor.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -356,6 +396,42 @@ impl From<&Task> for TaskDto {
             until: task.until.as_ref().map(|date| date.as_str().to_owned()),
             created: task.created.as_str().to_owned(),
             updated: task.updated.as_str().to_owned(),
+        }
+    }
+}
+
+/// `task_update`'s success payload (§15, D24): the task's state — [`TaskDto`] flattened in, byte-identical when the two rewards lines are absent — plus the closure's reward line and, on a trigger, the reflection question.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
+pub(crate) struct TaskUpdateDto {
+    /// The task's state, every field in the TaskDto shape.
+    #[serde(flatten)]
+    pub task: TaskDto,
+    /// The closure's reward line, e.g. `reward: 25 coffee (M × high). root total: 1234 coffee.` — present only when the closure granted a reward on a rewards-enabled root (§15).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reward: Option<String>,
+    /// The reflection question — present only when a trigger fired on this closure (§15): a milestone epic's completion, or the root total crossing reflect_every from below.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reflection: Option<String>,
+}
+
+impl TaskUpdateDto {
+    /// The task's state plus the closure's two optional lines (§15):
+    /// `None` on both is every non-granting call, and the payload
+    /// then serializes exactly the TaskDto's bytes. The two are
+    /// skipped when absent rather than spelled `null` — the one
+    /// deliberate departure from these DTOs' explicit-null
+    /// discipline — because §15's fence pins the inert root's
+    /// closure response byte-exact to the pre-E13 shape, and a
+    /// `null` spelling would move it.
+    pub(crate) fn from_task(
+        task: &Task,
+        reward: Option<String>,
+        reflection: Option<String>,
+    ) -> Self {
+        Self {
+            task: TaskDto::from(task),
+            reward,
+            reflection,
         }
     }
 }
