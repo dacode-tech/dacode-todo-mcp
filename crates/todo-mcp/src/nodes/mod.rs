@@ -14,7 +14,7 @@
 //! helpers, the epic and task families (the task pair carrying §15's
 //! closure routing); `decisions` the decision pair, `docs` the doc
 //! trio, each with its own router merged into the server's one map
-//! (lib.rs's `merged_router` — the split is wire-invisible).
+//! (state.rs's `merged_router` — the split is wire-invisible).
 //!
 //! # The clock
 //!

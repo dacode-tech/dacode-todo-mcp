@@ -26,7 +26,7 @@
 //! uses — `{"type": "string", "enum": ["open", …]}`, the values quoted
 //! in declaration order. Outputs get the flatten inside
 //! [`output_for_type`]; inputs get it through [`flatten_input`] over
-//! the router's advertised schemas (lib.rs), because the `#[tool]`
+//! the router's advertised schemas (state.rs), because the `#[tool]`
 //! macro generates input schemas inside rmcp with no seam of ours.
 //! Struct definitions stay `$ref`s — the failure evidence is
 //! enum-specific — and the wire pin in tests/read/query.rs walks both
