@@ -332,7 +332,8 @@ fn a_foreign_version_header_is_version_mismatch_on_every_lock_free_read() {
     // newer-format log silently summed — or misreported
     // corrupt_store at the first event line — on exactly the reads
     // that feed the rewards numbers. Every read gates through the
-    // graph read's own check now: one log, one answer, every path.
+    // graph read's own check now — the folded read (U79) included,
+    // the family's newest member: one log, one answer, every path.
     let dir = TempDir::new().unwrap();
     let root = data_root(&dir);
     let camera_slug = slug("camera");
@@ -352,6 +353,7 @@ fn a_foreign_version_header_is_version_mismatch_on_every_lock_free_read() {
     assert_eq!(root.read_repo_census(&camera_slug).unwrap_err(), error);
     assert_eq!(root.rewards_totals().unwrap_err(), error);
     assert_eq!(root.rewards_events().unwrap_err(), error);
+    assert_eq!(root.rewards_totals_and_events().unwrap_err(), error);
 }
 
 #[test]
@@ -359,7 +361,7 @@ fn a_damaged_header_reports_identically_on_every_lock_free_read() {
     // The gate's other half (U77): a damaged header — not a newer
     // format, damage — reports the graph read's own positioned
     // corrupt_store on every lock-free read, byte for byte: one log,
-    // one answer, every path.
+    // one answer, every path — the folded read (U79) included.
     let dir = TempDir::new().unwrap();
     let root = data_root(&dir);
     let camera_slug = slug("camera");
@@ -376,6 +378,7 @@ fn a_damaged_header_reports_identically_on_every_lock_free_read() {
     assert_eq!(root.read_repo_census(&camera_slug).unwrap_err(), error);
     assert_eq!(root.rewards_totals().unwrap_err(), error);
     assert_eq!(root.rewards_events().unwrap_err(), error);
+    assert_eq!(root.rewards_totals_and_events().unwrap_err(), error);
 }
 
 // =================================================================

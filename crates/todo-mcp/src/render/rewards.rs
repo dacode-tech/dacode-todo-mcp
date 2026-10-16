@@ -85,10 +85,12 @@ impl RewardsModel {
 
 /// Gathers the rewards model slice: the config read first — absent or
 /// `enabled: false` answers `None`, §15's fence — then, when enabled,
-/// the totals and the events, both lock-free (D19). A malformed
-/// config fails with its named error, never a silent inert root. One
-/// call per render, inside [`super::model::gather`], so every surface shares
-/// one answer.
+/// the totals and the events from one folded lock-free walk (U79 —
+/// the render once read each log twice through the sibling reads;
+/// the fold answers their pair in one pass). A malformed config
+/// fails with its named error, never a silent inert root. One call
+/// per render, inside [`super::model::gather`], so every surface
+/// shares one answer.
 pub(crate) fn gather_rewards(root: &DataRoot) -> Result<Option<RewardsModel>, String> {
     let config = root
         .load_config()
@@ -96,16 +98,13 @@ pub(crate) fn gather_rewards(root: &DataRoot) -> Result<Option<RewardsModel>, St
     let Some(config) = config.filter(|config: &RewardsConfig| config.enabled) else {
         return Ok(None);
     };
-    let totals = root
-        .rewards_totals()
-        .map_err(|error| ToolError::from(error).message)?;
-    let events = root
-        .rewards_events()
+    let (totals, events) = root
+        .rewards_totals_and_events()
         .map_err(|error| ToolError::from(error).message)?;
     Ok(Some(model_of(config, totals, events)))
 }
 
-/// The model from the config and the two reads: the actuals map folds
+/// The model from the config and the folded read: the actuals map folds
 /// the grants in root order, so a later grant for the same task wins
 /// — the latest actual is the honest one.
 fn model_of(config: RewardsConfig, totals: RewardsTotals, events: RewardsEvents) -> RewardsModel {

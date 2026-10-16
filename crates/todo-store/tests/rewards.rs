@@ -18,8 +18,9 @@
 //! golden, its faults, the inert root — `rewards/grant.rs` the
 //! closure-aware update's semantics, `rewards/reflect.rs` the
 //! reflection event and its round-trip, `rewards/totals.rs` the
-//! derived per-root totals, and `rewards/events.rs` the reward events
-//! read (§15's display half, U63).
+//! derived per-root totals, `rewards/events.rs` the reward events
+//! read (§15's display half, U63), and `rewards/fold.rs` the folded
+//! totals+events read (U79).
 
 #![cfg_attr(
     test,
@@ -54,6 +55,7 @@ mod rewards {
     mod config;
     mod events;
     mod fixtures;
+    mod fold;
     mod grant;
     mod reflect;
     mod totals;

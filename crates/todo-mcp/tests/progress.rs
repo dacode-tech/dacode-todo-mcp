@@ -1894,9 +1894,12 @@ mod progress {
     /// for the registry's first slug the mean cost of one lock-free
     /// graph read, one census read (the second log walk, t84's judgment
     /// call (a)) and one full page render — the render walking the
-    /// current log twice plus one graph read per other registered repo.
-    /// Those numbers belong in this run's output and the task's report,
-    /// never in a source comment.
+    /// current log once per read (the graph, the census, and on an
+    /// enabled root the folded rewards walk — one walk since U79,
+    /// where the sibling reads walked twice) plus one graph read per
+    /// other registered repo and the rewards fold over every
+    /// registered log. Those numbers belong in this run's output and
+    /// the task's report, never in a source comment.
     ///
     /// `std::time::Instant` appears in this file alone: §8 bars clocks
     /// below the binary layer as a *determinism* rule, and a

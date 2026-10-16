@@ -19,7 +19,7 @@ use super::timeline::{camera_slug, epic_draft, rewards_config, task_draft};
 const ALPHA: &str = "alpha";
 
 /// The alpha slug, parsed.
-fn alpha_slug() -> RepoSlug {
+pub(super) fn alpha_slug() -> RepoSlug {
     ALPHA.parse().unwrap()
 }
 
@@ -43,7 +43,7 @@ fn repo_with_task(root: &DataRoot, slug: &str) -> TaskId {
 /// one reflection — so the root order is visible, non-trivial and
 /// disagreeing with both the registration order and the timestamps'
 /// (alpha's grant is the latest by `ts` yet comes first).
-fn events_root(dir: &TempDir) -> DataRoot {
+pub(super) fn events_root(dir: &TempDir) -> DataRoot {
     let root = data_root(dir);
     root.save_config(&rewards_config()).unwrap();
     let camera_task = repo_with_task(&root, "camera");

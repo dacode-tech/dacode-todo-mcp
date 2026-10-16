@@ -80,6 +80,15 @@
 //! which "recent" is a suffix of at the display layer. The repo each
 //! event came from is the read's own key (the log's slug), not the
 //! event's — the events are repo-scoped by their log alone.
+//!
+//! # The folded read (U79)
+//!
+//! [`DataRoot::rewards_totals_and_events`] is the render's read: the
+//! totals and the events of every registered repo from ONE walk per
+//! log — the two siblings' answers, pair-identical, at half the
+//! reads. The siblings stay the independently testable reads U63
+//! disclosed them as, and the write path's totals read stays the
+//! sum-only walk; the fold is the render's alone.
 
 use std::collections::BTreeMap;
 use std::fs::File;
@@ -247,6 +256,34 @@ impl DataRoot {
             events.reflections.append(&mut reflections);
         }
         Ok(events)
+    }
+
+    /// The root's rewards in one folded walk (§15, U79): the totals
+    /// and the events of every registered repo's committed prefix
+    /// from ONE read per log — the render's gather, which the two
+    /// sibling reads walked twice. The answer is the siblings' own
+    /// pair, byte for byte: the totals' checked sums and per-repo map
+    /// (every registered repo, zero included), the events' root order
+    /// and verbatim fields. The same iterate-the-registry, lock-free,
+    /// all-or-nothing reading as the siblings', for the same reason:
+    /// a repo that quietly disappears from either half is a silent
+    /// omission.
+    pub fn rewards_totals_and_events(&self) -> Result<(RewardsTotals, RewardsEvents), StoreError> {
+        let registry = Registry::load(self)?;
+        let mut totals = RewardsTotals::default();
+        let mut events = RewardsEvents::default();
+        for slug in registry.slugs() {
+            let (repo_total, mut grants, mut reflections) =
+                reward_fold_of(&self.log_path(slug), slug)?;
+            totals.total = totals
+                .total
+                .checked_add(repo_total)
+                .ok_or_else(overflowed)?;
+            totals.by_repo.insert(slug.clone(), repo_total);
+            events.grants.append(&mut grants);
+            events.reflections.append(&mut reflections);
+        }
+        Ok((totals, events))
     }
 }
 
@@ -416,6 +453,68 @@ fn reward_events_of(
         }
     }
     Ok((grants, reflections))
+}
+
+/// One repo's folded rewards: its total and its events from one walk
+/// over the committed prefix — the render's read (U79), the totals'
+/// sum and the events' collection in one pass instead of two. The
+/// same lock-free read, the same header gate and the same
+/// parse-fault spelling as the siblings', so one damaged line — or
+/// one foreign-version header — reports identically on every path.
+fn reward_fold_of(
+    path: &Path,
+    slug: &RepoSlug,
+) -> Result<(u64, Vec<GrantedReward>, Vec<RewardReflection>), StoreError> {
+    let mut file = File::open(path).map_err(|error| io_error(CONTEXT_OPEN_LOG, &error))?;
+    let mut bytes = Vec::new();
+    file.read_to_end(&mut bytes)
+        .map_err(|error| io_error(CONTEXT_READ_LOG, &error))?;
+    let mut lines = LineSplit::new(committed_prefix(&bytes));
+    gate_header(lines.next())?;
+    let mut total: u64 = 0;
+    let mut grants = Vec::new();
+    let mut reflections = Vec::new();
+    for line in lines {
+        let event: Event =
+            from_bytes(line.bytes).map_err(|error| census_parse_fault(line.offset, &error))?;
+        match event {
+            Event::RewardGrant {
+                ts,
+                task,
+                amount,
+                size,
+                priority_pct,
+                kind_pct,
+            } => {
+                total = total.checked_add(amount).ok_or_else(overflowed)?;
+                grants.push(GrantedReward {
+                    ts,
+                    repo: slug.clone(),
+                    task,
+                    amount,
+                    size,
+                    priority_pct,
+                    kind_pct,
+                });
+            }
+            Event::RewardReflect {
+                ts,
+                answer,
+                trigger,
+                root_total,
+                repo_total,
+            } => reflections.push(RewardReflection {
+                ts,
+                repo: slug.clone(),
+                answer,
+                trigger,
+                root_total,
+                repo_total,
+            }),
+            _ => {}
+        }
+    }
+    Ok((total, grants, reflections))
 }
 
 /// Counts the events the log at `path` holds as of its last commit —
