@@ -371,7 +371,9 @@ impl TodoServer {
         // The router composes across impl blocks (`ToolRouter::merge`):
         // the cluster files' routers — `registry.rs`'s `tool_router`,
         // `query.rs`'s `query_router`, `listing.rs`'s
-        // `listing_router`, `nodes.rs`'s `nodes_router`, `edges.rs`'s
+        // `listing_router`, `nodes/mod.rs`'s `nodes_router` (the mutation
+        // cluster's home file, with its family modules' `docs_router`
+        // and `decisions_router` — U78's split), `edges.rs`'s
         // `edges_router`, `importer.rs`'s `import_router`,
         // `rewards.rs`'s `rewards_router` — each cluster file owning
         // its own block and no cluster editing another's. Merge order
@@ -382,6 +384,8 @@ impl TodoServer {
         tool_router.merge(Self::query_router());
         tool_router.merge(Self::listing_router());
         tool_router.merge(Self::nodes_router());
+        tool_router.merge(Self::docs_router());
+        tool_router.merge(Self::decisions_router());
         tool_router.merge(Self::edges_router());
         tool_router.merge(Self::import_router());
         tool_router.merge(Self::rewards_router());

@@ -1,13 +1,20 @@
-//! The mutation cluster's nine node-CRUD tools (§6, t36): `epic_add`/
-//! `epic_update`, `task_add`/`task_update`, `decision_add`/
-//! `decision_update`, `doc_register`/`doc_set_path`/`doc_update` —
-//! thin translations of the `Store` trait's mutations onto the wire.
-//! Every mutation already exists below this crate (§2: the wire
-//! converts, it does not decide), so this file holds no domain logic:
-//! each tool parses its parameters, resolves the repo, converts the
-//! wire shapes into the store's drafts and patches, and answers with
-//! the new state (§6's frame — a client never needs a
+//! The mutation cluster (§6, t36): the node-CRUD tools that write the
+//! graph — `epic_add`/`epic_update`, `task_add`/`task_update`,
+//! `decision_add`/`decision_update`, `doc_register`/`doc_set_path`/
+//! `doc_update` — thin translations of the `Store` trait's mutations
+//! onto the wire. Every mutation already exists below this crate (§2:
+//! the wire converts, it does not decide), so no file here holds
+//! domain logic: each tool parses its parameters, resolves the repo,
+//! converts the wire shapes into the store's drafts and patches, and
+//! answers with the new state (§6's frame — a client never needs a
 //! read-after-write round trip).
+//!
+//! Three files since U78's file-size split, the render tree's family
+//! shape: this one is the cluster's home — the shared conversion
+//! helpers, the epic and task families (the task pair carrying §15's
+//! closure routing); `decisions` the decision pair, `docs` the doc
+//! trio, each with its own router merged into the server's one map
+//! (lib.rs's `merged_router` — the split is wire-invisible).
 //!
 //! # The clock
 //!
@@ -21,9 +28,10 @@
 //! a real property — clock-freeness of the response: epics carry no
 //! timestamps (§3), so `epic_add`/`epic_update` answers are fully
 //! deterministic and golden-pinnable, while the seven stamped writers
+//! — the task pair here, the other five in their family files —
 //! embed the instant and assert in-test around the extracted stamp
-//! (the split is stated where the next writer task reads it: the
-//! write suite's module doc).
+//! (stated where the next writer task reads it: the write suite's
+//! module doc).
 //!
 //! # The shapes
 //!
@@ -51,9 +59,7 @@
 //! the tests, not by shared code). `task_update`'s `epic` is a plain
 //! `Option` — a reparenting cannot be "cleared" — and maps straight
 //! onto `TaskPatch::epic` (§5.1: reparenting is a validated update,
-//! no separate verb, in the log or on the wire). `doc_update` carries
-//! no `path`: the committed D10's separately audited verb
-//! `doc_set_path` owns it.
+//! no separate verb, in the log or on the wire).
 //!
 //! # The closure discipline
 //!
@@ -62,14 +68,14 @@
 //! never schema-required fields. `task_add` without `verify` answers
 //! `missing_verify`; reaching `closed` without `evidence` answers
 //! `missing_evidence`; reaching `blocked`/`deferred` without `note`
-//! answers `missing_note`; `decision_add`/`decision_update` reaching
-//! `signed`/`superseded` without `resolution` answers
-//! `missing_resolution`. All four arrive as `StoreError::Domain` →
-//! [`crate::ToolError`] → the committed D15's carrier, inherited from
-//! lib.rs — this cluster restates none of it. A schema-required
-//! `verify` would demote §6.1's own example into rmcp's codeless
-//! argument fault, which is exactly what §6's frame ("the board's
-//! culture becomes the API's contract") forbids.
+//! answers `missing_note`; the decision pair's `signed`/`superseded`
+//! without `resolution` answers `missing_resolution` (restated in
+//! `decisions`'s doc). All four arrive as
+//! `StoreError::Domain` → [`crate::ToolError`] → the committed D15's
+//! carrier, inherited from lib.rs — this cluster restates none of it.
+//! A schema-required `verify` would demote §6.1's own example into
+//! rmcp's codeless argument fault, which is exactly what §6's frame
+//! ("the board's culture becomes the API's contract") forbids.
 //!
 //! # The rewards closure path (§15, D24)
 //!
@@ -109,17 +115,9 @@
 //! DTOs, all existing in `dto.rs`). The state lock is taken and
 //! dropped inside the sync body (§8, the lib module doc's rule — no
 //! `.await` after acquisition).
-//!
-//! Over the file-size target by recorded exception (`_rust.md`, board
-//! §5/U25): the cluster's dispatch pins all nine tools, their params
-//! and their draft/patch conversions in one file, the `query.rs`/
-//! `listing.rs` shape this cluster's spec named, and U62's closure
-//! path grew it again (the rewards routing is this cluster's — the
-//! line, the questions and the triggers live in `rewards.rs`); the
-//! cap holds. The split, if the cluster ever grows a tenth tool, is
-//! the doc family (`doc_register`/`doc_set_path`/`doc_update` and
-//! their conversions) into its own module — a named diff for whoever
-//! next owns the file.
+
+mod decisions;
+mod docs;
 
 use std::str::FromStr;
 
@@ -129,15 +127,14 @@ use rmcp::{tool, tool_router};
 use schemars::JsonSchema;
 use serde::{Deserialize, Deserializer};
 use todo_domain::{
-    Confidence, Date, DecisionDraft, DecisionId, DecisionStatus, DocDraft, DocId, EpicDraft,
-    EpicId, Priority, Reference, ReferenceKind, References, Size, Status, TaskDraft, TaskId,
-    TaskKind, ValueError,
+    Date, EpicDraft, EpicId, Priority, Reference, ReferenceKind, References, Size, Status,
+    TaskDraft, TaskId, TaskKind, ValueError,
 };
-use todo_store::{DecisionPatch, DocPatch, EpicPatch, TaskPatch};
+
+use todo_store::{EpicPatch, TaskPatch};
 
 use crate::dto::{
-    ConfidenceDto, DecisionDto, DecisionStatusDto, DocDto, EpicDto, PriorityDto, ReferenceParam,
-    SizeDto, StatusDto, TaskDto, TaskKindDto, TaskUpdateDto,
+    EpicDto, PriorityDto, ReferenceParam, SizeDto, StatusDto, TaskDto, TaskKindDto, TaskUpdateDto,
 };
 use crate::rewards::{
     epic_complete, milestone_of, milestone_question, reward_line, threshold_question,
@@ -145,7 +142,7 @@ use crate::rewards::{
 use crate::{ServerState, TodoServer, ToolError, error_carrier, repo_of, structured, time};
 
 // =================================================================
-// The three-state deserializer
+// The shared helpers
 // =================================================================
 
 /// Deserializes one three-state patch field whose node field is
@@ -273,44 +270,6 @@ pub(crate) struct TaskAddParams {
     pub estimate: Option<SizeDto>,
 }
 
-/// `decision_add`'s parameters (§6, D10): the dossier's every field except the identity and the timestamps.
-#[derive(Debug, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
-pub(crate) struct DecisionAddParams {
-    /// The repository's stable slug key (§7): ASCII lowercase segments joined by single hyphens; the repo whose graph gains the decision; absent means the configured default repo; an explicit value always wins.
-    pub repo: Option<String>,
-    /// Short human title.
-    pub title: String,
-    /// Lifecycle status: open, signed or superseded — `signed`/`superseded` require a resolution.
-    pub status: DecisionStatusDto,
-    /// The options the user chooses between, in authoring order.
-    pub options: Vec<String>,
-    /// The proposer's recommendation among the options.
-    pub recommendation: Option<String>,
-    /// How it was resolved — required to reach `signed`/`superseded` (`missing_resolution` otherwise).
-    pub resolution: Option<String>,
-    /// Proposer confidence at drafting time: low, medium or high.
-    pub confidence: ConfidenceDto,
-    /// External references (D10); absent means the empty set.
-    pub references: Option<Vec<ReferenceParam>>,
-}
-
-/// `doc_register`'s parameters (§6, D10): the doc's every field except the identity and the timestamps.
-#[derive(Debug, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
-pub(crate) struct DocRegisterParams {
-    /// The repository's stable slug key (§7): ASCII lowercase segments joined by single hyphens; the repo whose graph gains the doc; absent means the configured default repo; an explicit value always wins.
-    pub repo: Option<String>,
-    /// Short human title.
-    pub title: String,
-    /// The mutable file path of the prose body — an attribute, moved later by `doc_set_path`.
-    pub path: String,
-    /// The document's version — an opaque string the document itself declares.
-    pub version: String,
-    /// External references (D10); absent means the empty set.
-    pub references: Option<Vec<ReferenceParam>>,
-}
-
 // =================================================================
 // The update params — the store's patches, wire-typed
 // =================================================================
@@ -370,60 +329,6 @@ pub(crate) struct TaskUpdateParams {
     pub epic: Option<String>,
     /// The actual size reported at the closure call (§15): s, m, l or xl — meaningful only when the patch closes the task (status `closed`) on a rewards-enabled root, where it rides the store's grant path; absent falls to the config's default bucket, and every other patch ignores it.
     pub actual_size: Option<SizeDto>,
-}
-
-/// `decision_update`'s parameters (§6, D10): the patchable dossier fields under RFC 7386's three-state reading — absent is untouched, `null` clears an optional field, a value replaces it whole.
-#[derive(Debug, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
-pub(crate) struct DecisionUpdateParams {
-    /// The repository's stable slug key (§7): ASCII lowercase segments joined by single hyphens; the repo whose graph holds the decision; absent means the configured default repo; an explicit value always wins.
-    pub repo: Option<String>,
-    /// The decision's id, e.g. `camera:D3`.
-    pub decision: String,
-    /// A new title; absent leaves the field untouched.
-    pub title: Option<String>,
-    /// A new lifecycle status; `signed`/`superseded` require a resolution (§3).
-    pub status: Option<DecisionStatusDto>,
-    /// A replacement option list, in authoring order; absent leaves the field untouched.
-    pub options: Option<Vec<String>>,
-    /// A new recommendation; absent leaves the field untouched, `null` clears it, a value replaces it.
-    #[serde(default, deserialize_with = "double_option")]
-    pub recommendation: Option<Option<String>>,
-    /// A new resolution; absent leaves the field untouched, `null` clears it, a value replaces it.
-    #[serde(default, deserialize_with = "double_option")]
-    pub resolution: Option<Option<String>>,
-    /// A new proposer confidence; absent leaves the field untouched.
-    pub confidence: Option<ConfidenceDto>,
-    /// A replacement reference set — the whole set, canonically sorted; absent leaves the field untouched.
-    pub references: Option<Vec<ReferenceParam>>,
-}
-
-/// `doc_update`'s parameters (§6, D10): the patchable doc fields — no `path`, which the separately audited verb `doc_set_path` owns.
-#[derive(Debug, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
-pub(crate) struct DocUpdateParams {
-    /// The repository's stable slug key (§7): ASCII lowercase segments joined by single hyphens; the repo whose graph holds the doc; absent means the configured default repo; an explicit value always wins.
-    pub repo: Option<String>,
-    /// The doc's id, e.g. `camera:S1`.
-    pub doc: String,
-    /// A new title; absent leaves the field untouched.
-    pub title: Option<String>,
-    /// A new version string; absent leaves the field untouched.
-    pub version: Option<String>,
-    /// A replacement reference set — the whole set, canonically sorted; absent leaves the field untouched.
-    pub references: Option<Vec<ReferenceParam>>,
-}
-
-/// `doc_set_path`'s parameters (§6, D10): the audited move — a citation's address change is its own verb, visible in the log on its own line.
-#[derive(Debug, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
-pub(crate) struct DocSetPathParams {
-    /// The repository's stable slug key (§7): ASCII lowercase segments joined by single hyphens; the repo whose graph holds the doc; absent means the configured default repo; an explicit value always wins.
-    pub repo: Option<String>,
-    /// The doc's id, e.g. `camera:S1`.
-    pub doc: String,
-    /// The doc's new filesystem path of the prose body.
-    pub path: String,
 }
 
 // =================================================================
@@ -615,105 +520,6 @@ fn answer_task_update(
     Ok(TaskUpdateDto::from_task(&closure.task, reward, reflection))
 }
 
-/// `decision_add`'s answer: parse, resolve, convert, stamp, add.
-fn answer_decision_add(
-    state: &mut ServerState<'_>,
-    params: &DecisionAddParams,
-) -> Result<DecisionDto, ToolError> {
-    let slug = repo_of(state, params.repo.as_deref())?;
-    let references = references_of(params.references.as_deref().unwrap_or(&[]))?;
-    let draft = DecisionDraft {
-        title: params.title.clone(),
-        status: DecisionStatus::from(params.status),
-        options: params.options.clone(),
-        recommendation: params.recommendation.clone(),
-        resolution: params.resolution.clone(),
-        confidence: Confidence::from(params.confidence),
-        references,
-    };
-    let handle = state.resolve(&slug)?;
-    let decision = handle.add_decision(draft, time::now())?;
-    Ok(DecisionDto::from(&decision))
-}
-
-/// `decision_update`'s answer: parse, resolve, convert, stamp, patch.
-fn answer_decision_update(
-    state: &mut ServerState<'_>,
-    params: &DecisionUpdateParams,
-) -> Result<DecisionDto, ToolError> {
-    let slug = repo_of(state, params.repo.as_deref())?;
-    let decision = parse_value::<DecisionId>(&params.decision)?;
-    let references = params
-        .references
-        .as_deref()
-        .map(references_of)
-        .transpose()?;
-    let patch = DecisionPatch {
-        title: params.title.clone(),
-        status: params.status.map(DecisionStatus::from),
-        options: params.options.clone(),
-        recommendation: params.recommendation.clone(),
-        resolution: params.resolution.clone(),
-        confidence: params.confidence.map(Confidence::from),
-        references,
-    };
-    let handle = state.resolve(&slug)?;
-    let decision = handle.update_decision(decision, time::now(), patch)?;
-    Ok(DecisionDto::from(&decision))
-}
-
-/// `doc_register`'s answer: parse, resolve, convert, stamp, add.
-fn answer_doc_register(
-    state: &mut ServerState<'_>,
-    params: &DocRegisterParams,
-) -> Result<DocDto, ToolError> {
-    let slug = repo_of(state, params.repo.as_deref())?;
-    let references = references_of(params.references.as_deref().unwrap_or(&[]))?;
-    let draft = DocDraft {
-        title: params.title.clone(),
-        path: params.path.clone(),
-        version: params.version.clone(),
-        references,
-    };
-    let handle = state.resolve(&slug)?;
-    let doc = handle.add_doc(draft, time::now())?;
-    Ok(DocDto::from(&doc))
-}
-
-/// `doc_set_path`'s answer: parse, resolve, stamp, move.
-fn answer_doc_set_path(
-    state: &mut ServerState<'_>,
-    params: &DocSetPathParams,
-) -> Result<DocDto, ToolError> {
-    let slug = repo_of(state, params.repo.as_deref())?;
-    let doc = parse_value::<DocId>(&params.doc)?;
-    let handle = state.resolve(&slug)?;
-    let doc = handle.set_doc_path(doc, params.path.clone(), time::now())?;
-    Ok(DocDto::from(&doc))
-}
-
-/// `doc_update`'s answer: parse, resolve, convert, stamp, patch.
-fn answer_doc_update(
-    state: &mut ServerState<'_>,
-    params: &DocUpdateParams,
-) -> Result<DocDto, ToolError> {
-    let slug = repo_of(state, params.repo.as_deref())?;
-    let doc = parse_value::<DocId>(&params.doc)?;
-    let references = params
-        .references
-        .as_deref()
-        .map(references_of)
-        .transpose()?;
-    let patch = DocPatch {
-        title: params.title.clone(),
-        version: params.version.clone(),
-        references,
-    };
-    let handle = state.resolve(&slug)?;
-    let doc = handle.update_doc(doc, time::now(), patch)?;
-    Ok(DocDto::from(&doc))
-}
-
 // =================================================================
 // The tools
 // =================================================================
@@ -786,91 +592,6 @@ impl TodoServer {
         let mut state = self.lock_state();
         match answer_task_update(&mut state, &params) {
             Ok(output) => structured("task_update", output),
-            Err(error) => Ok(error_carrier(&error.code, &error.message)),
-        }
-    }
-
-    /// Add a decision dossier: the graph allocates its id, `signed`/`superseded` require a resolution, and the response is the new state with its clock-stamped `created`/`updated`.
-    #[tool(
-        name = "decision_add",
-        output_schema = crate::schema::output_for_type::<DecisionDto>(),
-        annotations(open_world_hint = false)
-    )]
-    async fn decision_add(
-        &self,
-        Parameters(params): Parameters<DecisionAddParams>,
-    ) -> Result<CallToolResult, ErrorData> {
-        let mut state = self.lock_state();
-        match answer_decision_add(&mut state, &params) {
-            Ok(output) => structured("decision_add", output),
-            Err(error) => Ok(error_carrier(&error.code, &error.message)),
-        }
-    }
-
-    /// Patch a decision dossier in place — absent fields untouched, `null` clears an optional one, a value replaces it whole; signing requires a resolution — and answer with the new state, `updated` clock-stamped.
-    #[tool(
-        name = "decision_update",
-        output_schema = crate::schema::output_for_type::<DecisionDto>(),
-        annotations(open_world_hint = false)
-    )]
-    async fn decision_update(
-        &self,
-        Parameters(params): Parameters<DecisionUpdateParams>,
-    ) -> Result<CallToolResult, ErrorData> {
-        let mut state = self.lock_state();
-        match answer_decision_update(&mut state, &params) {
-            Ok(output) => structured("decision_update", output),
-            Err(error) => Ok(error_carrier(&error.code, &error.message)),
-        }
-    }
-
-    /// Register a document for stable citation: the graph allocates its id, and the response is the new state with its clock-stamped `created`/`updated`.
-    #[tool(
-        name = "doc_register",
-        output_schema = crate::schema::output_for_type::<DocDto>(),
-        annotations(open_world_hint = false)
-    )]
-    async fn doc_register(
-        &self,
-        Parameters(params): Parameters<DocRegisterParams>,
-    ) -> Result<CallToolResult, ErrorData> {
-        let mut state = self.lock_state();
-        match answer_doc_register(&mut state, &params) {
-            Ok(output) => structured("doc_register", output),
-            Err(error) => Ok(error_carrier(&error.code, &error.message)),
-        }
-    }
-
-    /// Move a doc's body to a new path — the audited verb (D10): a citation's address change is its own event — and answer with the moved doc's new state, `updated` clock-stamped.
-    #[tool(
-        name = "doc_set_path",
-        output_schema = crate::schema::output_for_type::<DocDto>(),
-        annotations(open_world_hint = false)
-    )]
-    async fn doc_set_path(
-        &self,
-        Parameters(params): Parameters<DocSetPathParams>,
-    ) -> Result<CallToolResult, ErrorData> {
-        let mut state = self.lock_state();
-        match answer_doc_set_path(&mut state, &params) {
-            Ok(output) => structured("doc_set_path", output),
-            Err(error) => Ok(error_carrier(&error.code, &error.message)),
-        }
-    }
-
-    /// Patch a doc in place — absent fields untouched, given fields replaced whole; the path moves only through `doc_set_path` — and answer with the new state, `updated` clock-stamped.
-    #[tool(
-        name = "doc_update",
-        output_schema = crate::schema::output_for_type::<DocDto>(),
-        annotations(open_world_hint = false)
-    )]
-    async fn doc_update(
-        &self,
-        Parameters(params): Parameters<DocUpdateParams>,
-    ) -> Result<CallToolResult, ErrorData> {
-        let mut state = self.lock_state();
-        match answer_doc_update(&mut state, &params) {
-            Ok(output) => structured("doc_update", output),
             Err(error) => Ok(error_carrier(&error.code, &error.message)),
         }
     }
