@@ -6,8 +6,12 @@
 //! second listener (U18 shape A, the Python tool's `--serve`
 //! mechanics ported; the per-root keying is D13's flip of the
 //! Python's per-user slot), plus the WebSocket push channel: one
-//! poller per connection stat-watching the repo's store files, one
-//! text frame per change, the page's script reloading on arrival.
+//! poller per connection stat-watching the ROOT — the config and
+//! every registered repo's store files, the set re-derived from the
+//! registry each tick (U80: the rewards section is root-scoped, so
+//! a sibling repo's grant or a config flip pushes as a local write
+//! does) — one text frame per change, the page's script reloading
+//! on arrival.
 //!
 //! The module is six files split by responsibility — the spec's D8
 //! names one file, and the split is the house pattern once the
@@ -84,8 +88,9 @@ pub const HEALTH_MARKER: &str = "dacode-todo-mcp progress listener";
 /// The `/health` body: the marker and one newline.
 const HEALTH_BODY: &[u8] = b"dacode-todo-mcp progress listener\n";
 
-/// The push poll interval (D5, judgment call (a)): two `stat()`s per
-/// connected tab per tick, and sub-second push latency reads as live.
+/// The push poll interval (D5, judgment call (a)): a handful of
+/// `stat()`s and one small registry read per connected tab per tick,
+/// and sub-second push latency reads as live.
 pub const POLL_INTERVAL: Duration = Duration::from_millis(500);
 
 /// How long the accept loop sleeps between non-blocking accepts — the

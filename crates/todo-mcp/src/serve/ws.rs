@@ -334,9 +334,8 @@ pub(super) fn handle_ws_connection(
         }
     }
     let alive = Arc::new(AtomicBool::new(true));
-    let paths = [state.root.log_path(&slug), state.root.snapshot_path(&slug)];
     let poller = match poll::spawn_poller(
-        paths,
+        state.root.clone(),
         state.poll_interval,
         alive.clone(),
         write_half.clone(),

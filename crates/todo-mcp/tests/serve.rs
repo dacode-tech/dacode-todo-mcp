@@ -19,6 +19,9 @@
 //! test's child, which gets the default disposition); the WS push
 //! channel end-to-end (the RFC 6455 example key, a store write
 //! through the `Store` trait, the push frame within a bounded wait);
+//! the WS push's root-scoped watch (U80: a sibling repo's grant —
+//! which moves no file of the viewed repo's — pushes the page parked
+//! on another repo, and the re-render carries the moved totals);
 //! the WS control frames (a masked ping answered with a pong, a
 //! masked close echoed and the connection ended); and a corrupt-store
 //! root where `/health` stays 200 while `/` and the epic route answer
@@ -63,7 +66,7 @@ mod serve {
     use tempfile::TempDir;
     use todo_domain::{
         BaseCosts, EpicDraft, KindMultipliers, PriorityMultipliers, References, Repo, RepoSlug,
-        RewardsConfig, Size, Status, TaskDraft, TaskKind, Timestamp,
+        RewardsConfig, Size, Status, TaskDraft, TaskId, TaskKind, Timestamp,
     };
     use todo_store::{DataRoot, ReflectionTrigger, RewardsTotals, Store, TaskPatch};
 
@@ -601,6 +604,61 @@ mod serve {
         root
     }
 
+    /// The sibling repo's slug, parsed — the rewards fixture's second
+    /// repo, whose grants move no file of the viewed repo's.
+    fn sibling_slug() -> RepoSlug {
+        RepoSlug::from_str("sibling").expect("a valid slug")
+    }
+
+    /// The two-repo rewards root the sibling-grant test serves: the
+    /// rewards fixture's world plus a sibling repo holding one open
+    /// task ready to close — the grant that moves no file of the
+    /// viewed repo's. Returns the root and the sibling task's id.
+    fn sibling_rewards_fixture() -> (TempDir, TaskId) {
+        let root = rewards_serve_fixture();
+        let data_root = DataRoot::new(root.path());
+        let mut sibling = data_root
+            .register(Repo {
+                slug: sibling_slug(),
+                name: "sibling".to_owned(),
+                path: "/repos/sibling".to_owned(),
+                registered_at: ts("2026-10-02T09:00:00Z"),
+            })
+            .expect("the sibling registers");
+        let epic = sibling
+            .add_epic(
+                EpicDraft {
+                    title: "The sibling epic".to_owned(),
+                    description: "An epic.".to_owned(),
+                    status: Status::Open,
+                    references: References::new(),
+                },
+                ts("2026-10-02T09:01:00Z"),
+            )
+            .expect("the sibling epic lands");
+        let task = sibling
+            .add_task(
+                TaskDraft {
+                    epic: epic.id,
+                    kind: TaskKind::Task,
+                    title: "The sibling task".to_owned(),
+                    body: String::new(),
+                    status: Status::Open,
+                    verify: Some("cargo test -p sibling".to_owned()),
+                    evidence: None,
+                    note: None,
+                    references: References::new(),
+                    priority: None,
+                    until: None,
+                    estimate: None,
+                },
+                ts("2026-10-02T09:02:00Z"),
+            )
+            .expect("the sibling task lands");
+        drop(sibling);
+        (root, task.id)
+    }
+
     /// 4. A stale publication is taken over: SIGTERM (the default
     ///    disposition — no cleanup) leaves the publication; the next
     ///    `serve` binds its own port and answers.
@@ -880,6 +938,93 @@ mod serve {
         assert!(
             ended_honestly,
             "the connection ends after the close echo (read: {ended:?})"
+        );
+
+        shutdown(&mut child);
+    }
+
+    /// 6c. The WS push's root-scoped watch (U80): the rewards section
+    ///     spans every repo in the root, so the poller watches the root —
+    ///     a sibling repo's grant, which moves no file of the viewed
+    ///     repo's, pushes the frame, and the re-rendered page carries the
+    ///     moved totals.
+    #[test]
+    fn a_sibling_grant_pushes_the_watched_page() {
+        let (root, sibling_task) = sibling_rewards_fixture();
+        let port_file = root.path().join("serve.port");
+        let mut child = spawn_serve(root.path());
+        let port = wait_for_listener(&port_file, &mut child).expect("the listener answers");
+
+        // The handshake over the viewed repo — the page parked on
+        // `fixture` while the sibling holds the grant to come.
+        let mut stream = TcpStream::connect(("127.0.0.1", port)).expect("the WS socket connects");
+        stream
+            .set_read_timeout(Some(Duration::from_secs(5)))
+            .expect("the read timeout");
+        let request = format!(
+            "GET /ws?repo={FIXTURE} HTTP/1.1\r\nHost: 127.0.0.1\r\nUpgrade: websocket\r\n\
+             Connection: Upgrade\r\nSec-WebSocket-Key: {WS_KEY}\r\nSec-WebSocket-Version: 13\r\n\r\n"
+        );
+        stream
+            .write_all(request.as_bytes())
+            .expect("the handshake is sent");
+        let head = read_head(&mut stream);
+        assert!(
+            head.starts_with("HTTP/1.1 101"),
+            "the upgrade answers 101: {head}"
+        );
+
+        // No change: quiet for several poll intervals (the binary's
+        // interval is 500ms; three intervals plus slack).
+        stream
+            .set_read_timeout(Some(Duration::from_millis(1800)))
+            .expect("the read timeout");
+        let mut probe = [0u8; 1];
+        let quiet = stream.read(&mut probe);
+        assert!(
+            quiet.is_err(),
+            "no frame without a change (read: {quiet:?}, byte: {:?})",
+            probe.first()
+        );
+
+        // The sibling's closure: a grant in the sibling's log — no
+        // file of the viewed repo's moves (U80's recorded staleness,
+        // now watched).
+        let data_root = DataRoot::new(root.path());
+        let mut sibling = data_root.open(&sibling_slug()).expect("the sibling opens");
+        sibling
+            .close_task(
+                sibling_task,
+                ts("2026-10-02T10:00:00Z"),
+                TaskPatch {
+                    status: Some(Status::Closed),
+                    evidence: Some(Some("the sibling closure evidence".to_owned())),
+                    ..TaskPatch::default()
+                },
+                None,
+            )
+            .expect("the sibling grant lands");
+        drop(sibling);
+
+        stream
+            .set_read_timeout(Some(Duration::from_secs(5)))
+            .expect("the read timeout");
+        let (opcode, payload) = read_frame(&mut stream);
+        assert_eq!(opcode, 0x1, "the push is a text frame");
+        assert_eq!(
+            payload,
+            format!("{{\"repo\":\"{FIXTURE}\",\"changed\":true}}").as_bytes()
+        );
+
+        // And the re-rendered page carries the moved totals: the
+        // sibling's grant (the default M bucket, 25) beside the
+        // fixture's own 25.
+        let (status, body) = http_get(port, &format!("/?repo={FIXTURE}"));
+        assert_eq!(status, Some(200));
+        assert!(
+            body.contains("<h2>Rewards — 50 coffee total</h2>"),
+            "the totals moved without a local event: {}",
+            &body[..body.len().min(300)]
         );
 
         shutdown(&mut child);
