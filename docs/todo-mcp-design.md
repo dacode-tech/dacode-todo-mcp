@@ -267,7 +267,12 @@ that corruption is a named error, never a silent truncation:
   `todo-mcp` subcommand exposes it either. If a caller ever lands, taking
   a backup first is the contract, and the log header gains a persistent
   compaction marker at that point — a golden-moving format change spent
-  only when something can actually compact.
+  only when something can actually compact. A compaction caller also
+  inherits the rewards constraint (U76, resolved 2026-10-17): §15's
+  per-root totals are derived from the log's `reward_grant` events and
+  never stored, so reward events must survive compaction — exempt from
+  dropping, or the totals' source moves to an accumulator the snapshot
+  carries — or the totals silently zero.
 
 ## 5. Graph Semantics and Ordering
 
