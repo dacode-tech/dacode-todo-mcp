@@ -3,6 +3,7 @@ name = "todo-store"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
+license.workspace = true
 description = "persistence behind a single Store trait; the JSONL engine (D1) is sealed inside this crate"
 
 [dependencies]

@@ -296,3 +296,8 @@ ipmi-collector, infra-hostrail-server, and this one).
   — the sign-off record for every design decision.
 - [AGENTS.md](AGENTS.md) — repository-wide instructions for agents
   working in this checkout.
+
+## License
+
+Dual-licensed under [MIT](LICENSE-MIT) or
+[Apache-2.0](LICENSE-Apache-2.0) — your choice.
