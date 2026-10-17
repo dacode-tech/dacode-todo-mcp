@@ -716,4 +716,38 @@ mod daemon {
             String::from_utf8_lossy(&second_output.stderr)
         );
     }
+
+    /// 10. U44's close: a cold root's first register brings the view
+    ///     up mid-session. The daemon's startup ensure failed on the
+    ///     empty registry (the one unavailable line, stderr's); the
+    ///     register's re-ensure binds and publishes — the publication
+    ///     appears and `/health` answers, no daemon restart — and the
+    ///     register's own answer is the store's new state, unaffected.
+    #[test]
+    fn the_first_register_brings_the_cold_root_s_view_up() {
+        let root = TempDir::new().expect("a fresh cold root");
+        let port_file = root.path().join("serve.port");
+        let mut child = spawn_daemon(root.path());
+        let mut session = Session::open(root.path(), "{}");
+        session.finish_handshake();
+
+        let response = session.call(
+            2,
+            "repo_register",
+            r#"{"slug":"fixture","name":"Fixture","path":"/repos/fixture"}"#,
+        );
+        assert_eq!(slug_of(&response), FIXTURE, "{response}");
+
+        let port = wait_for_health(&port_file, &mut child).expect("the live view is up");
+        // The page itself waits for the board: an epic-less graph is
+        // the render's named refusal (the render suite's own
+        // contract), so the health probe is the view's up-ness —
+        // U44's contract, not the page's content.
+        let (status, body) = http_get(port, "/health");
+        assert_eq!(status, Some(200));
+        assert_eq!(body, format!("{HEALTH_MARKER}\n"));
+
+        let output = terminate(child, DRAIN_TIMEOUT + Duration::from_secs(5));
+        assert_eq!(output.status.code(), Some(0));
+    }
 }

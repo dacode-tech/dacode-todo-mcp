@@ -25,6 +25,7 @@ use todo_domain::{Repo, RepoSlug};
 use todo_store::Registry;
 
 use crate::dto::RepoDto;
+use crate::serve::{POLL_INTERVAL, port_file, serve};
 use crate::{ServerState, TodoServer, ToolError, error_carrier, repo_of, structured, time};
 
 /// `repo_register`'s parameters (§7): the caller-chosen stable slug —
@@ -153,6 +154,34 @@ fn answer_repo_show(
     Ok(RepoDto::from(graph.graph().repo()))
 }
 
+/// The live view's re-ensure (U44's close): a successful
+/// `repo_register` brings the view up when it is down. The cold-root
+/// shape — a daemon spawned on a registry-less root, whose startup
+/// ensure failed and never retried — ends at the first register
+/// instead of the next daemon spawn. The probe-first entry is a
+/// no-op on a healthy root (a live listener attaches, nothing
+/// binds); best-effort by contract — the register's answer is the
+/// store's, a view that will not bind never fails the tool, and the
+/// failure is the serve module's own D4 discipline: one stderr
+/// line. The session's cwd feeds the view's default-repo tier
+/// exactly as the daemon's startup ensure fed it its own, falling
+/// back to the registry's first slug — on a cold root, the repo
+/// just registered. The call runs under the tool body's guards, so
+/// a publication naming a wedged listener delays concurrent calls
+/// by the probe's deadline bound — rare by construction (a register
+/// is), recorded here rather than restructured around.
+fn ensure_live_view(state: &ServerState<'_>) {
+    let publication = port_file(&state.core.root);
+    if let Err(message) = serve(
+        &state.core.root,
+        &publication,
+        state.session.cwd.as_deref(),
+        POLL_INTERVAL,
+    ) {
+        eprintln!("todo-mcp: the live view is unavailable: {message}");
+    }
+}
+
 #[tool_router(router = tool_router, vis = "pub(crate)")]
 impl TodoServer {
     /// Register a repository under its stable slug key: the store is created under the data root, the registry lists it, and the response is the new state.
@@ -193,6 +222,8 @@ impl TodoServer {
                 // repo's single writer from here on (§8) — and the map
                 // is U20(b)'s answer surface.
                 state.core.handles.insert(slug, Box::new(store));
+                // U44's close: a register never leaves the view down.
+                ensure_live_view(&state);
                 // The shared success arm: its serializer-fault bypass of
                 // the carrier is deliberate and documented on the helper
                 // (lib.rs's `structured`).

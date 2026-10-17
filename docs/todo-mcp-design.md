@@ -1144,6 +1144,16 @@ connect, so the view is up whenever any client can reach the
 tracker at all). The per-root publication discipline is unchanged,
 and the `serve` subcommand keeps its own SIGINT shutdown.
 
+**D13 amendment (2026-10-17, closing U44):** a successful
+`repo_register` re-ensures the view through the same probe-first
+entry — a no-op when the view is already up, and the cold-root
+residual (a daemon spawned on a registry-less root, whose startup
+ensure failed and never retried) ends at the first register instead
+of the next daemon spawn. Best-effort by contract: the register's
+answer is the store's, and a view that will not bind never fails the
+tool — its failure is one stderr line, the serve module's own
+discipline.
+
 D25 (signed 2026-10-13) changes the process topology: the
 no-argument invocation becomes the thin shim — it connects to the
 root's daemon over a unix socket (`<root>/serve.sock`), spawning it
