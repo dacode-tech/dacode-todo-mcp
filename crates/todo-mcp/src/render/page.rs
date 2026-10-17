@@ -353,7 +353,7 @@ fn decision_rows(model: &Model) -> String {
 /// HTML parser ends a script element at the first `</script` sequence
 /// whatever the element's type, and `JSON.parse` reads the escaped
 /// form back as `/`).
-fn detail_data(model: &Model) -> Result<String, String> {
+pub(super) fn detail_data(model: &Model) -> Result<String, String> {
     let mut nodes: BTreeMap<String, DetailNodeDto> = BTreeMap::new();
     for lane in &model.lanes {
         for task in &lane.tasks {
@@ -454,7 +454,7 @@ pub(super) fn pct(a: usize, b: usize) -> String {
 }
 
 /// The graph legend — static.
-const LEGEND: &str = "<p class=\"legend\">\n<span><i class=\"sw\" \
+pub(super) const LEGEND: &str = "<p class=\"legend\">\n<span><i class=\"sw\" \
 style=\"background:#1f6f43\"></i>done / signed</span>\n<span><i class=\"sw\" \
 style=\"background:#8a5a00\"></i>open / in work</span>\n<span><i class=\"sw\" \
 style=\"background:#9b1c1c\"></i>blocked</span>\n<span>— the lanes are the epics; a decision \

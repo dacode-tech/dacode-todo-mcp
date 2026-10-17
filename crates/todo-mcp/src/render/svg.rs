@@ -6,9 +6,9 @@
 //! round-trip (deterministic; the Python's `123.0` spelling becomes
 //! `123` — a recorded divergence, structure-identical).
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
-use super::model::Model;
+use super::model::{Lane, Model};
 use super::{esc, short, short_id};
 
 /// The SVG dependency graph — the Python tool's `render_svg` ported:
@@ -71,17 +71,7 @@ pub(super) fn render_svg(model: &Model) -> String {
         ));
     }
     for (from, to) in &model.edges {
-        let (Some(&(x1, y1)), Some(&(x2, y2))) = (pos.get(from), pos.get(to)) else {
-            continue;
-        };
-        let (x1e, y1e, x2e, y2e) = (x1 + 186, y1 + 15, x2, y2 + 15);
-        let mx = (x1e + x2e) as f64 / 2.0;
-        out.push_str(&format!(
-            "<path class=\"edge\" d=\"M{x1e},{y1e} C{mx},{y1e} {mx},{y2e} {x2e},{y2e}\" \
-             marker-end=\"url(#arrg)\"><title>{} gates {}</title></path>",
-            esc(&short_id(from)),
-            esc(&short_id(to))
-        ));
+        svg_edge(&mut out, &pos, from, to);
     }
     for lane in &model.lanes {
         for task in &lane.tasks {
@@ -107,6 +97,199 @@ pub(super) fn render_svg(model: &Model) -> String {
     }
     out.push_str("</svg>");
     out
+}
+
+/// One edge — the bezier from the source node's right edge to the
+/// target's left, the control points vertical at the horizontal
+/// midpoint. Both endpoints must be in `pos`; a missing one skips
+/// the edge (the caller's filter decides which edges a graph draws,
+/// this only draws). Returns whether the edge drew.
+fn svg_edge(out: &mut String, pos: &BTreeMap<String, (i64, i64)>, from: &str, to: &str) -> bool {
+    let (Some(&(x1, y1)), Some(&(x2, y2))) = (pos.get(from), pos.get(to)) else {
+        return false;
+    };
+    let (x1e, y1e, x2e, y2e) = (x1 + 186, y1 + 15, x2, y2 + 15);
+    let mx = (x1e + x2e) as f64 / 2.0;
+    out.push_str(&format!(
+        "<path class=\"edge\" d=\"M{x1e},{y1e} C{mx},{y1e} {mx},{y2e} {x2e},{y2e}\" \
+         marker-end=\"url(#arrg)\"><title>{} gates {}</title></path>",
+        esc(&short_id(from)),
+        esc(&short_id(to))
+    ));
+    true
+}
+
+/// The epic page's dependency graph (the user's 2026-10-17 request):
+/// the lane's nodes in one column — the repo page's lane shape, tasks
+/// then decisions in id order — beside an "outside this epic" column
+/// of the external endpoints the lane's edges wire to, id-sorted (an
+/// ordering the repo page's lanes do not need: the outside set is
+/// mixed kinds by nature). The edges are the repo page's own drawing
+/// filtered to the epic's wiring: an edge draws when at least one
+/// endpoint is in the lane, and a crossing edge's external end joins
+/// the outside column — an internal edge's target is the lane's own,
+/// never an outside node. An edge endpointing an epic (§5.1 lets a
+/// decision block one) passes the filter but draws nothing: the epic
+/// is no task or decision, sits in no facts map and no lane, and
+/// `svg_edge` skips it — the repo page's own degradation. Backward
+/// edges (a lane node gating an outside node) render as the repo
+/// page's same-lane edges do: the curve loops out and back.
+pub(super) fn render_epic_svg(model: &Model, lane: &Lane) -> EpicGraph {
+    const PAD: i64 = 54;
+    const COLW: i64 = 214;
+    const ROWH: i64 = 44;
+    // The lane's membership — the edge filter.
+    let mut lane_ids: BTreeSet<String> = BTreeSet::new();
+    for task in &lane.tasks {
+        lane_ids.insert(task.id.to_string());
+    }
+    for decision in &lane.decisions {
+        lane_ids.insert(decision.id.to_string());
+    }
+    // Every node's facts, one walk of the lanes — the outside
+    // endpoints' lookups. A node no lane holds is not drawn and its
+    // edges skip in `svg_edge`, the repo page's own degradation.
+    let mut facts: BTreeMap<String, (&str, &str, &str)> = BTreeMap::new();
+    for other in &model.lanes {
+        for task in &other.tasks {
+            facts.insert(
+                task.id.to_string(),
+                (
+                    task.kind.as_str(),
+                    task.status.as_str(),
+                    task.title.as_str(),
+                ),
+            );
+        }
+        for decision in &other.decisions {
+            facts.insert(
+                decision.id.to_string(),
+                (
+                    "decision",
+                    decision.status.as_str(),
+                    decision.title.as_str(),
+                ),
+            );
+        }
+    }
+    let mut outside: BTreeMap<String, (&str, &str, &str)> = BTreeMap::new();
+    for (from, to) in &model.edges {
+        let (from_in, to_in) = (lane_ids.contains(from), lane_ids.contains(to));
+        // Internal edges (both endpoints in the lane) and unrelated
+        // ones (neither) contribute no outside endpoint; a crossing
+        // edge contributes its external end — never its lane end.
+        let other = match (from_in, to_in) {
+            (true, false) => to,
+            (false, true) => from,
+            _ => continue,
+        };
+        if let Some(node) = facts.get(other) {
+            outside.insert(other.clone(), *node);
+        }
+    }
+    // The layout: the outside column at the left, the lane at the
+    // right — the repo page's own geometry.
+    let mut pos: BTreeMap<String, (i64, i64)> = BTreeMap::new();
+    let outside_x = PAD;
+    let mut y = PAD + 34;
+    for id in outside.keys() {
+        pos.insert(id.clone(), (outside_x, y));
+        y += ROWH;
+    }
+    let lane_x = PAD + COLW;
+    let mut y = PAD + 34;
+    for task in &lane.tasks {
+        pos.insert(task.id.to_string(), (lane_x, y));
+        y += ROWH;
+    }
+    for decision in &lane.decisions {
+        pos.insert(decision.id.to_string(), (lane_x, y));
+        y += ROWH;
+    }
+    let lane_count = (lane.tasks.len() + lane.decisions.len()) as i64;
+    let height = PAD + 60 + outside.len().max(lane_count as usize) as i64 * ROWH;
+    let width = PAD * 2 + 2 * COLW;
+    let mut out = String::new();
+    out.push_str(&format!(
+        "<svg id=\"graph\" viewBox=\"0 0 {width} {height}\" width=\"{width}\" \
+         height=\"{height}\" xmlns=\"http://www.w3.org/2000/svg\" role=\"img\" \
+         aria-label=\"task dependency graph\">"
+    ));
+    out.push_str(DEFS);
+    out.push_str(&format!(
+        "<text id=\"lane-outside\" class=\"lane\" x=\"{outside_x}\" y=\"{}\">outside this epic</text>",
+        PAD - 8
+    ));
+    out.push_str(&format!(
+        "<line class=\"laneline\" x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\"/>",
+        outside_x - 10,
+        PAD + 4,
+        outside_x - 10,
+        height - 20
+    ));
+    let header = match &lane.milestone {
+        Some(m) => format!("{m} · {}", short(&lane.epic.title, 24)),
+        None => short(&lane.epic.title, 24),
+    };
+    out.push_str(&format!(
+        "<text id=\"lane-{}\" class=\"lane\" x=\"{lane_x}\" y=\"{}\">{}</text>",
+        lane.epic.id.number(),
+        PAD - 8,
+        esc(&header)
+    ));
+    out.push_str(&format!(
+        "<line class=\"laneline\" x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\"/>",
+        lane_x - 10,
+        PAD + 4,
+        lane_x - 10,
+        height - 20
+    ));
+    let mut edges = 0;
+    for (from, to) in &model.edges {
+        if lane_ids.contains(from) || lane_ids.contains(to) {
+            edges += svg_edge(&mut out, &pos, from, to) as usize;
+        }
+    }
+    for (id, (kind, status, title)) in &outside {
+        svg_node(&mut out, &pos, id, kind, status, title);
+    }
+    for task in &lane.tasks {
+        svg_node(
+            &mut out,
+            &pos,
+            &task.id.to_string(),
+            task.kind.as_str(),
+            task.status.as_str(),
+            &task.title,
+        );
+    }
+    for decision in &lane.decisions {
+        svg_node(
+            &mut out,
+            &pos,
+            &decision.id.to_string(),
+            "decision",
+            decision.status.as_str(),
+            &decision.title,
+        );
+    }
+    out.push_str("</svg>");
+    EpicGraph {
+        svg: out,
+        nodes: outside.len() + lane.tasks.len() + lane.decisions.len(),
+        edges,
+    }
+}
+
+/// The epic-scoped graph's render and its counts — the SVG plus the
+/// numbers the page's section header carries.
+pub(super) struct EpicGraph {
+    /// The SVG text.
+    pub(super) svg: String,
+    /// The drawn nodes: the lane's plus the outside endpoints.
+    pub(super) nodes: usize,
+    /// The drawn edges: the internal plus the crossing ones.
+    pub(super) edges: usize,
 }
 
 /// One SVG node group — the rect, the hover title (id, kind, status,

@@ -88,6 +88,21 @@ a.sname:hover { text-decoration: underline; }
 <div class="cards"><div class="card"><i>Tasks</i><span class="p">100%</span><b>2/2</b><small>every task under the epic, all four kinds</small></div><div class="card"><i>Blocked</i><span class="p">0%</span><b>0</b><small>tasks whose status is blocked</small></div><div class="card"><i>Decisions</i><span class="p">—</span><b>0/0 open</b><small>gating this epic or one of its tasks; an open one gates work</small></div></div>
 <p class="legend"><span>task 2/2 done</span><span>gate 0/0 done</span><span>finding 0/0 done</span><span>debt 0/0 done</span></p>
 
+<h2>Dependency graph — 2 nodes, 0 edges</h2>
+<div class="scroll"><svg id="graph" viewBox="0 0 536 202" width="536" height="202" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="task dependency graph"><defs><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#8a8f98"/></marker><marker id="arrg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#2f6f4f"/></marker></defs><text id="lane-outside" class="lane" x="54" y="46">outside this epic</text><line class="laneline" x1="44" y1="58" x2="44" y2="182"/><text id="lane-1" class="lane" x="268" y="46">M1 · Milestone epic</text><line class="laneline" x1="258" y1="58" x2="258" y2="182"/><g class="node" data-id="fixture:U1" transform="translate(268,88)"><rect rx="7" width="186" height="30" fill="#e6f4ec" stroke="#1f6f43" stroke-width="1.6"/><title>U1 · task · closed
+Estimated small</title><text class="nid" x="8" y="19" fill="#1f6f43">▢ U1</text><text class="nlabel" x="46" y="19">Estimated small</text><circle class="dot" cx="176" cy="8" r="4" fill="#1f6f43"/></g><g class="node" data-id="fixture:U2" transform="translate(268,132)"><rect rx="7" width="186" height="30" fill="#e6f4ec" stroke="#1f6f43" stroke-width="1.6"/><title>U2 · task · closed
+Unestimated</title><text class="nid" x="8" y="19" fill="#1f6f43">▢ U2</text><text class="nlabel" x="46" y="19">Unestimated</text><circle class="dot" cx="176" cy="8" r="4" fill="#1f6f43"/></g></svg></div>
+<p class="legend">
+<span><i class="sw" style="background:#1f6f43"></i>done / signed</span>
+<span><i class="sw" style="background:#8a5a00"></i>open / in work</span>
+<span><i class="sw" style="background:#9b1c1c"></i>blocked</span>
+<span>— the lanes are the epics; a decision sits in the lane of the epic it gates</span>
+<span>▢ task ▣ gate ◆ finding ▲ debt ✦ decision</span>
+<span>click a node for its fields and edges</span>
+</p>
+<div id="detail"></div>
+<script type="application/json" id="detail-data">{"nodes":{"fixture:U1":{"id":"fixture:U1","kind":"task","status":"closed","title":"Estimated small","verify":"cargo test -p fixture","evidence":"the closure evidence","note":null,"resolution":null},"fixture:U2":{"id":"fixture:U2","kind":"task","status":"closed","title":"Unestimated","verify":"cargo test -p fixture","evidence":"the closure evidence","note":null,"resolution":null},"fixture:U3":{"id":"fixture:U3","kind":"task","status":"open","title":"Estimated large","verify":"cargo test -p fixture","evidence":null,"note":null,"resolution":null},"fixture:U4":{"id":"fixture:U4","kind":"task","status":"open","title":"Unestimated open","verify":"cargo test -p fixture","evidence":null,"note":null,"resolution":null}},"edges":[]}</script>
+
 <h2>Tasks — 2 rows</h2>
 <table><thead><tr><th>id</th><th>kind</th><th>status</th><th>what</th><th>est</th><th>actual</th><th>waits on</th></tr></thead>
 <tbody><tr><td class="mono">U1</td><td>task</td><td class="st-closed">closed</td><td>Estimated small</td><td class="mono">S</td><td class="mono">S</td><td></td></tr><tr><td class="mono">U2</td><td>task</td><td class="st-closed">closed</td><td>Unestimated</td><td class="mono">-</td><td class="mono">M</td><td></td></tr></tbody></table>
@@ -97,7 +112,26 @@ a.sname:hover { text-decoration: underline; }
 <tbody></tbody></table>
 </main>
 </div>
-<script>
+<script>document.addEventListener('click', event => {
+  const n = event.target.closest('.node');
+  if (!n) return;
+  const source = document.getElementById('detail-data');
+  if (!source) return;
+  const data = JSON.parse(source.textContent);
+  const id = n.dataset.id, d = data.nodes[id];
+  const box = document.getElementById('detail');
+  if (!d) return;
+  const rel = data.edges.filter(e => e.from === id || e.to === id)
+    .map(e => `<div>${e.from} ${e.from === id ? '→' : '←'} ${e.to}</div>`).join('');
+  box.innerHTML = `<b>${id}</b> · ${d.kind || 'decision'} · ${d.status}<br>`
+    + `${d.title || ''}`
+    + (d.verify ? `<br><br><b>verify:</b> ${d.verify}` : '')
+    + (d.evidence ? `<br><b>evidence:</b> ${d.evidence}` : '')
+    + (d.note ? `<br><b>note:</b> ${d.note}` : '')
+    + (d.resolution ? `<br><b>resolution:</b> ${d.resolution}` : '')
+    + `<br><br><b>edges</b><br>${rel || 'none drawn'}`;
+  box.style.display = 'block';
+});
 let liveWs = null, liveRepo = 'fixture';
 connectWs();
 let fetchGen = 0;

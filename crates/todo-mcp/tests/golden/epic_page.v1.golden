@@ -88,6 +88,27 @@ a.sname:hover { text-decoration: underline; }
 <div class="cards"><div class="card"><i>Tasks</i><span class="p">0%</span><b>0/5</b><small>every task under the epic, all four kinds</small></div><div class="card"><i>Blocked</i><span class="p">—</span><b>1</b><small>tasks whose status is blocked</small></div><div class="card"><i>Decisions</i><span class="p">100%</span><b>2/2 open</b><small>gating this epic or one of its tasks; an open one gates work</small></div></div>
 <p class="legend"><span>task 0/3 done</span><span>gate 0/0 done</span><span>finding 0/1 done</span><span>debt 0/1 done</span></p>
 
+<h2>Dependency graph — 8 nodes, 2 edges</h2>
+<div class="scroll"><svg id="graph" viewBox="0 0 536 422" width="536" height="422" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="task dependency graph"><defs><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#8a8f98"/></marker><marker id="arrg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#2f6f4f"/></marker></defs><text id="lane-outside" class="lane" x="54" y="46">outside this epic</text><line class="laneline" x1="44" y1="58" x2="44" y2="402"/><text id="lane-2" class="lane" x="268" y="46">M1 · Milestone one</text><line class="laneline" x1="258" y1="58" x2="258" y2="402"/><path class="edge" d="M454,367 C361,367 361,103 268,103" marker-end="url(#arrg)"><title>D2 gates U3</title></path><path class="edge" d="M240,103 C254,103 254,103 268,103" marker-end="url(#arrg)"><title>U1 gates U3</title></path><g class="node" data-id="fixture:U1" transform="translate(54,88)"><rect rx="7" width="186" height="30" fill="#e6f4ec" stroke="#1f6f43" stroke-width="1.6"/><title>U1 · task · closed
+Close the first milestone</title><text class="nid" x="8" y="19" fill="#1f6f43">▢ U1</text><text class="nlabel" x="46" y="19">Close the first miles…</text><circle class="dot" cx="176" cy="8" r="4" fill="#1f6f43"/></g><g class="node" data-id="fixture:U3" transform="translate(268,88)"><rect rx="7" width="186" height="30" fill="#fdf3e0" stroke="#8a5a00" stroke-width="1.6"/><title>U3 · task · open
+Wire the sensor</title><text class="nid" x="8" y="19" fill="#8a5a00">▢ U3</text><text class="nlabel" x="46" y="19">Wire the sensor</text><circle class="dot" cx="176" cy="8" r="4" fill="#8a5a00"/></g><g class="node" data-id="fixture:U4" transform="translate(268,132)"><rect rx="7" width="186" height="30" fill="#fdf3e0" stroke="#8a5a00" stroke-width="1.6"/><title>U4 · task · in_work
+Calibrate</title><text class="nid" x="8" y="19" fill="#8a5a00">▢ U4</text><text class="nlabel" x="46" y="19">Calibrate</text><circle class="dot" cx="176" cy="8" r="4" fill="#8a5a00"/></g><g class="node" data-id="fixture:U5" transform="translate(268,176)"><rect rx="7" width="186" height="30" fill="#fdf3e0" stroke="#8a5a00" stroke-width="1.6"/><title>U5 · finding · open
+A finding</title><text class="nid" x="8" y="19" fill="#8a5a00">◆ U5</text><text class="nlabel" x="46" y="19">A finding</text><circle class="dot" cx="176" cy="8" r="4" fill="#8a5a00"/></g><g class="node" data-id="fixture:U6" transform="translate(268,220)"><rect rx="7" width="186" height="30" fill="#fdf3e0" stroke="#8a5a00" stroke-width="1.6"/><title>U6 · debt · deferred
+Known debt</title><text class="nid" x="8" y="19" fill="#8a5a00">▲ U6</text><text class="nlabel" x="46" y="19">Known debt</text><circle class="dot" cx="176" cy="8" r="4" fill="#8a5a00"/></g><g class="node" data-id="fixture:U7" transform="translate(268,264)"><rect rx="7" width="186" height="30" fill="#fdeaea" stroke="#9b1c1c" stroke-width="1.6"/><title>U7 · task · blocked
+The blocked one</title><text class="nid" x="8" y="19" fill="#9b1c1c">▢ U7</text><text class="nlabel" x="46" y="19">The blocked one</text><circle class="dot" cx="176" cy="8" r="4" fill="#9b1c1c"/></g><g class="node" data-id="fixture:D1" transform="translate(268,308)"><rect rx="7" width="186" height="30" fill="#fdf3e0" stroke="#8a5a00" stroke-width="1.6"/><title>D1 · decision · open
+Gate milestone one</title><text class="nid" x="8" y="19" fill="#8a5a00">✦ D1</text><text class="nlabel" x="46" y="19">Gate milestone one</text><circle class="dot" cx="176" cy="8" r="4" fill="#8a5a00"/></g><g class="node" data-id="fixture:D2" transform="translate(268,352)"><rect rx="7" width="186" height="30" fill="#fdf3e0" stroke="#8a5a00" stroke-width="1.6"/><title>D2 · decision · open
+Gate the wiring task</title><text class="nid" x="8" y="19" fill="#8a5a00">✦ D2</text><text class="nlabel" x="46" y="19">Gate the wiring task</text><circle class="dot" cx="176" cy="8" r="4" fill="#8a5a00"/></g></svg></div>
+<p class="legend">
+<span><i class="sw" style="background:#1f6f43"></i>done / signed</span>
+<span><i class="sw" style="background:#8a5a00"></i>open / in work</span>
+<span><i class="sw" style="background:#9b1c1c"></i>blocked</span>
+<span>— the lanes are the epics; a decision sits in the lane of the epic it gates</span>
+<span>▢ task ▣ gate ◆ finding ▲ debt ✦ decision</span>
+<span>click a node for its fields and edges</span>
+</p>
+<div id="detail"></div>
+<script type="application/json" id="detail-data">{"nodes":{"fixture:D1":{"id":"fixture:D1","kind":"decision","status":"open","title":"Gate milestone one","verify":null,"evidence":null,"note":null,"resolution":null},"fixture:D2":{"id":"fixture:D2","kind":"decision","status":"open","title":"Gate the wiring task","verify":null,"evidence":null,"note":null,"resolution":null},"fixture:D3":{"id":"fixture:D3","kind":"decision","status":"signed","title":"The encoder profile","verify":null,"evidence":null,"note":null,"resolution":"signed (a) 2026-10-02"},"fixture:U1":{"id":"fixture:U1","kind":"task","status":"closed","title":"Close the first milestone","verify":"cargo test -p fixture","evidence":"the milestone closed green","note":null,"resolution":null},"fixture:U10":{"id":"fixture:U10","kind":"gate","status":"open","title":"The next gate","verify":"cargo test -p fixture","evidence":null,"note":null,"resolution":null},"fixture:U2":{"id":"fixture:U2","kind":"gate","status":"closed","title":"The zero gate","verify":"cargo test -p fixture","evidence":"the gate ran green","note":null,"resolution":null},"fixture:U3":{"id":"fixture:U3","kind":"task","status":"open","title":"Wire the sensor","verify":"cargo test -p fixture","evidence":null,"note":null,"resolution":null},"fixture:U4":{"id":"fixture:U4","kind":"task","status":"in_work","title":"Calibrate","verify":"cargo test -p fixture","evidence":null,"note":null,"resolution":null},"fixture:U5":{"id":"fixture:U5","kind":"finding","status":"open","title":"A finding","verify":"cargo test -p fixture","evidence":null,"note":null,"resolution":null},"fixture:U6":{"id":"fixture:U6","kind":"debt","status":"deferred","title":"Known debt","verify":"cargo test -p fixture","evidence":null,"note":"after milestone zero","resolution":null},"fixture:U7":{"id":"fixture:U7","kind":"task","status":"blocked","title":"The blocked one","verify":"cargo test -p fixture","evidence":null,"note":"needs D2","resolution":null},"fixture:U8":{"id":"fixture:U8","kind":"task","status":"open","title":"A follow-up","verify":"cargo test -p fixture","evidence":null,"note":null,"resolution":null},"fixture:U9":{"id":"fixture:U9","kind":"task","status":"wontfix","title":"Declined","verify":"cargo test -p fixture","evidence":null,"note":null,"resolution":null}},"edges":[{"from":"fixture:D1","to":"fixture:E2"},{"from":"fixture:D2","to":"fixture:U3"},{"from":"fixture:D3","to":"fixture:U8"},{"from":"fixture:U1","to":"fixture:U3"},{"from":"fixture:U8","to":"fixture:U10"}]}</script>
+
 <h2>Tasks — 5 rows</h2>
 <table><thead><tr><th>id</th><th>kind</th><th>status</th><th>what</th><th>waits on</th></tr></thead>
 <tbody><tr><td class="mono">U3</td><td>task</td><td class="st-open">open</td><td>Wire the sensor</td><td>D1</td></tr><tr><td class="mono">U4</td><td>task</td><td class="st-in_work">in_work</td><td>Calibrate</td><td>D1</td></tr><tr><td class="mono">U5</td><td>finding</td><td class="st-open">open</td><td>A finding</td><td>D1</td></tr><tr><td class="mono">U6</td><td>debt</td><td class="st-deferred">deferred</td><td>Known debt</td><td>D1</td></tr><tr><td class="mono">U7</td><td>task</td><td class="st-blocked">blocked</td><td>The blocked one</td><td>D1</td></tr></tbody></table>
@@ -97,7 +118,26 @@ a.sname:hover { text-decoration: underline; }
 <tbody><tr><td class="mono">D1</td><td class="st-open">open</td><td>Gate milestone one</td><td class="mono">E2</td><td>medium</td></tr><tr><td class="mono">D2</td><td class="st-open">open</td><td>Gate the wiring task</td><td class="mono">U3</td><td>low</td></tr></tbody></table>
 </main>
 </div>
-<script>
+<script>document.addEventListener('click', event => {
+  const n = event.target.closest('.node');
+  if (!n) return;
+  const source = document.getElementById('detail-data');
+  if (!source) return;
+  const data = JSON.parse(source.textContent);
+  const id = n.dataset.id, d = data.nodes[id];
+  const box = document.getElementById('detail');
+  if (!d) return;
+  const rel = data.edges.filter(e => e.from === id || e.to === id)
+    .map(e => `<div>${e.from} ${e.from === id ? '→' : '←'} ${e.to}</div>`).join('');
+  box.innerHTML = `<b>${id}</b> · ${d.kind || 'decision'} · ${d.status}<br>`
+    + `${d.title || ''}`
+    + (d.verify ? `<br><br><b>verify:</b> ${d.verify}` : '')
+    + (d.evidence ? `<br><b>evidence:</b> ${d.evidence}` : '')
+    + (d.note ? `<br><b>note:</b> ${d.note}` : '')
+    + (d.resolution ? `<br><b>resolution:</b> ${d.resolution}` : '')
+    + `<br><br><b>edges</b><br>${rel || 'none drawn'}`;
+  box.style.display = 'block';
+});
 let liveWs = null, liveRepo = 'fixture';
 connectWs();
 let fetchGen = 0;

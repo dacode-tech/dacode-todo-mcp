@@ -887,6 +887,34 @@ mod progress {
         assert_eq!(fixture_epic_page(&root, 2), fixture_epic_page(&root, 2));
     }
 
+    /// The epic graph draws each node exactly once (the outside-set
+    /// rule): a crossing edge's external end joins the outside column,
+    /// an internal edge's target is the lane's own — never an outside
+    /// node. The fixture's E2 lane carries an internal edge (D2 gates
+    /// U3), the exact shape that once double-drew U3; the golden pins
+    /// the bytes, this pins the rule the golden cannot express.
+    #[test]
+    fn the_epic_graph_draws_each_node_once() {
+        let root = switcher_fixture();
+        let page = fixture_epic_page(&root, 2);
+        let ids: Vec<String> = page
+            .split(r#"data-id=""#)
+            .skip(1)
+            .map(|rest| {
+                let end = rest.find('"').expect("the attribute is quoted");
+                rest[..end].to_owned()
+            })
+            .collect();
+        let mut distinct = ids.clone();
+        distinct.sort();
+        distinct.dedup();
+        assert_eq!(
+            ids.len(),
+            distinct.len(),
+            "every graph node draws exactly once: {ids:?}"
+        );
+    }
+
     /// The epic page's sidebar marks the requested epic current (the
     /// marked non-link) while the switcher still marks the rendered
     /// repo, and the non-current epics — same-repo and cross-repo
@@ -1027,11 +1055,11 @@ mod progress {
     }
 
     /// The click-detail data rides an inert JSON element inside the
-    /// swap region (U54's staleness fix): the repo page carries it —
-    /// and no `const DATA` global in the executable script, whose
-    /// re-execution would throw — while the epic page carries neither
-    /// (its tables are plain; a resident click-detail handler is
-    /// inert there).
+    /// swap region (U54's staleness fix): both pages carry it — and
+    /// no `const DATA` global in the executable script, whose
+    /// re-execution would throw. The epic page gained the element
+    /// with its dependency graph (2026-10-17): the graph's nodes are
+    /// clickable exactly as the repo page's are.
     #[test]
     fn the_detail_data_rides_an_inert_element_inside_the_swap_region() {
         let root = switcher_fixture();
@@ -1046,8 +1074,8 @@ mod progress {
         );
         let epic = fixture_epic_page(&root, 2);
         assert!(
-            !epic.contains(r#"<script type="application/json" id="detail-data">"#),
-            "the epic page carries no data element"
+            epic.contains(r#"<script type="application/json" id="detail-data">"#),
+            "the epic page carries the data element its graph's nodes click against"
         );
     }
 

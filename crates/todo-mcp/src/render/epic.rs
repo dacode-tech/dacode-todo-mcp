@@ -1,33 +1,37 @@
 //! The epic-scoped page (E12's per-epic arc, U52): one epic's lane as
 //! a page — the epic's header (status, milestone, description), its
-//! counts, its tasks with statuses and waits, and its gating
-//! decisions — for the serve route `/repo/<slug>/epic/<number>` (U53
-//! wires the route; the render itself is a pure function reachable
-//! in-process like the repo page's `page()` is, so the golden and the
-//! twice-run test drive it without a server). The same [`gather`] and
-//! [`build`] halves the repo page uses, so the two surfaces can never
-//! disagree about the model; the requested epic's lane is selected by
-//! its number within the repo, and a number the graph does not hold is
-//! a named error, never an empty page. The sidebar marks the requested
-//! epic current (the switcher precedent: the marked non-link) while
-//! the switcher stays the repo page's, unchanged; the live-update
-//! script and the lazy navigation script (U54) ride every render for
-//! the same reason they ride the repo page's — each page is served
-//! standalone and must carry them. No click-detail block: the tables
-//! are plain, and simplicity wins — a repo page's resident
-//! click-detail handler, when the lazy navigation lands here, finds
-//! no `.node` elements and no data element and stays inert. No
-//! not_placed report either: a decision the model cannot
-//! place gates nothing, so it sits in no epic's lane — the repo page's
-//! report is its one home.
+//! counts, its dependency graph, its tasks with statuses and waits,
+//! and its gating decisions — for the serve route
+//! `/repo/<slug>/epic/<number>` (U53 wires the route; the render
+//! itself is a pure function reachable in-process like the repo
+//! page's `page()` is, so the golden and the twice-run test drive it
+//! without a server). The same [`gather`] and [`build`] halves the
+//! repo page uses, so the two surfaces can never disagree about the
+//! model; the requested epic's lane is selected by its number within
+//! the repo, and a number the graph does not hold is a named error,
+//! never an empty page. The sidebar marks the requested epic current
+//! (the switcher precedent: the marked non-link) while the switcher
+//! stays the repo page's, unchanged; the live-update script and the
+//! lazy navigation script (U54) ride every render for the same
+//! reason they ride the repo page's — each page is served standalone
+//! and must carry them. The dependency graph (the user's 2026-10-17
+//! request, overriding U52's recorded simplicity call): the lane's
+//! nodes beside the outside endpoints its edges wire to, the repo
+//! page's own shapes — and its click-detail machinery, which the
+//! graph's nodes make load-bearing exactly as the repo page's are
+//! (the handler, the detail box and the data element all ride the
+//! page). No not_placed report either: a decision the model cannot
+//! place gates nothing, so it sits in no epic's lane — the repo
+//! page's report is its one home.
 
 use todo_domain::{DecisionStatus, RepoSlug, Status, TaskKind};
 use todo_store::DataRoot;
 
 use super::model::{Lane, Model, build, gather};
-use super::page::{live_script, pct, switcher_html};
-use super::script::LAZY_SCRIPT;
+use super::page::{LEGEND, detail_data, live_script, pct, switcher_html};
+use super::script::{LAZY_SCRIPT, SCRIPT};
 use super::style::CSS;
+use super::svg::render_epic_svg;
 use super::{card_html, counts_for, decision_row_html, esc, is_done, short, task_row_html};
 
 /// The epic-scoped HTML page (E12's per-epic surface): one epic's
@@ -54,13 +58,14 @@ pub fn epic_page(root: &DataRoot, repo: &RepoSlug, epic: u64) -> Result<String, 
             model.repo.slug.as_str()
         ));
     };
-    Ok(epic_page_text(&model, lane))
+    epic_page_text(&model, lane)
 }
 
 /// The epic page from one model and its selected lane — the render
-/// half, infallible: every list it walks is already in the model's
-/// documented order.
-fn epic_page_text(model: &Model, lane: &Lane) -> String {
+/// half: every list it walks is already in the model's documented
+/// order, the one fallible step the detail block's serialization
+/// (the repo page's own unreachable arm).
+fn epic_page_text(model: &Model, lane: &Lane) -> Result<String, String> {
     let slug = model.repo.slug.as_str();
     let slug_esc = esc(slug);
     let instant_esc = esc(model.repo.registered_at.as_str());
@@ -69,6 +74,8 @@ fn epic_page_text(model: &Model, lane: &Lane) -> String {
     let meta = meta_line(lane);
     let cards = cards_html(lane);
     let kinds = kind_line(lane);
+    let graph = render_epic_svg(model, lane);
+    let data = detail_data(model)?;
     let rows = task_rows(model, lane);
     let decision_rows = decision_rows(model, lane);
     // The est/actual column heads (§15, U63): present only on an
@@ -118,6 +125,16 @@ fn epic_page_text(model: &Model, lane: &Lane) -> String {
     ));
     page.push_str(&kinds);
     page.push_str(&format!(
+        "\n<h2>Dependency graph — {} nodes, {} edges</h2>\n\
+         <div class=\"scroll\">{}</div>\n",
+        graph.nodes, graph.edges, graph.svg
+    ));
+    page.push_str(LEGEND);
+    page.push_str("<div id=\"detail\"></div>\n");
+    page.push_str(&format!(
+        "<script type=\"application/json\" id=\"detail-data\">{data}</script>\n"
+    ));
+    page.push_str(&format!(
         "\n<h2>Tasks — {} rows</h2>\n\
          <table><thead><tr><th>id</th><th>kind</th><th>status</th><th>what</th>{size_heads}\
          <th>waits on</th></tr></thead>\n<tbody>{rows}</tbody></table>\n",
@@ -131,10 +148,11 @@ fn epic_page_text(model: &Model, lane: &Lane) -> String {
     ));
     page.push_str("</main>\n</div>\n");
     page.push_str("<script>");
+    page.push_str(SCRIPT);
     page.push_str(&live_script(slug));
     page.push_str(LAZY_SCRIPT);
     page.push_str("\n</script>\n</body></html>\n");
-    page
+    Ok(page)
 }
 
 /// The epic's header facts: the status, and the board's M id when the

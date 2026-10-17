@@ -11,8 +11,9 @@
 /// handler resident across the lazy swaps, where per-node attachment
 /// would die with every swapped-in SVG. The node data is parsed per
 /// click from the inert `#detail-data` element, so the fields are
-/// always the swapped-in view's own; on the epic page the listener is
-/// inert (no `.node` elements, no data element) and harmless.
+/// always the swapped-in view's own; the epic page has carried the
+/// same nodes and data element since its dependency graph landed
+/// (2026-10-17), so the listener serves both pages' nodes alike.
 pub(super) const SCRIPT: &str = r#"document.addEventListener('click', event => {
   const n = event.target.closest('.node');
   if (!n) return;
