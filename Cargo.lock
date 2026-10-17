@@ -78,6 +78,7 @@ checksum = "773648b94d0e5d620f64f280777445740e61fe701025087ec8b57f45c791888b"
 [[package]]
 name = "dacode-json"
 version = "0.1.0"
+source = "git+https://github.com/dacode-tech/dacode-json?rev=7aac8af#7aac8af3c6cd4faa139e2f1790b4b65e8ebeb256"
 dependencies = [
  "serde",
  "zmij",

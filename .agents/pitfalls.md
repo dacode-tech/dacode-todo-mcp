@@ -148,8 +148,8 @@ citations must keep resolving.
 - **Promoted from**: f40 / board U15 (t21)
 
 ### 2.5 A serde engine's container-framing contract lives in the `Deserializer`, not in the access impl
-- **Scope**: the `dacode-json` engine (sibling path dependency, U8) and
-  any schema that uses a fixed-length serde shape
+- **Scope**: the `dacode-json` engine (rev-pinned git dependency,
+  U8/U82) and any schema that uses a fixed-length serde shape
 - **What happened**: `serde::de::SeqAccess` has **no** `end()` method.
   serde drives two protocols through it: a collection calls
   `next_element_seed` until `None`, while a *fixed-length* visitor (a

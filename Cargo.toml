@@ -15,9 +15,12 @@ rust-version = "1.95"
 todo-domain = { path = "crates/todo-domain" }
 todo-store = { path = "crates/todo-store" }
 # The canonical JSON engine (D1, dependency approved at U8): serde_json-
-# compatible bytes, sealed inside todo-store (spec §2). Path dependencies
-# appear once, here, like the lint regime.
-dacode-json = { path = "../rust/json-tiers" }
+# compatible bytes, sealed inside todo-store (spec §2). Declared once,
+# here, like the lint regime — a git dependency pinned by rev (the
+# published repository, dacode-tech/dacode-json), so the build is
+# reproducible and an update is an explicit rev bump, never a silent
+# upstream move.
+dacode-json = { git = "https://github.com/dacode-tech/dacode-json", rev = "7aac8af" }
 # The host binary's argument parser (U14, resolved 2026-09-29; the cli's
 # until its absorption into todo-mcp at t72): one dependency,
 # zero transitive, no proc macros, pedantic parsing — declared once at
