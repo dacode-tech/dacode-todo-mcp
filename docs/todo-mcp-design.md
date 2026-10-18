@@ -1113,7 +1113,14 @@ client spawns it in (§7, D8's cwd tier armed at t53); explicit tool
 parameters override either. Store format
 version travels in the file header, independent of the binary version; a
 binary refuses a store newer than it understands (`version_mismatch`,
-§6.1) rather than guessing. No packaging beyond the binary in v1.
+§6.1) rather than guessing. No packaging beyond the binary in v1. The
+binary updates by rename — copy to a sibling name, then `mv` into
+place — never by an in-place overwrite: the running shims and daemon
+execute from the installed inode, and an in-place copy both disturbs
+them and (observed 2026-10-19, macOS) leaves the overwritten file
+un-executable — SIGKILL on the signature/vnode mismatch — until a
+rename re-installs it on a fresh inode; U67's "freshly installed
+inode" (§6.4) is this discipline in the reconnect flow's own words.
 
 A second consumer shape is settled (D26, signed 2026-10-18): an
 embedding harness — the dacode harness is the first — ships the
