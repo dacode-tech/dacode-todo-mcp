@@ -46,6 +46,7 @@ and the meta block below; keep the shapes it parses.
 | ~~**D23**~~ | The storage move: the reward events and FORMAT_VERSION 2 | (a) two new event kinds plus the estimate on creation events; FORMAT_VERSION 1→2, in-place header migration, v1 replaying identically | high | E13 | resolved (a) 2026-10-13 — user decision, in-thread; the implementation lands as E13's store unit |
 | ~~**D24**~~ | The wire move: the surface extension | (a) the optional estimate on task_add, the optional actual size on closure, the reward line and reflection question on the closure response, one new tool (reward_reflect), the base-instructions rule | high | E13 | resolved (a) 2026-10-13 — user decision, in-thread; the implementation lands as E13's surface unit |
 | ~~**D25**~~ | The shared server per root: a daemon behind thin stdio shims | (a) the single binary — the no-argument invocation is the shim (connect/spawn the daemon, proxy MCP over a unix socket, retry-then-error with no fallback), the extra-argument invocation is the daemon serving every connected session | medium | the shared-server arc | resolved (a) 2026-10-13 — user decision, in-thread ("ok, sign D25"); the implementation lands as the shared-server arc |
+| ~~**D26**~~ | The embedding shape: the harness as the daemon's client | (1) two binaries — the harness ships todo-mcp version-pinned and bridges MCP in its tools layer, the shim's connect-or-spawn re-using any daemon serving the root | medium | E16 | resolved (1) 2026-10-18 — user decision, in-thread ("ok, let's do shape 1"); zero new API, the socket preamble frozen for cross-version attach |
 
 ---
 
@@ -1605,3 +1606,62 @@ lifecycle, the per-connection default repo, protocol tests); amend
 stays local files, the CLI inspector daemon-less) and D13's record
 (the listener's owner becomes the daemon; the watchdog retires in
 the daemon shape).
+
+### D26 — The embedding shape: the harness as the daemon's client
+
+**Resolved 2026-10-18 — option (1), signed by the user.** The E16
+import spike (U84) measured the crate boundary from an external
+consumer: the path-dep import compiles green, `TodoServer`'s only
+constructors are `pub(crate)` (the wall), and the programmatic
+surface — register, refresh, `resolve_by_cwd`, `render::json`, the
+dialect parsers — is public and answers real queries. The user's
+steering then settled the topology before the surface question: the
+root stays **re-usable by other todo-mcp clients**, which demotes
+every server-side embedding — an in-process server or a Rust facade
+holds its own core, and `DataRoot::open` is locked-open, so on a
+shared root it contends with the daemon on every write arming. The
+daemon stays the single writer; the harness is a client of it —
+D25's architecture working as designed, the shim's connect-or-spawn
+re-using any daemon already serving the root. The dacode harness
+carries no MCP client today (no rmcp anywhere in its workspace; its
+tool surface is native), so every surviving shape pays the same
+bridge cost in its tools layer — the choice was only the transport.
+
+**Options.**
+
+- **(1) Two binaries, MCP bridge (the user's pick).** The harness
+  ships the todo-mcp binary, version-pinned, and its tools layer
+  gains an MCP client spawning the shim (`todo-mcp --root <dir>`)
+  per session; connect-or-spawn re-uses any daemon already serving
+  the root, cold-starts one when none does. Zero new API in
+  todo-mcp. The standard MCP wiring shape (opencode's own).
+- **(2) Single binary, the harness hosts the daemon.** Link the
+  crate, run the daemon in a thread, own sessions connect via the
+  socket, external clients attach to the published socket. One
+  artifact, but the daemon's SIGTERM-drain trigger must be
+  parameterized (a process-global handler the harness cannot cede)
+  and the daemon's lifetime couples to the harness process.
+- **(3) In-process client, binary for the cold start.** A public
+  client entry in todo-mcp (the shim's logic minus stdio); still
+  two binaries when no daemon serves. Buys in-process transport
+  when warm; additive later if the warm-path latency ever matters.
+- **(excluded) Server-side embedding.** In-process per-connection
+  servers or a Rust facade — both hold their own core and contend
+  with the daemon on a shared root; they fit only a
+  harness-dedicated root, which the requirement rules out.
+
+**Recommendation: (1)** — the smallest total change (the bridge is
+unavoidable; the daemon lifecycle is already the shim's job), the
+standard shape, todo-mcp untouched.
+
+**On sign-off:** freeze the socket preamble as a cross-version
+contract (§6.4's D26 settlement — the one todo-mcp-side change, a
+spec paragraph, no code); record the embedding shape in §13 (the
+constructors stay crate-private by this decision — the embedding
+surface is the binary plus the crate's read paths); close E16 — the
+harness-side bridge is the dacode repo's work, out of this arc's
+scope. The wiring recipe for that session: spawn the shim per
+session with the root/repo values from the harness config, the
+subprocess cwd the session's, the shipped binary version-pinned;
+the crate stays linkable for reads (`render::json`, `inspect`,
+`read_repo` — lock-free per D19) while writes belong to the daemon.

@@ -865,6 +865,21 @@ window expires — or whose handshake is refused — is the terminal: one
 stderr line, exit 1; there is deliberately no mid-session degraded
 mode.
 
+**D26's settlement (2026-10-18).** The preamble is a frozen
+contract. U65 paired it same-binary ("so no versioning") because
+every client was the shim; D26's embedding shape makes the daemon's
+clients cross-binary — a harness shipping its own todo-mcp copy
+attaches to a daemon another copy started — so the envelope
+`{"repo": <slug, optional>, "cwd": <path, optional>}` (one JSON
+line, `deny_unknown_fields`, U65's parsing discipline) is declared
+stable for attach across versions: a client may send it to any
+daemon serving the root, and a daemon must accept it from any
+client. The MCP layer's own initialize negotiation carries the
+protocol version above it; the preamble is the only todo-mcp-private
+bit on the socket, and it is two optional fields — stable by
+construction, frozen by this decision. A future change to the
+envelope is a new decision, not an edit (the §12 rule).
+
 ## 7. Multi-Repo Registry and Path Handling
 
 The server is global: one store, many repositories, reached from
@@ -1079,7 +1094,11 @@ bump, the surface extension — drafted and signed in one exchange out
 of the user's in-thread steering, §15 the design they settled, and
 D25 on 2026-10-13, the shared server per root — one binary, the
 no-argument shim and the extra-argument daemon — drafted, refined
-and signed across one day's in-thread exchange.
+and signed across one day's in-thread exchange, and D26 on
+2026-10-18, the embedding shape — the harness as the daemon's
+client over a shared root, two binaries, zero new API, the socket
+preamble frozen for cross-version attach — drafted and signed in
+one exchange out of E16's import spike.
 
 None — the list is closed.
 
@@ -1095,6 +1114,21 @@ parameters override either. Store format
 version travels in the file header, independent of the binary version; a
 binary refuses a store newer than it understands (`version_mismatch`,
 §6.1) rather than guessing. No packaging beyond the binary in v1.
+
+A second consumer shape is settled (D26, signed 2026-10-18): an
+embedding harness — the dacode harness is the first — ships the
+binary within its own distribution, version-pinned, and bridges MCP
+in its tools layer by spawning the shim per session; the shim's
+connect-or-spawn re-uses any daemon already serving the root, so
+the root stays shared with every other todo-mcp client (the daemon
+remains the single writer — an embedded server-side core would
+contend with it, `DataRoot::open` being locked-open). The server's
+constructors stay crate-private by this decision: the embedding
+surface is the binary plus the crate's read paths (`render::json`,
+`inspect`, `read_repo` — lock-free per D19), nothing more; writes
+belong to the daemon. The socket preamble is frozen for
+cross-version attach (§6.4, D26's settlement), and the shipped
+binary's version is the harness's pin to manage.
 
 The same binary carries the tool CLI (D20, signed 2026-10-09): invoked
 with no subcommand it is the MCP server on stdio — the wiring above is
