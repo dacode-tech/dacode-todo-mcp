@@ -97,7 +97,10 @@ const INSTRUCTIONS: &str = "You are connected to a deterministic task-graph serv
     roll-up. When the user assigns a work stream (one epic), pass its \
     `epic` on every selection call — `next_task`, `next_items`, \
     `task_list` and `status_summary` all take it; sessions scoped to \
-    different epics of one repository never cross. Closing a task requires \
+    different epics of one repository never cross. One epic's subtree is \
+    `graph_show` with the `epic` parameter — there is no `epic_show` \
+    tool; the per-node shows are `repo_show`, `task_show` and \
+    `decision_show`. Closing a task requires \
     `verify` and `evidence`; `blocked` and \
     `deferred` require a `note`; signing a decision requires a \
     `resolution`. Writes return the new state. Errors carry a stable code \
