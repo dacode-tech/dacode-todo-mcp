@@ -1,0 +1,15 @@
+# ast-grep project config. Read automatically from the repo root, and
+# passed explicitly to the MCP server via AST_GREP_CONFIG.
+#
+# ast-grep is the STRUCTURAL search layer, complementing Serena
+# (rust-analyzer: compiler-exact, one feature configuration) and ripgrep
+# (lexical). Its defining properties here: tree-sitter parses BOTH
+# branches of every #[cfg], and it sees macro call sites pre-expansion —
+# code rust-analyzer cannot reach. See .agents/sgrules/README.md before
+# adding a rule.
+
+ruleDirs:
+  - .agents/sgrules
+
+# No languageGlobs needed: .rs maps to the Rust grammar natively, and
+# this project is Rust-only.

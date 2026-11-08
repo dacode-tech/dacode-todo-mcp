@@ -1,0 +1,178 @@
+{
+  "repo": "fixture",
+  "import_instant": "2026-10-02T08:00:00.000000000Z",
+  "totals": {
+    "epics": 2,
+    "milestones": {
+      "done": 0,
+      "total": 1
+    },
+    "tasks": 4,
+    "by_kind": {
+      "task": {
+        "total": 4,
+        "done": 2,
+        "open": 2
+      },
+      "gate": {
+        "total": 0,
+        "done": 0,
+        "open": 0
+      },
+      "finding": {
+        "total": 0,
+        "done": 0,
+        "open": 0
+      },
+      "debt": {
+        "total": 0,
+        "done": 0,
+        "open": 0
+      }
+    },
+    "open_items": [
+      "U3",
+      "U4"
+    ],
+    "decisions": {
+      "signed": 0,
+      "total": 0
+    },
+    "not_placed": []
+  },
+  "milestones": [
+    {
+      "id": "M1",
+      "title": "Milestone epic",
+      "status": "open"
+    }
+  ],
+  "open_items": [
+    {
+      "id": "U3",
+      "kind": "task",
+      "status": "open",
+      "title": "Estimated large",
+      "estimate": "l",
+      "actual": null,
+      "waits_on": ""
+    },
+    {
+      "id": "U4",
+      "kind": "task",
+      "status": "open",
+      "title": "Unestimated open",
+      "estimate": null,
+      "actual": null,
+      "waits_on": ""
+    }
+  ],
+  "decisions": [],
+  "graph": {
+    "nodes": [
+      {
+        "id": "U1",
+        "kind": "task",
+        "status": "closed",
+        "lane": "fixture:E1"
+      },
+      {
+        "id": "U2",
+        "kind": "task",
+        "status": "closed",
+        "lane": "fixture:E1"
+      },
+      {
+        "id": "U3",
+        "kind": "task",
+        "status": "open",
+        "lane": "fixture:E2"
+      },
+      {
+        "id": "U4",
+        "kind": "task",
+        "status": "open",
+        "lane": "fixture:E2"
+      }
+    ],
+    "edges": []
+  },
+  "activity": {
+    "total": 12,
+    "by_kind": {
+      "epic_add": 2,
+      "repo_register": 1,
+      "reward_grant": 2,
+      "reward_reflect": 1,
+      "task_add": 4,
+      "task_update": 2
+    },
+    "by_day": {
+      "2026-10-02": 12
+    },
+    "first_ts": "2026-10-02T08:00:00.000000000Z",
+    "last_ts": "2026-10-02T09:41:00.000000000Z"
+  },
+  "rewards": {
+    "currency": "coffee",
+    "totals": {
+      "total": 60,
+      "by_repo": {
+        "alpha": 25,
+        "fixture": 35
+      }
+    },
+    "recent_grants": [
+      {
+        "ts": "2026-10-02T09:30:00.000000000Z",
+        "repo": "alpha",
+        "task": "alpha:U1",
+        "amount": 25,
+        "size": "m",
+        "priority_pct": 100,
+        "kind_pct": 100
+      },
+      {
+        "ts": "2026-10-02T08:30:00.000000000Z",
+        "repo": "fixture",
+        "task": "fixture:U1",
+        "amount": 10,
+        "size": "s",
+        "priority_pct": 100,
+        "kind_pct": 100
+      },
+      {
+        "ts": "2026-10-02T08:31:00.000000000Z",
+        "repo": "fixture",
+        "task": "fixture:U2",
+        "amount": 25,
+        "size": "m",
+        "priority_pct": 100,
+        "kind_pct": 100
+      }
+    ],
+    "reflections": [
+      {
+        "ts": "2026-10-02T09:40:00.000000000Z",
+        "repo": "alpha",
+        "answer": "Crossed the threshold; the pace feels sustainable.",
+        "trigger": {
+          "trigger": "threshold"
+        },
+        "root_total": 60,
+        "repo_total": 25
+      },
+      {
+        "ts": "2026-10-02T09:41:00.000000000Z",
+        "repo": "fixture",
+        "answer": "The milestone closed clean & the estimate held.",
+        "trigger": {
+          "trigger": "epic_closure",
+          "epic": "fixture:E1"
+        },
+        "root_total": 60,
+        "repo_total": 35
+      }
+    ]
+  }
+}

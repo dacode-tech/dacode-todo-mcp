@@ -1,0 +1,390 @@
+# The tag-triggered release (D27): static musl tarballs for linux
+# x86_64/aarch64, .deb/.rpm packages of those binaries (D29, nfpm), a
+# macOS aarch64 tarball (Developer ID signed and notarized when the
+# signing secrets exist), SHA256SUMS, install.sh,
+# the rendered Homebrew formula, and a push of that formula to the tap
+# when HOMEBREW_TAP_TOKEN exists. Windows waits on D28.
+#
+# Cut a release: bump [workspace.package] version, add
+# docs/release-notes/v<version>.md, commit, then
+#   git tag -a v<version> -m "todo-mcp v<version>" && git push origin v<version>
+# Releases are immutable (the repository setting): once published, a
+# release's assets and tag are frozen and its tag name can never be
+# reused, even after deleting the release. So publish is draft →
+# upload → publish, and a fix to a published release is a new version.
+# A rerun (Actions → Release → Run workflow) is for a run that failed
+# before publishing: it finishes the draft it left, and refuses at
+# once a tag whose release is already published. Finish a leftover
+# draft before cutting the next version: publishing marks it Latest.
+# The binaries build from the tag; the packages job reads its recipe
+# (packaging/) from the workflow's own commit — the binary, README and
+# rpm license files still come from the tag's tarball, the deb's DEP-5
+# copyright with the recipe.
+#
+# Secrets (all optional; each group skips cleanly when absent):
+#   macOS signing:  MACOS_CERTIFICATE_P12 (base64 of the .p12),
+#                   MACOS_CERTIFICATE_PASSWORD, MACOS_SIGNING_IDENTITY
+#                   ("Developer ID Application: <Name> (<TEAMID>)")
+#   notarization:   APPLE_API_KEY_P8 (the .p8 file's text),
+#                   APPLE_API_KEY_ID, APPLE_API_ISSUER_ID
+#   Homebrew tap:   HOMEBREW_TAP_TOKEN (contents:write on the tap repo)
+name: Release
+
+on:
+  push:
+    tags: ["v[0-9]+.[0-9]+.[0-9]+*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Pushed tag whose release is not yet published, e.g. v0.2.0"
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.event.inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_PROFILE_RELEASE_STRIP: symbols
+  CARGO_PROFILE_RELEASE_LTO: thin
+  CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "1"
+  TAP_REPO: dacode-tech/homebrew-tap
+  NFPM_VERSION: 2.48.0
+  # sha256 of nfpm_<version>_Linux_x86_64.tar.gz, from the release's
+  # checksums.txt; bump both together.
+  NFPM_SHA256: 6d7f9a28b2f397934403950fcbba83f598b08d02edbe79a0815b3b4897341750
+
+jobs:
+  meta:
+    name: resolve the tag
+    runs-on: ubuntu-24.04
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+      version: ${{ steps.tag.outputs.version }}
+      prerelease: ${{ steps.tag.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+      - name: the tag has no published release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.inputs.tag || github.ref_name }}
+        run: |
+          # The by-tag endpoint answers published releases only, never
+          # a draft: a hit means the tag is frozen (immutable releases).
+          if gh api "repos/$GITHUB_REPOSITORY/releases/tags/$TAG" > /dev/null 2>&1; then
+            echo "::error::$TAG already has a published release; releases are immutable — cut a new version"
+            exit 1
+          fi
+      - id: tag
+        name: tag must match the workspace version
+        env:
+          TAG: ${{ github.event.inputs.tag || github.ref_name }}
+        run: |
+          case "$TAG" in
+            v*) ;;
+            *) echo "::error::tag $TAG must start with v"; exit 1 ;;
+          esac
+          version="${TAG#v}"
+          crate=$(cargo metadata --no-deps --format-version 1 \
+            | jq -r '.packages[] | select(.name == "todo-mcp") | .version')
+          if [ "$crate" != "$version" ]; then
+            echo "::error::tag $TAG does not match the todo-mcp crate version $crate"
+            exit 1
+          fi
+          case "$version" in *-*) pre=true ;; *) pre=false ;; esac
+          {
+            echo "tag=$TAG"
+            echo "version=$version"
+            echo "prerelease=$pre"
+          } >> "$GITHUB_OUTPUT"
+
+  test:
+    name: test (${{ matrix.os }})
+    needs: meta
+    strategy:
+      fail-fast: true
+      matrix:
+        os: [ubuntu-24.04, macos-15]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.meta.outputs.tag }}
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test --workspace --locked
+
+  build:
+    name: build (${{ matrix.target }})
+    needs: [meta, test]
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-musl
+            os: ubuntu-24.04
+          - target: aarch64-unknown-linux-musl
+            os: ubuntu-24.04-arm
+          - target: aarch64-apple-darwin
+            os: macos-15
+    runs-on: ${{ matrix.os }}
+    env:
+      TARGET: ${{ matrix.target }}
+      TAG: ${{ needs.meta.outputs.tag }}
+      VERSION: ${{ needs.meta.outputs.version }}
+      BIN: target/${{ matrix.target }}/release/todo-mcp
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.meta.outputs.tag }}
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
+      - name: musl toolchain
+        if: runner.os == 'Linux'
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq musl-tools
+
+      - run: cargo build --release --locked -p todo-mcp --target "$TARGET"
+
+      - name: the linux binary is static
+        if: runner.os == 'Linux'
+        run: |
+          file "$BIN"
+          file "$BIN" | grep -Eq 'statically linked|static-pie linked'
+
+      - name: the binary reports the tagged version
+        run: |
+          got=$("$BIN" --version)
+          echo "$got"
+          [ "$got" = "todo-mcp $VERSION" ]
+
+      - name: macOS secrets present?
+        id: apple
+        if: runner.os == 'macOS'
+        env:
+          P12: ${{ secrets.MACOS_CERTIFICATE_P12 }}
+          P8: ${{ secrets.APPLE_API_KEY_P8 }}
+        run: |
+          echo "sign=$([ -n "$P12" ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          echo "notarize=$([ -n "$P12" ] && [ -n "$P8" ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
+      - name: sign (Developer ID, hardened runtime)
+        if: steps.apple.outputs.sign == 'true'
+        env:
+          MACOS_CERTIFICATE_P12: ${{ secrets.MACOS_CERTIFICATE_P12 }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          MACOS_SIGNING_IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
+        run: |
+          set -euo pipefail
+          keychain="$RUNNER_TEMP/signing.keychain-db"
+          keychain_pw=$(openssl rand -hex 24)
+          printf '%s' "$MACOS_CERTIFICATE_P12" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security create-keychain -p "$keychain_pw" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$keychain_pw" "$keychain"
+          security import "$RUNNER_TEMP/cert.p12" -k "$keychain" \
+            -P "$MACOS_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          rm -f "$RUNNER_TEMP/cert.p12"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: \
+            -s -k "$keychain_pw" "$keychain" > /dev/null
+          security list-keychains -d user -s "$keychain" login.keychain-db
+          codesign --force --timestamp --options runtime \
+            --identifier tech.dacode.todo-mcp \
+            --keychain "$keychain" --sign "$MACOS_SIGNING_IDENTITY" "$BIN"
+          codesign --verify --strict --verbose=2 "$BIN"
+          codesign -dv "$BIN" 2>&1 | grep -E '^(Authority|TeamIdentifier|Runtime)'
+
+      - name: notarize
+        if: steps.apple.outputs.notarize == 'true'
+        env:
+          APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
+        run: |
+          set -euo pipefail
+          key="$RUNNER_TEMP/AuthKey.p8"
+          printf '%s\n' "$APPLE_API_KEY_P8" > "$key"
+          ditto -c -k --keepParent "$BIN" "$RUNNER_TEMP/notarize.zip"
+          xcrun notarytool submit "$RUNNER_TEMP/notarize.zip" \
+            --key "$key" --key-id "$APPLE_API_KEY_ID" --issuer "$APPLE_API_ISSUER_ID" \
+            --wait --timeout 30m --output-format json | tee "$RUNNER_TEMP/notary.json"
+          id=$(jq -r .id "$RUNNER_TEMP/notary.json")
+          status=$(jq -r .status "$RUNNER_TEMP/notary.json")
+          if [ "$status" != "Accepted" ]; then
+            xcrun notarytool log "$id" --key "$key" \
+              --key-id "$APPLE_API_KEY_ID" --issuer "$APPLE_API_ISSUER_ID" || true
+            rm -f "$key"
+            echo "::error::notarization $status"
+            exit 1
+          fi
+          rm -f "$key"
+          # A bare Mach-O cannot carry a stapled ticket; Gatekeeper
+          # fetches it online. This assessment is informational.
+          spctl --assess --type execute --verbose=4 "$BIN" || true
+
+      - name: package
+        run: |
+          set -euo pipefail
+          name="todo-mcp-$TAG-$TARGET"
+          mkdir -p "dist/$name"
+          cp "$BIN" README.md LICENSE-MIT LICENSE-Apache-2.0 "dist/$name/"
+          # No macOS xattrs: GNU tar warns on every LIBARCHIVE.xattr header.
+          COPYFILE_DISABLE=1 tar --no-xattrs -C dist -czf "dist/$name.tar.gz" "$name"
+          rm -rf "dist/${name:?}"
+          ls -l dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: todo-mcp-${{ matrix.target }}
+          path: dist/*.tar.gz
+          if-no-files-found: error
+
+  packages:
+    name: deb + rpm packages
+    needs: [meta, build]
+    runs-on: ubuntu-24.04
+    env:
+      TAG: ${{ needs.meta.outputs.tag }}
+      VERSION: ${{ needs.meta.outputs.version }}
+    steps:
+      # The workflow's commit, not the tag: see the header on reruns.
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: todo-mcp-*-linux-musl
+          path: dl
+          merge-multiple: true
+      - name: install nfpm (pinned, checksum-verified)
+        run: |
+          set -euo pipefail
+          tarball="nfpm_${NFPM_VERSION}_Linux_x86_64.tar.gz"
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/$tarball" \
+            "https://github.com/goreleaser/nfpm/releases/download/v${NFPM_VERSION}/$tarball"
+          echo "$NFPM_SHA256  $RUNNER_TEMP/$tarball" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/nfpm"
+          tar -xzf "$RUNNER_TEMP/$tarball" -C "$RUNNER_TEMP/nfpm" nfpm
+          echo "$RUNNER_TEMP/nfpm" >> "$GITHUB_PATH"
+      - name: build the packages
+        run: |
+          set -euo pipefail
+          mkdir -p dist target/nfpm
+          for pair in amd64:x86_64 arm64:aarch64; do
+            arch=${pair%%:*}
+            name="todo-mcp-$TAG-${pair##*:}-unknown-linux-musl"
+            tar -xzf "dl/$name.tar.gz" -C dl
+            # The tarball's own binary, README and licenses (the tag's).
+            cp "dl/$name/todo-mcp" "dl/$name/README.md" \
+              "dl/$name/LICENSE-MIT" "dl/$name/LICENSE-Apache-2.0" target/nfpm/
+            for format in deb rpm; do
+              ARCH=$arch nfpm pkg -f packaging/nfpm.yaml -p "$format" -t dist/
+            done
+          done
+          ls -l dist
+      - name: smoke-install the packages
+        run: |
+          set -euo pipefail
+          for deb in dist/*_arm64.deb; do
+            [ "$(dpkg-deb -f "$deb" Architecture)" = arm64 ]
+          done
+          sudo apt-get install -y -qq ./dist/*_amd64.deb
+          [ "$(/usr/bin/todo-mcp --version)" = "todo-mcp $VERSION" ]
+          sudo apt-get remove -y -qq todo-mcp
+          [ ! -e /usr/bin/todo-mcp ]
+          docker run --rm -v "$PWD/dist:/dist:ro" -e VERSION fedora:latest sh -euc '
+            [ "$(rpm -qp --qf "%{ARCH}" /dist/*.aarch64.rpm)" = aarch64 ]
+            dnf install -y -q /dist/*.x86_64.rpm
+            [ "$(todo-mcp --version)" = "todo-mcp $VERSION" ]
+            dnf remove -y -q todo-mcp
+          '
+      - uses: actions/upload-artifact@v4
+        with:
+          name: todo-mcp-packages
+          path: |
+            dist/*.deb
+            dist/*.rpm
+          if-no-files-found: error
+
+  publish:
+    name: publish the GitHub release
+    needs: [meta, build, packages]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ needs.meta.outputs.tag }}
+      VERSION: ${{ needs.meta.outputs.version }}
+      PRERELEASE: ${{ needs.meta.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.meta.outputs.tag }}
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: todo-mcp-*
+          path: dist
+          merge-multiple: true
+      - name: checksums, installer, formula
+        run: |
+          set -euo pipefail
+          cp install.sh dist/install.sh
+          (cd dist && sha256sum -- *.tar.gz *.deb *.rpm install.sh > SHA256SUMS)
+          cat dist/SHA256SUMS
+          sh tools/brew-formula.sh "$VERSION" dist/SHA256SUMS > dist/todo-mcp.rb
+      - name: create or update the release
+        run: |
+          set -euo pipefail
+          notes="docs/release-notes/$TAG.md"
+          args=(--title "todo-mcp $TAG" --verify-tag)
+          if [ -f "$notes" ]; then args+=(--notes-file "$notes"); else args+=(--generate-notes); fi
+          if [ "$PRERELEASE" = true ]; then args+=(--prerelease); fi
+          # Draft first, every asset attached, then publish: the release
+          # becomes immutable complete. A draft left by a failed run
+          # (meta refused any published one) is finished, not duplicated.
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            gh release upload "$TAG" dist/* --clobber
+          else
+            gh release create "$TAG" "${args[@]}" --draft dist/*
+          fi
+          gh release edit "$TAG" --draft=false
+
+  homebrew:
+    name: bump the Homebrew tap
+    needs: [meta, publish]
+    if: needs.meta.outputs.prerelease == 'false'
+    runs-on: ubuntu-24.04
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ needs.meta.outputs.tag }}
+      TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+    steps:
+      - name: push Formula/todo-mcp.rb
+        run: |
+          set -euo pipefail
+          if [ -z "$TAP_TOKEN" ]; then
+            echo "::notice::HOMEBREW_TAP_TOKEN not set; the formula is attached to the release only"
+            exit 0
+          fi
+          gh release download "$TAG" -R "$GITHUB_REPOSITORY" -p todo-mcp.rb -D "$RUNNER_TEMP"
+          git clone --depth 1 "https://x-access-token:${TAP_TOKEN}@github.com/${TAP_REPO}.git" tap
+          mkdir -p tap/Formula
+          cp "$RUNNER_TEMP/todo-mcp.rb" tap/Formula/todo-mcp.rb
+          cd tap
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Formula/todo-mcp.rb
+          if git diff --cached --quiet; then
+            echo "formula unchanged"
+            exit 0
+          fi
+          git commit -m "todo-mcp ${TAG#v}"
+          git push origin HEAD

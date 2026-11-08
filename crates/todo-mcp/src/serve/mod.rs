@@ -1,0 +1,610 @@
+//! The live view's listener (t71, D20's third slice; D13, t85; D25,
+//! U66): the `serve` subcommand's foreground listener and the
+//! daemon's startup ensure of the same one — every route a fresh
+//! render, the port published per-root (`<root>/serve.port`) so a
+//! second invocation or session attaches instead of starting a
+//! second listener (U18 shape A, the Python tool's `--serve`
+//! mechanics ported; the per-root keying is D13's flip of the
+//! Python's per-user slot), plus the WebSocket push channel: one
+//! poller per connection stat-watching the ROOT — the config and
+//! every registered repo's store files, the set re-derived from the
+//! registry each tick (U80: the rewards section is root-scoped, so
+//! a sibling repo's grant or a config flip pushes as a local write
+//! does) — one text frame per change, the page's script reloading
+//! on arrival.
+//!
+//! The module is six files split by responsibility — the spec's D8
+//! names one file, and the split is the house pattern once the
+//! listener, the HTTP layer, the WS codec and the poller together
+//! cross the 600-line target: this file owns the listener (the attach
+//! / takeover / publication contract of D1/D3, the accept loop, the
+//! connection dispatch, the default-repo tier), `http` the
+//! hand-rolled HTTP/1.1 parser and response writer (D4), `ws` the
+//! RFC 6455 handshake, frame codec and connection loop (D5), `poll`
+//! the stat-polling change detection, `render_dispatch` the render
+//! routes (U56's split — the page, the JSON twin and the epic page,
+//! with the repo resolution they share), and `watchdog` the D13
+//! ensure-listener call the daemon makes at startup (the no-subcommand
+//! server's watch loop retired with the stdio path, U66 — the daemon
+//! owns the listener, so there is no survivor to take over).
+//!
+//! Thread-per-connection (D4): concurrent tabs render concurrently —
+//! safe because renders are lock-free (D19), which is why the Python
+//! tool's single-thread serialization (store-lock contention
+//! mid-render) is obsolete here and deliberately not ported. A render
+//! never runs on the accept thread; the accept loop itself polls a
+//! stop flag between non-blocking accepts so the clean shutdown can
+//! join it.
+//!
+//! The module is parameterized and env-free (D8): the root, the
+//! port-file path, the startup-read cwd and the poll interval arrive
+//! as values — the default port-file path derives from the root
+//! ([`port_file`], no environment read since D13 retired the
+//! per-user home-dir default) and the binary reads the cwd once (the
+//! t68 `resolve_by_cwd` precedent). No clock is read except the D6
+//! deadline's `Instant::now`, which bounds the health probe so a hung
+//! port cannot stall a tick: the poller's `mtime` is file data, not
+//! wall time, and no response carries a date.
+//!
+//! The multi-root rule is D13's: the publication is per-root, so
+//! listeners for different roots coexist by construction — each
+//! serves the root it was started with, keyed by its own
+//! `<root>/serve.port` (`--port-file` remains the override for
+//! isolation).
+
+use std::fs;
+use std::io::{BufReader, ErrorKind, Read, Write};
+use std::net::{SocketAddr, TcpListener, TcpStream};
+use std::path::{Path, PathBuf};
+use std::process;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::thread::{self, JoinHandle};
+use std::time::{Duration, Instant};
+
+use todo_domain::RepoSlug;
+use todo_store::{DataRoot, Registry};
+
+use crate::render;
+
+mod http;
+mod poll;
+mod render_dispatch;
+mod watchdog;
+mod ws;
+
+pub(crate) use self::watchdog::Watchdog;
+
+use self::http::Route;
+use self::render_dispatch::{
+    RENDER_FAILED_BODY, Surface, render_epic_route, render_route, repo_for_request,
+};
+
+/// The `/health` marker, byte-identical to the Python tool's (D2): the
+/// attach probe's contract — a listener of ours answers exactly this,
+/// and the Python driver probes it until t73 retires the Python.
+pub const HEALTH_MARKER: &str = "dacode-todo-mcp progress listener";
+
+/// The `/health` body: the marker and one newline.
+const HEALTH_BODY: &[u8] = b"dacode-todo-mcp progress listener\n";
+
+/// The push poll interval (D5, judgment call (a)): a handful of
+/// `stat()`s and one small registry read per connected tab per tick,
+/// and sub-second push latency reads as live.
+pub const POLL_INTERVAL: Duration = Duration::from_millis(500);
+
+/// How long the accept loop sleeps between non-blocking accepts — the
+/// stop flag's observability window, and the worst-case latency of a
+/// new connection.
+const ACCEPT_POLL: Duration = Duration::from_millis(50);
+
+/// How long the attach probe waits to connect and read (the Python's
+/// own bound): a foreign or wedged server reads as dead within it.
+/// One deadline bounds the whole exchange — connect, write and read
+/// — so a server that dribbles bytes slower than any single read
+/// timeout still reads as dead at the deadline (D6, measured: a
+/// per-read timeout alone lets `read_to_end` stretch forever).
+const PROBE_TIMEOUT: Duration = Duration::from_secs(2);
+
+/// How long a connection waits for the request head — a client that
+/// connects and never sends must not hold its thread. The WS
+/// connection clears it: its reader is long-lived by design.
+const HEADER_TIMEOUT: Duration = Duration::from_secs(10);
+
+/// One `serve` invocation's outcome: attached to a live listener, or
+/// the listener this invocation started.
+pub enum ServeOutcome {
+    /// The published port answered the probe: this invocation attaches
+    /// — prints the URL, exits 0 — never a second listener.
+    Attached {
+        /// The answering listener's URL.
+        url: String,
+    },
+    /// A listener was bound and published; the caller owns it until it
+    /// shuts down.
+    Started {
+        /// The new listener's URL.
+        url: String,
+        /// The listener: its accept loop and its clean shutdown.
+        listener: Listener,
+    },
+}
+
+/// A running listener: the accept thread plus the stop flag that ends
+/// it. Dropping without [`Listener::shutdown`] leaves the thread
+/// running — the process exit reaps it — so the binary always calls
+/// [`Listener::shutdown`] on the interrupt.
+pub struct Listener {
+    /// The bound port, as published.
+    port: u16,
+    /// The accept loop's stop flag.
+    stop: Arc<AtomicBool>,
+    /// The accept thread.
+    accept: JoinHandle<()>,
+}
+
+impl Listener {
+    /// The clean shutdown (D3, SIGINT): stop accepting, join the accept
+    /// thread, then remove the publication — only if it still names
+    /// this port (a takeover may have replaced it). SIGTERM is the
+    /// default disposition and never reaches here: the process dies,
+    /// the stale publication survives, the next invocation takes over.
+    pub fn shutdown(self, port_file: &Path) {
+        self.stop.store(true, Ordering::SeqCst);
+        let _ = self.accept.join();
+        if read_published_port(port_file) == Some(self.port) {
+            let _ = fs::remove_file(port_file);
+        }
+    }
+}
+
+/// Starts or attaches to the root's live listener (D1/D3): probe the
+/// published port — answering means attach; dead, stale or foreign
+/// means take over. The takeover binds `127.0.0.1:0` (never a chosen
+/// port; the assigned one is read back from the socket — no port
+/// scanning), publishes it with the store's own write discipline, and
+/// re-reads the winner: a simultaneous invocation that won the publish
+/// race is attached to instead (the double-overwrite interleaving
+/// where both pass leaves one orphaned listener on an unadvertised
+/// port — benign for a personal tool, recorded in the spec).
+///
+/// The publication is per-root (D13's flip of the Python tool's
+/// per-user slot — the flip this module's own doc once named): the
+/// listener serves the root it was started with, keyed by
+/// `<root>/serve.port`, so different roots' listeners coexist by
+/// construction. The Python tools still publish to the per-user path
+/// until t73 retires them — a brief non-interop window, recorded with
+/// D13.
+///
+/// The startup check is the registry, not a render: the listener
+/// serves the root, so a root whose registry will not load or holds no
+/// repository is a startup error — a wrong root, the Python's
+/// fail-fast rationale. A registered repo whose store will not read
+/// still starts the listener: that repo's routes answer 500 while
+/// `/health` stays 200 (D2's contract, the spec's test 7).
+pub fn serve(
+    root: &DataRoot,
+    port_file: &Path,
+    cwd: Option<&Path>,
+    poll_interval: Duration,
+) -> Result<ServeOutcome, String> {
+    if let Some(port) = read_published_port(port_file)
+        && listener_answers(port)
+    {
+        return Ok(ServeOutcome::Attached {
+            url: format!("http://127.0.0.1:{port}/"),
+        });
+    }
+    let registry = Registry::load(root)
+        .map_err(|error| format!("the data root's registry will not load: {error}"))?;
+    if registry.slugs().is_empty() {
+        return Err("the data root registers no repositories — nothing to serve".to_owned());
+    }
+    let listener = TcpListener::bind(("127.0.0.1", 0))
+        .map_err(|error| format!("bind the listener on 127.0.0.1: {error}"))?;
+    let port = listener
+        .local_addr()
+        .map_err(|error| format!("read the listener's assigned port: {error}"))?
+        .port();
+    let stop = Arc::new(AtomicBool::new(false));
+    let state = Arc::new(ConnState {
+        root: root.clone(),
+        cwd: cwd.map(PathBuf::from),
+        poll_interval,
+    });
+    let accept = spawn_accept_thread(listener, state, stop.clone())?;
+    publish_port(port_file, port)?;
+    match read_published_port(port_file) {
+        // The publish race: a simultaneous invocation won — it serves,
+        // this one attaches (the Python's own note).
+        Some(winner) if winner != port => {
+            stop.store(true, Ordering::SeqCst);
+            let _ = accept.join();
+            Ok(ServeOutcome::Attached {
+                url: format!("http://127.0.0.1:{winner}/"),
+            })
+        }
+        // The publication vanished between write and read: re-publish.
+        None => {
+            publish_port(port_file, port)?;
+            Ok(ServeOutcome::Started {
+                url: format!("http://127.0.0.1:{port}/"),
+                listener: Listener { port, stop, accept },
+            })
+        }
+        Some(_) => Ok(ServeOutcome::Started {
+            url: format!("http://127.0.0.1:{port}/"),
+            listener: Listener { port, stop, accept },
+        }),
+    }
+}
+
+/// Spawns the accept loop (D4): non-blocking accepts with the stop
+/// flag polled between them, one thread per connection so concurrent
+/// tabs render concurrently.
+fn spawn_accept_thread(
+    listener: TcpListener,
+    state: Arc<ConnState>,
+    stop: Arc<AtomicBool>,
+) -> Result<JoinHandle<()>, String> {
+    listener
+        .set_nonblocking(true)
+        .map_err(|error| format!("the listener cannot poll: {error}"))?;
+    thread::Builder::new()
+        .name("serve-accept".to_owned())
+        .spawn(move || accept_loop(listener, state, stop))
+        .map_err(|error| format!("spawn the accept thread: {error}"))
+}
+
+/// The accept loop: accept, spawn, repeat — `WouldBlock` sleeps out
+/// the poll interval; any other error is printed and slept through
+/// (the listener stays up, D2's rule for the whole server applied to
+/// the loop itself).
+fn accept_loop(listener: TcpListener, state: Arc<ConnState>, stop: Arc<AtomicBool>) {
+    loop {
+        if stop.load(Ordering::SeqCst) {
+            return;
+        }
+        match listener.accept() {
+            Ok((stream, _)) => {
+                // macOS's accept() inherits the listener's
+                // O_NONBLOCK; the connection threads want blocking
+                // reads (the WS reader blocks for the connection's
+                // life), so the flag is cleared explicitly — a no-op
+                // where the platform hands over a blocking socket.
+                if let Err(error) = stream.set_nonblocking(false) {
+                    eprintln!("todo-mcp serve: the connection cannot block: {error}");
+                    continue;
+                }
+                let state = state.clone();
+                let spawned = thread::Builder::new()
+                    .name("serve-conn".to_owned())
+                    .spawn(move || handle_connection(stream, state));
+                if spawned.is_err() {
+                    eprintln!("todo-mcp serve: a connection thread could not spawn");
+                }
+            }
+            Err(error) if error.kind() == ErrorKind::WouldBlock => {
+                thread::sleep(ACCEPT_POLL);
+            }
+            Err(error) => {
+                eprintln!("todo-mcp serve: accept failed: {error}");
+                thread::sleep(ACCEPT_POLL);
+            }
+        }
+    }
+}
+
+/// The per-listener state every connection shares — all the
+/// parameterized values (D8).
+struct ConnState {
+    /// The root this listener serves (D1: the ROOT, every repo in the
+    /// registry; the repo is a URL parameter, never a second
+    /// listener).
+    root: DataRoot,
+    /// The startup-read working directory (D2's cwd tier) — `None`
+    /// when the binary's read failed.
+    cwd: Option<PathBuf>,
+    /// The WS poller's interval (D5).
+    poll_interval: Duration,
+}
+
+/// One connection (D2/D4): parse the request, route, answer. The plain
+/// routes render and close; `/ws` upgrades and persists. A failed
+/// render answers 500 with the reason on stderr — the listener stays
+/// up.
+fn handle_connection(stream: TcpStream, state: Arc<ConnState>) {
+    let _ = stream.set_read_timeout(Some(HEADER_TIMEOUT));
+    let mut reader = BufReader::new(stream);
+    let request = match http::read_request(&mut reader) {
+        Ok(request) => request,
+        Err(http::ReadHeadError::TimedOut) => {
+            // An idle or speculative connection dropped at the header
+            // timeout — the peer is not waiting for anything, so there
+            // is nothing to answer and nothing to log.
+            return;
+        }
+        Err(http::ReadHeadError::Fault(message)) => {
+            eprintln!("todo-mcp serve: {message}");
+            http::write_plain_response(
+                reader.get_mut(),
+                400,
+                "text/plain; charset=utf-8",
+                b"bad request\n",
+            );
+            return;
+        }
+    };
+    match http::route(&request) {
+        Route::Health => {
+            http::write_plain_response(
+                reader.get_mut(),
+                200,
+                "text/plain; charset=utf-8",
+                HEALTH_BODY,
+            );
+        }
+        Route::NotFound => {
+            http::write_plain_response(
+                reader.get_mut(),
+                404,
+                "text/plain; charset=utf-8",
+                b"not found\n",
+            );
+        }
+        Route::MethodNotAllowed => {
+            // The Python's base class answers 501 for unimplemented
+            // methods; 405 is the deliberate correction — the method
+            // is known, the routes are GET-only.
+            http::write_plain_response(
+                reader.get_mut(),
+                405,
+                "text/plain; charset=utf-8",
+                b"method not allowed\n",
+            );
+        }
+        Route::Page => render_route(&state, &request, reader.get_mut(), Surface::Page),
+        Route::Json => render_route(&state, &request, reader.get_mut(), Surface::Json),
+        Route::Epic { slug, number } => render_epic_route(&state, &slug, number, reader.get_mut()),
+        Route::Ws => {
+            let _ = reader.get_ref().set_read_timeout(None);
+            ws::handle_ws_connection(reader, &state, &request);
+        }
+    }
+}
+
+/// The default repo for `/` and `/ws` (D2, judgment call (f)): the cwd
+/// tier, and — for every way it can fail to answer (no cwd, no match,
+/// ambiguity, a store that will not read) — the registry's first slug:
+/// a listener must not 500 on `/` because it was spawned from `/tmp`.
+fn default_repo(root: &DataRoot, cwd: Option<&Path>) -> Result<RepoSlug, String> {
+    if let Ok(slug) = render::resolve_by_cwd(root, cwd) {
+        return Ok(slug);
+    }
+    let registry = Registry::load(root).map_err(|error| error.to_string())?;
+    registry
+        .slugs()
+        .first()
+        .map(|slug| (*slug).clone())
+        .ok_or_else(|| "the registry holds no repositories".to_owned())
+}
+
+/// The root's publication path (D13, D1): `<root>/serve.port`. The
+/// publication is per-root — two roots key two listeners, and the
+/// file is the port's discovery, a machine-readable path per root.
+/// The `serve` subcommand's default and the daemon's startup ensure
+/// both derive it here; `--port-file` stays the override.
+pub fn port_file(root: &DataRoot) -> PathBuf {
+    root.root().join("serve.port")
+}
+
+/// Reads the published port (D3): digits only — anything else
+/// (absent, empty, foreign bytes, a number too large for a port)
+/// reads as not published, which is the takeover path.
+fn read_published_port(path: &Path) -> Option<u16> {
+    let text = fs::read_to_string(path).ok()?;
+    let text = text.trim();
+    if text.is_empty() || !text.bytes().all(|byte| byte.is_ascii_digit()) {
+        return None;
+    }
+    text.parse().ok()
+}
+
+/// The publish's per-call ticket: concurrent publishers in one
+/// process — the double-bind race, which the racing serve entries
+/// and the tests both drive in-process — must not share a temp name.
+/// The pid alone keys one publisher per process; the first rename
+/// would consume the shared name out from under the second (measured:
+/// the loser's rename fails with `ENOENT`). A ticket from this
+/// process-wide counter makes every temp name unique; the name is
+/// never persisted, so the counter's only job is uniqueness.
+static PUBLISH_TICKET: AtomicU64 = AtomicU64::new(0);
+
+/// Publishes the port with the store's own write discipline (D3): a
+/// ticket-suffixed temporary in the same directory, fsync, then the
+/// atomic rename — a torn publish is a stale file the next probe
+/// takes over, never a wrong port.
+fn publish_port(path: &Path, port: u16) -> Result<(), String> {
+    let directory = path
+        .parent()
+        .ok_or_else(|| "the port file has no parent directory".to_owned())?;
+    fs::create_dir_all(directory)
+        .map_err(|error| format!("create the port file's directory: {error}"))?;
+    let name = path
+        .file_name()
+        .ok_or_else(|| "the port file has no file name".to_owned())?;
+    let ticket = PUBLISH_TICKET.fetch_add(1, Ordering::Relaxed);
+    let temporary = directory.join(format!(
+        "{}.{}.{}.tmp",
+        name.to_string_lossy(),
+        process::id(),
+        ticket
+    ));
+    let mut file =
+        fs::File::create(&temporary).map_err(|error| format!("create the port file: {error}"))?;
+    writeln!(file, "{port}").map_err(|error| format!("write the port file: {error}"))?;
+    file.sync_all()
+        .map_err(|error| format!("fsync the port file: {error}"))?;
+    fs::rename(&temporary, path)
+        .map_err(|error| format!("rename the port file into place: {error}"))
+}
+
+/// Probes the published port (D3): `/health` must answer 200 with the
+/// marker. Anything else — refused, timed out, unparseable, foreign —
+/// reads as dead; a foreign server is never killed, only replaced in
+/// the publication.
+///
+/// The whole exchange is bounded by one deadline (D6): every probe
+/// caller — the attach check, the ensure, the tests — needs a port
+/// that accepts and dribbles, or accepts and never answers, to
+/// resolve within the probe timeout, never hang the caller.
+fn listener_answers(port: u16) -> bool {
+    let address = SocketAddr::from(([127, 0, 0, 1], port));
+    let Ok(mut stream) = TcpStream::connect_timeout(&address, PROBE_TIMEOUT) else {
+        return false;
+    };
+    let _ = stream.set_write_timeout(Some(PROBE_TIMEOUT));
+    let request = "GET /health HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n";
+    if stream.write_all(request.as_bytes()).is_err() {
+        return false;
+    }
+    let deadline = Instant::now() + PROBE_TIMEOUT;
+    let mut response = Vec::new();
+    let mut chunk = [0u8; 512];
+    loop {
+        let remaining = deadline.saturating_duration_since(Instant::now());
+        if remaining.is_zero() {
+            return false;
+        }
+        if stream.set_read_timeout(Some(remaining)).is_err() {
+            return false;
+        }
+        match stream.read(&mut chunk) {
+            Ok(0) => break,
+            // `read` is at most the chunk's length by `Read`'s
+            // contract, so the `get` cannot miss; the default arm is
+            // the unreachable no-op, never a panic.
+            Ok(read) => response.extend_from_slice(chunk.get(..read).unwrap_or_default()),
+            Err(_) => return false,
+        }
+    }
+    let text = String::from_utf8_lossy(&response);
+    // The Python listener answers HTTP/1.0 (http.server's default
+    // protocol); ours answers 1.1 — the probe accepts both so the two
+    // interoperate until t73 retires the Python.
+    (text.starts_with("HTTP/1.1 200") || text.starts_with("HTTP/1.0 200"))
+        && text.contains(HEALTH_MARKER)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::str::FromStr;
+
+    /// The publication round-trip: publish, read back; absent,
+    /// non-digit and out-of-range files read as not published.
+    #[test]
+    fn the_publication_round_trips() {
+        let dir = tempfile::tempdir().expect("a temp dir");
+        let path = dir.path().join("serve.port");
+        assert_eq!(read_published_port(&path), None);
+        publish_port(&path, 41234).expect("the publish lands");
+        assert_eq!(read_published_port(&path), Some(41234));
+        std::fs::write(&path, "not-a-port\n").expect("the foreign bytes land");
+        assert_eq!(read_published_port(&path), None);
+        std::fs::write(&path, "99999\n").expect("the out-of-range port lands");
+        assert_eq!(read_published_port(&path), None);
+    }
+
+    /// D6, measured: a port that accepts but never answers must read
+    /// as dead within the probe's bound — the connect succeeds (the
+    /// backlog takes it), the request writes, and the read must time
+    /// out rather than block. The bound asserted is the probe timeout
+    /// plus slack, not the timeout itself, so a slow host does not
+    /// flake.
+    #[test]
+    fn the_probe_is_bounded_against_a_silent_server() {
+        let silent =
+            std::net::TcpListener::bind(("127.0.0.1", 0)).expect("the silent server binds");
+        let port = silent.local_addr().expect("the port").port();
+        std::thread::spawn(move || {
+            for stream in silent.incoming() {
+                // Accept and hold the connection open, never answering.
+                drop(stream);
+            }
+        });
+        let started = std::time::Instant::now();
+        assert!(!listener_answers(port), "the silent server reads as dead");
+        assert!(
+            started.elapsed() < PROBE_TIMEOUT + std::time::Duration::from_secs(2),
+            "the probe returned in {:?}, not the bound",
+            started.elapsed()
+        );
+    }
+
+    /// D6, measured: a server that dribbles one byte per interval
+    /// shorter than the read timeout would stretch a per-read-bounded
+    /// `read_to_end` forever — each read succeeds, the end never
+    /// comes. The probe runs on a worker thread observed through a
+    /// bounded channel, so a hang is a failing assertion, not a hung
+    /// suite.
+    #[test]
+    fn the_probe_is_bounded_against_a_dribbling_server() {
+        let dribbler = std::net::TcpListener::bind(("127.0.0.1", 0)).expect("the dribbler binds");
+        let port = dribbler.local_addr().expect("the port").port();
+        std::thread::spawn(move || {
+            for mut stream in dribbler.incoming().flatten() {
+                std::thread::spawn(move || {
+                    let byte = *b"x";
+                    loop {
+                        std::thread::sleep(PROBE_TIMEOUT / 2);
+                        if stream.write_all(&byte).is_err() {
+                            return;
+                        }
+                    }
+                });
+            }
+        });
+        let (sender, receiver) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let _ = sender.send(listener_answers(port));
+        });
+        let started = std::time::Instant::now();
+        let outcome = receiver.recv_timeout(PROBE_TIMEOUT + std::time::Duration::from_secs(3));
+        assert!(
+            outcome.is_ok(),
+            "the probe did not return within {:?} — the dribbler stretched it past the bound",
+            started.elapsed()
+        );
+        assert_eq!(outcome, Ok(false), "the dribbling server reads as dead");
+        assert!(
+            started.elapsed() < PROBE_TIMEOUT + std::time::Duration::from_secs(2),
+            "the probe returned in {:?}, not the bound",
+            started.elapsed()
+        );
+    }
+
+    /// The default tier's fallback (judgment call (f)): no cwd to
+    /// match falls to the registry's first slug, ascending.
+    #[test]
+    fn the_default_repo_falls_to_the_first_slug() {
+        let dir = tempfile::tempdir().expect("a temp dir");
+        let root = DataRoot::new(dir.path());
+        for (slug, instant) in [
+            ("fixture", "2026-10-02T08:00:00Z"),
+            ("alpha", "2026-10-02T09:00:00Z"),
+        ] {
+            root.register(todo_domain::Repo {
+                slug: RepoSlug::from_str(slug).expect("a valid slug"),
+                name: slug.to_owned(),
+                path: format!("/repos/{slug}"),
+                registered_at: todo_domain::Timestamp::parse(instant).expect("a timestamp"),
+            })
+            .expect("the repo registers");
+        }
+        assert_eq!(
+            default_repo(&root, None),
+            Ok(RepoSlug::from_str("alpha").expect("a valid slug"))
+        );
+    }
+}

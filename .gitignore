@@ -1,0 +1,28 @@
+# ── Build output ────────────────────────────────────────────────────────
+target/
+tmp/
+
+# ── Python tooling bytecode: tools/ is imported as well as run ──────────
+__pycache__/
+*.pyc
+
+# ── Agent cache: renderings of committed state, never a source of it ────
+.agents/cache/
+
+# ── Personal override, untracked by design ──────────────────────────────
+MYAGENTS.md
+
+# ── Maintainer-local release/CI notes, kept out of the public docs ──────
+README.ci.md
+
+# ── opencode plugin deps ────────────────────────────────────────────────
+.opencode/node_modules/
+.opencode/package-lock.json
+.opencode/bun.lock
+
+# ── The store, once the server exists: user data, never repo content ────
+*.todo-store
+*.todo-log
+
+# ── macOS ───────────────────────────────────────────────────────────────
+.DS_Store

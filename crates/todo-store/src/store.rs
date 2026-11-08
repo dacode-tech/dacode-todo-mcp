@@ -1,0 +1,364 @@
+//! The persistence surface of spec §4.2: one trait, owned by this crate,
+//! behind which the JSONL engine (D1) is sealed. The domain and server
+//! crates never see past it — no engine type, no engine error, no engine
+//! feature flag (§2).
+//!
+//! §4.2 names five responsibilities: open/create, read the graph, append
+//! a mutation, snapshot/compact, and the format version. This trait holds
+//! all five:
+//!
+//! - **open/create** are [`Store::create`] and [`Store::open`]: they take
+//!   a [`crate::DataRoot`] and a repo or a slug — never a bare file path —
+//!   and resolve the D4 layout (§2) themselves. They are `where Self:
+//!   Sized` so the trait stays object-safe: a constructor cannot be called
+//!   through a `dyn Store` (there is no `Self` to build), but that is no
+//!   loss — a caller holding a `dyn Store` already has an opened store.
+//!   The bound keeps them out of the vtable, so `dyn Store` still compiles
+//!   and every mutation below stays dispatchable; the
+//!   `_OBJECT_SAFE_IS_PINNED` const asserts that at compile time, because
+//!   M3's server depends on it.
+//! - **snapshot/compact** are [`Store::snapshot`] and [`Store::compact`]
+//!   (§4.1: periodic snapshot plus truncation bounds replay; §4.3:
+//!   snapshots are the recovery unit). They are explicit calls with no
+//!   policy and no clock behind them — a trigger needs a clock or a
+//!   caller, and §8 bars clocks below the binary layer while §6 lists no
+//!   snapshot tool, so t13's cli and M3's server decide *when*.
+//!
+//! Two contracts every method shares:
+//!
+//! - **Writes return the new state** of what they wrote (§6), so a caller
+//!   never needs a read-after-write round trip: the allocated node, the
+//!   epic-delete cascade, `()` for an edge.
+//! - **A rejection is atomic; an io failure is session-fatal.** The domain
+//!   validates first and a rejection leaves both the graph and the log
+//!   untouched ([`StoreError::Domain`]). If the append itself fails after
+//!   a successful apply, memory is one event ahead of disk — exactly §4.3's
+//!   crash window, with the crash replaced by an io error. There is no
+//!   clone-and-rollback and no failed flag: the caller must reopen the
+//!   store, and replay from disk drops the unpersisted mutation. Treat an
+//!   [`StoreError::Io`] from a mutation as the end of the session.
+//!
+//! Timestamps are caller-passed on every mutation (§8: nothing below the
+//! binary layer reads a wall clock). Where the domain takes none — epics
+//! and the repo node carry no timestamps (§3) — the `at` exists solely as
+//! the audit instant of the event line, which is then the only record of
+//! when the change happened.
+
+use todo_domain::{
+    BlocksEdge, Decision, DecisionId, Doc, DocId, Epic, EpicId, Graph, Repo, RepoSlug, Reward,
+    Size, Task, TaskId, Timestamp,
+};
+use todo_domain::{DecisionDraft, DocDraft, EpicDraft, TaskDraft};
+
+use crate::error::StoreError;
+use crate::event::{DecisionPatch, DocPatch, EpicPatch, ReflectionTrigger, TaskPatch};
+use crate::layout::DataRoot;
+use crate::reader::RewardsTotals;
+
+/// The whole persistence surface a caller above this crate uses (§4.2).
+pub trait Store {
+    /// Creates the store for `repo` in the D4 layout under `root`
+    /// (`repos/<slug>/event-log.jsonl`, §2) and returns it open and
+    /// locked. The slug must not already have a log there: creation is
+    /// `create_new`, so an existing store is a named error, never a
+    /// truncation. This does **not** touch the registry — registering a
+    /// repo (the index write under §8's registry lock, with the duplicate
+    /// refusal) is [`DataRoot::register`], which builds on this.
+    ///
+    /// **A caller above this crate registers a new repository only through
+    /// [`DataRoot::register`], never through this constructor directly.**
+    /// `create` writes a log the registry does not list, which is exactly
+    /// the half-created state `register` then refuses as a `duplicate`
+    /// forever after (see [`DataRoot`]'s divergence note) — so calling it
+    /// directly strands the slug, resolvable only by t13's inspector. It
+    /// is the engine seam a fallback implementation plugs into, not the
+    /// registration path.
+    ///
+    /// `where Self: Sized`: a constructor cannot dispatch through
+    /// `dyn Store`, and does not need to — see the module docs.
+    fn create(root: &DataRoot, repo: Repo) -> Result<Self, StoreError>
+    where
+        Self: Sized;
+
+    /// Opens the store for `slug` in the D4 layout under `root`, replays
+    /// its log into the graph it describes (§4.1), and returns it locked.
+    /// The registry is not consulted: the store directory is
+    /// authoritative, and a missing log is the engine's honest io error.
+    ///
+    /// `where Self: Sized`: a constructor cannot dispatch through
+    /// `dyn Store`, and does not need to — see the module docs.
+    fn open(root: &DataRoot, slug: &RepoSlug) -> Result<Self, StoreError>
+    where
+        Self: Sized;
+
+    /// The in-memory graph: every read is a query over it, never a
+    /// reload (§4.1 — load replays the log once, at open).
+    fn graph(&self) -> &Graph;
+
+    /// The format version this store writes and read successfully —
+    /// [`crate::FORMAT_VERSION`] (§4's versioning requirement).
+    fn format_version(&self) -> u32;
+
+    /// Writes a snapshot of the current graph beside the log (§4.1:
+    /// "periodic snapshot + truncation bounds replay"; §4.3: "snapshots
+    /// are the recovery unit") and returns the `log_offset` it covered —
+    /// the log's byte length at the call, so a reopen restores the graph
+    /// and replays only the lines appended after this instant. The write
+    /// is temp-file + `fsync` + atomic rename, so a snapshot is never
+    /// torn and the previous one stays loadable until the rename lands;
+    /// a failed snapshot changes nothing **in place** and is **not**
+    /// session-fatal — the log, the graph and the snapshot already on
+    /// disk are all untouched.
+    ///
+    /// What a failure after the temp file's creation does leave is that
+    /// temp, and nothing removes it: its name is never the snapshot's and
+    /// nothing in this crate reads a store directory's contents, so the
+    /// debris is inert rather than a state to recover from. The same
+    /// process's next snapshot of this store truncates it; a dead
+    /// process's is left behind. The `snapshot` test target's
+    /// `a_refused_covering_snapshot_leaves_the_log_untouched` counts what
+    /// a refused rename leaves, through [`crate::Store::compact`]'s
+    /// step (1) — the same atomic write.
+    ///
+    /// **No policy, no clock.** Snapshotting is this explicit call and
+    /// nothing else: no threshold, no timer, no snapshot-on-open. A
+    /// trigger policy needs a clock or a caller, and §8 bars clocks below
+    /// the binary layer while §6 lists no snapshot tool — t13's cli and
+    /// M3's server decide *when*, this method is only *how*.
+    fn snapshot(&mut self) -> Result<u64, StoreError>;
+
+    /// Snapshots and truncates in one operation (§4.1's other half), in
+    /// that order — **snapshot first, then truncate** — because the order
+    /// is the whole crash-safety argument. The covering snapshot (its
+    /// `log_offset` = the current full log length) lands through its own
+    /// temp+fsync+rename *before* the log it covers is shortened, and the
+    /// snapshot is re-based onto the short log only after that rename. So
+    /// a covering document is on disk before the log shrinks beneath it.
+    /// The covered events **leave the live log** (retention is §4.1's
+    /// truncation; the archive story is §4.3's backup — copy the store
+    /// directory under the lock); the `snapshot` module docs state the
+    /// reading, signed into §4.3 itself (U10). Like [`Store::snapshot`],
+    /// this is an explicit call with no policy and no clock behind it.
+    /// The report is [`Compaction`]: what t13's cli prints, never a
+    /// decision this crate makes.
+    ///
+    /// Every interruption is a correct open or a *named* error, never a
+    /// silent wrong graph — the table is the correctness argument (steps
+    /// numbered as the engine comments them):
+    ///
+    /// | crash point | on-disk state | reopen |
+    /// |---|---|---|
+    /// | before (1) lands | previous log + previous snapshot (or none) | correct — the old pair still replays |
+    /// | (1)–(3) | full log + covering snapshot (`log_offset` = full length) | correct — empty tail |
+    /// | (3)–(4) | short log + covering snapshot (`log_offset` = old full length, now &gt; the short log) | **named** `corrupt_store` "beyond the log's end", both numbers in the detail; the live snapshot still holds the whole graph, so t13's repair recovers by re-basing the offset |
+    /// | after (4) | short log + re-based snapshot (`log_offset` = short length) | correct — empty tail |
+    ///
+    /// **After a compaction the log and its snapshot are one unit, and the
+    /// snapshot is load-bearing, not an optimization.** The table's (3)–(4)
+    /// window is a named error *because of the order*: the covering
+    /// snapshot is already on disk when the log shrinks. One case the
+    /// order cannot reach, kept separate and honest: **out-of-band
+    /// deletion** of a compacted store's snapshot while its tail is empty
+    /// replays the short log as a bare repo graph, indistinguishable from
+    /// a freshly created store. That is not crash-reachable (it takes a
+    /// deletion no step performs) and §4's "corruption is a named error"
+    /// cannot catch it — nothing on disk claims a snapshot existed.
+    /// Closing it needs a persistent compaction marker, a signed-format
+    /// change (a log-header field, f14's decision, moving
+    /// `event_log.v1.golden`); t13's inspector is the vantage that can
+    /// flag the divergence. The `snapshot` module docs record both cases.
+    fn compact(&mut self) -> Result<Compaction, StoreError>;
+
+    /// Adds an epic and appends its `epic_add` line. `at` is the audit
+    /// instant: an epic carries no timestamps (§3), so the line is the
+    /// record of when it was added.
+    fn add_epic(&mut self, draft: EpicDraft, at: Timestamp) -> Result<Epic, StoreError>;
+
+    /// Adds a task and appends its `task_add` line; `at` stamps the task's
+    /// `created` and `updated` (§3's closure discipline applies at
+    /// creation, so a draft without `verify` is rejected and nothing is
+    /// written).
+    fn add_task(&mut self, draft: TaskDraft, at: Timestamp) -> Result<Task, StoreError>;
+
+    /// Adds a decision and appends its `decision_add` line; `at` stamps
+    /// both of the node's timestamps.
+    fn add_decision(&mut self, draft: DecisionDraft, at: Timestamp)
+    -> Result<Decision, StoreError>;
+
+    /// Registers a doc and appends its `doc_register` line; `at` stamps
+    /// both of the node's timestamps.
+    fn add_doc(&mut self, draft: DocDraft, at: Timestamp) -> Result<Doc, StoreError>;
+
+    /// Patches an epic and appends its `epic_update` line. `at` is the
+    /// audit instant alone — an epic has no `updated` field (§3).
+    fn update_epic(
+        &mut self,
+        id: EpicId,
+        at: Timestamp,
+        patch: EpicPatch,
+    ) -> Result<Epic, StoreError>;
+
+    /// Patches a task and appends its `task_update` line; `at` becomes the
+    /// task's `updated`. Setting [`TaskPatch::epic`] is a reparenting and
+    /// is checked like one (§5.1) — there is no separate verb for it, in
+    /// the log or here.
+    ///
+    /// The raw patch path: no reward is computed or appended on a
+    /// closure that goes through here — the importer's historical
+    /// closures and the replay path's own semantics both rely on that.
+    /// A live closure that should grant goes through [`Store::close_task`].
+    fn update_task(
+        &mut self,
+        id: TaskId,
+        at: Timestamp,
+        patch: TaskPatch,
+    ) -> Result<Task, StoreError>;
+
+    /// The closure-aware update (§15, D23): applies the patch exactly as
+    /// [`Store::update_task`] does, and — when the transition moves the
+    /// task **into** `closed` on a root whose config is enabled —
+    /// computes the reward through the domain's `reward` (the single
+    /// source: the store never re-derives the fallback rules) and
+    /// appends the `reward_grant` event after the `task_update` line.
+    /// `actual_size` is §15's second size bucket, reported at the
+    /// closure call; absent falls to the config's default bucket.
+    ///
+    /// The grant fires on the transition alone: a patch on an
+    /// already-closed task grants nothing a second time, `wontfix`
+    /// grants nothing at all, and a computation that overflows grants
+    /// nothing (the domain's `None`, event emission follows it). A root
+    /// with no config — or `enabled: false` — is inert: the call is
+    /// byte-identical to [`Store::update_task`], no reward event, no
+    /// reward in the answer. The config is read fresh at the call, so a
+    /// config change takes effect without a reopen; a malformed config
+    /// fails the whole call atomically before anything is applied.
+    ///
+    /// Returns [`TaskClosure`]: the task's new state and the reward
+    /// granted, if any — the closure response's reward line is the
+    /// server's to render (§15).
+    fn close_task(
+        &mut self,
+        id: TaskId,
+        at: Timestamp,
+        patch: TaskPatch,
+        actual_size: Option<Size>,
+    ) -> Result<TaskClosure, StoreError>;
+
+    /// Logs a reflection (§15, D23): the closing agent's verbatim
+    /// `answer`, the `trigger` that asked the question, and the
+    /// `totals` at the moment the answer landed — the caller derives
+    /// them through [`DataRoot::rewards_totals`], the store records
+    /// them. The store never interprets an answer; the enabled-gate for
+    /// reflections is the caller's, because the question is asked only
+    /// on a rewards-enabled root. `at` is the answer's audit instant.
+    fn log_reflection(
+        &mut self,
+        answer: String,
+        trigger: ReflectionTrigger,
+        totals: RewardsTotals,
+        at: Timestamp,
+    ) -> Result<(), StoreError>;
+
+    /// Patches a decision and appends its `decision_update` line; `at`
+    /// becomes the node's `updated`. Signing it changes no edge: its
+    /// `blocks` edges simply stop gating (§3/D10).
+    fn update_decision(
+        &mut self,
+        id: DecisionId,
+        at: Timestamp,
+        patch: DecisionPatch,
+    ) -> Result<Decision, StoreError>;
+
+    /// Patches a doc and appends its `doc_update` line; `at` becomes the
+    /// node's `updated`. The path is not patchable here — see
+    /// [`Store::set_doc_path`].
+    fn update_doc(&mut self, id: DocId, at: Timestamp, patch: DocPatch) -> Result<Doc, StoreError>;
+
+    /// Moves a doc's body and appends its own `doc_set_path` line (§6,
+    /// D10: an audited verb of its own, so a citation's address change is
+    /// visible in the log); `at` becomes the node's `updated`.
+    fn set_doc_path(&mut self, id: DocId, path: String, at: Timestamp) -> Result<Doc, StoreError>;
+
+    /// Updates the checkout path and appends its `repo_set_path` line
+    /// (§7: the slug is the key, the path an attribute). `at` is the audit
+    /// instant — a [`Repo`] has no `updated` field (§3).
+    fn set_repo_path(&mut self, path: String, at: Timestamp) -> Result<Repo, StoreError>;
+
+    /// Updates the display name and appends its `repo_set_name` line; `at`
+    /// is the audit instant.
+    fn set_repo_name(&mut self, name: String, at: Timestamp) -> Result<Repo, StoreError>;
+
+    /// Deletes an epic and appends its `epic_delete` line, returning the
+    /// task ids the cascade took with it, ascending (§5.1: no orphans,
+    /// ever — every task must be closed or `wontfix` first, or the whole
+    /// write is rejected). `at` is the audit instant.
+    ///
+    /// The log records the intent, not the extent: replay re-runs the
+    /// domain cascade, so one rule decides both. The deleted tasks'
+    /// numbers stay burned (§3), which is what makes the gaps in a later
+    /// allocation meaningful.
+    fn delete_epic(&mut self, id: EpicId, at: Timestamp) -> Result<Vec<TaskId>, StoreError>;
+
+    /// Adds a `blocks` edge and appends its `blocks_link` line, rejecting
+    /// one that would close a cycle before anything is written (§5.1).
+    /// `at` is the audit instant.
+    fn link_blocks(&mut self, edge: BlocksEdge, at: Timestamp) -> Result<(), StoreError>;
+
+    /// Removes a `blocks` edge and appends its `blocks_unlink` line; `at`
+    /// is the audit instant. Both endpoints must exist, but an edge that
+    /// is not there is not an error — the domain's answer, mirrored
+    /// ([`Graph::unlink_blocks`]).
+    fn unlink_blocks(&mut self, edge: BlocksEdge, at: Timestamp) -> Result<(), StoreError>;
+
+    /// Adds a `relates` annotation and appends its `relates_link` line;
+    /// `at` is the audit instant. The pair is undirected, so both
+    /// spellings are one annotation and a repeat is a no-op.
+    fn link_relates(&mut self, a: TaskId, b: TaskId, at: Timestamp) -> Result<(), StoreError>;
+
+    /// Removes a `relates` annotation and appends its `relates_unlink`
+    /// line; `at` is the audit instant. An absent annotation is not an
+    /// error ([`Graph::unlink_relates`]).
+    fn unlink_relates(&mut self, a: TaskId, b: TaskId, at: Timestamp) -> Result<(), StoreError>;
+}
+
+/// What one [`Store::compact`] did — a report for the caller to print
+/// (t13's cli), never a policy input: the engine decides nothing from it
+/// and keeps no state in it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Compaction {
+    /// The log's byte length before the compaction.
+    pub log_bytes_before: u64,
+    /// The log's byte length after: the re-emitted header and seed, which
+    /// is also the re-based snapshot's `log_offset`.
+    pub log_bytes_after: u64,
+    /// The committed event lines the covered region held — everything
+    /// after the seed, which the new log drops and the snapshot now
+    /// records. Counted as LF-terminated lines, without a second parse;
+    /// a torn fragment from a crashed earlier session was never a
+    /// committed event and is not counted (the engine documents both).
+    pub events_dropped: u64,
+}
+
+/// What one [`Store::close_task`] did (§15): the task's new state and
+/// the reward its closure granted, if any. The reward is the domain's
+/// computed [`Reward`] — the amount plus the inputs the arithmetic
+/// applied — handed back so the closure response can carry the line;
+/// `None` is every no-grant case (inert root, non-closure, `wontfix`,
+/// overflow).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TaskClosure {
+    /// The task as the patch left it.
+    pub task: Task,
+    /// The reward the closure granted, when it granted one.
+    pub reward: Option<Reward>,
+}
+
+/// Compile-time pin: `dyn Store` must keep compiling, because M3's server
+/// holds opened stores as trait objects behind the §2 boundary. The
+/// `where Self: Sized` constructors are what keep the trait object-safe;
+/// this const fails the build the moment a change (a new non-`Sized`
+/// method, a `Self` return, a generic) makes `Store` non-object-safe, so
+/// the property cannot silently regress. The binding is never called —
+/// its type is the assertion.
+#[allow(dead_code, reason = "a compile-time assertion; the value is its type")]
+const _OBJECT_SAFE_IS_PINNED: fn(&dyn Store) = |_| {};

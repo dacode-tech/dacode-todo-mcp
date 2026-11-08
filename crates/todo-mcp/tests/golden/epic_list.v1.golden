@@ -1,0 +1,4 @@
+{"jsonrpc":"2.0","id":2,"result":{"content":[{"type":"text","text":"{\"epics\":[{\"id\":\"fixture:E1\",\"title\":\"Bring-up\"},{\"id\":\"fixture:E2\",\"title\":\"Runway\"}]}"}],"structuredContent":{"epics":[{"id":"fixture:E1","title":"Bring-up"},{"id":"fixture:E2","title":"Runway"}]},"isError":false}}
+{"jsonrpc":"2.0","id":3,"result":{"content":[{"type":"text","text":"{\"code\":\"unknown_id\",\"message\":\"unknown id: nosuch\"}"}],"structuredContent":{"code":"unknown_id","message":"unknown id: nosuch"},"isError":true}}
+{"jsonrpc":"2.0","id":4,"result":{"content":[{"type":"text","text":"{\"code\":\"invalid\",\"message\":\"invalid repository slug: \\\"Bad!\\\"\"}"}],"structuredContent":{"code":"invalid","message":"invalid repository slug: \"Bad!\""},"isError":true}}
+{"jsonrpc":"2.0","id":5,"result":{"content":[{"type":"text","text":"failed to deserialize parameters: unknown field `epic`, expected `repo`"}],"isError":true}}

@@ -1,0 +1,1 @@
+{"jsonrpc":"2.0","id":3,"result":{"content":[{"type":"text","text":"{\"repo\":\"dacode\",\"epics\":4,\"decisions\":2,\"docs\":12,\"tasks\":15,\"blocks\":2}"}],"structuredContent":{"repo":"dacode","epics":4,"decisions":2,"docs":12,"tasks":15,"blocks":2},"isError":false}}

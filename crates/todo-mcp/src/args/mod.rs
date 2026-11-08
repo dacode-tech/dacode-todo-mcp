@@ -1,0 +1,1340 @@
+//! The argument parse (§13, D20; U38's split; U74's usage split): the
+//! argument vector in, a typed [`Command`] or a usage-fault message
+//! out. The hand-written usage text `--help` prints and every fault
+//! appends is [`USAGE`] — its own module since the parse outgrew the
+//! file beside it.
+//!
+//! The parse lives in the lib (the todo-cli precedent) so the tests
+//! drive it without spawning a process; the binary imports it and
+//! owns only the dispatch. The parser is `lexopt` (U14, resolved
+//! 2026-10-23): pedantic — it rejects what it does not understand
+//! instead of guessing, with no transitive dependency and no proc
+//! macros. What lexopt does not own is owned here: the per-subcommand
+//! switch table (`--json`/`--out`/`--no-write`
+//! belong to `progress`, `--port-file` to `serve`,
+//! `--dry-run`/`--yes` to `repair`, `--daemon` to the no-subcommand
+//! path — each rejected everywhere else, never silently ignored),
+//! and the slug validation that makes a malformed `--repo` a
+//! **usage** fault (exit 2) rather than a store fault.
+//!
+//! Parsing is total: every failure — lexopt's own, a missing required
+//! option, an unknown subcommand, a malformed slug — is a message the
+//! caller prints with the usage text; nothing panics. The globals
+//! (`--root`, `--repo`) are collected position-independently; the
+//! FIRST positional selects the command; `--help`/`-h` short-circuit
+//! wherever they appear (per-subcommand help never demands the
+//! required options), and `--version`/`-V` is the top level's alone.
+//!
+//! The root's one spelling rule (U73): a leading `~` or `~/` in the
+//! `--root` value expands against a home the caller passes in — the
+//! binary reads `HOME` once and hands it over (the cwd precedent;
+//! the lib stays env-free) — because client configs spawn the binary
+//! without a shell and cannot expand it themselves. `~name` (another
+//! user's home) and a `~`-prefixed root with no home are usage
+//! faults. The expansion is a post-parse pass ([`expand_root`]) so
+//! the parse's pinned fault messages stay untouched, and only
+//! `--root` expands: `--out` and `--port-file` never appear in a
+//! no-shell config, and a shell user's tilde never reaches the
+//! binary.
+
+mod usage;
+
+pub use self::usage::USAGE;
+
+use std::ffi::{OsStr, OsString};
+use std::os::unix::ffi::OsStrExt;
+use std::str::FromStr;
+
+use todo_domain::RepoSlug;
+
+/// The parsed command line (§13, D20): which of the binary's shapes
+/// this invocation is. The globals are shared; the first positional
+/// selects.
+#[derive(Debug, PartialEq, Eq)]
+pub enum Command {
+    /// No subcommand: the stdio shim (D25, U66) — the thin client of
+    /// the root's daemon, connecting to (spawning) it over
+    /// `<root>/serve.sock` and proxying MCP bytes. The parse shape is
+    /// the one every existing client config names: no positional, the
+    /// globals only. Named for what it is now that `serve` names the
+    /// listener (t71's D7) and `--daemon` names the daemon (U65).
+    Shim {
+        /// The data root (§7/§13/D4).
+        root: OsString,
+        /// The default repo slug (the committed D8), riding the
+        /// socket preamble to the session.
+        default_repo: Option<RepoSlug>,
+    },
+    /// `--daemon`: the shared daemon (D25, U65) — one process per
+    /// root serving every connection's own MCP session over
+    /// `<root>/serve.sock`, each connection's preamble carrying its
+    /// defaults. The no-argument shim (U66) spawns it; the CLI
+    /// subcommands are daemon-less.
+    Daemon {
+        /// The data root (§7/§13/D4).
+        root: OsString,
+    },
+    /// `refresh`: the on-demand re-import of the repo's board (t70's
+    /// slice of D20's tool CLI) — the registry surgery, the
+    /// re-register, the apply, the census.
+    Refresh {
+        /// The data root (§7/§13/D4).
+        root: OsString,
+        /// The repo to refresh — `None` resolves through the cwd tier.
+        repo: Option<RepoSlug>,
+    },
+    /// `progress`: the total-progress render (t68's slice of D20's
+    /// tool CLI; t69's the page and the writes).
+    Progress {
+        /// The data root (§7/§13/D4).
+        root: OsString,
+        /// The repo to render — `None` resolves through the cwd tier.
+        repo: Option<RepoSlug>,
+        /// Whether to print the JSON document instead of the summary.
+        json: bool,
+        /// Whether to open the written page in a browser.
+        open: bool,
+        /// Where to write the pair — `None` is the rendered repo's
+        /// `.agents/cache`.
+        out: Option<OsString>,
+        /// Whether to write nothing.
+        no_write: bool,
+    },
+    /// `serve`: the live progress listener (t71's slice of D20's tool
+    /// CLI) — the fresh-render page over HTTP, the WebSocket push
+    /// channel, the per-root port publication (D13) with attach /
+    /// takeover / SIGINT-cleanup.
+    Serve {
+        /// The data root (§7/§13/D4) — the listener serves every repo
+        /// in it; the repo is a URL parameter.
+        root: OsString,
+        /// Where the port is published — `None` is the per-root
+        /// default (`<root>/serve.port`, D13).
+        port_file: Option<OsString>,
+        /// Whether to open the served page in a browser.
+        open: bool,
+    },
+    /// `dump`: the store's graph as one canonical JSON document (the
+    /// inspector absorbed at t72, D20) — the lib's
+    /// [`inspect::dump`](crate::inspect::dump) run.
+    Dump {
+        /// The data root (§7/§13/D4).
+        root: OsString,
+        /// The repo to dump — `None` resolves through the cwd tier.
+        repo: Option<RepoSlug>,
+    },
+    /// `verify`: the store's integrity report (the inspector absorbed
+    /// at t72, D20).
+    Verify {
+        /// The data root (§7/§13/D4).
+        root: OsString,
+        /// The repo to verify — `None` resolves through the cwd tier.
+        repo: Option<RepoSlug>,
+    },
+    /// `repair`: §4.3's explicit, confirmed repair (the inspector
+    /// absorbed at t72, D20) — `--dry-run` classifies and writes
+    /// nothing, `--yes` truncates without prompting, and the bare
+    /// form prompts.
+    Repair {
+        /// The data root (§7/§13/D4).
+        root: OsString,
+        /// The repo to repair — `None` resolves through the cwd tier.
+        repo: Option<RepoSlug>,
+        /// Whether to classify and report, writing nothing.
+        dry_run: bool,
+        /// Whether to truncate without prompting.
+        yes: bool,
+    },
+    /// `--help`/`-h`: print [`USAGE`] to stdout and exit 0,
+    /// short-circuiting wherever it appears — per-subcommand help
+    /// never demands the required options.
+    Help,
+    /// `--version`/`-V`: print the version line to stdout and exit 0
+    /// — the top level's alone, a usage fault after a subcommand.
+    Version,
+}
+
+/// Parses the command line — program name excluded, the shape
+/// `lexopt::Parser::from_args` wants. The globals (`--root`, `--repo`)
+/// are collected position-independently; the FIRST positional selects
+/// the command (`progress` routes to the render, `serve` to the
+/// listener, `dump`/`verify`/`repair` to the inspector, no positional
+/// at all to the shim); any other positional is a usage fault naming
+/// the attempted subcommand. lexopt (U14) is pedantic: anything but
+/// the known flags and their values is a usage fault, never a guess.
+/// The root is validated nowhere here — the store reports a missing
+/// one as its honest `io` fault — while the slug is validated at the
+/// parse: configuration is validated where it enters, so a malformed
+/// `--repo` value is a usage fault (exit 2), not a wire error.
+pub fn parse_args<I>(args: I) -> Result<Command, String>
+where
+    I: IntoIterator,
+    I::Item: Into<OsString>,
+{
+    let mut parser = lexopt::Parser::from_args(args);
+    let mut root: Option<OsString> = None;
+    let mut repo: Option<RepoSlug> = None;
+    let mut daemon = false;
+    let mut refresh = false;
+    let mut json = false;
+    let mut open = false;
+    let mut out: Option<OsString> = None;
+    let mut no_write = false;
+    let mut progress = false;
+    let mut serve = false;
+    let mut dump = false;
+    let mut verify = false;
+    let mut repair = false;
+    let mut dry_run = false;
+    let mut yes = false;
+    let mut port_file: Option<OsString> = None;
+    while let Some(arg) = parser
+        .next()
+        .map_err(|error| format!("todo-mcp: {error}"))?
+    {
+        match arg {
+            lexopt::Arg::Long("help") | lexopt::Arg::Short('h') => {
+                reject_attached_value(&mut parser, "help")?;
+                return Ok(Command::Help);
+            }
+            lexopt::Arg::Long("version") | lexopt::Arg::Short('V') => {
+                reject_attached_value(&mut parser, "version")?;
+                if let Some(subcommand) = [
+                    (progress, "progress"),
+                    (refresh, "refresh"),
+                    (serve, "serve"),
+                    (dump, "dump"),
+                    (verify, "verify"),
+                    (repair, "repair"),
+                ]
+                .into_iter()
+                .find_map(|(seen, name)| seen.then_some(name))
+                {
+                    return Err(format!(
+                        "todo-mcp: unexpected argument '--version' for '{subcommand}': \
+                         --version is the top level's own"
+                    ));
+                }
+                return Ok(Command::Version);
+            }
+            lexopt::Arg::Long("root") => {
+                root = Some(
+                    parser
+                        .value()
+                        .map_err(|error| format!("todo-mcp: {error}"))?,
+                );
+            }
+            lexopt::Arg::Long("repo") => {
+                let value = parser
+                    .value()
+                    .map_err(|error| format!("todo-mcp: {error}"))?;
+                let text = value.to_str().ok_or_else(|| {
+                    "todo-mcp: the value of option '--repo <SLUG>' is not valid UTF-8".to_owned()
+                })?;
+                let slug = RepoSlug::from_str(text)
+                    .map_err(|error| format!("todo-mcp: --repo: {error}"))?;
+                repo = Some(slug);
+            }
+            lexopt::Arg::Long("daemon") => {
+                reject_attached_value(&mut parser, "daemon")?;
+                daemon = true;
+            }
+            lexopt::Arg::Long("json") if progress => {
+                json = true;
+            }
+            lexopt::Arg::Long("json") => {
+                return Err(
+                    "todo-mcp: the option '--json' belongs to the 'progress' subcommand".to_owned(),
+                );
+            }
+            lexopt::Arg::Long("open") if progress || serve => {
+                open = true;
+            }
+            lexopt::Arg::Long("open") => {
+                return Err(
+                    "todo-mcp: the option '--open' belongs to the 'progress' or 'serve' subcommand"
+                        .to_owned(),
+                );
+            }
+            lexopt::Arg::Long("no-write") if progress => {
+                no_write = true;
+            }
+            lexopt::Arg::Long("no-write") => {
+                return Err(
+                    "todo-mcp: the option '--no-write' belongs to the 'progress' subcommand"
+                        .to_owned(),
+                );
+            }
+            lexopt::Arg::Long("out") if progress => {
+                out = Some(
+                    parser
+                        .value()
+                        .map_err(|error| format!("todo-mcp: {error}"))?,
+                );
+            }
+            lexopt::Arg::Long("out") => {
+                return Err(
+                    "todo-mcp: the option '--out <DIR>' belongs to the 'progress' subcommand"
+                        .to_owned(),
+                );
+            }
+            lexopt::Arg::Long("port-file") if serve => {
+                port_file = Some(
+                    parser
+                        .value()
+                        .map_err(|error| format!("todo-mcp: {error}"))?,
+                );
+            }
+            lexopt::Arg::Long("port-file") => {
+                return Err(
+                    "todo-mcp: the option '--port-file <PATH>' belongs to the 'serve' subcommand"
+                        .to_owned(),
+                );
+            }
+            lexopt::Arg::Long("dry-run") if repair => {
+                dry_run = true;
+            }
+            lexopt::Arg::Long("dry-run") => {
+                return Err(
+                    "todo-mcp: the option '--dry-run' belongs to the 'repair' subcommand"
+                        .to_owned(),
+                );
+            }
+            lexopt::Arg::Long("yes") if repair => {
+                yes = true;
+            }
+            lexopt::Arg::Long("yes") => {
+                return Err(
+                    "todo-mcp: the option '--yes' belongs to the 'repair' subcommand".to_owned(),
+                );
+            }
+            lexopt::Arg::Value(value) => {
+                let text = value
+                    .to_str()
+                    .ok_or_else(|| "todo-mcp: the subcommand name is not valid UTF-8".to_owned())?;
+                if progress || refresh || serve || dump || verify || repair {
+                    return Err(format!("todo-mcp: unexpected argument {text:?}"));
+                }
+                match text {
+                    "progress" => progress = true,
+                    "refresh" => refresh = true,
+                    "serve" => serve = true,
+                    "dump" => dump = true,
+                    "verify" => verify = true,
+                    "repair" => repair = true,
+                    other => return Err(format!("todo-mcp: unknown subcommand '{other}'")),
+                }
+            }
+            unexpected => {
+                let error = unexpected.unexpected();
+                return Err(format!("todo-mcp: {error}"));
+            }
+        }
+    }
+    let root = root.ok_or_else(|| {
+        "todo-mcp: the required option '--root <DIR>' was not provided".to_owned()
+    })?;
+    if serve && repo.is_some() {
+        // The listener serves every repo in the root; a `--repo` flag
+        // would be silently ignored — a usage fault instead, never a
+        // no-op dressed as configuration.
+        return Err(
+            "todo-mcp: '--repo' cannot combine with 'serve' (the listener serves every repo \
+             in the root; the repo is a URL parameter)"
+                .to_owned(),
+        );
+    }
+    if daemon {
+        // The daemon is the no-subcommand path's own shape: a
+        // subcommand beside it would be silently unserved, and a
+        // `--repo` flag would be silently ignored — the daemon serves
+        // every connection's own default via the socket preamble.
+        // Usage faults, never no-ops dressed as configuration (the
+        // serve precedent's rule).
+        if let Some(subcommand) = [
+            (progress, "progress"),
+            (refresh, "refresh"),
+            (serve, "serve"),
+            (dump, "dump"),
+            (verify, "verify"),
+            (repair, "repair"),
+        ]
+        .into_iter()
+        .find_map(|(seen, name)| seen.then_some(name))
+        {
+            return Err(format!(
+                "todo-mcp: '--daemon' cannot combine with '{subcommand}' (the daemon is the \
+                 no-subcommand path's own; the CLI subcommands are daemon-less)"
+            ));
+        }
+        if repo.is_some() {
+            return Err(
+                "todo-mcp: '--repo' cannot combine with '--daemon' (the daemon serves every \
+                 connection's own default via the socket preamble)"
+                    .to_owned(),
+            );
+        }
+    }
+    if progress {
+        // The write-shaping flags cannot combine with each other or
+        // with `--json` — a flag that would be silently ignored is a
+        // usage fault, never a no-op dressed as configuration (the
+        // Python tool's `--serve` exclusivity, applied to the page
+        // writes).
+        if json && out.is_some() {
+            return Err(
+                "todo-mcp: '--json' cannot combine with '--out' (it prints the document to \
+                 stdout and writes nothing)"
+                    .to_owned(),
+            );
+        }
+        if json && open {
+            return Err(
+                "todo-mcp: '--json' cannot combine with '--open' (nothing is written to open)"
+                    .to_owned(),
+            );
+        }
+        if no_write && out.is_some() {
+            return Err(
+                "todo-mcp: '--no-write' cannot combine with '--out' (nothing is written)"
+                    .to_owned(),
+            );
+        }
+        if no_write && open {
+            return Err(
+                "todo-mcp: '--no-write' cannot combine with '--open' (nothing is written to \
+                 open)"
+                    .to_owned(),
+            );
+        }
+    }
+    Ok(if refresh {
+        Command::Refresh { root, repo }
+    } else if progress {
+        Command::Progress {
+            root,
+            repo,
+            json,
+            open,
+            out,
+            no_write,
+        }
+    } else if serve {
+        Command::Serve {
+            root,
+            port_file,
+            open,
+        }
+    } else if dump {
+        Command::Dump { root, repo }
+    } else if verify {
+        Command::Verify { root, repo }
+    } else if repair {
+        Command::Repair {
+            root,
+            repo,
+            dry_run,
+            yes,
+        }
+    } else if daemon {
+        Command::Daemon { root }
+    } else {
+        Command::Shim {
+            root,
+            default_repo: repo,
+        }
+    })
+}
+
+/// Resolves a leading `~` in the parsed [`Command`]'s `--root` value
+/// against the caller's home directory (U73): the binary reads `HOME`
+/// once and passes it in as a value — the cwd precedent, the lib stays
+/// env-free — and this pass walks every command shape, so no arm of
+/// the dispatch can forget it. A value without a leading `~` passes
+/// through unchanged; `~` alone is the home itself; `~/rest` is the
+/// home with `rest`; `~name` (another user's home) is a usage fault,
+/// as is any `~`-prefixed value when no home was given — a directory
+/// literally named `~` is never the intent, and configuration is
+/// validated where it enters (the malformed-slug rule). Only `--root`
+/// expands: `--out` and `--port-file` never appear in a no-shell
+/// client config, and a shell user's tilde never reaches the binary.
+pub fn expand_root(command: Command, home: Option<&OsStr>) -> Result<Command, String> {
+    fn expand(root: OsString, home: Option<&OsStr>) -> Result<OsString, String> {
+        let bytes = root.as_os_str().as_bytes();
+        if !bytes.starts_with(b"~") {
+            return Ok(root);
+        }
+        // An empty HOME is no home: it would expand `~` to the empty
+        // root — a cwd-relative store on the write paths, silently.
+        let Some(home) = home.filter(|home| !home.is_empty()) else {
+            return Err(
+                "todo-mcp: the value of option '--root <DIR>' starts with '~' but HOME is not \
+                 set or is empty"
+                    .to_owned(),
+            );
+        };
+        if bytes == b"~" {
+            return Ok(home.to_os_string());
+        }
+        // A '~' followed by '/': the home with the rest riding after
+        // its slash. A '~' followed by anything else is `~name` —
+        // another user's home — and falls to the fault below.
+        if let Some(rest) = bytes.get(1..)
+            && rest.starts_with(b"/")
+        {
+            let mut expanded = home.to_os_string();
+            expanded.push(OsStr::from_bytes(rest));
+            return Ok(expanded);
+        }
+        Err(
+            "todo-mcp: the value of option '--root <DIR>' may start with '~' or '~/' only — \
+             '~name' (another user's home) is not supported"
+                .to_owned(),
+        )
+    }
+    Ok(match command {
+        Command::Shim { root, default_repo } => Command::Shim {
+            root: expand(root, home)?,
+            default_repo,
+        },
+        Command::Daemon { root } => Command::Daemon {
+            root: expand(root, home)?,
+        },
+        Command::Refresh { root, repo } => Command::Refresh {
+            root: expand(root, home)?,
+            repo,
+        },
+        Command::Progress {
+            root,
+            repo,
+            json,
+            open,
+            out,
+            no_write,
+        } => Command::Progress {
+            root: expand(root, home)?,
+            repo,
+            json,
+            open,
+            out,
+            no_write,
+        },
+        Command::Serve {
+            root,
+            port_file,
+            open,
+        } => Command::Serve {
+            root: expand(root, home)?,
+            port_file,
+            open,
+        },
+        Command::Dump { root, repo } => Command::Dump {
+            root: expand(root, home)?,
+            repo,
+        },
+        Command::Verify { root, repo } => Command::Verify {
+            root: expand(root, home)?,
+            repo,
+        },
+        Command::Repair {
+            root,
+            repo,
+            dry_run,
+            yes,
+        } => Command::Repair {
+            root: expand(root, home)?,
+            repo,
+            dry_run,
+            yes,
+        },
+        command @ (Command::Help | Command::Version) => command,
+    })
+}
+
+/// Rejects an attached value on a flag that takes none (`--help=yes`,
+/// `-hx`): lexopt hands it over instead of erroring, and pedantic
+/// parsing — U14's reason for choosing lexopt — means refusing it
+/// rather than dropping it on the floor.
+fn reject_attached_value(parser: &mut lexopt::Parser, name: &str) -> Result<(), String> {
+    match parser.optional_value() {
+        None => Ok(()),
+        Some(value) => {
+            let text = value.to_string_lossy();
+            Err(format!(
+                "todo-mcp: the flag '--{name}' takes no value, got '{text}'"
+            ))
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The exit-contract coverage the usage faults had none of: the
+    /// parse is total, every fault is a message the binary prints with
+    /// the usage text and exit 2, and the messages are pinned exactly
+    /// because they are the operator-facing contract.
+    #[test]
+    fn a_missing_root_is_a_usage_fault() {
+        assert_eq!(
+            parse_args(Vec::<OsString>::new()),
+            Err("todo-mcp: the required option '--root <DIR>' was not provided".to_owned())
+        );
+    }
+
+    #[test]
+    fn an_unknown_flag_is_a_usage_fault() {
+        assert_eq!(
+            parse_args(["--bogus", "x"]),
+            Err("todo-mcp: invalid option '--bogus'".to_owned())
+        );
+    }
+
+    #[test]
+    fn an_unknown_subcommand_is_a_usage_fault() {
+        // A bare positional reads as an attempted subcommand — the
+        // honest message names it, never a bare "unexpected".
+        assert_eq!(
+            parse_args(["camera"]),
+            Err("todo-mcp: unknown subcommand 'camera'".to_owned())
+        );
+    }
+
+    #[test]
+    fn a_positional_after_the_subcommand_is_a_usage_fault() {
+        assert_eq!(
+            parse_args(["--root", "/tmp/data", "progress", "extra"]),
+            Err("todo-mcp: unexpected argument \"extra\"".to_owned())
+        );
+    }
+
+    #[test]
+    fn json_without_the_subcommand_is_a_usage_fault() {
+        assert_eq!(
+            parse_args(["--root", "/tmp/data", "--json"]),
+            Err("todo-mcp: the option '--json' belongs to the 'progress' subcommand".to_owned())
+        );
+    }
+
+    #[test]
+    fn no_arguments_route_to_the_shim() {
+        assert_eq!(
+            parse_args(["--root", "/tmp/data"]),
+            Ok(Command::Shim {
+                root: OsString::from("/tmp/data"),
+                default_repo: None
+            })
+        );
+    }
+
+    #[test]
+    fn the_progress_subcommand_routes_to_the_render() {
+        assert_eq!(
+            parse_args(["--root", "/tmp/data", "progress"]),
+            Ok(Command::Progress {
+                root: OsString::from("/tmp/data"),
+                repo: None,
+                json: false,
+                open: false,
+                out: None,
+                no_write: false
+            })
+        );
+    }
+
+    #[test]
+    fn the_globals_order_freely_around_the_subcommand() {
+        // lexopt walks the vector, not a fixed flag order, so the
+        // globals parse before or after the subcommand alike.
+        let before = parse_args(["--root", "/tmp/data", "progress", "--json"]);
+        let after = parse_args(["progress", "--root", "/tmp/data", "--json"]);
+        assert_eq!(
+            before,
+            Ok(Command::Progress {
+                root: OsString::from("/tmp/data"),
+                repo: None,
+                json: true,
+                open: false,
+                out: None,
+                no_write: false
+            })
+        );
+        assert_eq!(before, after);
+    }
+
+    #[test]
+    fn a_missing_repo_value_is_a_usage_fault() {
+        assert_eq!(
+            parse_args(["--root", "/tmp/data", "--repo"]),
+            Err("todo-mcp: missing argument for option '--repo'".to_owned())
+        );
+    }
+
+    #[test]
+    fn a_malformed_repo_slug_is_a_usage_fault() {
+        // Configuration is validated where it enters: a malformed slug
+        // is a usage fault (exit 2), never a wire error the first tool
+        // call would answer.
+        assert_eq!(
+            parse_args(["--root", "/tmp/data", "--repo", "Bad!"]),
+            Err("todo-mcp: --repo: invalid repository slug: \"Bad!\"".to_owned())
+        );
+    }
+
+    #[test]
+    fn the_happy_path_takes_the_root_and_repo_values() {
+        assert_eq!(
+            parse_args(["--root", "/tmp/data", "--repo", "fixture"]),
+            Ok(Command::Shim {
+                root: OsString::from("/tmp/data"),
+                default_repo: Some(RepoSlug::from_str("fixture").unwrap()),
+            })
+        );
+    }
+
+    #[test]
+    fn the_repo_flag_orders_freely_around_the_root_flag() {
+        // lexopt walks the vector, not a fixed flag order, so either
+        // order parses to the same configuration.
+        assert_eq!(
+            parse_args(["--repo", "fixture", "--root", "/tmp/data"]),
+            Ok(Command::Shim {
+                root: OsString::from("/tmp/data"),
+                default_repo: Some(RepoSlug::from_str("fixture").unwrap()),
+            })
+        );
+    }
+
+    #[test]
+    fn the_progress_subcommand_takes_the_repo_flag() {
+        assert_eq!(
+            parse_args(["--root", "/tmp/data", "progress", "--repo", "fixture"]),
+            Ok(Command::Progress {
+                root: OsString::from("/tmp/data"),
+                repo: Some(RepoSlug::from_str("fixture").unwrap()),
+                json: false,
+                open: false,
+                out: None,
+                no_write: false
+            })
+        );
+    }
+
+    #[test]
+    fn the_write_flags_parse_onto_the_subcommand() {
+        assert_eq!(
+            parse_args([
+                "--root",
+                "/tmp/data",
+                "progress",
+                "--out",
+                "/tmp/page",
+                "--open"
+            ]),
+            Ok(Command::Progress {
+                root: OsString::from("/tmp/data"),
+                repo: None,
+                json: false,
+                open: true,
+                out: Some(OsString::from("/tmp/page")),
+                no_write: false
+            })
+        );
+        assert_eq!(
+            parse_args(["--root", "/tmp/data", "progress", "--no-write"]),
+            Ok(Command::Progress {
+                root: OsString::from("/tmp/data"),
+                repo: None,
+                json: false,
+                open: false,
+                out: None,
+                no_write: true
+            })
+        );
+    }
+
+    #[test]
+    fn the_write_flags_belong_to_the_subcommand() {
+        // A write flag without `progress` is a usage fault naming the
+        // flag — never a silently ignored option. `--open` is shared
+        // with `serve`, so its fault names both.
+        assert_eq!(
+            parse_args(["--root", "/tmp/data", "--open"]),
+            Err(
+                "todo-mcp: the option '--open' belongs to the 'progress' or 'serve' subcommand"
+                    .to_owned()
+            )
+        );
+        assert_eq!(
+            parse_args(["--root", "/tmp/data", "--no-write"]),
+            Err(
+                "todo-mcp: the option '--no-write' belongs to the 'progress' subcommand".to_owned()
+            )
+        );
+        assert_eq!(
+            parse_args(["--root", "/tmp/data", "--out", "/tmp/page"]),
+            Err(
+                "todo-mcp: the option '--out <DIR>' belongs to the 'progress' subcommand"
+                    .to_owned()
+            )
+        );
+    }
+
+    #[test]
+    fn json_cannot_combine_with_the_write_flags() {
+        // `--json` prints the document and writes nothing, so the
+        // write-shaping flags would be silently ignored beside it — a
+        // usage fault instead.
+        assert_eq!(
+            parse_args([
+                "--root",
+                "/tmp/data",
+                "progress",
+                "--json",
+                "--out",
+                "/tmp/page"
+            ]),
+            Err(
+                "todo-mcp: '--json' cannot combine with '--out' (it prints the document to \
+                 stdout and writes nothing)"
+                    .to_owned()
+            )
+        );
+        assert_eq!(
+            parse_args(["--root", "/tmp/data", "progress", "--json", "--open"]),
+            Err(
+                "todo-mcp: '--json' cannot combine with '--open' (nothing is written to open)"
+                    .to_owned()
+            )
+        );
+    }
+
+    #[test]
+    fn the_refresh_subcommand_routes() {
+        assert_eq!(
+            parse_args(["--root", "/tmp/data", "refresh"]),
+            Ok(Command::Refresh {
+                root: OsString::from("/tmp/data"),
+                repo: None
+            })
+        );
+    }
+
+    #[test]
+    fn the_refresh_subcommand_takes_the_repo_flag() {
+        assert_eq!(
+            parse_args(["--root", "/tmp/data", "refresh", "--repo", "fixture"]),
+            Ok(Command::Refresh {
+                root: OsString::from("/tmp/data"),
+                repo: Some(RepoSlug::from_str("fixture").unwrap())
+            })
+        );
+    }
+
+    #[test]
+    fn no_write_cannot_combine_with_the_write_flags() {
+        // `--no-write` writes nothing, so `--out` and `--open` would
+        // be silently ignored beside it — usage faults instead.
+        assert_eq!(
+            parse_args([
+                "--root",
+                "/tmp/data",
+                "progress",
+                "--no-write",
+                "--out",
+                "/tmp/page"
+            ]),
+            Err(
+                "todo-mcp: '--no-write' cannot combine with '--out' (nothing is written)"
+                    .to_owned()
+            )
+        );
+        assert_eq!(
+            parse_args(["--root", "/tmp/data", "progress", "--no-write", "--open"]),
+            Err(
+                "todo-mcp: '--no-write' cannot combine with '--open' (nothing is written to \
+                 open)"
+                    .to_owned()
+            )
+        );
+    }
+
+    #[test]
+    fn the_daemon_flag_parses() {
+        // The no-subcommand path's own flag, ordering freely around
+        // the root like every global.
+        assert_eq!(
+            parse_args(["--root", "/tmp/data", "--daemon"]),
+            Ok(Command::Daemon {
+                root: OsString::from("/tmp/data")
+            })
+        );
+        assert_eq!(
+            parse_args(["--daemon", "--root", "/tmp/data"]),
+            Ok(Command::Daemon {
+                root: OsString::from("/tmp/data")
+            })
+        );
+    }
+
+    #[test]
+    fn the_repo_flag_cannot_combine_with_daemon() {
+        // The daemon serves every connection's own default via the
+        // socket preamble; a `--repo` would be silently ignored — a
+        // usage fault instead (the serve precedent's rule).
+        assert_eq!(
+            parse_args(["--root", "/tmp/data", "--daemon", "--repo", "fixture"]),
+            Err(
+                "todo-mcp: '--repo' cannot combine with '--daemon' (the daemon serves every \
+                 connection's own default via the socket preamble)"
+                    .to_owned()
+            )
+        );
+    }
+
+    #[test]
+    fn the_daemon_flag_cannot_combine_with_a_subcommand() {
+        // The daemon is the no-subcommand path's own shape; the CLI
+        // subcommands are daemon-less. Pinned for every subcommand
+        // and both orders, so a dropped row cannot survive.
+        for subcommand in ["progress", "refresh", "serve", "dump", "verify", "repair"] {
+            let expected = Err(format!(
+                "todo-mcp: '--daemon' cannot combine with '{subcommand}' (the daemon is the \
+                 no-subcommand path's own; the CLI subcommands are daemon-less)"
+            ));
+            assert_eq!(
+                parse_args(["--root", "/tmp/data", "--daemon", subcommand]),
+                expected
+            );
+            assert_eq!(
+                parse_args(["--root", "/tmp/data", subcommand, "--daemon"]),
+                expected
+            );
+        }
+    }
+
+    #[test]
+    fn the_daemon_flag_takes_no_value() {
+        // Pedantic: a flag that takes none refuses an attached value.
+        let error = parse_args(["--root", "/tmp/data", "--daemon=x"]).unwrap_err();
+        assert!(error.contains("takes no value"), "{error}");
+    }
+
+    #[test]
+    fn the_serve_subcommand_routes() {
+        assert_eq!(
+            parse_args(["--root", "/tmp/data", "serve"]),
+            Ok(Command::Serve {
+                root: OsString::from("/tmp/data"),
+                port_file: None,
+                open: false
+            })
+        );
+    }
+
+    #[test]
+    fn the_serve_flags_parse_onto_the_subcommand() {
+        // The globals order freely around the subcommand, and the
+        // serve flags land on it.
+        assert_eq!(
+            parse_args([
+                "--root",
+                "/tmp/data",
+                "serve",
+                "--port-file",
+                "/tmp/serve.port",
+                "--open"
+            ]),
+            Ok(Command::Serve {
+                root: OsString::from("/tmp/data"),
+                port_file: Some(OsString::from("/tmp/serve.port")),
+                open: true
+            })
+        );
+    }
+
+    #[test]
+    fn the_port_file_flag_belongs_to_serve() {
+        assert_eq!(
+            parse_args(["--root", "/tmp/data", "--port-file", "/tmp/serve.port"]),
+            Err(
+                "todo-mcp: the option '--port-file <PATH>' belongs to the 'serve' subcommand"
+                    .to_owned()
+            )
+        );
+    }
+
+    #[test]
+    fn the_repo_flag_cannot_combine_with_serve() {
+        // The listener serves every repo in the root; a `--repo` flag
+        // would be silently ignored — a usage fault instead.
+        assert_eq!(
+            parse_args(["--root", "/tmp/data", "serve", "--repo", "fixture"]),
+            Err(
+                "todo-mcp: '--repo' cannot combine with 'serve' (the listener serves every \
+                 repo in the root; the repo is a URL parameter)"
+                    .to_owned()
+            )
+        );
+    }
+
+    #[test]
+    fn the_progress_flags_do_not_combine_with_serve() {
+        // The progress-only flags beside `serve` are usage faults
+        // naming their subcommand — never silently ignored options.
+        assert_eq!(
+            parse_args(["--root", "/tmp/data", "serve", "--json"]),
+            Err("todo-mcp: the option '--json' belongs to the 'progress' subcommand".to_owned())
+        );
+        assert_eq!(
+            parse_args(["--root", "/tmp/data", "serve", "--out", "/tmp/page"]),
+            Err(
+                "todo-mcp: the option '--out <DIR>' belongs to the 'progress' subcommand"
+                    .to_owned()
+            )
+        );
+    }
+
+    // =================================================================
+    // The inspector's parse coverage (t72, D20): the absorbed args
+    // tests adapted to the host wordings (D7), plus the surface the
+    // absorption adds — the help/version requests and the
+    // per-subcommand switch table's repair rows. The two
+    // process-spawning absorbed tests (the exit-code and stream half)
+    // live in the `inspect` integration target, where cargo sets
+    // `CARGO_BIN_EXE_todo-mcp`.
+    // =================================================================
+
+    #[test]
+    fn the_inspector_happy_paths_parse_into_typed_commands() {
+        // The absorbed three happy paths, adapted: `--repo` is the
+        // host's name for the repo dimension, and `repair` carries its
+        // two switches.
+        assert_eq!(
+            parse_args(["dump", "--root", "/data", "--repo", "camera"]),
+            Ok(Command::Dump {
+                root: OsString::from("/data"),
+                repo: Some(RepoSlug::from_str("camera").unwrap())
+            })
+        );
+        assert_eq!(
+            parse_args(["verify", "--root", "/data", "--repo", "camera"]),
+            Ok(Command::Verify {
+                root: OsString::from("/data"),
+                repo: Some(RepoSlug::from_str("camera").unwrap())
+            })
+        );
+        assert_eq!(
+            parse_args([
+                "repair",
+                "--root",
+                "/data",
+                "--repo",
+                "camera",
+                "--dry-run",
+                "--yes"
+            ]),
+            Ok(Command::Repair {
+                root: OsString::from("/data"),
+                repo: Some(RepoSlug::from_str("camera").unwrap()),
+                dry_run: true,
+                yes: true
+            })
+        );
+    }
+
+    #[test]
+    fn the_gnu_conventions_lexopt_owns_parse_too() {
+        // `--flag=value` and options ahead of the subcommand: the
+        // conventions U14 chose a parser for rather than hand-rolling.
+        assert_eq!(
+            parse_args(["dump", "--root=/data", "--repo=camera"]),
+            Ok(Command::Dump {
+                root: OsString::from("/data"),
+                repo: Some(RepoSlug::from_str("camera").unwrap())
+            })
+        );
+        assert_eq!(
+            parse_args(["--root", "/data", "--repo", "camera", "verify"]),
+            Ok(Command::Verify {
+                root: OsString::from("/data"),
+                repo: Some(RepoSlug::from_str("camera").unwrap())
+            })
+        );
+    }
+
+    #[test]
+    fn the_repair_switches_are_rejected_on_the_other_subcommands() {
+        // The per-subcommand switch table U14 accepted the cost of: a
+        // switch on the wrong subcommand is an error, never a silent
+        // ignore — including before any subcommand, where it belongs
+        // to no table entry at all.
+        for args in [
+            ["dump", "--root", "/data", "--repo", "camera", "--yes"],
+            ["verify", "--root", "/data", "--repo", "camera", "--dry-run"],
+            ["--dry-run", "dump", "--root", "/data", "--repo", "camera"],
+        ] {
+            let error = parse_args(args).unwrap_err();
+            assert!(
+                error.contains("belongs to the 'repair' subcommand"),
+                "{error}"
+            );
+        }
+    }
+
+    #[test]
+    fn missing_required_options_are_named() {
+        // The host's one required option: a subcommand without `--root`
+        // names it. (`--repo` is optional everywhere — it resolves
+        // through the cwd tier — so the absorbed `--slug` case has no
+        // host twin.)
+        let error = parse_args(["dump"]).unwrap_err();
+        assert!(error.contains("--root"), "{error}");
+    }
+
+    #[test]
+    fn unknown_flags_subcommands_and_stray_positionals_are_rejected() {
+        let error =
+            parse_args(["dump", "--root", "/data", "--repo", "camera", "--bogus"]).unwrap_err();
+        assert!(error.contains("--bogus"), "{error}");
+
+        let error = parse_args(["nosuch", "--root", "/data"]).unwrap_err();
+        assert!(error.contains("unknown subcommand 'nosuch'"), "{error}");
+
+        let error =
+            parse_args(["dump", "--root", "/data", "--repo", "camera", "extra"]).unwrap_err();
+        assert!(error.contains("extra"), "{error}");
+    }
+
+    #[test]
+    fn a_malformed_repo_value_is_a_usage_fault() {
+        // §7: the slug is the key — and a key that is not one never
+        // reaches the store, so it can never be mistaken for one.
+        for bad in ["Bad Slug", "-x", "", "camera-"] {
+            let error = parse_args(["dump", "--root", "/data", "--repo", bad]).unwrap_err();
+            assert!(error.contains("invalid repository slug"), "{error}");
+        }
+    }
+
+    #[test]
+    fn help_and_version_are_requests_not_errors() {
+        assert_eq!(parse_args(["--help"]), Ok(Command::Help));
+        assert_eq!(parse_args(["-h"]), Ok(Command::Help));
+        assert_eq!(parse_args(["dump", "--help"]), Ok(Command::Help));
+        assert_eq!(
+            parse_args(["repair", "--root", "/data", "-h"]),
+            Ok(Command::Help)
+        );
+        assert_eq!(parse_args(["--version"]), Ok(Command::Version));
+        assert_eq!(parse_args(["-V"]), Ok(Command::Version));
+        // The surface extends only --help to the subcommands: a
+        // --version after one is a usage fault naming it, in the
+        // absorbed wording under the host prefix (D6). Pinned for
+        // every subcommand so a dropped row in the check's array
+        // cannot survive.
+        for subcommand in ["progress", "refresh", "serve", "dump", "verify", "repair"] {
+            assert_eq!(
+                parse_args([subcommand, "--version"]),
+                Err(format!(
+                    "todo-mcp: unexpected argument '--version' for '{subcommand}': \
+                     --version is the top level's own"
+                ))
+            );
+        }
+        // Pedantic: a flag that takes none refuses an attached value.
+        let error = parse_args(["--help=yes"]).unwrap_err();
+        assert!(error.contains("takes no value"), "{error}");
+    }
+
+    #[test]
+    fn the_inspector_globals_order_freely_around_the_subcommand() {
+        // The globals parse before or after the inspector's
+        // subcommand alike — the existing rule, pinned for the
+        // absorbed commands.
+        let before = parse_args(["--root", "/data", "--repo", "camera", "dump"]);
+        let after = parse_args(["dump", "--repo", "camera", "--root", "/data"]);
+        assert_eq!(
+            before,
+            Ok(Command::Dump {
+                root: OsString::from("/data"),
+                repo: Some(RepoSlug::from_str("camera").unwrap())
+            })
+        );
+        assert_eq!(before, after);
+    }
+
+    #[test]
+    fn the_inspector_flags_are_rejected_beside_serve_and_progress() {
+        // The inspector's switches beside the other subcommands are
+        // the same class of fault as the progress flags beside serve.
+        assert_eq!(
+            parse_args(["--root", "/tmp/data", "serve", "--dry-run"]),
+            Err("todo-mcp: the option '--dry-run' belongs to the 'repair' subcommand".to_owned())
+        );
+        assert_eq!(
+            parse_args(["--root", "/tmp/data", "progress", "--yes"]),
+            Err("todo-mcp: the option '--yes' belongs to the 'repair' subcommand".to_owned())
+        );
+    }
+
+    // =================================================================
+    // The --root tilde expansion (U73): the no-shell configs' portable
+    // spelling. The fault messages are pinned exactly — they are the
+    // operator-facing contract, same as the parse faults above.
+    // =================================================================
+
+    /// The composition the binary runs: parse, then expand against a
+    /// home.
+    fn parse_and_expand<I>(args: I, home: Option<&str>) -> Result<Command, String>
+    where
+        I: IntoIterator,
+        I::Item: Into<OsString>,
+    {
+        let home = home.map(OsStr::new);
+        parse_args(args).and_then(|command| expand_root(command, home))
+    }
+
+    #[test]
+    fn a_leading_tilde_root_expands_against_the_home() {
+        assert_eq!(
+            parse_and_expand(
+                ["--root", "~/.local/share/dacode-todo"],
+                Some("/home/tester")
+            ),
+            Ok(Command::Shim {
+                root: OsString::from("/home/tester/.local/share/dacode-todo"),
+                default_repo: None
+            })
+        );
+    }
+
+    #[test]
+    fn a_bare_tilde_root_is_the_home_itself() {
+        assert_eq!(
+            parse_and_expand(["--root", "~"], Some("/home/tester")),
+            Ok(Command::Shim {
+                root: OsString::from("/home/tester"),
+                default_repo: None
+            })
+        );
+    }
+
+    #[test]
+    fn a_root_without_a_leading_tilde_passes_through() {
+        // Only a leading `~` expands — a tilde elsewhere in the path
+        // is a literal directory name, and an absolute or relative
+        // path is untouched.
+        assert_eq!(
+            parse_and_expand(["--root", "/tmp/~data"], Some("/home/tester")),
+            Ok(Command::Shim {
+                root: OsString::from("/tmp/~data"),
+                default_repo: None
+            })
+        );
+        assert_eq!(
+            parse_and_expand(["--root", "relative/~/x"], Some("/home/tester")),
+            Ok(Command::Shim {
+                root: OsString::from("relative/~/x"),
+                default_repo: None
+            })
+        );
+    }
+
+    #[test]
+    fn a_tilde_root_without_a_home_is_a_usage_fault() {
+        // Unset and empty are the same no-home: an empty HOME would
+        // otherwise expand `~` to the empty, cwd-relative root.
+        let expected = Err(
+            "todo-mcp: the value of option '--root <DIR>' starts with '~' but HOME is not \
+             set or is empty"
+                .to_owned(),
+        );
+        assert_eq!(parse_and_expand(["--root", "~/data"], None), expected);
+        assert_eq!(parse_and_expand(["--root", "~/data"], Some("")), expected);
+    }
+
+    #[test]
+    fn another_users_home_syntax_is_a_usage_fault() {
+        for bad in ["~someone", "~someone/data"] {
+            assert_eq!(
+                parse_and_expand(["--root", bad], Some("/home/tester")),
+                Err(
+                    "todo-mcp: the value of option '--root <DIR>' may start with '~' or '~/' \
+                     only — '~name' (another user's home) is not supported"
+                        .to_owned()
+                )
+            );
+        }
+    }
+
+    #[test]
+    fn every_command_shapes_root_expands() {
+        // The walk covers every variant so no arm of the dispatch can
+        // miss the expansion.
+        assert_eq!(
+            parse_and_expand(["--root", "~", "--daemon"], Some("/home/tester")),
+            Ok(Command::Daemon {
+                root: OsString::from("/home/tester")
+            })
+        );
+        assert_eq!(
+            parse_and_expand(["--root", "~/d", "progress"], Some("/home/tester")),
+            Ok(Command::Progress {
+                root: OsString::from("/home/tester/d"),
+                repo: None,
+                json: false,
+                open: false,
+                out: None,
+                no_write: false
+            })
+        );
+        assert_eq!(
+            parse_and_expand(["--root", "~/d", "refresh"], Some("/home/tester")),
+            Ok(Command::Refresh {
+                root: OsString::from("/home/tester/d"),
+                repo: None
+            })
+        );
+        assert_eq!(
+            parse_and_expand(["--root", "~/d", "serve"], Some("/home/tester")),
+            Ok(Command::Serve {
+                root: OsString::from("/home/tester/d"),
+                port_file: None,
+                open: false
+            })
+        );
+        assert_eq!(
+            parse_and_expand(["--root", "~/d", "dump"], Some("/home/tester")),
+            Ok(Command::Dump {
+                root: OsString::from("/home/tester/d"),
+                repo: None
+            })
+        );
+        assert_eq!(
+            parse_and_expand(["--root", "~/d", "verify"], Some("/home/tester")),
+            Ok(Command::Verify {
+                root: OsString::from("/home/tester/d"),
+                repo: None
+            })
+        );
+        assert_eq!(
+            parse_and_expand(
+                ["--root", "~/d", "repair", "--dry-run"],
+                Some("/home/tester")
+            ),
+            Ok(Command::Repair {
+                root: OsString::from("/home/tester/d"),
+                repo: None,
+                dry_run: true,
+                yes: false
+            })
+        );
+        // Help and Version carry no root — the pass-through.
+        assert_eq!(
+            parse_and_expand(["--help"], Some("/home/tester")),
+            Ok(Command::Help)
+        );
+        assert_eq!(parse_and_expand(["--version"], None), Ok(Command::Version));
+    }
+}

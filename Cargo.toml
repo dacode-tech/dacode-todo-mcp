@@ -1,0 +1,65 @@
+[workspace]
+members = [
+    "crates/todo-domain",
+    "crates/todo-store",
+    "crates/todo-mcp",
+]
+resolver = "3"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.95"
+license = "MIT OR Apache-2.0"
+
+[workspace.dependencies]
+todo-domain = { path = "crates/todo-domain" }
+todo-store = { path = "crates/todo-store" }
+# The canonical JSON engine (D1, dependency approved at U8): serde_json-
+# compatible bytes, sealed inside todo-store (spec §2). Declared once,
+# here, like the lint regime — a git dependency pinned by rev (the
+# published repository, dacode-tech/dacode-json), so the build is
+# reproducible and an update is an explicit rev bump, never a silent
+# upstream move.
+dacode-json = { git = "https://github.com/dacode-tech/dacode-json", rev = "7aac8af" }
+# The host binary's argument parser (U14, resolved 2026-10-23; the cli's
+# until its absorption into todo-mcp at t72): one dependency,
+# zero transitive, no proc macros, pedantic parsing — declared once at
+# the root like every other (U8's precedent), consumed as
+# `lexopt = { workspace = true }`.
+lexopt = "0.3"
+# The MCP wire (rmcp 3.5.0, user-approved 2026-10-27, spec §6.3): the
+# server binary's transport and macros. serde_json carries D14's
+# `preserve_order` — the determinism dependency, not a preference: rmcp
+# serializes structured tool output with its own serde_json, and without
+# the feature the workspace build re-sorts every struct's keys
+# alphabetically while still compiling. tokio, serde and schemars are
+# rmcp's direct companions exactly as the probe declared them — the
+# macros do not compile without them — declared once here like every
+# dependency.
+rmcp = { version = "3.5", features = ["server", "macros", "transport-io"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+# tokio's `signal` (t71, spec-approved): the serve subcommand's clean
+# SIGINT shutdown — and `net` (D25, spec-approved): the daemon's
+# unix-socket listener. Feature flags on the existing dependency, not
+# new crates.
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "io-std", "io-util", "signal", "net"] }
+serde = { version = "1", features = ["derive"] }
+schemars = "1"
+
+# The lint regime is declared once, here, and inherited per crate via
+# `[lints] workspace = true` (see .agents/roles/_rust.md): a new crate
+# cannot forget it. Tests are exempt through a mechanism, not a
+# convention — `#![cfg_attr(test, allow(...))]` in each library root.
+[workspace.lints.rust]
+unsafe_code = "deny"
+missing_docs = "deny"
+
+[workspace.lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+unreachable = "deny"
+indexing_slicing = "deny"
+exit = "deny"
+wildcard_imports = "deny"

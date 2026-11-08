@@ -1,0 +1,57 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "ast_grep": {
+      "type": "local",
+      "command": [
+        "uvx",
+        "--from",
+        "git+https://github.com/ast-grep/ast-grep-mcp",
+        "ast-grep-server"
+      ],
+      "enabled": true,
+      "environment": {
+        "AST_GREP_CONFIG": "sgconfig.yml"
+      }
+    },
+    "todo-mcp": {
+      "type": "local",
+      "command": [
+        "todo-mcp",
+        "--root",
+        "~/.local/share/dacode-todo"
+      ],
+      "enabled": true
+    }
+  },
+  "permission": {
+    "ast_grep*": "deny"
+  },
+  "provider": {
+    "alibaba-token-plan-cn": {
+      "models": {
+        "deepseek-v4.1-flash-1017": {
+          "name": "DeepSeek V4.1 Flash 1017",
+          "reasoning": true,
+          "tool_call": true,
+          "limit": {
+            "context": 1000000,
+            "output": 131072
+          }
+        }
+      }
+    }
+  },
+  "agent": {
+    "build": {
+      "permission": {
+        "ast_grep*": "allow"
+      }
+    },
+    "plan": {
+      "permission": {
+        "ast_grep*": "allow"
+      }
+    }
+  }
+}

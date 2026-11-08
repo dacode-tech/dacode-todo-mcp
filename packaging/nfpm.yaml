@@ -1,0 +1,75 @@
+# The .deb/.rpm recipe (D29), rendered by nfpm from an already-built
+# static binary — the release workflow's `packages` job, or by hand
+# from the repository root (relative paths resolve against the cwd):
+#
+#   mkdir -p target/nfpm
+#   cp path/to/todo-mcp README.md LICENSE-MIT LICENSE-Apache-2.0 target/nfpm/
+#   VERSION=0.1.0 ARCH=amd64 nfpm pkg -f packaging/nfpm.yaml -p deb -t dist/
+#
+# The staged README and licenses are the release tarball's own, so a
+# package always carries the docs of the binary it wraps.
+#
+# ARCH is Go's spelling (amd64, arm64); nfpm maps it per format (rpm:
+# x86_64, aarch64). VERSION and ARCH are env-expanded; content paths
+# are not, hence the fixed staging path.
+name: todo-mcp
+arch: ${ARCH}
+platform: linux
+version: ${VERSION}
+version_schema: semver
+release: 1
+section: devel
+priority: optional
+maintainer: Anton Burticica <anton@dacode.ro>
+vendor: dacode-tech
+homepage: https://github.com/dacode-tech/dacode-todo-mcp
+license: MIT OR Apache-2.0
+description: |
+  Deterministic task-graph MCP server
+  Markdown task boards become typed, queryable graphs: epics, tasks,
+  gates, findings and debt, decision dossiers that gate work, and
+  registered docs, served to MCP clients over stdio by one per-root
+  daemon. The binary also carries the progress, serve, refresh and
+  dump/verify/repair subcommands.
+
+contents:
+  - src: target/nfpm/todo-mcp
+    dst: /usr/bin/todo-mcp
+    file_info:
+      mode: 0755
+  # Docs: the deb carries them plainly (the copyright file is the
+  # license record Debian reads); rpm marks them %doc/%license, the
+  # licenses under /usr/share/licenses (the Fedora/EL convention).
+  # nfpm's doc/license types exist for rpm only, hence the split.
+  - src: target/nfpm/README.md
+    dst: /usr/share/doc/todo-mcp/README.md
+    packager: deb
+    file_info:
+      mode: 0644
+  - src: packaging/debian/copyright
+    dst: /usr/share/doc/todo-mcp/copyright
+    packager: deb
+    file_info:
+      mode: 0644
+  - src: target/nfpm/README.md
+    dst: /usr/share/doc/todo-mcp/README.md
+    type: doc
+    packager: rpm
+    file_info:
+      mode: 0644
+  - src: target/nfpm/LICENSE-MIT
+    dst: /usr/share/licenses/todo-mcp/LICENSE-MIT
+    type: license
+    packager: rpm
+    file_info:
+      mode: 0644
+  - src: target/nfpm/LICENSE-Apache-2.0
+    dst: /usr/share/licenses/todo-mcp/LICENSE-Apache-2.0
+    type: license
+    packager: rpm
+    file_info:
+      mode: 0644
+
+scripts:
+  postinstall: packaging/scripts/postinstall.sh
+  postremove: packaging/scripts/postremove.sh

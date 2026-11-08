@@ -1,0 +1,24 @@
+{
+  "mcpServers": {
+    "ast_grep": {
+      "type": "stdio",
+      "command": "uvx",
+      "args": [
+        "--from",
+        "git+https://github.com/ast-grep/ast-grep-mcp",
+        "ast-grep-server"
+      ],
+      "env": {
+        "AST_GREP_CONFIG": "sgconfig.yml"
+      }
+    },
+    "todo-mcp": {
+      "type": "stdio",
+      "command": "todo-mcp",
+      "args": [
+        "--root",
+        "~/.local/share/dacode-todo"
+      ]
+    }
+  }
+}
