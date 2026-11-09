@@ -659,14 +659,14 @@ dependencies = [
 
 [[package]]
 name = "todo-domain"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "serde",
 ]
 
 [[package]]
 name = "todo-mcp"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "lexopt",
  "rmcp",
@@ -681,7 +681,7 @@ dependencies = [
 
 [[package]]
 name = "todo-store"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "dacode-json",
  "serde",

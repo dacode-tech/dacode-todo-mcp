@@ -31,7 +31,7 @@ live epic's handover lives under `docs/implementation/handover/`.
 The live epic is E18, public-tree hygiene and the history restart
 (D30, signed 2026-11-08): the tree carries no vendor or
 internal-project detail, and the history restarts as one root commit
-whose first release is v0.1.0 (`docs/implementation/handover/E18.md`).
+whose first release is v0.1.2 (`docs/implementation/handover/E18.md`).
 The current picture is a query, not a paragraph: `todo-mcp --root
 ~/.local/share/dacode-todo progress --json`. §12 holds one open item,
 D28 (Windows support), gating only the Windows release target; every

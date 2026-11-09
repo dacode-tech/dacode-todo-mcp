@@ -6,7 +6,7 @@
 #   curl -fsSL https://github.com/dacode-tech/dacode-todo-mcp/releases/latest/download/install.sh | sh
 #
 # Environment:
-#   TODO_MCP_VERSION      tag to install, e.g. v0.1.0 (default: the latest release)
+#   TODO_MCP_VERSION      tag to install, e.g. v0.1.2 (default: the latest release)
 #   TODO_MCP_INSTALL_DIR  where the binary goes (default: ~/.local/bin)
 #   TODO_MCP_ROOT         store root shown in the printed entry (default: ~/.local/share/dacode-todo)
 #   TODO_MCP_NO_RESTART   set to 1 to leave a running daemon alone

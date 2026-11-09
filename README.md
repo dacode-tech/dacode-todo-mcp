@@ -46,7 +46,7 @@ release's `SHA256SUMS`, installs `~/.local/bin/todo-mcp` by rename
 (the discipline below), signals a running daemon so it restarts on the
 new binary, and prints the opencode `mcp` entry — global and
 per-repository — reporting instead when your global config already has
-one. It never writes a config. Knobs: `TODO_MCP_VERSION=v0.1.0` pins a
+one. It never writes a config. Knobs: `TODO_MCP_VERSION=v0.1.2` pins a
 release, `TODO_MCP_INSTALL_DIR` moves the binary, `TODO_MCP_ROOT`
 changes the store root in the printed entry, `TODO_MCP_NO_RESTART=1`
 leaves the daemon alone; the script runs under any POSIX `sh` with
@@ -60,7 +60,7 @@ release's package, which stops the running daemons so the open
 sessions respawn them from the new binary.
 
 ```sh
-v=<version>         # from the releases page, e.g. 0.1.0 or 0.2.0-rc1
+v=<version>         # from the releases page, e.g. 0.1.2 or 0.2.0-rc1
 pkg=$(printf '%s' "$v" | tr - '~')   # package files spell -rc1 as ~rc1
 base=https://github.com/dacode-tech/dacode-todo-mcp/releases/download/v$v
 

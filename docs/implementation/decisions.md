@@ -47,10 +47,10 @@ and the meta block below; keep the shapes it parses.
 | ~~**D24**~~ | The wire move: the surface extension | (a) the optional estimate on task_add, the optional actual size on closure, the reward line and reflection question on the closure response, one new tool (reward_reflect), the base-instructions rule | high | E13 | resolved (a) 2026-11-06 — user decision, in-thread; the implementation lands as E13's surface unit |
 | ~~**D25**~~ | The shared server per root: a daemon behind thin stdio shims | (a) the single binary — the no-argument invocation is the shim (connect/spawn the daemon, proxy MCP over a unix socket, retry-then-error with no fallback), the extra-argument invocation is the daemon serving every connected session | medium | the shared-server arc | resolved (a) 2026-11-06 — user decision, in-thread ("ok, sign D25"); the implementation lands as the shared-server arc |
 | ~~**D26**~~ | The embedding shape: the harness as the daemon's client | (1) two binaries — the harness ships todo-mcp version-pinned and bridges MCP in its tools layer, the shim's connect-or-spawn re-using any daemon serving the root | medium | E16 | resolved (1) 2026-11-10 — user decision, in-thread ("ok, let's do shape 1"); zero new API, the socket preamble frozen for cross-version attach |
-| ~~**D27**~~ | Release distribution (amends §13) | (a) tag-triggered GitHub release: static musl + macOS arm64 tarballs, signed/notarized macOS, SHA256SUMS, install script printing the opencode entry, Homebrew tap | high | E17 | resolved (a) 2026-11-06 — user decision, in-thread; no deb/rpm, no .pkg, the script never writes a config; first tag v0.1.0 (amended 2026-11-08 by D30) |
+| ~~**D27**~~ | Release distribution (amends §13) | (a) tag-triggered GitHub release: static musl + macOS arm64 tarballs, signed/notarized macOS, SHA256SUMS, install script printing the opencode entry, Homebrew tap | high | E17 | resolved (a) 2026-11-06 — user decision, in-thread; no deb/rpm, no .pkg, the script never writes a config; first tag v0.1.0 (amended 2026-11-08 by D30), v0.1.2 (amended 2026-11-09: v0.1.0's tag name refused) |
 | **D28** | Windows support: the shim/daemon transport off unix sockets (amends D25) | (c) WSL2 for now; (a) named pipes when a native Windows user exists | medium | the Windows release target | open |
 | ~~**D29**~~ | Linux packages: .deb/.rpm beside the tarballs (amends D27) | (a) nfpm, pinned and checksum-verified; /usr/bin/todo-mcp, no dependencies; maintainer scripts restart daemons; no apt/yum repository | high | E17 | resolved (a) 2026-11-06 — user decision, in-thread ("and rpm … fpm or similar tools") |
-| ~~**D30**~~ | Public-tree hygiene: no vendor or internal-project detail; synthetic dacode fixture; fresh history at v0.1.0 (amends D12) | the tree carries no vendor names, internal-project detail or maintainer-machine paths; the dacode fixture synthetic; one fresh root commit in a recreated repository; first release v0.1.0 | high | E18 | resolved 2026-11-08 — user decision; v0.1.1 withdrawn |
+| ~~**D30**~~ | Public-tree hygiene: no vendor or internal-project detail; synthetic dacode fixture; fresh history at v0.1.0 (amends D12) | the tree carries no vendor names, internal-project detail or maintainer-machine paths; the dacode fixture synthetic; one fresh root commit in a recreated repository; first release v0.1.0 | high | E18 | resolved 2026-11-08 — user decision; v0.1.1 withdrawn; amended 2026-11-09 — the v0.1.0 tag name is reserved by GitHub, first release v0.1.2 |
 
 ---
 
@@ -1713,7 +1713,8 @@ Alpine), and does not build for `x86_64-pc-windows-msvc` (D28).
 `tools/brew-formula.sh` and `docs/release-notes/v0.1.0.md` under E17;
 the first tag is `v0.1.0` (amended 2026-11-08 by D30: the history
 restarts in a recreated repository, the earlier v0.1.1 withdrawn
-with it).
+with it; amended again 2026-11-09: the first tag is `v0.1.2` and the
+notes file `docs/release-notes/v0.1.2.md` — see D30's amendment).
 
 ### D28 — Windows support: the shim/daemon transport off unix sockets
 
@@ -1835,3 +1836,14 @@ entry, amends D12 and D27, §9/§10/§13/§14 and §6's `import_md` row,
 and moves the release references to `v0.1.0`), and the gate (U100:
 the orphan root commit, the recreated repository, the `v0.1.0` tag —
 the user's steps).
+
+**Amended 2026-11-09 (user decision): the first release is `v0.1.2`.**
+The recreated repository refused the `v0.1.0` tag ("Cannot create ref
+due to creations being restricted") while accepting other tag names:
+`v0.1.0` had been released and deleted under the old history, and a
+deleted immutable release's tag name stays reserved even across the
+repository's deletion and recreation. `v0.1.1` is reserved the same
+way, so the first release of the new history is `v0.1.2`; the
+workspace version, the protocol golden's `serverInfo`, the release
+notes (`docs/release-notes/v0.1.2.md`) and the install references move
+with it. The rest of the resolution stands.

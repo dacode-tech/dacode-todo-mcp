@@ -4,7 +4,7 @@
 #
 #   mkdir -p target/nfpm
 #   cp path/to/todo-mcp README.md LICENSE-MIT LICENSE-Apache-2.0 target/nfpm/
-#   VERSION=0.1.0 ARCH=amd64 nfpm pkg -f packaging/nfpm.yaml -p deb -t dist/
+#   VERSION=0.1.2 ARCH=amd64 nfpm pkg -f packaging/nfpm.yaml -p deb -t dist/
 #
 # The staged README and licenses are the release tarball's own, so a
 # package always carries the docs of the binary it wraps.

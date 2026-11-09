@@ -94,7 +94,7 @@ mod protocol {
         format!(
             concat!(
                 r#"{{"jsonrpc":"2.0","id":1,"result":{{"protocolVersion":"2025-11-25","#,
-                r#""capabilities":{{"tools":{{}}}},"serverInfo":{{"name":"todo-mcp","version":"0.1.0"}},"#,
+                r#""capabilities":{{"tools":{{}}}},"serverInfo":{{"name":"todo-mcp","version":"0.1.2"}},"#,
                 r#""instructions":"{}"}}}}"#
             ),
             INSTRUCTIONS
@@ -522,7 +522,7 @@ mod protocol {
         );
         assert!(
             response.contains(
-                r#""_meta":{"io.modelcontextprotocol/serverInfo":{"name":"todo-mcp","version":"0.1.0"}}"#
+                r#""_meta":{"io.modelcontextprotocol/serverInfo":{"name":"todo-mcp","version":"0.1.2"}}"#
             ),
             "the discover answer carries our serverInfo: {response}"
         );

@@ -1105,8 +1105,9 @@ and D29 the same day, its `.deb`/`.rpm` amendment, and D30 on
 2026-11-08, public-tree hygiene — no vendor or internal-project detail
 and no maintainer-machine paths in the tree, the dacode fixture
 synthetic (amending D12), the history restarted as one root commit
-with v0.1.0 its first release — signed by the user before any §12
-item was drafted (the in-thread precedent).
+with v0.1.0 its first release (amended 2026-11-09 to v0.1.2: the
+recreated repository refused the v0.1.0 tag name) — signed by the user
+before any §12 item was drafted (the in-thread precedent).
 
 1. **D28 — Windows support.** The shim/daemon transport is unix
    sockets (D25) and does not compile for Windows; the options are a
@@ -1278,6 +1279,14 @@ history restarts as a single root commit made from the cleaned tree
 maintainer-machine paths), pushed to a recreated repository. The
 release made under the old history (v0.1.1) is withdrawn with it, and
 the first release of the new history is v0.1.0.
+
+**D30 amendment (2026-11-09): the release version.** The first
+release of the new history is v0.1.2. A deleted immutable release's
+tag name stays reserved even across the repository's deletion and
+recreation: the recreated repository refused `v0.1.0` (released and
+deleted under the old history) while accepting other tag names, and
+`v0.1.1` is reserved the same way. A tag name once released is never
+planned for again.
 
 ## 14. Roadmap
 
